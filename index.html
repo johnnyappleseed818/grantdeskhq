@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{PRODUCT_NAME}} | Post-award grant-reporting drafts</title>
+    <meta
+      name="description"
+      content="AI-assisted grant-reporting drafts and evidence assembly for outsourced nonprofit accounting and fractional-CFO firms."
+    >
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{{PRODUCT_NAME}} | Structured funder-report drafts">
+    <meta
+      property="og:description"
+      content="Turn redacted historical grant source files into a structured draft, missing-input checklist and source-evidence schedule for human review."
+    >
+    <meta name="theme-color" content="#12233f">
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2312233f'/%3E%3Cpath d='M17 18h30v7H17zm0 12h30v16H17z' fill='%23eef2ec'/%3E%3Cpath d='M22 35h12v3H22zm0 6h20v3H22z' fill='%235b806b'/%3E%3C/svg%3E"
+    >
+    <link rel="stylesheet" href="styles.css">
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+
+    <header class="site-header" data-header>
+      <div class="nav-shell">
+        <a class="brand" href="#top" aria-label="{{PRODUCT_NAME}} home">
+          <span class="brand-mark" aria-hidden="true">
+            <span></span>
+            <span></span>
+          </span>
+          <span>{{PRODUCT_NAME}}</span>
+        </a>
+
+        <button
+          class="nav-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="primary-navigation"
+          data-nav-toggle
+        >
+          <span class="sr-only">Open navigation</span>
+          <span class="nav-toggle-line" aria-hidden="true"></span>
+          <span class="nav-toggle-line" aria-hidden="true"></span>
+          <span class="nav-toggle-line" aria-hidden="true"></span>
+        </button>
+
+        <nav class="primary-nav" id="primary-navigation" aria-label="Primary navigation" data-nav>
+          <a href="#how-it-works">How It Works</a>
+          <a href="#sample-output">Sample Output</a>
+          <a href="#security">Security</a>
+          <a href="#pilot">Founding Pilot</a>
+          <a class="button button-small button-primary" href="#contact">Test a Completed Report</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section class="hero section" id="top" aria-labelledby="hero-title">
+        <div class="page-shell hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow">Post-award reporting workflow</p>
+            <h1 id="hero-title">Turn Grant Source Files into a Structured Funder-Report Draft.</h1>
+            <p class="hero-supporting-copy">
+              Built for outsourced nonprofit finance teams. Combine a grant agreement, approved
+              budget, GL export and structured program update into a draft budget-versus-actual
+              report, variance narrative, missing-input checklist and transaction evidence schedule.
+            </p>
+            <div class="button-row hero-actions">
+              <a class="button button-primary" href="#contact">Test a Completed Report</a>
+              <a class="button button-secondary" href="#sample-output">View Synthetic Sample Output</a>
+            </div>
+            <p class="trust-line">
+              <span aria-hidden="true">●</span>
+              Redacted historical files only during the pilot · No live accounting connection · Human approval required
+            </p>
+          </div>
+
+          <div class="report-preview" aria-label="Synthetic grant-report draft preview">
+            <div class="preview-topline">
+              <span class="synthetic-label">Synthetic data</span>
+              <span class="preview-status"><span aria-hidden="true"></span> Draft for review</span>
+            </div>
+            <div class="preview-heading">
+              <div>
+                <p class="preview-kicker">Community Services Award</p>
+                <h2>Controller review package</h2>
+              </div>
+              <p class="preview-period">Jan–Mar 2026</p>
+            </div>
+            <div class="preview-metrics" aria-label="Synthetic draft summary">
+              <div>
+                <span>Budget lines</span>
+                <strong>4</strong>
+              </div>
+              <div>
+                <span>Review flags</span>
+                <strong>2</strong>
+              </div>
+              <div>
+                <span>Source links</span>
+                <strong>7</strong>
+              </div>
+            </div>
+            <div class="preview-list">
+              <div class="preview-list-row">
+                <span class="line-icon line-icon-complete" aria-hidden="true">✓</span>
+                <div>
+                  <strong>Personnel</strong>
+                  <span>Three source transactions mapped</span>
+                </div>
+                <span class="confidence confidence-high">High</span>
+              </div>
+              <div class="preview-list-row">
+                <span class="line-icon line-icon-review" aria-hidden="true">!</span>
+                <div>
+                  <strong>Program supplies</strong>
+                  <span>Program note requested</span>
+                </div>
+                <span class="confidence confidence-review">Review</span>
+              </div>
+              <div class="preview-list-row">
+                <span class="line-icon line-icon-complete" aria-hidden="true">✓</span>
+                <div>
+                  <strong>Travel</strong>
+                  <span>Two source transactions mapped</span>
+                </div>
+                <span class="confidence confidence-medium">Medium</span>
+              </div>
+            </div>
+            <button class="text-button preview-launch" type="button" data-open-preview>
+              Preview synthetic workflow
+              <span aria-hidden="true">↗</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="problem section section-muted" aria-labelledby="problem-title">
+        <div class="page-shell split-heading">
+          <div>
+            <p class="eyebrow">The reporting gap</p>
+            <h2 id="problem-title">The source of truth is spread across five different places.</h2>
+          </div>
+          <p>
+            Post-award reporting often begins with source files that were never designed to work
+            together. {{PRODUCT_NAME}} is designed to assemble a reviewable first draft while keeping
+            source references and open questions visible to the finance professional.
+          </p>
+        </div>
+
+        <div class="page-shell source-grid" role="list" aria-label="Common grant-reporting sources">
+          <article class="source-card" role="listitem">
+            <span class="source-number" aria-hidden="true">01</span>
+            <h3>Award agreements</h3>
+            <p>Reporting periods, cost restrictions, match requirements and narrative instructions.</p>
+          </article>
+          <article class="source-card" role="listitem">
+            <span class="source-number" aria-hidden="true">02</span>
+            <h3>Approved budgets</h3>
+            <p>Funder-specific categories that may not match the organization’s chart of accounts.</p>
+          </article>
+          <article class="source-card" role="listitem">
+            <span class="source-number" aria-hidden="true">03</span>
+            <h3>General-ledger exports</h3>
+            <p>Transaction descriptions, account codes, dates and identifiers in spreadsheet form.</p>
+          </article>
+          <article class="source-card" role="listitem">
+            <span class="source-number" aria-hidden="true">04</span>
+            <h3>Program updates</h3>
+            <p>Structured context from program leaders needed to explain activity and variances.</p>
+          </article>
+          <article class="source-card" role="listitem">
+            <span class="source-number" aria-hidden="true">05</span>
+            <h3>Word and Excel templates</h3>
+            <p>Funder-specific layouts that determine how the final reviewed report is presented.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="workflow section" id="how-it-works" aria-labelledby="workflow-title">
+        <div class="page-shell section-intro">
+          <p class="eyebrow">How it works</p>
+          <h2 id="workflow-title">A controlled path from source files to a review package.</h2>
+          <p>
+            {{PRODUCT_NAME}} is an AI-assisted draft and evidence-assembly system. Every suggested
+            rule, mapping and narrative remains subject to professional human review.
+          </p>
+        </div>
+
+        <div class="page-shell workflow-grid">
+          <article class="workflow-step">
+            <div class="step-header">
+              <span class="step-number">1</span>
+              <span class="step-tag">Collect</span>
+            </div>
+            <h3>Provide the source set</h3>
+            <p>Upload the grant agreement, approved budget, GL CSV and structured program update.</p>
+            <ul class="compact-list">
+              <li>Redacted historical documents</li>
+              <li>No live accounting connection</li>
+              <li>No file collection in the website form</li>
+            </ul>
+          </article>
+
+          <article class="workflow-step workflow-step-featured">
+            <div class="step-header">
+              <span class="step-number">2</span>
+              <span class="step-tag">Review</span>
+            </div>
+            <h3>Evaluate the draft logic</h3>
+            <p>
+              Review extracted reporting rules, suggested transaction mappings, variances and
+              missing information before accepting any output.
+            </p>
+            <ul class="compact-list">
+              <li>Confidence-labelled suggestions</li>
+              <li>Source transaction references</li>
+              <li>Visible missing-input questions</li>
+            </ul>
+          </article>
+
+          <article class="workflow-step">
+            <div class="step-header">
+              <span class="step-number">3</span>
+              <span class="step-tag">Export</span>
+            </div>
+            <h3>Prepare controller review</h3>
+            <p>Export a controller-review package with the draft report and its source evidence.</p>
+            <ul class="compact-list">
+              <li>Budget-versus-actual draft</li>
+              <li>Variance narrative draft</li>
+              <li>Evidence and open-item schedules</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="sample section section-navy" id="sample-output" aria-labelledby="sample-title">
+        <div class="page-shell sample-heading">
+          <div>
+            <p class="eyebrow eyebrow-light">Sample output</p>
+            <h2 id="sample-title">See the review trail, not just the totals.</h2>
+          </div>
+          <div>
+            <p>
+              This demonstration uses synthetic data and is provided only to illustrate the proposed
+              workflow and output structure.
+            </p>
+            <div class="button-row sample-downloads">
+              <button class="button button-light" type="button" data-download="sampleReportPdf">
+                Synthetic Sample Report PDF
+              </button>
+              <button class="button button-outline-light" type="button" data-download="glMappingXlsx">
+                Synthetic GL Mapping XLSX
+              </button>
+            </div>
+            <p class="download-status" role="status" aria-live="polite" data-download-status></p>
+          </div>
+        </div>
+
+        <div class="page-shell table-card">
+          <div class="table-titlebar">
+            <div>
+              <span class="synthetic-label synthetic-label-dark">Synthetic data</span>
+              <h3>Budget-versus-actual mapping preview</h3>
+            </div>
+            <p>Reporting period: January 1–March 31, 2026</p>
+          </div>
+          <div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable synthetic sample output">
+            <table>
+              <caption class="sr-only">
+                Synthetic preview showing reporting period, budget lines, actuals, balances, variances,
+                confidence, transaction IDs and missing inputs.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Reporting period</th>
+                  <th scope="col">Budget line</th>
+                  <th scope="col" class="numeric">Period actual</th>
+                  <th scope="col" class="numeric">Cumulative actual</th>
+                  <th scope="col" class="numeric">Remaining balance</th>
+                  <th scope="col" class="numeric">Variance</th>
+                  <th scope="col">Mapping confidence</th>
+                  <th scope="col">Source transaction IDs</th>
+                  <th scope="col">Missing-input status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Jan–Mar 2026</td>
+                  <td><strong>Personnel</strong></td>
+                  <td class="numeric">$18,420</td>
+                  <td class="numeric">$18,420</td>
+                  <td class="numeric">$41,580</td>
+                  <td class="numeric">($3,420)</td>
+                  <td><span class="table-pill table-pill-high">High</span></td>
+                  <td><span class="transaction-id">TX-1048</span> <span class="transaction-id">TX-1102</span></td>
+                  <td><span class="status-complete">Complete</span></td>
+                </tr>
+                <tr>
+                  <td>Jan–Mar 2026</td>
+                  <td><strong>Program supplies</strong></td>
+                  <td class="numeric">$7,860</td>
+                  <td class="numeric">$7,860</td>
+                  <td class="numeric">$12,140</td>
+                  <td class="numeric">$1,140</td>
+                  <td><span class="table-pill table-pill-review">Review</span></td>
+                  <td><span class="transaction-id">TX-1177</span> <span class="transaction-id">TX-1193</span></td>
+                  <td><span class="status-missing">Program explanation requested</span></td>
+                </tr>
+                <tr>
+                  <td>Jan–Mar 2026</td>
+                  <td><strong>Travel</strong></td>
+                  <td class="numeric">$2,315</td>
+                  <td class="numeric">$2,315</td>
+                  <td class="numeric">$7,685</td>
+                  <td class="numeric">$185</td>
+                  <td><span class="table-pill table-pill-medium">Medium</span></td>
+                  <td><span class="transaction-id">TX-1214</span> <span class="transaction-id">TX-1220</span></td>
+                  <td><span class="status-complete">Complete</span></td>
+                </tr>
+                <tr>
+                  <td>Jan–Mar 2026</td>
+                  <td><strong>Indirect costs</strong></td>
+                  <td class="numeric">$3,980</td>
+                  <td class="numeric">$3,980</td>
+                  <td class="numeric">$8,020</td>
+                  <td class="numeric">$520</td>
+                  <td><span class="table-pill table-pill-review">Review</span></td>
+                  <td><span class="transaction-id">CALC-003</span></td>
+                  <td><span class="status-missing">Rate confirmation requested</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="table-note">
+            <span aria-hidden="true">i</span>
+            <p>
+              All organizations, awards, amounts, transactions and statuses shown above are synthetic.
+              Mapping confidence is an assistance cue, not an accounting conclusion.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="data-handling section" id="security" aria-labelledby="security-title">
+        <div class="page-shell data-grid">
+          <div class="data-copy">
+            <p class="eyebrow">Data handling</p>
+            <h2 id="security-title">A deliberately limited founding-pilot workflow.</h2>
+            <p>
+              The pilot is structured around completed historical reporting work. {{PRODUCT_NAME}}
+              assists with draft preparation and evidence assembly; it does not submit reports or
+              replace professional judgment.
+            </p>
+            <a class="text-link" href="#contact">Ask about the pilot data-handling process <span aria-hidden="true">→</span></a>
+          </div>
+
+          <ul class="data-list">
+            <li>
+              <span class="check-mark" aria-hidden="true">✓</span>
+              <span>Redacted historical files requested during the pilot</span>
+            </li>
+            <li>
+              <span class="check-mark" aria-hidden="true">✓</span>
+              <span>No live accounting-system credentials required</span>
+            </li>
+            <li>
+              <span class="check-mark" aria-hidden="true">✓</span>
+              <span>No report is submitted automatically</span>
+            </li>
+            <li>
+              <span class="check-mark" aria-hidden="true">✓</span>
+              <span>Human review is required</span>
+            </li>
+            <li>
+              <span class="check-mark" aria-hidden="true">✓</span>
+              <span>Pilot files deleted according to the published retention policy</span>
+            </li>
+            <li>
+              <span class="check-mark" aria-hidden="true">✓</span>
+              <span>Customer data is not used to train public models</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="pilot section section-muted" id="pilot" aria-labelledby="pilot-title">
+        <div class="page-shell pilot-card">
+          <div class="pilot-summary">
+            <p class="eyebrow">Founding pilot</p>
+            <h2 id="pilot-title">Founding Agency Pilot — $500 one-time</h2>
+            <p class="pilot-duration">30 days · Limited founding-pilot format</p>
+            <p>
+              Evaluate {{PRODUCT_NAME}} against completed historical reports before considering any
+              broader workflow. The pilot uses an AI-assisted draft and evidence-assembly process
+              requiring professional review.
+            </p>
+            <a class="button button-primary" href="#contact">Test a Completed Report</a>
+          </div>
+
+          <div class="pilot-includes">
+            <h3>What the pilot includes</h3>
+            <ul class="pilot-list">
+              <li>Up to two nonprofit client entities</li>
+              <li>Up to four completed historical reports</li>
+              <li>Award-rule extraction</li>
+              <li>GL mapping suggestions</li>
+              <li>BVA and narrative draft</li>
+              <li>Missing-input checklist</li>
+              <li>Source evidence</li>
+              <li>Direct founder support</li>
+            </ul>
+            <p class="professional-note">
+              Pilot output is provided for professional review and is not accounting, legal or compliance advice.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="contact section" id="contact" aria-labelledby="contact-title">
+        <div class="page-shell contact-grid">
+          <div class="contact-copy">
+            <p class="eyebrow">Test the workflow</p>
+            <h2 id="contact-title">Start with one completed historical report.</h2>
+            <p>
+              Tell us how your firm prepares post-award reports today. Do not upload documents here.
+              Qualified prospects will receive a separate secure-upload link after an initial review.
+            </p>
+            <div class="contact-expectation">
+              <span aria-hidden="true">01</span>
+              <p>Share workflow context using this form.</p>
+            </div>
+            <div class="contact-expectation">
+              <span aria-hidden="true">02</span>
+              <p>Discuss a suitable completed historical report.</p>
+            </div>
+            <div class="contact-expectation">
+              <span aria-hidden="true">03</span>
+              <p>Receive separate secure-upload instructions if the pilot is a fit.</p>
+            </div>
+          </div>
+
+          <form class="lead-form" data-lead-form novalidate>
+            <div class="form-heading">
+              <h3>Founding-pilot inquiry</h3>
+              <p>Fields marked <span aria-hidden="true">*</span><span class="sr-only">with an asterisk</span> are required.</p>
+            </div>
+
+            <div class="form-grid">
+              <div class="field">
+                <label for="name">Name <span aria-hidden="true">*</span></label>
+                <input id="name" name="name" type="text" autocomplete="name" required>
+              </div>
+              <div class="field">
+                <label for="email">Work email <span aria-hidden="true">*</span></label>
+                <input id="email" name="email" type="email" autocomplete="email" required>
+              </div>
+              <div class="field">
+                <label for="firm-name">Firm name <span aria-hidden="true">*</span></label>
+                <input id="firm-name" name="firmName" type="text" autocomplete="organization" required>
+              </div>
+              <div class="field">
+                <label for="role">Role <span aria-hidden="true">*</span></label>
+                <input id="role" name="role" type="text" autocomplete="organization-title" required>
+              </div>
+              <div class="field">
+                <label for="client-count">Number of nonprofit clients <span aria-hidden="true">*</span></label>
+                <select id="client-count" name="nonprofitClientCount" required>
+                  <option value="">Select a range</option>
+                  <option value="1-5">1–5</option>
+                  <option value="6-15">6–15</option>
+                  <option value="16-30">16–30</option>
+                  <option value="31-60">31–60</option>
+                  <option value="61+">61+</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="report-count">Approximate reports prepared per quarter <span aria-hidden="true">*</span></label>
+                <select id="report-count" name="reportsPerQuarter" required>
+                  <option value="">Select a range</option>
+                  <option value="1-5">1–5</option>
+                  <option value="6-15">6–15</option>
+                  <option value="16-30">16–30</option>
+                  <option value="31-60">31–60</option>
+                  <option value="61+">61+</option>
+                </select>
+              </div>
+              <div class="field field-full">
+                <label for="current-process">Current process <span aria-hidden="true">*</span></label>
+                <textarea
+                  id="current-process"
+                  name="currentProcess"
+                  rows="5"
+                  required
+                  aria-describedby="current-process-help"
+                ></textarea>
+                <span class="field-help" id="current-process-help">
+                  Briefly describe the files, templates and review steps your team uses today.
+                </span>
+              </div>
+              <fieldset class="field field-full radio-group">
+                <legend>Interest in testing a completed historical report <span aria-hidden="true">*</span></legend>
+                <div class="radio-options">
+                  <label>
+                    <input type="radio" name="historicalReportInterest" value="yes" required>
+                    <span>Yes, I have a suitable completed report</span>
+                  </label>
+                  <label>
+                    <input type="radio" name="historicalReportInterest" value="discuss">
+                    <span>I would like to discuss suitability first</span>
+                  </label>
+                  <label>
+                    <input type="radio" name="historicalReportInterest" value="not-yet">
+                    <span>Not yet</span>
+                  </label>
+                </div>
+              </fieldset>
+            </div>
+
+            <div class="form-footer">
+              <p>
+                Do not include confidential client information or upload links in this form.
+              </p>
+              <button class="button button-primary" type="submit" data-submit-button>
+                Request pilot conversation
+              </button>
+            </div>
+            <p class="form-status" role="status" aria-live="polite" tabindex="-1" data-form-status></p>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="page-shell footer-grid">
+        <div class="footer-brand">
+          <a class="brand brand-footer" href="#top" aria-label="{{PRODUCT_NAME}} home">
+            <span class="brand-mark brand-mark-footer" aria-hidden="true">
+              <span></span>
+              <span></span>
+            </span>
+            <span>{{PRODUCT_NAME}}</span>
+          </a>
+          <p>AI-assisted grant-report drafting and evidence assembly for professional human review.</p>
+        </div>
+        <div class="footer-links" aria-label="Footer navigation">
+          <a href="#privacy-note">Privacy</a>
+          <a href="#pilot">Pilot terms</a>
+          <a href="#security">Data-handling policy</a>
+          <a href="#contact">Contact</a>
+          <span aria-disabled="true">Company LinkedIn <small>(placeholder)</small></span>
+        </div>
+      </div>
+      <div class="page-shell footer-bottom">
+        <p id="privacy-note">
+          Pilot inquiries are used to evaluate pilot fit. Do not submit client files through this website form.
+        </p>
+        <p>&copy; <span data-current-year></span> {{PRODUCT_NAME}}. Temporary product name.</p>
+      </div>
+    </footer>
+
+    <div class="modal" hidden data-preview-modal>
+      <div class="modal-backdrop" data-close-preview></div>
+      <div
+        class="modal-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="preview-modal-title"
+        aria-describedby="preview-modal-description"
+      >
+        <div class="modal-header">
+          <div>
+            <span class="synthetic-label">Synthetic data</span>
+            <h2 id="preview-modal-title">Workflow preview</h2>
+          </div>
+          <button class="modal-close" type="button" aria-label="Close workflow preview" data-close-preview>
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+        <p id="preview-modal-description">
+          This demonstration uses synthetic inputs and output. It illustrates an AI-assisted draft
+          and evidence-assembly workflow requiring human review.
+        </p>
+        <video class="preview-video" controls preload="metadata" hidden data-preview-video>
+          Your browser does not support embedded video.
+        </video>
+        <div class="video-fallback" data-video-fallback>
+          <div class="fallback-document" aria-hidden="true">
+            <div class="fallback-source-stack">
+              <span>Agreement</span>
+              <span>Budget</span>
+              <span>GL CSV</span>
+              <span>Update</span>
+            </div>
+            <div class="fallback-arrow">→</div>
+            <div class="fallback-output">
+              <span></span>
+              <span></span>
+              <span></span>
+              <strong>Draft + evidence</strong>
+            </div>
+          </div>
+          <p>
+            A preview-video URL has not been configured. This static synthetic-data frame keeps the
+            demonstration accessible until a reviewed video asset is supplied.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <noscript>
+      <div class="noscript-notice">
+        JavaScript is required for the mobile menu, synthetic sample downloads, preview modal and form submission.
+      </div>
+    </noscript>
+  </body>
+</html>
