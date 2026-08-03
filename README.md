@@ -12,7 +12,8 @@ downloadable samples are explicitly identified as synthetic data.
 ## Project isolation
 
 - Git root: `/home/eli_katz/grantdesk`
-- External Git remotes: none by default
+- Production repository: `johnnyappleseed818/grantdeskhq`
+- Production domain: `https://grantdeskhq.com`
 - Frameworks: none
 - Package installation: none
 - External scripts, fonts, analytics and trackers: none
@@ -165,6 +166,16 @@ vercel --prod
 For the form, a Vercel Function can accept the JSON payload. Keep that function
 in a separately reviewed server-side implementation and set its HTTPS URL in
 the static site configuration.
+
+## GitHub Pages deployment
+
+The production site is published from the `main` branch root of the dedicated
+`johnnyappleseed818/grantdeskhq` repository. The `CNAME` file binds the Pages
+site to `grantdeskhq.com`. DNS remains managed separately at Namecheap.
+
+GitHub Pages automatically republishes committed changes pushed to `main`.
+The custom-domain HTTPS certificate is issued after the required DNS records
+resolve to GitHub Pages.
 
 ## Pre-launch checklist
 
