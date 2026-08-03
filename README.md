@@ -114,6 +114,7 @@ grantdesk/
 ├── index.html
 ├── styles.css
 ├── script.js
+├── scripts/create-spa-routes.js
 ├── PLAN.md
 ├── package.json
 ├── tailwind.config.js
@@ -152,7 +153,8 @@ npm audit
   route, interaction, accessibility-label, mobile-navigation, review-gate,
   asset-link, PDF, XLSX, and CSV tests.
 - `npm run build` regenerates assets, runs strict TypeScript validation, and
-  creates the production output in `dist/`.
+  creates the production output in `dist/`, including direct-load entry files
+  for every public application route.
 - `npm run preview -- --host 127.0.0.1 --port 4173` serves the production
   build for runtime route and download verification.
 - The current npm advisory database flags React Router's server/RSC action
@@ -211,7 +213,9 @@ deployment.
 6. Wait for **Deploy GrantDesk to GitHub Pages** to pass.
 7. Verify the apex, `www` redirect, all routes, assets, and HTTPS.
 
-`public/404.html` restores direct React Router paths on GitHub Pages.
+Generated route entry files make direct requests to each public route return
+HTTP 200 on GitHub Pages. `public/404.html` remains a fallback for unknown
+client-side paths.
 `public/CNAME` preserves the production custom-domain setting in each build.
 
 ## Vercel deployment

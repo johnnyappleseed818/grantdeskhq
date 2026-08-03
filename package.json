@@ -13,7 +13,7 @@
     "pretest": "npm run generate:assets",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build": "npm run generate:assets && tsc --noEmit && vite build",
+    "build": "npm run generate:assets && tsc --noEmit && vite build && node scripts/create-spa-routes.js",
     "preview": "vite preview"
   },
   "dependencies": {
