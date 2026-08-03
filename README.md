@@ -1,204 +1,294 @@
-# grantdesk static website project
+# GrantDesk interactive product prototype
 
-This is a standalone static marketing site for `{{PRODUCT_NAME}}`, a temporary
-product name for an early-stage post-award grant-reporting workflow. The local
-project codename is `grantdesk`; the public-facing name remains the literal
-`{{PRODUCT_NAME}}` placeholder until a final name is approved.
+GrantDesk is a polished, static React product demonstration for post-award
+grant-reporting workflows used by fractional nonprofit CFO firms, outsourced
+accounting practices, and nonprofit controller teams.
 
-The site describes an AI-assisted draft and evidence-assembly system that
-requires professional human review. All visible product demonstrations and
-downloadable samples are explicitly identified as synthetic data.
+> Interactive prototype using synthetic demonstration data. GrantDesk outputs
+> are drafts and suggested mappings that require professional human review.
+> This repository contains no backend, database, external AI connection,
+> accounting-system integration, or automatic funder submission.
 
-## Project isolation
+Production domain: [grantdeskhq.com](https://grantdeskhq.com)
 
-- Git root: `/home/eli_katz/grantdesk`
-- Production repository: `johnnyappleseed818/grantdeskhq`
-- Production domain: `https://grantdeskhq.com`
-- Frameworks: none
-- Package installation: none
-- External scripts, fonts, analytics and trackers: none
+Founder: Eli Katz — [eli@grantdeskhq.com](mailto:eli@grantdeskhq.com)
 
-This repository is independent from the ZenLLM and RoyalStyle repositories.
+## Repository isolation
 
-## Files
+- Local Git root: `/home/eli_katz/grantdesk`
+- Dedicated remote: `https://github.com/johnnyappleseed818/grantdeskhq.git`
+- Dedicated GitHub Pages deployment workflow: `.github/workflows/deploy-pages.yml`
+- Custom domain binding: `public/CNAME` and root `CNAME`
+- No ZenLLM or RoyalStyle source, remote, cloud project, or deployment is used
+
+## Product routes
+
+| Route | Purpose |
+| --- | --- |
+| `/` | Marketing landing page and AI Report Compiler positioning |
+| `/demo` | Stateful synthetic GrantDesk agency workspace |
+| `/sample-report` | Print-ready funder-report review package |
+| `/privacy` | Honest prototype and pilot data-handling boundaries |
+| `/pilot` | $500 Founding Agency Pilot and mailto enquiry |
+| `*` | Accessible not-found page |
+
+The demo includes Agency Overview, Source Package, Requirements, Financial
+Mapping, Missing Inputs, Narrative Draft, Quality Review, and Export Package
+screens. All interactive changes are deterministic local React state.
+
+## Technical stack
+
+- React 18 and TypeScript
+- Vite 7
+- Tailwind CSS 3 through PostCSS; no browser CDN
+- React Router
+- Lucide React icons
+- Vitest, Testing Library, and jsdom
+- `pdf-lib` for synthetic PDF generation
+- `write-excel-file` for XLSX generation and `read-excel-file` for asset verification
+- ESLint 9 flat configuration
+- System font stack and no external images, fonts, analytics, or tracking
+
+## Exact synthetic source model
+
+The canonical data lives in `src/data/grantData.json`. Typed content,
+requirements, program facts, and approved-content examples live in
+`src/data/grantData.ts`.
+
+The automated tests verify:
+
+- Approved annual budget: **$150,000**
+- Ledger: **20 transactions totaling $75,400**
+- Initially mapped actuals: **$74,150**
+- Initially unmapped: **UNM-001 for $1,250**
+- Remaining mapped budget: **$75,850**
+- Personnel: **8 transactions totaling $44,500**
+- Program Supplies: **6 transactions totaling $14,850**
+- Local Travel: **3 transactions totaling $9,800**
+- Indirect Overhead: **2 transactions totaling $5,000**
+- Local Travel above the 50% elapsed plan: **$2,300 / 30.67%**
+- Youth served: **118 / 120, or 98.3%**
+- Export disabled until all three required review items are resolved
+
+## Generated sample assets
+
+Run `npm run generate:assets` to deterministically create:
+
+- `public/samples/Synthetic_Grant_Agreement.pdf`
+- `public/samples/Approved_Grant_Budget.xlsx`
+- `public/samples/General_Ledger_Export.csv`
+- `public/samples/Synthetic_Funder_Report_Draft.pdf`
+- `public/samples/Transaction_Evidence_Schedule.xlsx`
+
+The agreement contains 14 pages and the report draft contains 7 pages. The
+budget workbook contains Approved Budget, Six-Month BVA, and Reporting Rules
+worksheets. The evidence workbook contains all 20 transactions, the travel
+receipt checklist, and the source citation log. Every generated file includes
+a synthetic-data disclosure.
+
+## File structure
 
 ```text
 grantdesk/
-├── index.html    # Semantic page content, metadata, form and accessible modal
-├── styles.css    # Responsive financial-software visual system
-├── script.js     # Configuration, navigation, modal, form and sample downloads
-└── README.md     # Setup, configuration and deployment instructions
+├── .github/workflows/deploy-pages.yml
+├── public/
+│   ├── 404.html
+│   ├── CNAME
+│   ├── _redirects
+│   └── samples/
+├── src/
+│   ├── components/
+│   │   ├── demo/
+│   │   ├── EvidenceDrawer.tsx
+│   │   ├── Logo.tsx
+│   │   ├── SiteLayout.tsx
+│   │   └── StatusBadge.tsx
+│   ├── data/
+│   │   ├── grantData.json
+│   │   └── grantData.ts
+│   ├── lib/calculations.ts
+│   ├── pages/
+│   ├── test/
+│   ├── App.tsx
+│   └── main.tsx
+├── index.html
+├── styles.css
+├── script.js
+├── PLAN.md
+├── package.json
+├── tailwind.config.js
+├── vite.config.ts
+├── vitest.config.ts
+└── vercel.json
 ```
 
-The favicon placeholder is an inline SVG data URL in `index.html`, so it adds
-no network request and requires no separate asset.
+## Local setup and commands
 
-## Local preview
-
-The site can be opened directly from `index.html`, but a local HTTP server gives
-the closest behavior to a deployment:
+Node 22.12 or newer is required.
 
 ```bash
-cd /home/eli_katz/grantdesk
-python3 -m http.server 8080
+npm ci
+npm run generate:assets
+npm run dev
 ```
 
-Then open `http://localhost:8080`.
+Vite prints the local development URL. The interactive prototype requires no
+environment variables.
 
-No build command is required.
-
-## Required configuration
-
-All runtime URLs are grouped at the top of `script.js` in the clearly labelled
-`SITE_CONFIG` object:
-
-```js
-const SITE_CONFIG = Object.freeze({
-  productName: "{{PRODUCT_NAME}}",
-  formSubmissionEndpoint: "",
-  downloadUrls: Object.freeze({
-    sampleReportPdf: "generated://synthetic-sample-report.pdf",
-    glMappingXlsx: "generated://synthetic-gl-mapping.xlsx",
-  }),
-  previewVideoUrl: "",
-});
-```
-
-### Product name
-
-Replace the literal `{{PRODUCT_NAME}}` only after a final product name has been
-approved. It appears in `index.html`, `script.js` and this README.
-
-### Lead-form endpoint
-
-Set `formSubmissionEndpoint` to a reviewed HTTPS endpoint before production.
-The form sends a JSON `POST` request containing only the visible form fields,
-plus these two identifiers:
-
-```json
-{
-  "product": "{{PRODUCT_NAME}}",
-  "source": "founding-pilot-marketing-site"
-}
-```
-
-The endpoint should:
-
-1. Accept `Content-Type: application/json`.
-2. Return a `2xx` status after accepting the inquiry.
-3. Apply appropriate server-side validation and abuse controls.
-4. Avoid requesting or accepting client files through this form.
-
-When no endpoint is configured, the form validates normally and presents a
-clear configuration message instead of pretending that an inquiry was sent.
-
-### Synthetic sample downloads
-
-The default `generated://` URLs create a small synthetic PDF and a valid
-synthetic XLSX file in the browser without third-party libraries. To use
-reviewed hosted files instead, replace either value with an HTTPS or same-origin
-URL:
-
-```js
-downloadUrls: Object.freeze({
-  sampleReportPdf: "/assets/reviewed-synthetic-sample-report.pdf",
-  glMappingXlsx: "/assets/reviewed-synthetic-gl-mapping.xlsx",
-}),
-```
-
-Keep the synthetic-data labels in both the page and the files.
-
-### Preview video
-
-Set `previewVideoUrl` to a reviewed HTTPS video URL. Until then, the accessible
-modal displays a static synthetic workflow frame and a clear configuration
-notice. The modal supports keyboard focus containment, `Escape` to close and
-focus restoration.
-
-## Netlify deployment
-
-### Netlify dashboard
-
-1. Put this repository in a new, dedicated Git repository if remote hosting is
-   desired.
-2. In Netlify, choose **Add new site** → **Import an existing project**.
-3. Select the dedicated repository.
-4. Leave **Build command** empty.
-5. Set **Publish directory** to `.`.
-6. Deploy the site.
-7. Configure `formSubmissionEndpoint`, download URLs and the preview-video URL
-   before using a production domain.
-
-### Netlify CLI
-
-From the project directory, after installing and authenticating the Netlify CLI:
+Quality and production commands:
 
 ```bash
-netlify deploy --dir .
-netlify deploy --dir . --prod
+npm run lint
+npm test
+npm run build
+npm run preview
+npm audit --omit=dev
+npm audit
 ```
 
-The lead form uses a configurable JSON endpoint rather than Netlify Forms. Use
-a reviewed serverless function or form service and place its URL in
-`SITE_CONFIG.formSubmissionEndpoint`.
+- `npm run lint` checks the TypeScript, React, test, configuration, and
+  generator sources with zero allowed warnings.
+- `npm test` regenerates assets, then runs all deterministic calculation,
+  route, interaction, accessibility-label, mobile-navigation, review-gate,
+  asset-link, PDF, XLSX, and CSV tests.
+- `npm run build` regenerates assets, runs strict TypeScript validation, and
+  creates the production output in `dist/`.
+- `npm run preview -- --host 127.0.0.1 --port 4173` serves the production
+  build for runtime route and download verification.
+- The current npm advisory database flags React Router's server/RSC action
+  mode. GrantDesk is a static client-only application: it has no server
+  rendering, React Server Components, route actions, backend, or action
+  endpoints. The finding is therefore not reachable in this deployment, but
+  the dependency should be upgraded when the router project publishes a fixed
+  release.
+
+## Verified implementation commands
+
+The final QA cycle uses:
+
+```bash
+npm run generate:assets
+npm run lint
+npm test
+npm run build
+npm run preview -- --host 127.0.0.1 --port 4173
+npm audit --omit=dev
+npm audit
+```
+
+Verified result: lint passed with zero warnings, all 29 tests passed, and the
+Vite production build completed. The two audit commands report only the same
+upstream React Router RSC-mode advisory described above; no affected RSC or
+server-action mode exists in this project.
+
+Runtime checks should confirm HTTP 200 for:
+
+```text
+/
+/demo
+/sample-report
+/privacy
+/pilot
+/samples/Synthetic_Grant_Agreement.pdf
+/samples/Approved_Grant_Budget.xlsx
+/samples/General_Ledger_Export.csv
+/samples/Synthetic_Funder_Report_Draft.pdf
+/samples/Transaction_Evidence_Schedule.xlsx
+```
+
+## GitHub Pages deployment
+
+The production repository includes a Pages workflow. A push to `main` runs
+installation, linting, tests, the production build, artifact upload, and Pages
+deployment.
+
+1. In GitHub, open **Settings → Pages**.
+2. Set **Source** to **GitHub Actions**.
+3. Confirm the custom domain is `grantdeskhq.com`.
+4. Confirm DNS contains the four GitHub Pages apex A records and the `www`
+   CNAME pointing to `johnnyappleseed818.github.io`.
+5. Push a reviewed commit to `main`.
+6. Wait for **Deploy GrantDesk to GitHub Pages** to pass.
+7. Verify the apex, `www` redirect, all routes, assets, and HTTPS.
+
+`public/404.html` restores direct React Router paths on GitHub Pages.
+`public/CNAME` preserves the production custom-domain setting in each build.
 
 ## Vercel deployment
 
-### Vercel dashboard
+### Dashboard
 
-1. Import the dedicated repository into a new Vercel project.
-2. Choose **Other** as the framework preset if prompted.
-3. Leave **Build command** empty.
-4. Set **Output directory** to `.`.
+1. Import the dedicated `johnnyappleseed818/grantdeskhq` repository.
+2. Select **Vite** as the framework preset.
+3. Set **Build Command** to `npm run build`.
+4. Set **Output Directory** to `dist`.
 5. Deploy.
-6. Configure a reviewed form endpoint and the optional hosted asset URLs before
-   using a production domain.
+6. Add `grantdeskhq.com` only after choosing Vercel instead of the existing
+   GitHub Pages production target and updating DNS deliberately.
 
-### Vercel CLI
+The checked-in `vercel.json` rewrites application routes to `index.html`.
 
-From the project directory, after installing and authenticating the Vercel CLI:
+### CLI
 
 ```bash
+npm install --global vercel
 vercel
 vercel --prod
 ```
 
-For the form, a Vercel Function can accept the JSON payload. Keep that function
-in a separately reviewed server-side implementation and set its HTTPS URL in
-the static site configuration.
+Review the project and domain selections before the production command.
 
-## GitHub Pages deployment
+## Netlify deployment
 
-The production site is published from the `main` branch root of the dedicated
-`johnnyappleseed818/grantdeskhq` repository. The `CNAME` file binds the Pages
-site to `grantdeskhq.com`. DNS remains managed separately at Namecheap.
+### Dashboard
 
-GitHub Pages automatically republishes committed changes pushed to `main`.
-The custom-domain HTTPS certificate is issued after the required DNS records
-resolve to GitHub Pages.
+1. Import the dedicated `johnnyappleseed818/grantdeskhq` repository.
+2. Set **Build Command** to `npm run build`.
+3. Set **Publish Directory** to `dist`.
+4. Deploy.
+5. Add the production domain only if Netlify is intentionally replacing
+   GitHub Pages.
 
-## Pre-launch checklist
+The checked-in `public/_redirects` file is copied to `dist/_redirects` and
+provides the SPA fallback.
 
-- Replace `{{PRODUCT_NAME}}` with the approved name.
-- Configure and test the lead-form endpoint.
-- Confirm the endpoint does not accept file uploads from this form.
-- Review the synthetic PDF and XLSX samples.
-- Add a reviewed preview video or retain the honest static fallback.
-- Replace footer privacy, pilot-term and data-handling anchors with reviewed
-  policy pages when those pages exist.
-- Replace the Company LinkedIn placeholder only when an official URL exists.
-- Add a canonical URL and reviewed Open Graph image after the production domain
-  and brand assets exist.
-- Re-run keyboard, screen-reader, mobile and reduced-motion checks.
-- Verify all public claims against current product and policy documentation.
+### CLI
 
-## Accessibility and performance notes
+```bash
+npm install --global netlify-cli
+netlify deploy --dir dist
+netlify deploy --dir dist --prod
+```
 
-- Semantic landmarks, headings, labels and table structure are included.
-- The mobile menu exposes expanded state and supports `Escape`.
-- The preview modal traps focus, closes with `Escape` and restores focus.
-- The wide sample table is keyboard-focusable and horizontally scrollable.
-- Form errors use native validation plus accessible invalid-state attributes.
-- Motion is reduced when `prefers-reduced-motion` is enabled.
-- The project uses system fonts and no third-party JavaScript, CSS or images.
-- No analytics or tracking code is included.
+## Accessibility and responsive behavior
+
+- Semantic headings, landmarks, tables, labels, status text, and disclosure text
+- Skip link and visible keyboard focus
+- Keyboard-operable navigation, evidence drawer, mapping controls, and review gate
+- Escape closes the mobile menu and evidence drawer
+- Horizontally scrollable financial tables with named focus regions
+- Responsive demo navigation: select control on mobile and persistent sidebar
+  on desktop
+- Reduced-motion support
+- Print stylesheet for the sample report
+- No color-only critical status: every state includes readable text
+
+Automated tests cover mobile-menu behavior and accessible control names. A
+headless browser binary is not available in the current Cloud Shell, so final
+cross-browser visual review should also be performed in current Safari, Chrome,
+and Firefox before a paid pilot.
+
+## Honest limitations
+
+- This is an interactive static prototype, not a production AI system.
+- Synthetic processing statuses and suggestions are deterministic local data.
+- No real files are accepted, processed, stored, reconciled, or transmitted.
+- No production security controls, certifications, integrations, accuracy
+  measurements, or performance measurements are claimed.
+- Questionnaire, assignment, due-date, mapping, and review controls update local
+  browser state only.
+- The pilot form opens a prefilled email to `eli@grantdeskhq.com`; the website
+  does not submit or store it.
+- Generated outputs are synthetic drafts and cannot be used as accounting,
+  legal, audit, or compliance advice.
+- Human controller review remains required before any external use.
