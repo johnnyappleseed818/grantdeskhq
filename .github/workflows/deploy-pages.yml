@@ -1,4 +1,4 @@
-name: Deploy GrantDesk to GitHub Pages
+name: Deploy GrantDeskHQ to GitHub Pages
 
 on:
   push:

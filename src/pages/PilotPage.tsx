@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { ArrowRight, Check, Mail } from "lucide-react";
+import { ArrowRight, Check, FileSearch, Mail, MessagesSquare, Presentation } from "lucide-react";
 
 const CONTACT_DESTINATION = ["eli", "grantdeskhq.com"].join("@");
 
@@ -14,7 +14,7 @@ const scope = [
   "Evidence-backed narrative drafts",
   "Missing-input questionnaires",
   "Quality-review checklist",
-  "Direct setup support"
+  "Findings and next-step recommendation"
 ];
 
 export function PilotPage() {
@@ -22,43 +22,73 @@ export function PilotPage() {
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const body = `Hello GrantDesk team,\n\nI would like to learn more about the Founding Agency Pilot.\n\nName: ${form.name}\nWork email: ${form.email}\nFirm: ${form.firm}\nRole: ${form.role}\nApproximate nonprofit clients: ${form.clients}\nCurrent reporting process: ${form.process}\n\nI understand that I should not send client files through this website.`;
-    window.location.href = `mailto:${CONTACT_DESTINATION}?subject=${encodeURIComponent("GrantDesk Founding Pilot")}&body=${encodeURIComponent(body)}`;
+    const body = `Hello GrantDeskHQ team,\n\nI would like to discuss the Grant Reporting Workflow Assessment.\n\nName: ${form.name}\nWork email: ${form.email}\nFirm: ${form.firm}\nRole: ${form.role}\nApproximate nonprofit clients: ${form.clients}\nCurrent reporting process: ${form.process}\n\nI understand that I should not send client files through this website.`;
+    window.location.href = `mailto:${CONTACT_DESTINATION}?subject=${encodeURIComponent("GrantDeskHQ Workflow Assessment")}&body=${encodeURIComponent(body)}`;
   };
 
   const update = (field: keyof typeof form, value: string) => setForm((current) => ({ ...current, [field]: value }));
 
   return (
-    <div className="site-shell py-14 lg:py-20">
-      <div className="prototype-pill"><span aria-hidden="true" /> A practical way to test GrantDesk with your workflow</div>
-      <div className="mt-8 grid gap-12 lg:grid-cols-[.9fr_1.1fr]">
+    <div className="assessment-page">
+      <section className="assessment-hero">
+        <div className="site-shell">
+          <div className="prototype-pill"><span aria-hidden="true" /> A focused evaluation using completed historical work</div>
+          <div className="mt-8 grid items-start gap-12 lg:grid-cols-[1.05fr_.95fr]">
+            <div>
+              <p className="eyebrow">Grant Reporting Workflow Assessment</p>
+              <h1 className="page-title">See where AI can reduce reporting work before you subscribe.</h1>
+              <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">Use completed, redacted historical reports to evaluate how GrantDeskHQ could reduce manual preparation, uncover missing evidence earlier, and give your team a clearer review process.</p>
+              <div className="mt-7 flex flex-wrap items-end gap-3"><strong className="text-4xl font-semibold text-navy-900">$500</strong><span className="pb-1 text-slate-500">one-time · 30 days</span></div>
+            </div>
+            <div className="assessment-summary">
+              <p className="text-sm font-semibold text-emeraldMuted-700">What you receive</p>
+              <h2>A practical view of your current workflow and the work AI could simplify.</h2>
+              <p>We use up to four completed reports across up to two nonprofit entities to prepare a tailored demonstration, identify the most repetitive steps, and recommend the right next step for your team.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="site-shell py-14 lg:py-20">
+        <div className="assessment-process">
+          {[
+            [MessagesSquare, "Map the current process", "Show us where your team spends time, repeats data entry, or waits for missing information."],
+            [FileSearch, "Evaluate completed reports", "Use redacted historical examples to see how requirements, financial mappings, narrative evidence, and review items could be prepared."],
+            [Presentation, "Review findings and options", "Receive a clear workflow summary, a tailored demonstration, and a recommendation you can evaluate without a long-term commitment."]
+          ].map(([Icon, title, copy], index) => {
+            const ProcessIcon = Icon as typeof MessagesSquare;
+            return <article key={title as string}><span className="step-number">0{index + 1}</span><ProcessIcon aria-hidden="true" /><h2>{title as string}</h2><p>{copy as string}</p></article>;
+          })}
+        </div>
+
+        <div className="mt-14 grid gap-12 lg:grid-cols-[.9fr_1.1fr]">
         <section>
-          <p className="eyebrow">Start small and learn quickly</p>
-          <h1 className="page-title">Founding Agency Pilot</h1>
-          <div className="mt-6 flex items-end gap-3"><strong className="text-4xl font-semibold text-navy-900">$500</strong><span className="pb-1 text-slate-500">one-time</span></div>
-          <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600">Use completed historical reports to see where GrantDesk could reduce manual assembly, catch missing support earlier, and make review easier for your team.</p>
+          <p className="eyebrow">Assessment scope</p>
+          <h2 className="text-3xl font-semibold tracking-tight text-navy-900">A defined evaluation—not an open-ended engagement.</h2>
+          <p className="mt-4 max-w-xl leading-7 text-slate-600">The assessment focuses on completed historical work so your team can judge the workflow against familiar reports without connecting a live accounting system.</p>
           <ul className="mt-8 grid gap-3 sm:grid-cols-2">{scope.map((item) => <li key={item} className="flex gap-2 text-sm text-slate-700"><Check className="h-5 w-5 shrink-0 text-emeraldMuted-600" aria-hidden="true" />{item}</li>)}</ul>
-          <div className="mt-8 border-l-4 border-amber-500 bg-amberReview-50 p-5 text-sm leading-6 text-amberReview-700"><strong>Pilot outputs are drafts for professional review and are not accounting, legal, audit, or compliance advice.</strong></div>
+          <div className="mt-8 border-l-4 border-amber-500 bg-amberReview-50 p-5 text-sm leading-6 text-amberReview-700"><strong>Assessment outputs are draft demonstrations for professional review and are not accounting, legal, audit, or compliance advice.</strong></div>
         </section>
 
         <section id="contact" className="contact-panel">
-          <p className="eyebrow">Have a reporting workflow in mind?</p>
-          <h2 className="text-3xl font-semibold tracking-tight text-navy-900">Contact us</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-600">Tell us how your team prepares grant reports and where the work gets stuck. We’ll use that context to see whether the pilot is a useful fit. Please don’t include client information or files.</p>
+          <p className="eyebrow">Start a conversation</p>
+          <h2 className="text-3xl font-semibold tracking-tight text-navy-900">Discuss the workflow assessment</h2>
+          <p className="mt-3 text-sm leading-6 text-slate-600">Tell us how your team prepares grant reports and which parts take the most time. We’ll reply to discuss whether the assessment fits your workflow. Please don’t include client information or files.</p>
           <form className="mt-7 grid gap-5" onSubmit={submit}>
             <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="Name" id="pilot-name"><input id="pilot-name" className="form-control" required autoComplete="name" value={form.name} onChange={(event) => update("name", event.target.value)} /></Field>
-              <Field label="Work email" id="pilot-email"><input id="pilot-email" className="form-control" type="email" required autoComplete="email" value={form.email} onChange={(event) => update("email", event.target.value)} /></Field>
-              <Field label="Firm name" id="pilot-firm"><input id="pilot-firm" className="form-control" required autoComplete="organization" value={form.firm} onChange={(event) => update("firm", event.target.value)} /></Field>
-              <Field label="Role" id="pilot-role"><input id="pilot-role" className="form-control" required autoComplete="organization-title" value={form.role} onChange={(event) => update("role", event.target.value)} /></Field>
+              <Field label="Name" id="assessment-name"><input id="assessment-name" className="form-control" required autoComplete="name" value={form.name} onChange={(event) => update("name", event.target.value)} /></Field>
+              <Field label="Work email" id="assessment-email"><input id="assessment-email" className="form-control" type="email" required autoComplete="email" value={form.email} onChange={(event) => update("email", event.target.value)} /></Field>
+              <Field label="Organization" id="assessment-firm"><input id="assessment-firm" className="form-control" required autoComplete="organization" value={form.firm} onChange={(event) => update("firm", event.target.value)} /></Field>
+              <Field label="Role" id="assessment-role"><input id="assessment-role" className="form-control" required autoComplete="organization-title" value={form.role} onChange={(event) => update("role", event.target.value)} /></Field>
             </div>
-            <Field label="Approximate number of nonprofit clients" id="pilot-clients"><select id="pilot-clients" className="form-control" required value={form.clients} onChange={(event) => update("clients", event.target.value)}><option value="">Select a range</option><option>1–5</option><option>6–15</option><option>16–30</option><option>31+</option></select></Field>
-            <Field label="Current grant-reporting process" id="pilot-process"><textarea id="pilot-process" className="form-control min-h-28" required value={form.process} onChange={(event) => update("process", event.target.value)} placeholder="What takes the most manual effort today?" /></Field>
+            <Field label="Approximate number of nonprofit clients" id="assessment-clients"><select id="assessment-clients" className="form-control" required value={form.clients} onChange={(event) => update("clients", event.target.value)}><option value="">Select a range</option><option>1–5</option><option>6–15</option><option>16–30</option><option>31+</option></select></Field>
+            <Field label="Current grant-reporting process" id="assessment-process"><textarea id="assessment-process" className="form-control min-h-28" required value={form.process} onChange={(event) => update("process", event.target.value)} placeholder="Which reporting steps take the most time today?" /></Field>
             <div className="form-note">Your email app will open with the message ready to send. This website does not store your answers or accept file uploads.</div>
-            <button type="submit" className="button button-primary button-large w-full"><Mail aria-hidden="true" /> Send enquiry <ArrowRight aria-hidden="true" /></button>
+            <button type="submit" className="button button-primary button-large w-full"><Mail aria-hidden="true" /> Discuss the assessment <ArrowRight aria-hidden="true" /></button>
           </form>
         </section>
       </div>
+      </section>
     </div>
   );
 }

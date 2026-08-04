@@ -1,11 +1,12 @@
 import { useEffect } from "react";
-import { Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { SiteLayout } from "./components/SiteLayout";
 import { LandingPage } from "./pages/LandingPage";
 import { DemoPage } from "./pages/DemoPage";
 import { SampleReportPage } from "./pages/SampleReportPage";
 import { PrivacyPage } from "./pages/PrivacyPage";
 import { PilotPage } from "./pages/PilotPage";
+import { PricingPage } from "./pages/PricingPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 
 function RouteEffects() {
@@ -34,7 +35,9 @@ export default function App() {
           <Route path="demo" element={<DemoPage />} />
           <Route path="sample-report" element={<SampleReportPage />} />
           <Route path="privacy" element={<PrivacyPage />} />
-          <Route path="pilot" element={<PilotPage />} />
+          <Route path="pricing" element={<PricingPage />} />
+          <Route path="assessment" element={<PilotPage />} />
+          <Route path="pilot" element={<Navigate replace to="/assessment" />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>

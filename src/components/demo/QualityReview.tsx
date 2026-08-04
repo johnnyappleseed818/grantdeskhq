@@ -33,7 +33,7 @@ export function QualityReview({ reviewState, onResolve, onGenerate }: Props) {
 
   return (
     <div className="workspace-stack">
-      <WorkspaceHeading eyebrow="Final quality check" title={enabled ? "Your review package is ready" : `Finish ${unresolved} items before downloading the package`} description="GrantDesk puts every remaining decision in one short list, helping your team fix missing support and inconsistent information without searching through the full report." />
+      <WorkspaceHeading eyebrow="Final quality check" title={enabled ? "Your review package is ready" : `Finish ${unresolved} items before downloading the package`} description="GrantDeskHQ puts every remaining decision in one short list, helping your team fix missing support and inconsistent information without searching through the full report." />
 
       <div className="grid gap-5 lg:grid-cols-[1fr_1fr]">
         <section className="panel">

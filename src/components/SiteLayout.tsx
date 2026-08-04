@@ -7,8 +7,8 @@ const marketingLinks = [
   ["How It Works", "/#how-it-works"],
   ["AI Report Compiler", "/#compiler"],
   ["Sample Output", "/sample-report"],
-  ["Data Handling", "/privacy"],
-  ["Contact", "/pilot#contact"]
+  ["Pricing", "/pricing"],
+  ["Assessment", "/assessment"]
 ];
 
 export function SiteLayout() {
@@ -61,7 +61,7 @@ export function SiteLayout() {
           <div>
             <Logo inverse />
             <p className="mt-4 max-w-md text-sm leading-6 text-slate-400">
-              AI-powered grant-reporting workflow designed to reduce manual assembly and catch issues earlier. The public demo uses synthetic data; final decisions stay with your team.
+              AI-powered grant-reporting workflow designed to reduce manual overhead and catch issues earlier. The public demo uses synthetic data; final decisions stay with your team.
             </p>
           </div>
           <div>
@@ -69,15 +69,16 @@ export function SiteLayout() {
             <div className="mt-3 grid gap-2 text-sm">
               <Link to="/demo">Interactive demo</Link>
               <Link to="/sample-report">Synthetic sample report</Link>
-              <Link to="/pilot">Founding agency pilot</Link>
+              <Link to="/pricing">Pricing</Link>
+              <Link to="/assessment">Workflow assessment</Link>
             </div>
           </div>
           <div>
             <p className="footer-heading">Information</p>
             <div className="mt-3 grid gap-2 text-sm">
               <Link to="/privacy">Privacy and data handling</Link>
-              <Link to="/pilot#contact">Contact us</Link>
-              <span className="text-slate-500">© {new Date().getFullYear()} GrantDesk</span>
+              <Link to="/assessment#contact">Contact us</Link>
+              <span className="text-slate-500">© {new Date().getFullYear()} GrantDeskHQ</span>
             </div>
           </div>
         </div>

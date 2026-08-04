@@ -29,7 +29,7 @@ async function createPdf(fileName, pageDefinitions) {
     const page = pdf.addPage([612, 792]);
     const { width, height } = page.getSize();
     page.drawRectangle({ x: 0, y: height - 74, width, height: 74, color: rgb(0.063, 0.137, 0.247) });
-    page.drawText("GrantDesk", { x: 42, y: height - 42, size: 18, font: bold, color: rgb(1, 1, 1) });
+    page.drawText("GrantDeskHQ", { x: 42, y: height - 42, size: 18, font: bold, color: rgb(1, 1, 1) });
     page.drawText("SYNTHETIC DEMONSTRATION DATA", { x: 376, y: height - 39, size: 8, font: bold, color: rgb(0.75, 0.86, 0.79) });
     page.drawText(definition.title, { x: 42, y: height - 112, size: 19, font: bold, color: rgb(0.063, 0.137, 0.247) });
 
@@ -74,7 +74,7 @@ await createPdf("Synthetic_Grant_Agreement.pdf", [
   { title: "2. Approved Purpose", lines: ["The Youth Access Initiative will provide school-linked learning support within the approved community-school service area.", "Program outcomes require professional review against confirmed program records."] },
   { title: "3. Approved Budget", lines: ["Personnel: $90,000", "Program Supplies: $35,000", "Local Travel: $15,000", "Indirect Overhead: $10,000", "Total approved annual budget: $150,000"] },
   { title: "4. Reporting Period", lines: ["The six-month progress report covers January 1, 2026 through June 30, 2026.", "The report is a draft until reviewed and approved by an authorized professional."] },
-  { title: "5. Financial Evidence", lines: ["Cumulative expenditure must be supported by the grantee's reviewed general-ledger records and transaction evidence.", "GrantDesk does not replace the accounting system of record."] },
+  { title: "5. Financial Evidence", lines: ["Cumulative expenditure must be supported by the grantee's reviewed general-ledger records and transaction evidence.", "GrantDeskHQ does not replace the accounting system of record."] },
   { title: "6. Narrative Requirement", lines: ["The grantee will describe progress toward approved program goals using confirmed program information.", "The six-month narrative response may not exceed 200 words."] },
   { title: "7. Travel Documentation", lines: ["Each local-travel transaction above $1,000 must include an itemized receipt and written justification.", "This rule applies to TRV-001, TRV-002, and TRV-003 in the synthetic ledger."] },
   { title: "8. Material Variances", lines: ["Explain each budget category varying by more than ten percent from the elapsed-period spending plan.", "Local Travel is $2,300, or 30.67%, above the six-month elapsed-period plan."] },

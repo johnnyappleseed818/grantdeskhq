@@ -23,7 +23,7 @@ import { formatCurrency } from "../lib/calculations";
 
 const compilerSteps = [
   ["01", "Avoid missing funder requirements", "AI reads the funder’s questions, word limits, spending thresholds, document rules, and required approvals before your team starts drafting."],
-  ["02", "Prepare your documentation automatically", "GrantDesk brings budgets, ledger rows, program updates, funder forms, and supporting documents into one organized review package."],
+  ["02", "Prepare your documentation automatically", "GrantDeskHQ brings budgets, ledger rows, program updates, funder forms, and supporting documents into one organized review package."],
   ["03", "Cut down transaction-mapping work", "Get a suggested grant category for each transaction, together with the source or rule your reviewer needs to approve it."],
   ["04", "Start with a source-backed draft", "Give your reviewer a useful first draft built from confirmed information, with evidence attached to every material statement."],
   ["05", "Send fewer follow-up requests", "Ask program staff only for the answers and documents that are still missing instead of requesting information twice."],
@@ -62,10 +62,10 @@ export function LandingPage() {
             <div className="prototype-pill"><span aria-hidden="true" /> AI-powered post-award reporting</div>
             <h1 className="hero-title">Build grant reports faster—with <span className="hero-highlight">less manual work.</span></h1>
             <p className="hero-copy">
-              GrantDesk uses AI to organize award terms, approved budgets, GL exports, funder forms, and program updates in one workspace—so nonprofit finance teams can reduce manual work, catch missing support earlier, and focus more of their time on the mission.
+              GrantDeskHQ uses AI to organize award terms, approved budgets, GL exports, funder forms, and program updates in one workspace—so nonprofit finance teams can reduce manual work, catch missing support earlier, and focus more of their time on the mission.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link className="button button-primary button-large" to="/demo">See GrantDesk in action <ArrowRight aria-hidden="true" /></Link>
+              <Link className="button button-primary button-large" to="/demo">See GrantDeskHQ in action <ArrowRight aria-hidden="true" /></Link>
               <Link className="button button-secondary button-large" to="/sample-report">View the sample report</Link>
             </div>
             <p className="trust-line"><CheckCircle2 aria-hidden="true" /> Interactive demo using synthetic data · Your team approves every draft</p>
@@ -96,7 +96,7 @@ export function LandingPage() {
           <div className="section-heading">
             <p className="eyebrow">How it helps</p>
             <h2>Go from scattered files to a clear report draft</h2>
-            <p>GrantDesk brings the source material together and uses AI to complete the repetitive first pass, so your team can spend less time assembling reports and more time reviewing the work that matters.</p>
+            <p>GrantDeskHQ brings the source material together and uses AI to complete the repetitive first pass, so your team can spend less time assembling reports and more time reviewing the work that matters.</p>
           </div>
           <div className="workflow-grid">
             {[
@@ -126,7 +126,7 @@ export function LandingPage() {
             <p className="eyebrow text-emerald-300">AI-powered, evidence-first</p>
             <h2 className="max-w-lg text-3xl font-semibold tracking-tight text-white md:text-4xl">Automate tedious manual work. Keep every decision in your hands.</h2>
             <p className="mt-5 max-w-lg leading-7 text-slate-300">
-              GrantDesk uses AI to read funder instructions, organize documents, suggest financial mappings, and prepare a sourced first draft—so your team can get to review sooner.
+              GrantDeskHQ uses AI to read funder instructions, organize documents, suggest financial mappings, and prepare a sourced first draft—so your team can get to review sooner.
             </p>
             <div className="mt-7 border-l-2 border-emeraldMuted-500 pl-4 text-sm leading-6 text-slate-300">AI handles the repetitive preparation. Your finance team reviews the sources, makes the decisions, and approves the final work.</div>
           </div>
@@ -147,7 +147,7 @@ export function LandingPage() {
           <div className="section-heading">
             <p className="eyebrow">Built for the whole reporting package</p>
             <h2>Less rework. More confidence in every draft.</h2>
-            <p>GrantDesk connects the numbers to the funder’s questions, documentation rules, program evidence, and your team’s review decisions.</p>
+            <p>GrantDeskHQ connects the numbers to the funder’s questions, documentation rules, program evidence, and your team’s review decisions.</p>
           </div>
           <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {capabilities.map(([Icon, title, copy]) => {
@@ -172,13 +172,13 @@ export function LandingPage() {
             <p className="eyebrow">Keep the systems you already use</p>
             <h2 className="text-3xl font-semibold text-navy-900">Improve grant reporting without replacing your current tools</h2>
             <p className="mt-4 leading-7 text-slate-600">
-              GrantDesk adds an AI-powered reporting workflow around the systems your team already trusts, helping you improve the process without a disruptive migration.
+              GrantDeskHQ adds an AI-powered reporting workflow around the systems your team already trusts, helping you improve the process without a disruptive migration.
             </p>
           </div>
           <div className="divide-y divide-slate-200 border-y border-slate-200">
             {[
-              [Database, "Accounting systems", "Keep the accounting system you already trust. GrantDesk works from approved GL exports, so you can improve reporting without changing the books or adding a live connection."],
-              [Link2, "Grant-management systems", "Avoid another system migration. Keep award records, deadlines, and funder access where they are while GrantDesk helps prepare the report."],
+              [Database, "Accounting systems", "Keep the accounting system you already trust. GrantDeskHQ works from approved GL exports, so you can improve reporting without changing the books or adding a live connection."],
+              [Link2, "Grant-management systems", "Avoid another system migration. Keep award records, deadlines, and funder access where they are while GrantDeskHQ helps prepare the report."],
               [FileText, "Program-data systems", "Use program results your team has already reviewed instead of asking staff to enter the same information in another system."],
               [TriangleAlert, "Professional judgment", "Give controllers a shorter, evidence-backed review list so they can focus on important decisions instead of chasing documents."]
             ].map(([Icon, title, copy]) => {
@@ -204,7 +204,7 @@ export function LandingPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link className="button button-primary button-large shrink-0" to="/demo">Open the demo <ArrowRight aria-hidden="true" /></Link>
-            <Link className="button button-secondary button-large shrink-0" to="/pilot#contact">Contact us</Link>
+            <Link className="button button-secondary button-large shrink-0" to="/assessment#contact">Assess your workflow</Link>
           </div>
         </div>
       </section>
@@ -215,7 +215,7 @@ export function LandingPage() {
 function ProductPreview() {
   return (
     <div className="product-preview-wrap">
-    <div className="product-preview" aria-label="GrantDesk synthetic product interface preview">
+    <div className="product-preview" aria-label="GrantDeskHQ synthetic product interface preview">
       <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
         <div className="flex items-center gap-2">
           <div className="h-2.5 w-2.5 rounded-full bg-slate-300" />
@@ -283,7 +283,7 @@ function TeamPrioritiesCarousel() {
           <div className="section-heading">
             <p className="eyebrow">Common finance-team priorities</p>
             <h2 id="team-priorities-title">Give your team time back for work that matters</h2>
-            <p>See how GrantDesk is designed to reduce reporting overhead across common nonprofit finance roles.</p>
+            <p>See how GrantDeskHQ is designed to reduce reporting overhead across common nonprofit finance roles.</p>
           </div>
           <div className="carousel-controls" aria-label="Finance-team priorities carousel controls">
             <button type="button" className="icon-button" aria-label="View previous priority" onClick={() => move(-1)}><ChevronLeft aria-hidden="true" /></button>

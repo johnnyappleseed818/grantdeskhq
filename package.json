@@ -1,5 +1,5 @@
 {
-  "name": "grantdesk-interactive-prototype",
+  "name": "grantdeskhq-interactive-demo",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "build": "npm run generate:assets && tsc --noEmit && vite build && node scripts/create-spa-routes.js",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "outreach:preview": "node scripts/resend-questionnaire-email.mjs"
   },
   "dependencies": {
     "lucide-react": "0.468.0",

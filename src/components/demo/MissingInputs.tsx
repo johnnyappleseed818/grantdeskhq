@@ -33,7 +33,7 @@ export function MissingInputs() {
       <WorkspaceHeading
         eyebrow="Intelligent missing-input collection"
         title="Ask once for exactly what is missing"
-        description="GrantDesk turns gaps in the evidence into five focused questions for the Program Director, helping your team avoid broad follow-up emails and repeated requests. No questionnaire is sent from this demo."
+        description="GrantDeskHQ turns gaps in the evidence into five focused questions for the Program Director, helping your team avoid broad follow-up emails and repeated requests. No questionnaire is sent from this demo."
       />
 
       <div className="workspace-grid">
@@ -87,7 +87,7 @@ export function MissingInputs() {
         </section>
       )}
 
-      <p className="prototype-note">GrantDesk asks only for information that cannot be established from the uploaded evidence.</p>
+      <p className="prototype-note">GrantDeskHQ asks only for information that cannot be established from the uploaded evidence.</p>
     </div>
   );
 }

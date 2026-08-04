@@ -1227,6 +1227,103 @@
     border-radius: 1.5rem;
   }
 
+  .pricing-hero,
+  .assessment-hero {
+    @apply border-b border-slate-200 bg-[linear-gradient(180deg,#f6f8f5_0%,#f8f6ef_100%)] py-14 lg:py-20;
+  }
+
+  .pricing-grid {
+    @apply grid gap-5 pt-10 md:grid-cols-3 lg:pt-14;
+  }
+
+  .pricing-card {
+    @apply relative flex flex-col border border-slate-200 bg-white p-6 shadow-panel sm:p-7;
+    border-radius: 1.25rem;
+  }
+
+  .pricing-card.is-featured {
+    @apply border-emeraldMuted-500 shadow-lift;
+  }
+
+  .pricing-label {
+    @apply -mx-7 -mt-7 mb-6 rounded-t-[1.15rem] bg-emeraldMuted-700 px-5 py-2 text-center text-xs font-semibold uppercase tracking-wider text-white;
+  }
+
+  .pricing-overages {
+    @apply mt-8 grid items-center gap-8 border border-slate-200 bg-navy-950 p-6 text-white shadow-panel md:grid-cols-[1.15fr_.85fr] sm:p-8;
+    border-radius: 1.25rem;
+  }
+
+  .pricing-overages h2 {
+    @apply mt-3 text-2xl font-semibold;
+  }
+
+  .pricing-overages p:last-child {
+    @apply mt-3 text-sm leading-6 text-slate-300;
+  }
+
+  .pricing-overages dl {
+    @apply divide-y divide-white/15 border-y border-white/15;
+  }
+
+  .pricing-overages dl div {
+    @apply flex items-center justify-between gap-5 py-4 text-sm;
+  }
+
+  .pricing-overages dd {
+    @apply shrink-0 font-semibold text-emerald-300;
+  }
+
+  .pricing-definitions {
+    @apply mt-6 flex items-start gap-4 border border-slate-200 bg-white p-5 text-sm leading-6 text-slate-600;
+    border-radius: 1rem;
+  }
+
+  .pricing-definitions > svg {
+    @apply mt-0.5 h-5 w-5 shrink-0 text-emeraldMuted-600;
+  }
+
+  .pricing-definitions h2 {
+    @apply font-semibold text-navy-900;
+  }
+
+  .pricing-definitions p {
+    @apply mt-1;
+  }
+
+  .assessment-summary {
+    @apply border-l-4 border-emeraldMuted-500 bg-white p-7 shadow-panel;
+    border-radius: 0 1.25rem 1.25rem 0;
+  }
+
+  .assessment-summary h2 {
+    @apply mt-3 text-2xl font-semibold leading-tight text-navy-900;
+  }
+
+  .assessment-summary > p:last-child {
+    @apply mt-4 text-sm leading-7 text-slate-600;
+  }
+
+  .assessment-process {
+    @apply grid gap-4 md:grid-cols-3;
+  }
+
+  .assessment-process article {
+    @apply relative border-t-2 border-emeraldMuted-500 bg-white p-6 shadow-panel;
+  }
+
+  .assessment-process article > svg {
+    @apply mt-5 h-5 w-5 text-emeraldMuted-600;
+  }
+
+  .assessment-process h2 {
+    @apply mt-4 text-lg font-semibold text-navy-900;
+  }
+
+  .assessment-process p {
+    @apply mt-3 text-sm leading-6 text-slate-600;
+  }
+
   .form-control {
     @apply border-slate-300 bg-[#fffefa] px-4 py-3;
     border-radius: .75rem;
@@ -1357,6 +1454,14 @@
 
   .system-value-row > p {
     grid-column: 2;
+  }
+
+  .pricing-label {
+    @apply -mx-6 -mt-6;
+  }
+
+  .pricing-overages dl div {
+    @apply items-start;
   }
 
   .cta-section {

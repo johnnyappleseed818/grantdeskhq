@@ -32,7 +32,7 @@ export function SampleReportPage() {
             <div><dt>Prepared for review by</dt><dd>Northstar Nonprofit Finance</dd></div>
             <div><dt>Package status</dt><dd>Draft · professional review required</dd></div>
           </dl>
-          <div className="cover-footer"><strong>GrantDesk</strong><span>Interactive demo using synthetic demonstration data</span></div>
+          <div className="cover-footer"><strong>GrantDeskHQ</strong><span>Interactive demo using synthetic demonstration data</span></div>
         </section>
 
         <ReportSection number="01" title="Executive summary">
@@ -95,13 +95,13 @@ export function SampleReportPage() {
           <ol className="report-list list-decimal pl-5"><li>PYF_Youth_Access_Grant_Agreement.pdf — award terms, category limits, and travel documentation rule.</li><li>Approved_Grant_Budget.xlsx — annual category budgets totaling $150,000.</li><li>General_Ledger_Export_Jan-Jun_2026.csv — 20 synthetic transactions totaling $75,400.</li><li>Six_Month_Funder_Report_Template.docx — required Sections A–F, word limit, variance threshold, and certification.</li><li>Program_Update_Form_June_2026 — confirmed youth served, school expansion, site visits, and deferred workshops.</li><li>Supporting_Receipt_Schedule.pdf — TRV-001 and TRV-002 attached; TRV-003 missing.</li></ol>
         </ReportSection>
 
-        <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-slate-300 pt-6 text-xs text-slate-500"><span>Generated for the GrantDesk interactive demo</span><span>Synthetic demonstration data · Professional review required</span></div>
+        <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-slate-300 pt-6 text-xs text-slate-500"><span>Generated for the GrantDeskHQ interactive demo</span><span>Synthetic demonstration data · Professional review required</span></div>
       </article>
 
       <div className="report-downloads print:hidden">
         <h2>Related synthetic files</h2>
         <div className="mt-4 flex flex-wrap gap-3"><a className="button button-secondary" href="/samples/Synthetic_Grant_Agreement.pdf" download>Grant Agreement PDF</a><a className="button button-secondary" href="/samples/Approved_Grant_Budget.xlsx" download>Approved Budget XLSX</a><a className="button button-secondary" href="/samples/General_Ledger_Export.csv" download>GL Export CSV</a><a className="button button-secondary" href="/samples/Transaction_Evidence_Schedule.xlsx" download>Evidence Schedule XLSX</a></div>
-        <p className="mt-5 text-sm text-slate-600">Want to see how this could work with your reporting process? <Link className="font-semibold text-emeraldMuted-700 underline" to="/pilot#contact">Contact us about the Founding Agency Pilot</Link>.</p>
+        <p className="mt-5 text-sm text-slate-600">Want to see how this could work with your reporting process? <Link className="font-semibold text-emeraldMuted-700 underline" to="/assessment#contact">Discuss the Grant Reporting Workflow Assessment</Link>.</p>
       </div>
     </div>
   );

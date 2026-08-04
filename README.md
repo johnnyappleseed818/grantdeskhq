@@ -1,12 +1,12 @@
-# GrantDesk interactive product demo
+# GrantDeskHQ interactive product demo
 
-GrantDesk is a polished, static React product demonstration for an AI-powered
+GrantDeskHQ is a polished, static React product demonstration for an AI-powered
 post-award grant-reporting workflow used by fractional nonprofit CFO firms,
 outsourced accounting practices, and nonprofit controller teams. The product
 direction is designed to reduce repetitive assembly, catch missing evidence
 earlier, and make professional review easier.
 
-> Interactive demo using synthetic demonstration data. GrantDesk outputs
+> Interactive demo using synthetic demonstration data. GrantDeskHQ outputs
 > are drafts and suggested mappings that require professional human review.
 > This repository contains no backend, database, external AI connection,
 > accounting-system integration, or automatic funder submission.
@@ -26,10 +26,12 @@ Production domain: [grantdeskhq.com](https://grantdeskhq.com)
 | Route | Purpose |
 | --- | --- |
 | `/` | Marketing landing page and AI Report Compiler positioning |
-| `/demo` | Stateful synthetic GrantDesk agency workspace |
+| `/demo` | Stateful synthetic GrantDeskHQ agency workspace |
 | `/sample-report` | Print-ready funder-report review package |
-| `/privacy` | Honest demo and pilot data-handling boundaries |
-| `/pilot` | $500 Founding Agency Pilot and contact enquiry |
+| `/privacy` | Honest demo and assessment data-handling boundaries |
+| `/pricing` | Essentials, Growth, and Portfolio subscription pricing |
+| `/assessment` | $500 Grant Reporting Workflow Assessment and contact enquiry |
+| `/pilot` | Compatibility redirect to `/assessment` |
 | `*` | Accessible not-found page |
 
 The demo includes Agency Overview, Source Package, Requirements, Financial
@@ -163,7 +165,7 @@ npm audit
 - `npm run preview -- --host 127.0.0.1 --port 4173` serves the production
   build for runtime route and download verification.
 - The current npm advisory database flags React Router's server/RSC action
-  mode. GrantDesk is a static client-only application: it has no server
+  mode. GrantDeskHQ is a static client-only application: it has no server
   rendering, React Server Components, route actions, backend, or action
   endpoints. The finding is therefore not reachable in this deployment, but
   the dependency should be upgraded when the router project publishes a fixed
@@ -183,7 +185,7 @@ npm audit --omit=dev
 npm audit
 ```
 
-Verified result: lint passed with zero warnings, all 31 tests passed, and the
+Verified result: lint passed with zero warnings, all 33 tests passed, and the
 Vite production build completed. The two audit commands report only the same
 upstream React Router RSC-mode advisory described above; no affected RSC or
 server-action mode exists in this project.
@@ -195,6 +197,8 @@ Runtime checks should confirm HTTP 200 for:
 /demo
 /sample-report
 /privacy
+/pricing
+/assessment
 /pilot
 /samples/Synthetic_Grant_Agreement.pdf
 /samples/Approved_Grant_Budget.xlsx
@@ -215,7 +219,7 @@ deployment.
 4. Confirm DNS contains the four GitHub Pages apex A records and the `www`
    CNAME pointing to `johnnyappleseed818.github.io`.
 5. Push a reviewed commit to `main`.
-6. Wait for **Deploy GrantDesk to GitHub Pages** to pass.
+6. Wait for **Deploy GrantDeskHQ to GitHub Pages** to pass.
 7. Verify the apex, `www` redirect, all routes, assets, and HTTPS.
 
 Generated route entry files make direct requests to each public route return
@@ -285,7 +289,30 @@ netlify deploy --dir dist --prod
 Automated tests cover mobile-menu behavior and accessible control names. A
 headless browser binary is not available in the current Cloud Shell, so final
 cross-browser visual review should also be performed in current Safari, Chrome,
-and Firefox before a paid pilot.
+and Firefox before a paid assessment.
+
+## Questionnaire and consent-based Resend email
+
+The questionnaire builder is stored at
+`outreach/GrantDeskHQ_Google_Form_Builder.gs`. Run
+`createGrantDeskHQSurvey()` in Google Apps Script, publish the resulting form,
+and copy its responder URL. The script creates a ten-question workflow
+assessment, a linked response spreadsheet, and an explicit email-consent
+question.
+
+The approval copy is in `outreach/RESEND_EMAIL_PREVIEW.md`. Preview the send
+utility without contacting anyone:
+
+```bash
+npm run outreach:preview
+```
+
+The utility reads `outreach/GrantDeskHQ_Resend_OptIn_Only_Template.csv` by
+default. It excludes unsubscribed rows and refuses any row without an email,
+consent source, consent date, and HTTPS unsubscribe URL. It never sends unless
+`--send` and the exact confirmation environment variable are both supplied.
+Do not use the 30 researched public contacts in the validation workbook for a
+Resend campaign; they do not contain recorded opt-in consent.
 
 ## Honest limitations
 

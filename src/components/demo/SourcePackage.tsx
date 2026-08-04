@@ -6,7 +6,7 @@ import { WorkspaceHeading } from "./AgencyOverview";
 export function SourcePackage() {
   return (
     <div className="workspace-stack">
-      <WorkspaceHeading eyebrow="Source package" title="Every source file in one place" description="GrantDesk uses AI to organize the award, budget, ledger, funder form, program update, and receipt schedule, giving your team one clear starting point for the report." />
+      <WorkspaceHeading eyebrow="Source package" title="Every source file in one place" description="GrantDeskHQ uses AI to organize the award, budget, ledger, funder form, program update, and receipt schedule, giving your team one clear starting point for the report." />
 
       <div className="grid gap-3 lg:grid-cols-2">
         {sourceFiles.map((file) => (
