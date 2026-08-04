@@ -12,20 +12,20 @@ function renderRoute(route: string) {
 
 describe("important routes", () => {
   it.each([
-    ["/", "Turn Grant Source Files into an Evidence-Backed Funder-Report Draft."],
-    ["/demo", "Six-Month Progress Report"],
-    ["/sample-report", "Funder-report review package"],
-    ["/privacy", "Honest boundaries for an early prototype"],
-    ["/pilot", "Founding Agency Pilot"]
+    ["/", /Spend less time building grant reports\. Catch more before review\./i],
+    ["/demo", /Six-Month Progress Report/i],
+    ["/sample-report", /See the complete review package/i],
+    ["/privacy", /A careful start with client data/i],
+    ["/pilot", /Founding Agency Pilot/i]
   ])("renders %s", (route, heading) => {
     renderRoute(route);
-    expect(screen.getAllByText(heading).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("heading", { name: heading }).length).toBeGreaterThan(0);
   });
 
   it("navigates from the landing page into the interactive demo", async () => {
     const user = userEvent.setup();
     renderRoute("/");
-    await user.click(screen.getAllByRole("link", { name: /Explore Interactive Demo/i }).at(-1)!);
+    await user.click(screen.getByRole("link", { name: /See GrantDesk in action/i }));
     expect(await screen.findByText("Agency workspace")).toBeInTheDocument();
     expect(screen.getByText("Northstar Nonprofit Finance")).toBeInTheDocument();
   });
@@ -39,6 +39,17 @@ describe("important routes", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     fireEvent.keyDown(document, { key: "Escape" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("provides a labelled contact form without exposing a personal address", () => {
+    renderRoute("/pilot");
+    expect(screen.getByRole("heading", { name: "Contact us" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toBeInTheDocument();
+    expect(screen.getByLabelText("Work email")).toBeInTheDocument();
+    expect(screen.getByLabelText("Firm name")).toBeInTheDocument();
+    expect(screen.getByLabelText("Current grant-reporting process")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Send enquiry/i })).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/eli@|Eli Katz/i);
   });
 });
 

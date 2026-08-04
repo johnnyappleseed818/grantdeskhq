@@ -3,6 +3,7 @@ import {
   BookOpenCheck,
   Calculator,
   CheckCircle2,
+  Clock3,
   ClipboardCheck,
   Database,
   FileSearch,
@@ -17,63 +18,87 @@ import { StatusBadge } from "../components/StatusBadge";
 import { formatCurrency } from "../lib/calculations";
 
 const compilerSteps = [
-  ["01", "Understand the funder format", "Extract the required sections, field types, word limits, thresholds, and certification rules from the synthetic award package."],
-  ["02", "Combine financial and program evidence", "Bring budget lines, ledger rows, template fields, source documents, and structured program responses into one review workspace."],
-  ["03", "Identify missing information", "Generate focused follow-up questions only when the supplied evidence cannot establish a required answer."],
-  ["04", "Draft source-supported content", "Compose narrative suggestions from confirmed facts and calculated results, with visible citations at sentence level."],
-  ["05", "Show the evidence trail", "Open the source document, page, transaction, excerpt, confidence, and reviewer status behind a mapping or statement."],
-  ["06", "Block unsupported claims", "Prevent unresolved contradictions and unsupported narrative claims from entering the generated review package."]
+  ["01", "Read the funder’s format", "AI identifies the questions, word limits, spending thresholds, documentation rules, and required sign-offs in each award package."],
+  ["02", "Organize the evidence", "Budgets, ledger rows, program updates, funder forms, and supporting documents come together in one review workspace."],
+  ["03", "Suggest financial mappings", "GrantDesk proposes a grant category for each transaction and shows the rule or source behind the suggestion."],
+  ["04", "Draft from confirmed facts", "Narrative suggestions use the information your team has already confirmed, with a source attached to every material statement."],
+  ["05", "Ask only for what is missing", "Program staff receive focused questions instead of another broad request for information your finance team already has."],
+  ["06", "Catch problems before rework", "Contradictions, missing receipts, unexplained variances, and unsupported claims are surfaced before the package leaves your team."]
 ];
 
 const capabilities = [
-  [FileSearch, "Funder-template understanding", "Translate the funder’s own blank form into a structured, cited reporting schema."],
-  [MessageSquareText, "Evidence-backed narrative drafting", "Connect each suggested sentence to confirmed program facts, transactions, or calculated results."],
-  [ClipboardCheck, "Intelligent missing-input collection", "Ask the program team only for required details that the source package cannot establish."],
-  [Calculator, "Variance explanation workflow", "Compare actuals with the elapsed-period plan and surface the transactions driving material differences."],
-  [ShieldCheck, "Pre-export quality controls", "Hold the review package when a receipt, mapping, certification, or supported statement still needs attention."]
+  [FileSearch, "Stop rebuilding funder formats", "AI turns each funder’s form and award rules into a clear reporting checklist for your team."],
+  [MessageSquareText, "Start with a sourced draft", "Give reviewers a useful first draft instead of a blank page, with evidence visible sentence by sentence."],
+  [ClipboardCheck, "Send fewer follow-up emails", "Ask program staff for the specific answers or documents that are genuinely still missing."],
+  [Calculator, "Explain variances faster", "See the transactions behind a material variance and draft an explanation from confirmed facts."],
+  [ShieldCheck, "Reduce avoidable review errors", "Catch unsupported claims, inconsistent figures, missing receipts, and incomplete approvals earlier."]
+];
+
+const customerValue = [
+  [Clock3, "Less manual assembly", "Spend less time copying figures between spreadsheets, templates, and narrative documents."],
+  [ShieldCheck, "Fewer avoidable errors", "Surface missing support and conflicting information while there is still time to fix it."],
+  [Calculator, "More capacity, less admin cost", "Use team time for review and advice instead of repeat data entry, helping keep the internal cost of each report under control."]
 ];
 
 export function LandingPage() {
   return (
     <>
       <section className="hero-section">
-        <div className="site-shell grid items-center gap-12 py-16 lg:grid-cols-[1.02fr_.98fr] lg:py-24">
+        <div className="hero-shape hero-shape-one" aria-hidden="true" />
+        <div className="hero-shape hero-shape-two" aria-hidden="true" />
+        <div className="site-shell relative z-10 grid items-center gap-12 py-16 lg:grid-cols-[1.02fr_.98fr] lg:py-24">
           <div>
-            <div className="prototype-pill"><span aria-hidden="true" /> Interactive prototype using synthetic demonstration data</div>
-            <h1 className="hero-title">Turn Grant Source Files into an Evidence-Backed Funder-Report Draft.</h1>
+            <div className="prototype-pill"><span aria-hidden="true" /> AI-powered post-award reporting</div>
+            <h1 className="hero-title">Spend less time <span className="hero-highlight">building grant reports.</span> Catch more before review.</h1>
             <p className="hero-copy">
-              GrantDesk helps outsourced nonprofit finance teams combine award agreements, approved budgets, GL exports, funder templates, and program updates into review-ready reporting packages—with every figure and narrative claim linked to its source.
+              GrantDesk uses AI to organize award terms, approved budgets, GL exports, funder forms, and program updates in one workspace—so outsourced finance teams can reduce manual work, catch missing support earlier, and spend more time helping clients.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link className="button button-primary button-large" to="/demo">Explore Interactive Demo <ArrowRight aria-hidden="true" /></Link>
-              <Link className="button button-secondary button-large" to="/sample-report">View Synthetic Sample Report</Link>
+              <Link className="button button-primary button-large" to="/demo">See GrantDesk in action <ArrowRight aria-hidden="true" /></Link>
+              <Link className="button button-secondary button-large" to="/sample-report">View the sample report</Link>
             </div>
-            <p className="trust-line"><CheckCircle2 aria-hidden="true" /> Interactive prototype · Synthetic data · Human approval required</p>
+            <p className="trust-line"><CheckCircle2 aria-hidden="true" /> Interactive prototype using synthetic data · Every draft stays under human control</p>
           </div>
 
           <ProductPreview />
+        </div>
+        <div className="site-shell relative z-10 pb-12 lg:pb-16">
+          <div className="value-strip">
+            {customerValue.map(([Icon, title, copy]) => {
+              const ValueIcon = Icon as typeof Clock3;
+              return (
+                <article key={title as string} className="value-item">
+                  <span className="value-icon"><ValueIcon aria-hidden="true" /></span>
+                  <div>
+                    <h2>{title as string}</h2>
+                    <p>{copy as string}</p>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         </div>
       </section>
 
       <section id="how-it-works" className="section-block bg-white">
         <div className="site-shell">
           <div className="section-heading">
-            <p className="eyebrow">A controlled reporting workflow</p>
-            <h2>From fragmented source package to reviewable draft</h2>
-            <p>Designed for fractional nonprofit CFOs, outsourced accounting practices, and controller teams managing completed post-award reporting work.</p>
+            <p className="eyebrow">How it helps</p>
+            <h2>A cleaner path from source files to a report draft</h2>
+            <p>Reporting evidence lives in too many places. GrantDesk brings it together and handles the repetitive first pass, so your team can focus on the decisions that need experience and judgment.</p>
           </div>
-          <div className="mt-10 grid gap-px overflow-hidden border border-slate-200 bg-slate-200 md:grid-cols-3">
+          <div className="workflow-grid">
             {[
-              [FileText, "Assemble", "Add the synthetic agreement, approved budget, ledger export, blank funder form, and structured program update."],
-              [BookOpenCheck, "Compile", "Review extracted requirements, suggested financial mappings, calculated variances, and missing information."],
-              [ClipboardCheck, "Approve", "Resolve open evidence items and generate a controller-review package—never an automatic submission."]
+              [FileText, "Bring the work together", "Add the award agreement, budget, ledger export, funder form, and program update to one organized workspace."],
+              [BookOpenCheck, "Let AI handle the first pass", "Get extracted reporting rules, suggested transaction mappings, calculated variances, and a source-backed narrative draft."],
+              [ClipboardCheck, "Review what matters", "Clear the few items that need attention, then download a complete review package with the supporting evidence organized alongside it."]
             ].map(([Icon, title, copy], index) => {
               const StepIcon = Icon as typeof FileText;
               return (
-                <article className="bg-white p-7" key={title as string}>
+                <article className="workflow-card" key={title as string}>
                   <div className="flex items-center justify-between">
                     <span className="icon-tile"><StepIcon aria-hidden="true" /></span>
-                    <span className="text-xs font-bold tracking-widest text-slate-400">0{index + 1}</span>
+                    <span className="step-number">0{index + 1}</span>
                   </div>
                   <h3 className="mt-6 text-xl font-semibold text-navy-900">{title as string}</h3>
                   <p className="mt-3 text-sm leading-6 text-slate-600">{copy as string}</p>
@@ -84,16 +109,16 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section id="compiler" className="section-block bg-navy-950 text-white">
-        <div className="site-shell grid gap-14 lg:grid-cols-[.78fr_1.22fr]">
+      <section id="compiler" className="section-block bg-white">
+        <div className="site-shell compiler-shell grid gap-14 lg:grid-cols-[.78fr_1.22fr]">
           <div className="lg:sticky lg:top-28 lg:self-start">
-            <p className="eyebrow text-emerald-300">AI Report Compiler</p>
-            <h2 className="max-w-lg text-3xl font-semibold tracking-tight text-white md:text-4xl">Structure first. Evidence always visible.</h2>
+            <p className="eyebrow text-emerald-300">AI-powered, evidence-first</p>
+            <h2 className="max-w-lg text-3xl font-semibold tracking-tight text-white md:text-4xl">Automate the tedious parts without losing control.</h2>
             <p className="mt-5 max-w-lg leading-7 text-slate-300">
-              The differentiator is not generic document extraction. GrantDesk models the funder’s required format, compiles only supported content, and keeps professional judgment at the approval point.
+              GrantDesk handles the repetitive first pass: reading requirements, organizing evidence, suggesting mappings, and preparing a sourced draft. Your team stays in control of every judgment and approval.
             </p>
             <div className="mt-7 border-l-2 border-emeraldMuted-500 pl-4 text-sm leading-6 text-slate-300">
-              Prototype behavior is simulated deterministically. This website does not imply that a production AI backend exists.
+              This demo uses deterministic synthetic data to show the intended AI workflow. A production AI service is not connected to this public website.
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -111,9 +136,9 @@ export function LandingPage() {
       <section className="section-block bg-canvas">
         <div className="site-shell">
           <div className="section-heading">
-            <p className="eyebrow">Reporting context, not another ledger</p>
-            <h2>More Than Budget vs. Actuals</h2>
-            <p>Financial totals matter. So do the funder’s questions, program evidence, documentation rules, and the controller’s review decisions.</p>
+            <p className="eyebrow">Built for the whole reporting package</p>
+            <h2>Less rework. More confidence in every draft.</h2>
+            <p>GrantDesk connects the numbers to the funder’s questions, documentation rules, program evidence, and your team’s review decisions.</p>
           </div>
           <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-5">
             {capabilities.map(([Icon, title, copy]) => {
@@ -133,18 +158,18 @@ export function LandingPage() {
       <section className="section-block bg-white">
         <div className="site-shell grid gap-12 lg:grid-cols-[.85fr_1.15fr]">
           <div>
-            <p className="eyebrow">Clear boundaries</p>
-            <h2 className="text-3xl font-semibold text-navy-900">What GrantDesk Does Not Replace</h2>
+            <p className="eyebrow">Works with your existing process</p>
+            <h2 className="text-3xl font-semibold text-navy-900">Fits into the tools and judgment you already trust</h2>
             <p className="mt-4 leading-7 text-slate-600">
-              GrantDesk is a draft and evidence-assembly layer for post-award reporting. It does not discover grants, write proposals, keep the general ledger, perform an audit, determine compliance, or submit reports.
+              GrantDesk helps your team prepare post-award drafts and organize the evidence behind them. It works alongside your accounting and program systems; it does not replace the books, professional review, or your funder’s submission process.
             </p>
           </div>
           <div className="divide-y divide-slate-200 border-y border-slate-200">
             {[
-              [Database, "Accounting systems", "QuickBooks, Sage Intacct, NetSuite, and other systems remain the books of record."],
-              [Link2, "Grant-management systems", "Existing award records, workflows, and funder portals remain authoritative."],
-              [FileText, "Program-data systems", "Service counts and program outcomes continue to come from reviewed program sources."],
-              [TriangleAlert, "Professional judgment", "Controllers and finance professionals review mappings, explanations, support, and final outputs."]
+              [Database, "Accounting systems", "Your accounting system remains the book of record; GrantDesk helps turn its approved data into the funder’s reporting format."],
+              [Link2, "Grant-management systems", "Keep using your existing award records, workflows, deadlines, and funder portals."],
+              [FileText, "Program-data systems", "Program results still come from sources your team knows and has reviewed."],
+              [TriangleAlert, "Professional judgment", "Controllers and finance professionals remain responsible for mappings, explanations, supporting evidence, and final approval."]
             ].map(([Icon, title, copy]) => {
               const BoundaryIcon = Icon as typeof Database;
               return (
@@ -159,14 +184,17 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="bg-emeraldMuted-50 py-16">
+      <section className="cta-section">
         <div className="site-shell flex flex-col items-start justify-between gap-8 md:flex-row md:items-center">
           <div>
-            <p className="eyebrow">See the evidence trail</p>
-            <h2 className="text-3xl font-semibold text-navy-900">Review the synthetic six-month report package.</h2>
-            <p className="mt-3 text-slate-600">Explore the complete workflow before discussing a founding agency pilot.</p>
+            <p className="eyebrow">See it for yourself</p>
+            <h2 className="text-3xl font-semibold text-navy-900">See where AI can take work off your team’s plate.</h2>
+            <p className="mt-3 text-slate-600">Explore the complete synthetic workflow, or tell us where grant reporting slows your team down.</p>
           </div>
-          <Link className="button button-primary button-large shrink-0" to="/demo">Open the demo <ArrowRight aria-hidden="true" /></Link>
+          <div className="flex flex-wrap gap-3">
+            <Link className="button button-primary button-large shrink-0" to="/demo">Open the demo <ArrowRight aria-hidden="true" /></Link>
+            <Link className="button button-secondary button-large shrink-0" to="/pilot#contact">Contact us</Link>
+          </div>
         </div>
       </section>
     </>
@@ -175,6 +203,7 @@ export function LandingPage() {
 
 function ProductPreview() {
   return (
+    <div className="product-preview-wrap">
     <div className="product-preview" aria-label="GrantDesk synthetic product interface preview">
       <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
         <div className="flex items-center gap-2">
@@ -221,6 +250,8 @@ function ProductPreview() {
           </div>
         </div>
       </div>
+    </div>
+    <div className="preview-note"><ShieldCheck aria-hidden="true" /> Sources stay visible as your team reviews</div>
     </div>
   );
 }

@@ -32,8 +32,8 @@ export function MissingInputs() {
     <div className="workspace-stack">
       <WorkspaceHeading
         eyebrow="Intelligent missing-input collection"
-        title="Ask only what the evidence cannot establish"
-        description="The prototype has generated a focused five-question follow-up from gaps in the synthetic source package. No questionnaire is actually sent."
+        title="Ask once for exactly what is missing"
+        description="Instead of another broad follow-up, GrantDesk turns gaps in the evidence into five focused questions for the Program Director. The controls in this synthetic demo update locally; no questionnaire is sent."
       />
 
       <div className="workspace-grid">

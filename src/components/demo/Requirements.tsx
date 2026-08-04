@@ -10,7 +10,7 @@ export function Requirements() {
 
   return (
     <div className="workspace-stack">
-      <WorkspaceHeading eyebrow="Funder-template compiler" title="Required report structure, traced to source" description="The prototype combines the synthetic award agreement and blank funder form into a structured schema for controller review." />
+      <WorkspaceHeading eyebrow="Funder-template compiler" title="Know what the funder expects before drafting" description="GrantDesk is designed to read the award and funder form together, then turn the requirements into a checklist your team can verify. This demo uses a deterministic synthetic result." />
 
       <div className="compiler-message"><ScanSearch aria-hidden="true" /><strong>GrantDesk builds the draft around the funder’s required structure—not around a generic report template.</strong></div>
 

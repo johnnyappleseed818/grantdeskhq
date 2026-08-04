@@ -17,7 +17,7 @@ interface Props { enabled: boolean; generated: boolean; unresolved: number; onOp
 export function ExportPackage({ enabled, generated, unresolved, onOpenQuality, onGenerate }: Props) {
   return (
     <div className="workspace-stack">
-      <WorkspaceHeading eyebrow="Export package" title="Controller-review outputs" description="Generated files are synthetic drafts and schedules for professional review. GrantDesk never submits a report automatically." />
+      <WorkspaceHeading eyebrow="Export package" title="Everything your reviewer needs, organized" description="Download the draft, financial schedules, supporting evidence, and review checklist together. The synthetic files are prepared for professional review and are not sent to a funder." />
 
       {!enabled ? (
         <section className="export-gate">
@@ -26,7 +26,7 @@ export function ExportPackage({ enabled, generated, unresolved, onOpenQuality, o
         </section>
       ) : !generated ? (
         <section className="export-gate is-enabled">
-          <div className="flex items-start gap-4"><FileOutput aria-hidden="true" /><div><p className="eyebrow">Quality gate cleared</p><h2>Ready to generate synthetic files</h2><p>This action creates no external submission and sends no information.</p></div></div>
+          <div className="flex items-start gap-4"><FileOutput aria-hidden="true" /><div><p className="eyebrow">Quality gate cleared</p><h2>Ready to create the synthetic review files</h2><p>Nothing leaves your browser when you create this demonstration package.</p></div></div>
           <button type="button" className="button button-primary" onClick={onGenerate}>Generate Review Package</button>
         </section>
       ) : (

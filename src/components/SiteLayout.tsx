@@ -8,7 +8,7 @@ const marketingLinks = [
   ["AI Report Compiler", "/#compiler"],
   ["Sample Output", "/sample-report"],
   ["Data Handling", "/privacy"],
-  ["Founding Pilot", "/pilot"]
+  ["Contact", "/pilot#contact"]
 ];
 
 export function SiteLayout() {
@@ -49,7 +49,7 @@ export function SiteLayout() {
             {marketingLinks.map(([label, href]) => (
               <NavLink key={label} to={href} className="nav-link">{label}</NavLink>
             ))}
-            <Link className="button button-primary whitespace-nowrap" to="/demo">Explore Interactive Demo</Link>
+            <Link className="button button-primary whitespace-nowrap" to="/demo">See the demo</Link>
           </nav>
         </div>
       </header>
@@ -61,7 +61,7 @@ export function SiteLayout() {
           <div>
             <Logo inverse />
             <p className="mt-4 max-w-md text-sm leading-6 text-slate-400">
-              Interactive prototype using synthetic demonstration data. GrantDesk outputs are drafts requiring professional human review.
+              AI-powered grant-reporting workflow designed to reduce manual assembly and catch issues earlier. The public demo uses synthetic data; final decisions stay with your team.
             </p>
           </div>
           <div>
@@ -76,7 +76,7 @@ export function SiteLayout() {
             <p className="footer-heading">Information</p>
             <div className="mt-3 grid gap-2 text-sm">
               <Link to="/privacy">Privacy and data handling</Link>
-              <a href="mailto:eli@grantdeskhq.com">eli@grantdeskhq.com</a>
+              <Link to="/pilot#contact">Contact us</Link>
               <span className="text-slate-500">© {new Date().getFullYear()} GrantDesk</span>
             </div>
           </div>

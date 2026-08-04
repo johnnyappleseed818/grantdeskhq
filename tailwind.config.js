@@ -14,11 +14,11 @@ export default {
           925: "#182331"
         },
         emeraldMuted: {
-          50: "#eff6f2",
-          100: "#ddebe2",
-          500: "#5d806b",
-          600: "#486b57",
-          700: "#355442"
+          50: "#edf8f1",
+          100: "#d9efe2",
+          500: "#45a173",
+          600: "#2f825a",
+          700: "#215f43"
         },
         amberReview: {
           50: "#fff8e8",
@@ -30,11 +30,11 @@ export default {
           200: "#efc5c5",
           700: "#9b3838"
         },
-        canvas: "#f5f6f2"
+        canvas: "#fbfaf6"
       },
       boxShadow: {
-        panel: "0 14px 35px rgba(16,35,63,.08)",
-        lift: "0 24px 60px rgba(8,20,38,.13)"
+        panel: "0 12px 32px rgba(16,35,63,.07)",
+        lift: "0 26px 70px rgba(8,20,38,.14)"
       },
       fontFamily: {
         sans: ["Inter", "ui-sans-serif", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"]

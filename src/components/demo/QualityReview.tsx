@@ -33,7 +33,7 @@ export function QualityReview({ reviewState, onResolve, onGenerate }: Props) {
 
   return (
     <div className="workspace-stack">
-      <WorkspaceHeading eyebrow="Quality review gate" title={enabled ? "Review gate cleared" : `${unresolved} items require review before export.`} description="The prototype holds the review package until required mapping, support, and certification checks are resolved locally by the user." />
+      <WorkspaceHeading eyebrow="Quality review gate" title={enabled ? "Review gate cleared" : `${unresolved} items require review before export.`} description="GrantDesk brings the remaining decisions into one short list, so your team can fix missing support and inconsistencies before creating the review package." />
 
       <div className="grid gap-5 lg:grid-cols-[1fr_1fr]">
         <section className="panel">
@@ -59,11 +59,11 @@ export function QualityReview({ reviewState, onResolve, onGenerate }: Props) {
       </div>
 
       <section className={`export-gate ${enabled ? "is-enabled" : ""}`}>
-        <div className="flex items-start gap-4">{enabled ? <FileOutput aria-hidden="true" /> : <LockKeyhole aria-hidden="true" />}<div><p className="eyebrow">Controller review package</p><h2>{enabled ? "All required prototype checks are resolved." : "Export remains disabled."}</h2><p>{enabled ? "Generate the synthetic review package and inspect every output before any professional use." : `${unresolved} required item${unresolved === 1 ? "" : "s"} must be resolved. This action never submits a report to a funder.`}</p></div></div>
+        <div className="flex items-start gap-4">{enabled ? <FileOutput aria-hidden="true" /> : <LockKeyhole aria-hidden="true" />}<div><p className="eyebrow">Controller review package</p><h2>{enabled ? "Everything on this checklist is resolved." : "The package is not ready yet."}</h2><p>{enabled ? "Create the synthetic package, then inspect every output before professional use." : `Finish ${unresolved} required item${unresolved === 1 ? "" : "s"}, then your team can download the draft package for review.`}</p></div></div>
         <button type="button" className="button button-primary button-large" disabled={!enabled} onClick={onGenerate}>Generate Review Package</button>
       </section>
 
-      <p className="prototype-note">Resolving these items changes local prototype state only. It does not reconcile a ledger, validate real documentation, sign a legal certification, or submit a report.</p>
+      <p className="prototype-note">These buttons change only this demo. In real work, your team would still verify the ledger, inspect the documents, complete the certification, and decide when the report is ready.</p>
     </div>
   );
 }

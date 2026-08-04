@@ -6,7 +6,7 @@ import { WorkspaceHeading } from "./AgencyOverview";
 export function SourcePackage() {
   return (
     <div className="workspace-stack">
-      <WorkspaceHeading eyebrow="Source package" title="Six inputs, one controlled evidence set" description="Synthetic files are shown as already processed for demonstration. No production document extraction or file upload occurs on this website." />
+      <WorkspaceHeading eyebrow="Source package" title="Every source file in one place" description="The intended AI workflow organizes the award, budget, ledger, funder form, program update, and receipt schedule before review begins. This demo shows preprocessed synthetic files; it does not upload or process documents." />
 
       <div className="grid gap-3 lg:grid-cols-2">
         {sourceFiles.map((file) => (

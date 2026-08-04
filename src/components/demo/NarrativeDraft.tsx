@@ -45,7 +45,7 @@ export function NarrativeDraft({ onEvidence }: { onEvidence: (evidence: Evidence
 
   return (
     <div className="workspace-stack">
-      <WorkspaceHeading eyebrow="Evidence-backed narrative" title="Every sentence has a visible review state" description="Click a sentence to inspect its synthetic source, locator, excerpt, evidence type, confidence, and reviewer status." />
+      <WorkspaceHeading eyebrow="Evidence-backed narrative" title="Review a draft that shows its work" description="Each sentence shows whether it came from a source, a calculation, or a confirmed response. Click any sentence to see the evidence before you approve the wording." />
 
       <section className="panel">
         <div className="panel-heading">
@@ -85,7 +85,7 @@ export function NarrativeDraft({ onEvidence }: { onEvidence: (evidence: Evidence
           <div><p className="eyebrow">Approved Content Library</p><h2>Previously approved synthetic client language</h2></div>
           <StatusBadge tone="neutral">Future workflow demonstration</StatusBadge>
         </div>
-        <p className="mb-5 text-sm leading-6 text-slate-600">This panel demonstrates possible agency reuse. It does not claim autonomous learning or a live production content library.</p>
+        <p className="mb-5 text-sm leading-6 text-slate-600">This synthetic example shows how an agency could reuse language a client has already approved. It is a future workflow concept, not a live content library or autonomous learning feature.</p>
         <div className="grid gap-3 md:grid-cols-2">
           {approvedContentLibrary.map((item) => (
             <article key={item.title} className="library-card">

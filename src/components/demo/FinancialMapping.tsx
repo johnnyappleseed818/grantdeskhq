@@ -23,8 +23,8 @@ export function FinancialMapping({ decisions, onSetMapping, onApprove, onEvidenc
     <div className="workspace-stack">
       <WorkspaceHeading
         eyebrow="Financial mapping"
-        title="Suggested mappings with controller approval"
-        description="GrantDesk suggests a category and explains the evidence. The controller approves, changes, or leaves each transaction unresolved."
+        title="Review AI suggestions instead of mapping from scratch"
+        description="GrantDesk suggests a grant category and shows why. Your controller approves it, changes it, or leaves the transaction unresolved—nothing is approved on the team’s behalf."
       />
 
       <div className="grid gap-3 sm:grid-cols-3">

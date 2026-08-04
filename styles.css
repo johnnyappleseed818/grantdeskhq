@@ -5,7 +5,7 @@
 @layer base {
   :root {
     color: #263547;
-    background: #f5f6f2;
+    background: #fbfaf6;
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
@@ -935,6 +935,285 @@
 
   .report-downloads h2 {
     @apply text-lg font-semibold text-navy-900;
+  }
+}
+
+/* Refined marketing and product visual system. Flat color, warm surfaces, and
+   restrained depth keep the experience professional without feeling sterile. */
+@layer components {
+  .site-header {
+    @apply border-slate-200/80 bg-white/90 shadow-[0_1px_0_rgba(16,35,63,.03)];
+  }
+
+  .primary-navigation.is-open {
+    border-radius: 1rem;
+  }
+
+  .nav-link {
+    @apply transition-colors hover:text-emeraldMuted-700;
+  }
+
+  .button {
+    border-radius: .75rem;
+    box-shadow: 0 1px 2px rgba(8, 20, 38, .05);
+    transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+  }
+
+  .button:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+
+  .button-primary {
+    @apply border-emeraldMuted-600 bg-emeraldMuted-600 text-white hover:border-emeraldMuted-700 hover:bg-emeraldMuted-700;
+  }
+
+  .button-secondary {
+    @apply border-slate-300 bg-white/90 hover:border-emeraldMuted-500 hover:bg-white;
+  }
+
+  .icon-button,
+  .icon-tile,
+  .file-icon,
+  .table-action,
+  .question-number {
+    border-radius: .7rem;
+  }
+
+  .prototype-pill,
+  .status-badge,
+  .source-chip {
+    border-radius: 999px;
+  }
+
+  .prototype-pill {
+    @apply border-emeraldMuted-100 bg-emeraldMuted-50/80 px-3.5 py-2;
+  }
+
+  .hero-section {
+    @apply relative border-slate-200 bg-[#fbf7ef];
+  }
+
+  .hero-shape {
+    position: absolute;
+    border-radius: 999px;
+    pointer-events: none;
+  }
+
+  .hero-shape-one {
+    width: 24rem;
+    height: 24rem;
+    right: -8rem;
+    top: -8rem;
+    background: #d9efe2;
+    opacity: .62;
+  }
+
+  .hero-shape-two {
+    width: 11rem;
+    height: 11rem;
+    left: -6rem;
+    bottom: 3rem;
+    background: #f0dfc8;
+    opacity: .55;
+  }
+
+  .hero-title {
+    @apply text-[clamp(2.65rem,5.1vw,4.85rem)] leading-[1.01];
+  }
+
+  .hero-highlight {
+    color: #215f43;
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: 500;
+    letter-spacing: -.045em;
+  }
+
+  .product-preview-wrap {
+    @apply relative pb-5 lg:pl-4;
+  }
+
+  .product-preview-wrap::before {
+    content: "";
+    position: absolute;
+    inset: 1.25rem -1rem .25rem 2rem;
+    border-radius: 1.75rem;
+    background: #cfe6d8;
+    transform: rotate(2.5deg);
+  }
+
+  .product-preview {
+    @apply relative border-white shadow-lift;
+    border-radius: 1.5rem;
+  }
+
+  .product-preview > div:first-child {
+    @apply bg-white;
+  }
+
+  .preview-note {
+    @apply absolute -bottom-1 right-5 z-10 inline-flex items-center gap-2 bg-navy-950 px-4 py-3 text-xs font-semibold text-white shadow-panel;
+    border-radius: .9rem;
+  }
+
+  .preview-note svg {
+    @apply h-4 w-4 text-emerald-300;
+  }
+
+  .value-strip {
+    @apply grid overflow-hidden border border-slate-200/80 bg-white shadow-panel md:grid-cols-3;
+    border-radius: 1.25rem;
+  }
+
+  .value-item {
+    @apply flex gap-4 border-b border-slate-200 p-5 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0 lg:p-6;
+  }
+
+  .value-icon {
+    @apply inline-flex h-10 w-10 shrink-0 items-center justify-center bg-emeraldMuted-50 text-emeraldMuted-700;
+    border-radius: .75rem;
+  }
+
+  .value-icon svg {
+    @apply h-5 w-5;
+  }
+
+  .value-item h2 {
+    @apply text-sm font-semibold text-navy-900;
+  }
+
+  .value-item p {
+    @apply mt-1 text-xs leading-5 text-slate-500;
+  }
+
+  .workflow-grid {
+    @apply mt-12 grid gap-5 md:grid-cols-3;
+  }
+
+  .workflow-card {
+    @apply border border-slate-200 p-7;
+    border-radius: 1.25rem;
+  }
+
+  .workflow-card:nth-child(1) {
+    background: #fbf7ef;
+  }
+
+  .workflow-card:nth-child(2) {
+    background: #edf8f1;
+  }
+
+  .workflow-card:nth-child(3) {
+    background: #f1f5f8;
+  }
+
+  .step-number {
+    @apply text-xs font-bold tracking-widest text-slate-400;
+  }
+
+  .compiler-shell {
+    @apply bg-navy-950 p-7 shadow-lift md:p-12 lg:p-14;
+    border-radius: 2rem;
+  }
+
+  .compiler-card {
+    @apply border-white/10 bg-white/[.045] p-6;
+    border-radius: 1rem;
+  }
+
+  .capability-card {
+    @apply border border-slate-200 border-t-slate-200 shadow-panel;
+    border-radius: 1rem;
+  }
+
+  .capability-card:hover {
+    border-color: #9fcbb0;
+  }
+
+  .cta-section {
+    @apply bg-[#e8f4ed] py-16;
+  }
+
+  .panel,
+  .metric-card,
+  .summary-card,
+  .file-row,
+  .requirement-split,
+  .contradiction-panel,
+  .library-card,
+  .export-gate,
+  .report-toolbar,
+  .report-downloads {
+    border-radius: 1rem;
+  }
+
+  .panel {
+    @apply border-slate-200/90;
+  }
+
+  .contact-panel {
+    @apply border border-slate-200 bg-white p-6 shadow-lift sm:p-8;
+    border-radius: 1.5rem;
+  }
+
+  .form-control {
+    @apply border-slate-300 bg-[#fffefa] px-4 py-3;
+    border-radius: .75rem;
+  }
+
+  .form-control:focus {
+    @apply border-emeraldMuted-500 bg-white;
+  }
+
+  .form-note {
+    @apply border border-emeraldMuted-100 bg-emeraldMuted-50 p-4 text-xs leading-5 text-slate-600;
+    border-radius: .75rem;
+  }
+
+  .demo-page {
+    @apply bg-[#f3f5f4];
+  }
+
+  .demo-sidebar {
+    @apply bg-[#0b1b2d];
+  }
+
+  .demo-nav-button,
+  .demo-mobile-nav select,
+  .review-item,
+  .recipient-preview,
+  .report-metric,
+  .report-callout {
+    border-radius: .75rem;
+  }
+
+  .demo-nav-button.is-active {
+    @apply bg-emeraldMuted-600 text-white;
+  }
+
+  .metric-card,
+  .summary-card {
+    @apply shadow-[0_3px_14px_rgba(16,35,63,.04)];
+  }
+
+  .workspace-heading {
+    @apply border-slate-200 pb-6;
+  }
+
+  .workspace-heading h1 {
+    @apply text-[1.7rem] leading-tight md:text-3xl;
+  }
+
+  .file-row,
+  .library-card {
+    @apply transition-colors hover:border-emeraldMuted-100;
+  }
+
+  .report-document {
+    border-radius: .25rem;
+  }
+
+  footer a {
+    @apply transition-colors hover:text-white;
   }
 }
 

@@ -1,8 +1,10 @@
 # GrantDesk interactive product prototype
 
-GrantDesk is a polished, static React product demonstration for post-award
-grant-reporting workflows used by fractional nonprofit CFO firms, outsourced
-accounting practices, and nonprofit controller teams.
+GrantDesk is a polished, static React product demonstration for an AI-powered
+post-award grant-reporting workflow used by fractional nonprofit CFO firms,
+outsourced accounting practices, and nonprofit controller teams. The product
+direction is designed to reduce repetitive assembly, catch missing evidence
+earlier, and make professional review easier.
 
 > Interactive prototype using synthetic demonstration data. GrantDesk outputs
 > are drafts and suggested mappings that require professional human review.
@@ -10,8 +12,6 @@ accounting practices, and nonprofit controller teams.
 > accounting-system integration, or automatic funder submission.
 
 Production domain: [grantdeskhq.com](https://grantdeskhq.com)
-
-Founder: Eli Katz — [eli@grantdeskhq.com](mailto:eli@grantdeskhq.com)
 
 ## Repository isolation
 
@@ -29,7 +29,7 @@ Founder: Eli Katz — [eli@grantdeskhq.com](mailto:eli@grantdeskhq.com)
 | `/demo` | Stateful synthetic GrantDesk agency workspace |
 | `/sample-report` | Print-ready funder-report review package |
 | `/privacy` | Honest prototype and pilot data-handling boundaries |
-| `/pilot` | $500 Founding Agency Pilot and mailto enquiry |
+| `/pilot` | $500 Founding Agency Pilot and contact enquiry |
 | `*` | Accessible not-found page |
 
 The demo includes Agency Overview, Source Package, Requirements, Financial
@@ -178,7 +178,7 @@ npm audit --omit=dev
 npm audit
 ```
 
-Verified result: lint passed with zero warnings, all 29 tests passed, and the
+Verified result: lint passed with zero warnings, all 30 tests passed, and the
 Vite production build completed. The two audit commands report only the same
 upstream React Router RSC-mode advisory described above; no affected RSC or
 server-action mode exists in this project.
@@ -291,8 +291,10 @@ and Firefox before a paid pilot.
   measurements, or performance measurements are claimed.
 - Questionnaire, assignment, due-date, mapping, and review controls update local
   browser state only.
-- The pilot form opens a prefilled email to `eli@grantdeskhq.com`; the website
-  does not submit or store it.
+- The contact form opens a prefilled message in the visitor's email app; the
+  website does not submit, transmit, or store the form data itself. The static
+  destination is configured in `src/pages/PilotPage.tsx` and is not displayed
+  in the public interface.
 - Generated outputs are synthetic drafts and cannot be used as accounting,
   legal, audit, or compliance advice.
 - Human controller review remains required before any external use.

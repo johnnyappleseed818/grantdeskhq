@@ -9,7 +9,7 @@ export function AgencyOverview({ onNavigate }: { onNavigate: (view: DemoView) =>
 
   return (
     <div className="workspace-stack">
-      <WorkspaceHeading eyebrow="Agency overview" title="Six-Month Progress Report" description="A synthetic controller workspace for Hope Community Services. Every output shown is a draft requiring professional review." />
+      <WorkspaceHeading eyebrow="Agency overview" title="Six-Month Progress Report" description="See the budget position, missing support, and next review steps without rebuilding the report by hand. This workspace uses synthetic data, and every output remains a draft." />
 
       <div className="metric-grid">
         <Metric icon={CircleDollarSign} label="Approved award" value={formatCurrency(annualBudgetTotal())} detail="Annual grant budget" />

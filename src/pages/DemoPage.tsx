@@ -125,7 +125,7 @@ export function DemoPage() {
       <div className="demo-disclosure">
         <div className="site-shell flex items-center justify-center gap-2 text-center">
           <StatusBadge tone="info">Interactive prototype using synthetic data</StatusBadge>
-          <span className="hidden text-xs text-slate-600 sm:inline">No production AI backend · Human controller review required</span>
+          <span className="hidden text-xs text-slate-600 sm:inline">Deterministic demo workflow · Final review stays with your team</span>
         </div>
       </div>
 

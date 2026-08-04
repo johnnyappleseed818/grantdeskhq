@@ -10,7 +10,7 @@ export function SampleReportPage() {
   return (
     <div className="report-page">
       <div className="report-toolbar print:hidden">
-        <div><p className="eyebrow">Synthetic sample output</p><h1>Funder-report review package</h1><p>Print-ready HTML plus generated PDF, XLSX, and CSV assets.</p></div>
+        <div><p className="eyebrow">Synthetic sample output</p><h1>See the complete review package</h1><p>The draft, budget schedule, transaction evidence, open items, and citations are organized in one place.</p></div>
         <div className="flex flex-wrap gap-2">
           <button type="button" className="button button-secondary" onClick={() => window.print()}><Printer aria-hidden="true" /> Print or Save as PDF</button>
           <a className="button button-primary" href="/samples/Synthetic_Funder_Report_Draft.pdf" download><Download aria-hidden="true" /> Download synthetic PDF</a>
@@ -101,7 +101,7 @@ export function SampleReportPage() {
       <div className="report-downloads print:hidden">
         <h2>Related synthetic files</h2>
         <div className="mt-4 flex flex-wrap gap-3"><a className="button button-secondary" href="/samples/Synthetic_Grant_Agreement.pdf" download>Grant Agreement PDF</a><a className="button button-secondary" href="/samples/Approved_Grant_Budget.xlsx" download>Approved Budget XLSX</a><a className="button button-secondary" href="/samples/General_Ledger_Export.csv" download>GL Export CSV</a><a className="button button-secondary" href="/samples/Transaction_Evidence_Schedule.xlsx" download>Evidence Schedule XLSX</a></div>
-        <p className="mt-5 text-sm text-slate-600">Want to evaluate a completed historical report? <Link className="font-semibold text-emeraldMuted-700 underline" to="/pilot">Review the Founding Agency Pilot</Link>.</p>
+        <p className="mt-5 text-sm text-slate-600">Want to see how this could work with your reporting process? <Link className="font-semibold text-emeraldMuted-700 underline" to="/pilot#contact">Contact us about the Founding Agency Pilot</Link>.</p>
       </div>
     </div>
   );
