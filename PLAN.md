@@ -1,4 +1,4 @@
-# GrantDesk interactive prototype implementation plan
+# GrantDesk interactive demo implementation plan
 
 1. Establish the React 18, TypeScript, Vite, Tailwind, React Router, Lucide, ESLint, and Vitest toolchain without changing the isolated repository or domain binding.
 2. Build a typed synthetic grant-reporting model with exact budget, transaction, evidence, requirement, narrative, and review-gate calculations.

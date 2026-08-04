@@ -10,9 +10,9 @@ export function Requirements() {
 
   return (
     <div className="workspace-stack">
-      <WorkspaceHeading eyebrow="Funder-template compiler" title="Know what the funder expects before drafting" description="GrantDesk is designed to read the award and funder form together, then turn the requirements into a checklist your team can verify. This demo uses a deterministic synthetic result." />
+      <WorkspaceHeading eyebrow="Funder-template compiler" title="Know what the funder expects before drafting" description="GrantDesk uses AI to read the award and funder form together, then turns the requirements into a clear checklist your team can review before work begins." />
 
-      <div className="compiler-message"><ScanSearch aria-hidden="true" /><strong>GrantDesk builds the draft around the funder’s required structure—not around a generic report template.</strong></div>
+      <div className="compiler-message"><ScanSearch aria-hidden="true" /><strong>Your draft follows the funder’s exact questions and format, saving your team from rebuilding the form by hand.</strong></div>
 
       <section className="requirement-split">
         <div className="template-pane">

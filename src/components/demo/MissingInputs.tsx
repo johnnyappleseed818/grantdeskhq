@@ -22,10 +22,10 @@ export function MissingInputs() {
     });
   };
 
-  const copyPrototypeLink = async () => {
+  const copyDemoLink = async () => {
     const link = "https://grantdeskhq.com/demo?recipient=synthetic-program-director";
-    try { await navigator.clipboard?.writeText(link); } catch { /* local status still explains prototype behavior */ }
-    setCopyState("Prototype link copied locally");
+    try { await navigator.clipboard?.writeText(link); } catch { /* local status still explains demo behavior */ }
+    setCopyState("Demo link copied locally");
   };
 
   return (
@@ -33,13 +33,13 @@ export function MissingInputs() {
       <WorkspaceHeading
         eyebrow="Intelligent missing-input collection"
         title="Ask once for exactly what is missing"
-        description="Instead of another broad follow-up, GrantDesk turns gaps in the evidence into five focused questions for the Program Director. The controls in this synthetic demo update locally; no questionnaire is sent."
+        description="GrantDesk turns gaps in the evidence into five focused questions for the Program Director, helping your team avoid broad follow-up emails and repeated requests. No questionnaire is sent from this demo."
       />
 
       <div className="workspace-grid">
         <section className="panel lg:col-span-2">
           <div className="panel-heading">
-            <div><p className="eyebrow">Known program facts</p><h2>Established from supplied evidence</h2></div>
+            <div><p className="eyebrow">Information already available</p><h2>Eight facts your team does not need to request again</h2></div>
             <StatusBadge tone="success">8 facts traced</StatusBadge>
           </div>
           <ul className="grid gap-2 sm:grid-cols-2">
@@ -56,9 +56,9 @@ export function MissingInputs() {
           <input id="internal-due-date" className="form-control" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
           <div className="mt-5 flex flex-wrap gap-2">
             <button type="button" className="button button-secondary button-small" onClick={() => setPreview((visible) => !visible)}><Eye aria-hidden="true" /> {preview ? "Close recipient preview" : "Preview recipient view"}</button>
-            <button type="button" className="button button-secondary button-small" onClick={copyPrototypeLink}><Link2 aria-hidden="true" /> {copyState}</button>
+            <button type="button" className="button button-secondary button-small" onClick={copyDemoLink}><Link2 aria-hidden="true" /> {copyState}</button>
           </div>
-          <p className="mt-4 text-xs leading-5 text-slate-500">Prototype controls update local state only. No external secure link, assignment, due date, or message is created.</p>
+          <p className="mt-4 text-xs leading-5 text-slate-500">These demo controls update only this screen. They do not create an external link, assignment, due date, or message.</p>
         </aside>
       </div>
 
@@ -81,7 +81,7 @@ export function MissingInputs() {
       {preview && (
         <section className="recipient-preview" aria-label="Synthetic recipient questionnaire preview">
           <div className="flex items-center justify-between gap-4 border-b border-slate-200 pb-4"><div><p className="eyebrow">Recipient preview</p><h2>Hope Community Services · Six-Month Progress Report</h2></div><StatusBadge tone="info">Synthetic preview</StatusBadge></div>
-          <p className="mt-5 text-sm leading-6 text-slate-600">Hello {assignedTo}, Northstar Nonprofit Finance needs the following information to complete its professional review. Please do not upload real information in this prototype.</p>
+          <p className="mt-5 text-sm leading-6 text-slate-600">Hello {assignedTo}, Northstar Nonprofit Finance needs the following information to complete its review. Please do not enter real information in this demo.</p>
           <ol className="mt-5 list-decimal space-y-3 pl-5 text-sm text-slate-700">{missingInputQuestions.filter((_, index) => !answered.has(index)).map((question) => <li key={question}>{question}</li>)}</ol>
           <div className="mt-6 flex items-center gap-2 text-xs text-slate-500"><Clipboard className="h-4 w-4" aria-hidden="true" /> Internal due date: {new Date(`${dueDate}T12:00:00`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</div>
         </section>

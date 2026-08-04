@@ -32,7 +32,7 @@ export function SampleReportPage() {
             <div><dt>Prepared for review by</dt><dd>Northstar Nonprofit Finance</dd></div>
             <div><dt>Package status</dt><dd>Draft · professional review required</dd></div>
           </dl>
-          <div className="cover-footer"><strong>GrantDesk</strong><span>Interactive prototype using synthetic demonstration data</span></div>
+          <div className="cover-footer"><strong>GrantDesk</strong><span>Interactive demo using synthetic demonstration data</span></div>
         </section>
 
         <ReportSection number="01" title="Executive summary">
@@ -88,14 +88,14 @@ export function SampleReportPage() {
         <ReportSection number="09" title="Certification placeholder">
           <p>I certify that the information presented in this draft has been reviewed and is complete to the best of my knowledge.</p>
           <div className="signature-grid"><div><span>Authorized representative</span></div><div><span>Title</span></div><div><span>Date</span></div></div>
-          <p className="mt-5 text-xs font-semibold text-redBlocked-700">Unsigned synthetic placeholder. This prototype does not execute or validate a certification.</p>
+          <p className="mt-5 text-xs font-semibold text-redBlocked-700">Unsigned synthetic placeholder. This demo does not sign or validate a certification.</p>
         </ReportSection>
 
         <ReportSection number="10" title="Source citation appendix">
           <ol className="report-list list-decimal pl-5"><li>PYF_Youth_Access_Grant_Agreement.pdf — award terms, category limits, and travel documentation rule.</li><li>Approved_Grant_Budget.xlsx — annual category budgets totaling $150,000.</li><li>General_Ledger_Export_Jan-Jun_2026.csv — 20 synthetic transactions totaling $75,400.</li><li>Six_Month_Funder_Report_Template.docx — required Sections A–F, word limit, variance threshold, and certification.</li><li>Program_Update_Form_June_2026 — confirmed youth served, school expansion, site visits, and deferred workshops.</li><li>Supporting_Receipt_Schedule.pdf — TRV-001 and TRV-002 attached; TRV-003 missing.</li></ol>
         </ReportSection>
 
-        <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-slate-300 pt-6 text-xs text-slate-500"><span>Generated for GrantDesk interactive prototype</span><span>Synthetic demonstration data · Human professional review required</span></div>
+        <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-slate-300 pt-6 text-xs text-slate-500"><span>Generated for the GrantDesk interactive demo</span><span>Synthetic demonstration data · Professional review required</span></div>
       </article>
 
       <div className="report-downloads print:hidden">
@@ -107,7 +107,7 @@ export function SampleReportPage() {
   );
 }
 
-function ReportDisclosure() { return <div className="report-disclosure"><StatusBadge tone="info">Interactive prototype using synthetic demonstration data</StatusBadge><span>Draft for professional review · Not automatically submitted</span></div>; }
+function ReportDisclosure() { return <div className="report-disclosure"><StatusBadge tone="info">Interactive demo using synthetic demonstration data</StatusBadge><span>Draft for your team to review · Nothing is submitted automatically</span></div>; }
 function ReportSection({ number, title, children }: { number: string; title: string; children: React.ReactNode }) { return <section className="report-section"><div className="report-section-heading"><span>{number}</span><h2>{title}</h2></div><div className="report-section-body">{children}</div></section>; }
 function Citation({ children }: { children: React.ReactNode }) { return <span className="source-chip">{children}</span>; }
 function ReportMetric({ label, value }: { label: string; value: string }) { return <div className="report-metric"><span>{label}</span><strong>{value}</strong></div>; }

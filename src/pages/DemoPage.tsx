@@ -124,8 +124,8 @@ export function DemoPage() {
     <div className="demo-page">
       <div className="demo-disclosure">
         <div className="site-shell flex items-center justify-center gap-2 text-center">
-          <StatusBadge tone="info">Interactive prototype using synthetic data</StatusBadge>
-          <span className="hidden text-xs text-slate-600 sm:inline">Deterministic demo workflow · Final review stays with your team</span>
+          <StatusBadge tone="info">Interactive demo using synthetic data</StatusBadge>
+          <span className="hidden text-xs text-slate-600 sm:inline">AI-assisted reporting workflow · Your team approves every output</span>
         </div>
       </div>
 

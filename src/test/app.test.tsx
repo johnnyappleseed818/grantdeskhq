@@ -12,7 +12,7 @@ function renderRoute(route: string) {
 
 describe("important routes", () => {
   it.each([
-    ["/", /Spend less time building grant reports\. Catch more before review\./i],
+    ["/", /Build grant reports faster.*less manual work/i],
     ["/demo", /Six-Month Progress Report/i],
     ["/sample-report", /See the complete review package/i],
     ["/privacy", /A careful start with client data/i],
@@ -28,6 +28,14 @@ describe("important routes", () => {
     await user.click(screen.getByRole("link", { name: /See GrantDesk in action/i }));
     expect(await screen.findByText("Agency workspace")).toBeInTheDocument();
     expect(screen.getByText("Northstar Nonprofit Finance")).toBeInTheDocument();
+  });
+
+  it("explains AI benefits in clear customer language", () => {
+    renderRoute("/");
+    expect(screen.getByRole("heading", { name: /Automate tedious manual work\. Keep every decision in your hands\./i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Prepare your documentation automatically" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Catch errors before they create rework" })).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/Catch more before review|production AI service|deterministic synthetic data/i);
   });
 
   it("opens and closes mobile navigation with both click and Escape", async () => {
@@ -71,10 +79,10 @@ describe("demo controls and accessibility", () => {
     expect(generate).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Map and approve UNM-001" }));
     await user.click(screen.getByRole("button", { name: "Mark synthetic receipt received" }));
-    await user.click(screen.getByRole("button", { name: "Mark prototype certification signed" }));
+    await user.click(screen.getByRole("button", { name: "Mark demo certification signed" }));
     expect(generate).toBeEnabled();
     await user.click(generate);
-    expect(await screen.findByText("Synthetic review package generated")).toBeInTheDocument();
+    expect(await screen.findByText("Your synthetic review package is ready")).toBeInTheDocument();
   });
 
   it("contains no empty buttons across all demo screens", async () => {

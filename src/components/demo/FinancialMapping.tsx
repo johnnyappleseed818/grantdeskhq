@@ -85,7 +85,7 @@ export function FinancialMapping({ decisions, onSetMapping, onApprove, onEvidenc
 
       <section className="panel variance-panel">
         <div className="panel-heading">
-          <div><p className="eyebrow">Variance intelligence</p><h2>Local Travel requires an elapsed-plan explanation</h2></div>
+          <div><p className="eyebrow">AI-assisted variance review</p><h2>Local Travel needs an explanation</h2></div>
           <StatusBadge tone="review">30.67% above elapsed plan</StatusBadge>
         </div>
         <div className="grid gap-6 lg:grid-cols-[.8fr_1.2fr]">

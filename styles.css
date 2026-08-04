@@ -789,7 +789,7 @@
   }
 
   .report-cover {
-    @apply flex min-h-[700px] flex-col justify-between border-b border-slate-300 pb-10;
+    @apply flex flex-col border-b border-slate-300 pb-10;
   }
 
   .report-kicker {
@@ -801,11 +801,15 @@
   }
 
   .cover-details {
-    @apply grid gap-0 border-y border-slate-300 sm:grid-cols-2;
+    @apply mt-12 grid gap-0 border-y border-slate-300 sm:grid-cols-2;
   }
 
   .cover-details > div {
     @apply border-b border-slate-200 py-4 odd:sm:border-r sm:px-4;
+  }
+
+  .cover-details > div:last-child {
+    @apply border-b-0 sm:col-span-2 sm:border-r-0;
   }
 
   .cover-details dt {
@@ -817,7 +821,7 @@
   }
 
   .cover-footer {
-    @apply flex flex-col justify-between gap-2 text-xs text-slate-500 sm:flex-row;
+    @apply mt-8 flex flex-col justify-between gap-2 text-xs text-slate-500 sm:flex-row;
   }
 
   .cover-footer strong {

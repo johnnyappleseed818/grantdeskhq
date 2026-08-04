@@ -18,20 +18,20 @@ import { StatusBadge } from "../components/StatusBadge";
 import { formatCurrency } from "../lib/calculations";
 
 const compilerSteps = [
-  ["01", "Read the funder’s format", "AI identifies the questions, word limits, spending thresholds, documentation rules, and required sign-offs in each award package."],
-  ["02", "Organize the evidence", "Budgets, ledger rows, program updates, funder forms, and supporting documents come together in one review workspace."],
-  ["03", "Suggest financial mappings", "GrantDesk proposes a grant category for each transaction and shows the rule or source behind the suggestion."],
-  ["04", "Draft from confirmed facts", "Narrative suggestions use the information your team has already confirmed, with a source attached to every material statement."],
-  ["05", "Ask only for what is missing", "Program staff receive focused questions instead of another broad request for information your finance team already has."],
-  ["06", "Catch problems before rework", "Contradictions, missing receipts, unexplained variances, and unsupported claims are surfaced before the package leaves your team."]
+  ["01", "Avoid missing funder requirements", "AI reads the funder’s questions, word limits, spending thresholds, document rules, and required approvals before your team starts drafting."],
+  ["02", "Prepare your documentation automatically", "GrantDesk brings budgets, ledger rows, program updates, funder forms, and supporting documents into one organized review package."],
+  ["03", "Cut down transaction-mapping work", "Get a suggested grant category for each transaction, together with the source or rule your reviewer needs to approve it."],
+  ["04", "Start with a source-backed draft", "Give your reviewer a useful first draft built from confirmed information, with evidence attached to every material statement."],
+  ["05", "Send fewer follow-up requests", "Ask program staff only for the answers and documents that are still missing instead of requesting information twice."],
+  ["06", "Catch errors before they create rework", "Find contradictions, missing receipts, unexplained variances, and unsupported claims while they are still easy to correct."]
 ];
 
 const capabilities = [
-  [FileSearch, "Stop rebuilding funder formats", "AI turns each funder’s form and award rules into a clear reporting checklist for your team."],
-  [MessageSquareText, "Start with a sourced draft", "Give reviewers a useful first draft instead of a blank page, with evidence visible sentence by sentence."],
-  [ClipboardCheck, "Send fewer follow-up emails", "Ask program staff for the specific answers or documents that are genuinely still missing."],
+  [FileSearch, "Structure each funder report automatically", "AI turns the funder’s form and award rules into a clear reporting checklist for your team."],
+  [MessageSquareText, "Draft with the evidence attached", "Give reviewers a useful starting point instead of a blank page, with the supporting source visible sentence by sentence."],
+  [ClipboardCheck, "Cut down follow-up emails", "Ask program staff only for the answers or documents that are genuinely still missing."],
   [Calculator, "Explain variances faster", "See the transactions behind a material variance and draft an explanation from confirmed facts."],
-  [ShieldCheck, "Reduce avoidable review errors", "Catch unsupported claims, inconsistent figures, missing receipts, and incomplete approvals earlier."]
+  [ShieldCheck, "Catch errors before final review", "Find unsupported claims, inconsistent figures, missing receipts, and incomplete approvals earlier."]
 ];
 
 const customerValue = [
@@ -49,7 +49,7 @@ export function LandingPage() {
         <div className="site-shell relative z-10 grid items-center gap-12 py-16 lg:grid-cols-[1.02fr_.98fr] lg:py-24">
           <div>
             <div className="prototype-pill"><span aria-hidden="true" /> AI-powered post-award reporting</div>
-            <h1 className="hero-title">Spend less time <span className="hero-highlight">building grant reports.</span> Catch more before review.</h1>
+            <h1 className="hero-title">Build grant reports faster—with <span className="hero-highlight">less manual work.</span></h1>
             <p className="hero-copy">
               GrantDesk uses AI to organize award terms, approved budgets, GL exports, funder forms, and program updates in one workspace—so outsourced finance teams can reduce manual work, catch missing support earlier, and spend more time helping clients.
             </p>
@@ -57,7 +57,7 @@ export function LandingPage() {
               <Link className="button button-primary button-large" to="/demo">See GrantDesk in action <ArrowRight aria-hidden="true" /></Link>
               <Link className="button button-secondary button-large" to="/sample-report">View the sample report</Link>
             </div>
-            <p className="trust-line"><CheckCircle2 aria-hidden="true" /> Interactive prototype using synthetic data · Every draft stays under human control</p>
+            <p className="trust-line"><CheckCircle2 aria-hidden="true" /> Interactive demo using synthetic data · Your team approves every draft</p>
           </div>
 
           <ProductPreview />
@@ -84,14 +84,14 @@ export function LandingPage() {
         <div className="site-shell">
           <div className="section-heading">
             <p className="eyebrow">How it helps</p>
-            <h2>A cleaner path from source files to a report draft</h2>
-            <p>Reporting evidence lives in too many places. GrantDesk brings it together and handles the repetitive first pass, so your team can focus on the decisions that need experience and judgment.</p>
+            <h2>Go from scattered files to a clear report draft</h2>
+            <p>GrantDesk brings the source material together and uses AI to complete the repetitive first pass, so your team can spend less time assembling reports and more time reviewing the work that matters.</p>
           </div>
           <div className="workflow-grid">
             {[
-              [FileText, "Bring the work together", "Add the award agreement, budget, ledger export, funder form, and program update to one organized workspace."],
-              [BookOpenCheck, "Let AI handle the first pass", "Get extracted reporting rules, suggested transaction mappings, calculated variances, and a source-backed narrative draft."],
-              [ClipboardCheck, "Review what matters", "Clear the few items that need attention, then download a complete review package with the supporting evidence organized alongside it."]
+              [FileText, "Bring every source file into one place", "Add the award agreement, budget, ledger export, funder form, and program update once instead of working across scattered folders."],
+              [BookOpenCheck, "Let AI prepare the report draft", "Get the reporting rules, suggested transaction mappings, calculated variances, and a source-backed narrative without building each section by hand."],
+              [ClipboardCheck, "Review faster with evidence attached", "Focus on the few items that need judgment, then download the draft and its supporting documentation together."]
             ].map(([Icon, title, copy], index) => {
               const StepIcon = Icon as typeof FileText;
               return (
@@ -113,13 +113,11 @@ export function LandingPage() {
         <div className="site-shell compiler-shell grid gap-14 lg:grid-cols-[.78fr_1.22fr]">
           <div className="lg:sticky lg:top-28 lg:self-start">
             <p className="eyebrow text-emerald-300">AI-powered, evidence-first</p>
-            <h2 className="max-w-lg text-3xl font-semibold tracking-tight text-white md:text-4xl">Automate the tedious parts without losing control.</h2>
+            <h2 className="max-w-lg text-3xl font-semibold tracking-tight text-white md:text-4xl">Automate tedious manual work. Keep every decision in your hands.</h2>
             <p className="mt-5 max-w-lg leading-7 text-slate-300">
-              GrantDesk handles the repetitive first pass: reading requirements, organizing evidence, suggesting mappings, and preparing a sourced draft. Your team stays in control of every judgment and approval.
+              GrantDesk uses AI to read funder instructions, organize documents, suggest financial mappings, and prepare a sourced first draft—so your team can get to review sooner.
             </p>
-            <div className="mt-7 border-l-2 border-emeraldMuted-500 pl-4 text-sm leading-6 text-slate-300">
-              This demo uses deterministic synthetic data to show the intended AI workflow. A production AI service is not connected to this public website.
-            </div>
+            <div className="mt-7 border-l-2 border-emeraldMuted-500 pl-4 text-sm leading-6 text-slate-300">AI handles the repetitive preparation. Your finance team reviews the sources, makes the decisions, and approves the final work.</div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             {compilerSteps.map(([number, title, copy]) => (
@@ -140,7 +138,7 @@ export function LandingPage() {
             <h2>Less rework. More confidence in every draft.</h2>
             <p>GrantDesk connects the numbers to the funder’s questions, documentation rules, program evidence, and your team’s review decisions.</p>
           </div>
-          <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {capabilities.map(([Icon, title, copy]) => {
               const CapabilityIcon = Icon as typeof FileSearch;
               return (
@@ -188,8 +186,8 @@ export function LandingPage() {
         <div className="site-shell flex flex-col items-start justify-between gap-8 md:flex-row md:items-center">
           <div>
             <p className="eyebrow">See it for yourself</p>
-            <h2 className="text-3xl font-semibold text-navy-900">See where AI can take work off your team’s plate.</h2>
-            <p className="mt-3 text-slate-600">Explore the complete synthetic workflow, or tell us where grant reporting slows your team down.</p>
+            <h2 className="text-3xl font-semibold text-navy-900">See how AI can reduce your reporting workload.</h2>
+            <p className="mt-3 text-slate-600">Explore the complete demo, or tell us which parts of grant reporting take the most time for your team.</p>
           </div>
           <div className="flex flex-wrap gap-3">
             <Link className="button button-primary button-large shrink-0" to="/demo">Open the demo <ArrowRight aria-hidden="true" /></Link>

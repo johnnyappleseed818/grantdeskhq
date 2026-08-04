@@ -44,7 +44,7 @@ async function createPdf(fileName, pageDefinitions) {
     }
 
     page.drawLine({ start: { x: 42, y: 42 }, end: { x: width - 42, y: 42 }, thickness: 0.5, color: rgb(0.78, 0.81, 0.84) });
-    page.drawText("Interactive prototype · Draft for professional human review · Not submitted automatically", { x: 42, y: 26, size: 7.5, font: regular, color: rgb(0.35, 0.4, 0.46) });
+    page.drawText("Interactive demo · Synthetic data · Draft for professional review", { x: 42, y: 26, size: 7.5, font: regular, color: rgb(0.35, 0.4, 0.46) });
     page.drawText(`${index + 1} / ${pageDefinitions.length}`, { x: width - 68, y: 26, size: 7.5, font: regular, color: rgb(0.35, 0.4, 0.46) });
   });
 

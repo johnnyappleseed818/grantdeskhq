@@ -1,4 +1,4 @@
-# GrantDesk interactive product prototype
+# GrantDesk interactive product demo
 
 GrantDesk is a polished, static React product demonstration for an AI-powered
 post-award grant-reporting workflow used by fractional nonprofit CFO firms,
@@ -6,7 +6,7 @@ outsourced accounting practices, and nonprofit controller teams. The product
 direction is designed to reduce repetitive assembly, catch missing evidence
 earlier, and make professional review easier.
 
-> Interactive prototype using synthetic demonstration data. GrantDesk outputs
+> Interactive demo using synthetic demonstration data. GrantDesk outputs
 > are drafts and suggested mappings that require professional human review.
 > This repository contains no backend, database, external AI connection,
 > accounting-system integration, or automatic funder submission.
@@ -28,7 +28,7 @@ Production domain: [grantdeskhq.com](https://grantdeskhq.com)
 | `/` | Marketing landing page and AI Report Compiler positioning |
 | `/demo` | Stateful synthetic GrantDesk agency workspace |
 | `/sample-report` | Print-ready funder-report review package |
-| `/privacy` | Honest prototype and pilot data-handling boundaries |
+| `/privacy` | Honest demo and pilot data-handling boundaries |
 | `/pilot` | $500 Founding Agency Pilot and contact enquiry |
 | `*` | Accessible not-found page |
 
@@ -133,7 +133,7 @@ npm run generate:assets
 npm run dev
 ```
 
-Vite prints the local development URL. The interactive prototype requires no
+Vite prints the local development URL. The interactive demo requires no
 environment variables.
 
 Quality and production commands:
@@ -178,7 +178,7 @@ npm audit --omit=dev
 npm audit
 ```
 
-Verified result: lint passed with zero warnings, all 30 tests passed, and the
+Verified result: lint passed with zero warnings, all 31 tests passed, and the
 Vite production build completed. The two audit commands report only the same
 upstream React Router RSC-mode advisory described above; no affected RSC or
 server-action mode exists in this project.
@@ -284,7 +284,7 @@ and Firefox before a paid pilot.
 
 ## Honest limitations
 
-- This is an interactive static prototype, not a production AI system.
+- This is an interactive static demo using synthetic data.
 - Synthetic processing statuses and suggestions are deterministic local data.
 - No real files are accepted, processed, stored, reconciled, or transmitted.
 - No production security controls, certifications, integrations, accuracy
