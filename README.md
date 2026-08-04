@@ -36,6 +36,11 @@ The demo includes Agency Overview, Source Package, Requirements, Financial
 Mapping, Missing Inputs, Narrative Draft, Quality Review, and Export Package
 screens. All interactive changes are deterministic local React state.
 
+The landing page includes a touch-swipeable, keyboard-focusable carousel of
+clearly labelled illustrative finance-team use cases. These are not customer
+testimonials or endorsements and can be replaced with verified pilot quotes
+when those are available.
+
 ## Technical stack
 
 - React 18 and TypeScript

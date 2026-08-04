@@ -35,6 +35,15 @@ describe("important routes", () => {
     expect(screen.getByRole("heading", { name: /Automate tedious manual work\. Keep every decision in your hands\./i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Prepare your documentation automatically" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Catch errors before they create rework" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Reduce manual overhead" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Reduce reporting errors" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Free up team resources" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Give your team time back for work that matters" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "View previous priority" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "View next priority" })).toBeInTheDocument();
+    expect(screen.getByText(/no customer endorsement is implied/i)).toBeInTheDocument();
+    expect(document.body.textContent).toMatch(/nonprofit finance teams/i);
+    expect(document.body.textContent).not.toMatch(/outsourced finance teams/i);
     expect(document.body.textContent).not.toMatch(/Catch more before review|production AI service|deterministic synthetic data/i);
   });
 

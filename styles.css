@@ -187,7 +187,7 @@
   }
 
   .section-block {
-    @apply py-20 lg:py-28;
+    @apply py-14 md:py-16 lg:py-20;
   }
 
   .section-heading {
@@ -1090,7 +1090,11 @@
   }
 
   .workflow-grid {
-    @apply mt-12 grid gap-5 md:grid-cols-3;
+    @apply mt-9 grid gap-5 md:grid-cols-3;
+  }
+
+  .compiler-section {
+    @apply pt-0;
   }
 
   .workflow-card {
@@ -1131,6 +1135,70 @@
 
   .capability-card:hover {
     border-color: #9fcbb0;
+  }
+
+  .team-priorities-section {
+    @apply overflow-hidden bg-white py-14 md:py-16 lg:py-20;
+  }
+
+  .carousel-heading {
+    @apply flex items-end justify-between gap-6;
+  }
+
+  .carousel-controls {
+    @apply hidden shrink-0 gap-2 sm:flex;
+  }
+
+  .priority-carousel {
+    @apply mt-9 flex gap-4 overflow-x-auto pb-4;
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+    scrollbar-color: #9fcbb0 transparent;
+    touch-action: pan-x;
+  }
+
+  .priority-card {
+    @apply flex min-h-72 shrink-0 flex-col border border-slate-200 bg-[#fbf7ef] p-6 shadow-panel;
+    width: min(82vw, 370px);
+    border-radius: 1.25rem;
+    scroll-snap-align: start;
+  }
+
+  .priority-card:nth-child(even) {
+    background: #edf8f1;
+  }
+
+  .priority-card-top {
+    @apply flex items-center justify-between text-[10px] font-bold uppercase tracking-[.12em] text-emeraldMuted-700;
+  }
+
+  .priority-card-top strong {
+    @apply font-mono text-slate-400;
+  }
+
+  .priority-card h3 {
+    @apply mt-7 text-xl font-semibold leading-7 tracking-[-.02em] text-navy-900;
+  }
+
+  .priority-card > p {
+    @apply mt-3 text-sm leading-6 text-slate-600;
+  }
+
+  .priority-role {
+    @apply mt-auto flex items-center gap-2 border-t border-slate-200 pt-5 text-xs font-semibold capitalize text-navy-900;
+  }
+
+  .priority-role svg {
+    @apply h-4 w-4 text-emeraldMuted-600;
+  }
+
+  .carousel-disclosure {
+    @apply mt-2 text-xs leading-5 text-slate-500;
+  }
+
+  .system-value-row {
+    @apply transition-colors hover:bg-emeraldMuted-50/40;
   }
 
   .cta-section {
@@ -1222,6 +1290,83 @@
 }
 
 @media (max-width: 639px) {
+  .hero-section .site-shell.grid {
+    gap: 2.5rem;
+    padding-top: 3.5rem;
+    padding-bottom: 3rem;
+  }
+
+  .hero-copy {
+    font-size: 1rem;
+    line-height: 1.75rem;
+  }
+
+  .trust-line {
+    @apply items-start leading-5;
+  }
+
+  .product-preview-wrap {
+    @apply pb-8;
+  }
+
+  .product-preview-wrap::before {
+    inset: 1rem -.25rem .8rem 1rem;
+  }
+
+  .product-preview-body {
+    grid-template-columns: 84px minmax(0, 1fr);
+    min-height: 390px;
+  }
+
+  .preview-note {
+    @apply left-3 right-auto max-w-[calc(100%-1.5rem)] text-[11px];
+  }
+
+  .section-block,
+  .team-priorities-section {
+    padding-top: 3rem;
+    padding-bottom: 3rem;
+  }
+
+  .compiler-section {
+    padding-top: 0;
+  }
+
+  .compiler-shell {
+    @apply gap-9 p-6;
+    border-radius: 1.35rem;
+  }
+
+  .section-heading h2 {
+    @apply text-[1.85rem] leading-[1.15];
+  }
+
+  .workflow-grid,
+  .priority-carousel {
+    @apply mt-7;
+  }
+
+  .priority-card {
+    min-height: 260px;
+    width: min(86vw, 340px);
+  }
+
+  .system-value-row {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
+  .system-value-row > p {
+    grid-column: 2;
+  }
+
+  .cta-section {
+    @apply py-12;
+  }
+
+  .cta-section .button {
+    @apply w-full;
+  }
+
   .question-row {
     grid-template-columns: 32px 1fr;
   }

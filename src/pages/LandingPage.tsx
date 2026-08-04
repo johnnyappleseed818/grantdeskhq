@@ -3,6 +3,8 @@ import {
   BookOpenCheck,
   Calculator,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   ClipboardCheck,
   Database,
@@ -11,8 +13,10 @@ import {
   Link2,
   MessageSquareText,
   ShieldCheck,
-  TriangleAlert
+  TriangleAlert,
+  Users
 } from "lucide-react";
+import { useRef } from "react";
 import { Link } from "react-router-dom";
 import { StatusBadge } from "../components/StatusBadge";
 import { formatCurrency } from "../lib/calculations";
@@ -35,9 +39,16 @@ const capabilities = [
 ];
 
 const customerValue = [
-  [Clock3, "Less manual assembly", "Spend less time copying figures between spreadsheets, templates, and narrative documents."],
-  [ShieldCheck, "Fewer avoidable errors", "Surface missing support and conflicting information while there is still time to fix it."],
-  [Calculator, "More capacity, less admin cost", "Use team time for review and advice instead of repeat data entry, helping keep the internal cost of each report under control."]
+  [Clock3, "Reduce manual overhead", "Spend less time copying figures between spreadsheets, templates, and narrative documents."],
+  [ShieldCheck, "Reduce reporting errors", "Find missing support and conflicting information while there is still time to correct it."],
+  [Users, "Free up team resources", "Give your team more time for client service, thoughtful review, and other high-priority work."]
+];
+
+const teamPriorities = [
+  ["Grant accountant", "Spend less time rebuilding the same report", "Bring the funder form, approved budget, ledger export, and program update together so the first draft does not start from a blank page."],
+  ["Nonprofit controller", "Find missing support before review gets delayed", "See open receipts, unexplained variances, conflicting figures, and unsupported statements in one focused review list."],
+  ["Finance director", "Create more capacity without adding repetitive work", "Use AI for report preparation so the team has more time for forecasting, program support, and higher-value financial work."],
+  ["Fractional CFO", "Give every client a consistent review process", "Standardize how the team prepares reporting packages while keeping the source evidence and final decisions visible."]
 ];
 
 export function LandingPage() {
@@ -51,7 +62,7 @@ export function LandingPage() {
             <div className="prototype-pill"><span aria-hidden="true" /> AI-powered post-award reporting</div>
             <h1 className="hero-title">Build grant reports faster—with <span className="hero-highlight">less manual work.</span></h1>
             <p className="hero-copy">
-              GrantDesk uses AI to organize award terms, approved budgets, GL exports, funder forms, and program updates in one workspace—so outsourced finance teams can reduce manual work, catch missing support earlier, and spend more time helping clients.
+              GrantDesk uses AI to organize award terms, approved budgets, GL exports, funder forms, and program updates in one workspace—so nonprofit finance teams can reduce manual work, catch missing support earlier, and focus more of their time on the mission.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link className="button button-primary button-large" to="/demo">See GrantDesk in action <ArrowRight aria-hidden="true" /></Link>
@@ -109,7 +120,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section id="compiler" className="section-block bg-white">
+      <section id="compiler" className="section-block compiler-section bg-white">
         <div className="site-shell compiler-shell grid gap-14 lg:grid-cols-[.78fr_1.22fr]">
           <div className="lg:sticky lg:top-28 lg:self-start">
             <p className="eyebrow text-emerald-300">AI-powered, evidence-first</p>
@@ -153,25 +164,27 @@ export function LandingPage() {
         </div>
       </section>
 
+      <TeamPrioritiesCarousel />
+
       <section className="section-block bg-white">
         <div className="site-shell grid gap-12 lg:grid-cols-[.85fr_1.15fr]">
           <div>
-            <p className="eyebrow">Works with your existing process</p>
-            <h2 className="text-3xl font-semibold text-navy-900">Fits into the tools and judgment you already trust</h2>
+            <p className="eyebrow">Keep the systems you already use</p>
+            <h2 className="text-3xl font-semibold text-navy-900">Improve grant reporting without replacing your current tools</h2>
             <p className="mt-4 leading-7 text-slate-600">
-              GrantDesk helps your team prepare post-award drafts and organize the evidence behind them. It works alongside your accounting and program systems; it does not replace the books, professional review, or your funder’s submission process.
+              GrantDesk adds an AI-powered reporting workflow around the systems your team already trusts, helping you improve the process without a disruptive migration.
             </p>
           </div>
           <div className="divide-y divide-slate-200 border-y border-slate-200">
             {[
-              [Database, "Accounting systems", "Your accounting system remains the book of record; GrantDesk helps turn its approved data into the funder’s reporting format."],
-              [Link2, "Grant-management systems", "Keep using your existing award records, workflows, deadlines, and funder portals."],
-              [FileText, "Program-data systems", "Program results still come from sources your team knows and has reviewed."],
-              [TriangleAlert, "Professional judgment", "Controllers and finance professionals remain responsible for mappings, explanations, supporting evidence, and final approval."]
+              [Database, "Accounting systems", "Keep the accounting system you already trust. GrantDesk works from approved GL exports, so you can improve reporting without changing the books or adding a live connection."],
+              [Link2, "Grant-management systems", "Avoid another system migration. Keep award records, deadlines, and funder access where they are while GrantDesk helps prepare the report."],
+              [FileText, "Program-data systems", "Use program results your team has already reviewed instead of asking staff to enter the same information in another system."],
+              [TriangleAlert, "Professional judgment", "Give controllers a shorter, evidence-backed review list so they can focus on important decisions instead of chasing documents."]
             ].map(([Icon, title, copy]) => {
               const BoundaryIcon = Icon as typeof Database;
               return (
-                <div key={title as string} className="grid gap-3 py-5 sm:grid-cols-[32px_180px_1fr] sm:items-start">
+                <div key={title as string} className="system-value-row grid gap-3 py-5 sm:grid-cols-[32px_180px_1fr] sm:items-start">
                   <BoundaryIcon className="mt-0.5 h-5 w-5 text-emeraldMuted-600" aria-hidden="true" />
                   <h3 className="text-base font-semibold text-navy-900">{title as string}</h3>
                   <p className="text-sm leading-6 text-slate-600">{copy as string}</p>
@@ -210,7 +223,7 @@ function ProductPreview() {
         </div>
         <StatusBadge tone="info">Synthetic data</StatusBadge>
       </div>
-      <div className="grid min-h-[430px] grid-cols-[116px_1fr]">
+      <div className="product-preview-body grid min-h-[430px] grid-cols-[116px_1fr]">
         <div className="border-r border-slate-200 bg-navy-950 p-3 text-[10px] text-slate-400">
           <p className="mb-4 font-semibold text-white">Northstar Finance</p>
           {[
@@ -251,6 +264,45 @@ function ProductPreview() {
     </div>
     <div className="preview-note"><ShieldCheck aria-hidden="true" /> Sources stay visible as your team reviews</div>
     </div>
+  );
+}
+
+function TeamPrioritiesCarousel() {
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  const move = (direction: -1 | 1) => {
+    const track = trackRef.current;
+    if (!track) return;
+    track.scrollBy({ left: direction * Math.max(280, track.clientWidth * 0.72), behavior: "smooth" });
+  };
+
+  return (
+    <section className="team-priorities-section" aria-labelledby="team-priorities-title">
+      <div className="site-shell">
+        <div className="carousel-heading">
+          <div className="section-heading">
+            <p className="eyebrow">Common finance-team priorities</p>
+            <h2 id="team-priorities-title">Give your team time back for work that matters</h2>
+            <p>See how GrantDesk is designed to reduce reporting overhead across common nonprofit finance roles.</p>
+          </div>
+          <div className="carousel-controls" aria-label="Finance-team priorities carousel controls">
+            <button type="button" className="icon-button" aria-label="View previous priority" onClick={() => move(-1)}><ChevronLeft aria-hidden="true" /></button>
+            <button type="button" className="icon-button" aria-label="View next priority" onClick={() => move(1)}><ChevronRight aria-hidden="true" /></button>
+          </div>
+        </div>
+        <div ref={trackRef} className="priority-carousel" tabIndex={0} aria-label="Illustrative nonprofit finance-team priorities">
+          {teamPriorities.map(([role, title, copy], index) => (
+            <article className="priority-card" key={role}>
+              <div className="priority-card-top"><span>Illustrative use case</span><strong>0{index + 1}</strong></div>
+              <h3>{title}</h3>
+              <p>{copy}</p>
+              <div className="priority-role"><Users aria-hidden="true" /> {role}</div>
+            </article>
+          ))}
+        </div>
+        <p className="carousel-disclosure">Role-based scenarios for demonstration; no customer endorsement is implied.</p>
+      </div>
+    </section>
   );
 }
 
