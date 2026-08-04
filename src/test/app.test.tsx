@@ -61,6 +61,10 @@ describe("important routes", () => {
 
   it("provides a labelled contact form without exposing a personal address", () => {
     renderRoute("/assessment");
+    expect(screen.getByRole("link", { name: /Take the 3-minute questionnaire/i })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/^https:\/\/docs\.google\.com\/forms\/d\/e\//)
+    );
     expect(screen.getByRole("heading", { name: "Discuss the workflow assessment" })).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
     expect(screen.getByLabelText("Work email")).toBeInTheDocument();

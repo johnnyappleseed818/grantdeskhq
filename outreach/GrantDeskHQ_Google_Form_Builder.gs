@@ -11,7 +11,24 @@
  * email anyone or add respondents to a mailing list automatically.
  */
 function createGrantDeskHQSurvey() {
+  const properties = PropertiesService.getScriptProperties();
+  const existingFormId = properties.getProperty('GRANTDESKHQ_FORM_ID');
+  const existingSheetId = properties.getProperty('GRANTDESKHQ_RESPONSE_SHEET_ID');
+
+  if (existingFormId && existingSheetId) {
+    const existingForm = FormApp.openById(existingFormId);
+    const existingSheet = SpreadsheetApp.openById(existingSheetId);
+    const existingUrls = {
+      editUrl: existingForm.getEditUrl(),
+      responderUrl: existingForm.getPublishedUrl(),
+      responseSheetUrl: existingSheet.getUrl()
+    };
+    logSurveyUrls_(existingUrls);
+    return existingUrls;
+  }
+
   const form = FormApp.create('Nonprofit Grant Reporting Workflow Assessment');
+  properties.setProperty('GRANTDESKHQ_FORM_ID', form.getId());
 
   form
     .setDescription(
@@ -119,11 +136,40 @@ function createGrantDeskHQSurvey() {
     ]).setRequired(true);
 
   const responseSheet = SpreadsheetApp.create('GrantDeskHQ Workflow Assessment Responses');
+  properties.setProperty('GRANTDESKHQ_RESPONSE_SHEET_ID', responseSheet.getId());
   form.setDestination(FormApp.DestinationType.SPREADSHEET, responseSheet.getId());
+  form.setAcceptingResponses(true);
 
-  Logger.log('FORM EDIT URL: ' + form.getEditUrl());
-  Logger.log('RESPONDER URL: ' + form.getPublishedUrl());
-  Logger.log('RESPONSE SHEET URL: ' + responseSheet.getUrl());
+  const urls = {
+    editUrl: form.getEditUrl(),
+    responderUrl: form.getPublishedUrl(),
+    responseSheetUrl: responseSheet.getUrl()
+  };
+  logSurveyUrls_(urls);
+  return urls;
+}
+
+function logSurveyUrls_(urls) {
+  Logger.log('FORM EDIT URL: ' + urls.editUrl);
+  Logger.log('RESPONDER URL: ' + urls.responderUrl);
+  Logger.log('RESPONSE SHEET URL: ' + urls.responseSheetUrl);
+}
+
+function doGet() {
+  const urls = createGrantDeskHQSurvey();
+  return HtmlService.createHtmlOutput(
+    '<!doctype html><html><head><base target="_top">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<style>body{font-family:Arial,sans-serif;max-width:720px;margin:48px auto;padding:0 24px;color:#17243b}' +
+    'a{display:inline-block;margin:8px 12px 8px 0;padding:12px 18px;background:#176b57;color:#fff;text-decoration:none;border-radius:6px}' +
+    'p{line-height:1.6}</style></head><body>' +
+    '<h1>GrantDeskHQ questionnaire created</h1>' +
+    '<p>The public questionnaire is accepting responses and its answers will be saved to the linked response sheet.</p>' +
+    '<a href="' + urls.responderUrl + '">Review public questionnaire</a>' +
+    '<a href="' + urls.editUrl + '">Edit questionnaire</a>' +
+    '<a href="' + urls.responseSheetUrl + '">Open response sheet</a>' +
+    '</body></html>'
+  ).setTitle('GrantDeskHQ questionnaire');
 }
 
 // Backward-compatible alias for the function name in earlier versions of the kit.

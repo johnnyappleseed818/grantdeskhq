@@ -294,11 +294,9 @@ and Firefox before a paid assessment.
 ## Questionnaire and consent-based Resend email
 
 The questionnaire builder is stored at
-`outreach/GrantDeskHQ_Google_Form_Builder.gs`. Run
-`createGrantDeskHQSurvey()` in Google Apps Script, publish the resulting form,
-and copy its responder URL. The script creates a ten-question workflow
-assessment, a linked response spreadsheet, and an explicit email-consent
-question.
+`outreach/GrantDeskHQ_Google_Form_Builder.gs`. The published ten-question
+workflow assessment is linked from `/assessment`; it creates a linked response
+spreadsheet and includes an explicit email-consent question.
 
 The approval copy is in `outreach/RESEND_EMAIL_PREVIEW.md`. Preview the send
 utility without contacting anyone:
@@ -313,6 +311,11 @@ consent source, consent date, and HTTPS unsubscribe URL. It never sends unless
 `--send` and the exact confirmation environment variable are both supplied.
 Do not use the 30 researched public contacts in the validation workbook for a
 Resend campaign; they do not contain recorded opt-in consent.
+
+`outreach/VERIFIED_PRIORITY_A_SHORTLIST.md` records 27 current finance, CFO,
+grants, and compliance leaders verified against their organizations' official
+staff pages. Three older workbook records are separated as unverified and
+excluded. All profiles are research records rather than Resend subscribers.
 
 ## Honest limitations
 

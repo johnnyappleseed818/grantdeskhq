@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { ArrowRight, Check, FileSearch, Mail, MessagesSquare, Presentation } from "lucide-react";
 
 const CONTACT_DESTINATION = ["eli", "grantdeskhq.com"].join("@");
+const QUESTIONNAIRE_URL = "https://docs.google.com/forms/d/e/1FAIpQLSddrmCFTno2tDYLKW2qCSUllnFxjxcjNMFFPtZJoOlPxQPSBQ/viewform";
 
 const scope = [
   "30 days",
@@ -38,6 +39,9 @@ export function PilotPage() {
               <p className="eyebrow">Grant Reporting Workflow Assessment</p>
               <h1 className="page-title">See where AI can reduce reporting work before you subscribe.</h1>
               <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">Use completed, redacted historical reports to evaluate how GrantDeskHQ could reduce manual preparation, uncover missing evidence earlier, and give your team a clearer review process.</p>
+              <div className="mt-7 flex flex-wrap gap-3">
+                <a className="button button-primary button-large" href={QUESTIONNAIRE_URL} target="_blank" rel="noreferrer">Take the 3-minute questionnaire <ArrowRight aria-hidden="true" /></a>
+              </div>
               <div className="mt-7 flex flex-wrap items-end gap-3"><strong className="text-4xl font-semibold text-navy-900">$500</strong><span className="pb-1 text-slate-500">one-time · 30 days</span></div>
             </div>
             <div className="assessment-summary">

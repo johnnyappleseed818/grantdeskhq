@@ -5,7 +5,9 @@ import { createHash } from "node:crypto";
 const CAMPAIGN = {
   id: "grant-reporting-workflow-assessment-v1",
   subject: "A 3-minute nonprofit grant-reporting questionnaire",
-  fromName: "GrantDeskHQ"
+  fromName: "Eli Katz",
+  fromAddress: "eli@grantdeskhq.com",
+  postalAddress: "1021 East Lincolnway, Cheyenne, Wyoming 82001"
 };
 
 const csvPath = path.resolve(
@@ -26,10 +28,10 @@ if (!shouldSend) {
 
 requireValue("CONFIRM_RESEND_SEND", "YES");
 const apiKey = requireEnvironment("RESEND_API_KEY");
-const fromAddress = requireEnvironment("RESEND_FROM");
-const replyTo = requireEnvironment("RESEND_REPLY_TO");
+const fromAddress = process.env.RESEND_FROM?.trim() || CAMPAIGN.fromAddress;
+const replyTo = process.env.RESEND_REPLY_TO?.trim() || CAMPAIGN.fromAddress;
 const questionnaireUrl = requireEnvironment("QUESTIONNAIRE_URL");
-const postalAddress = requireEnvironment("PHYSICAL_POSTAL_ADDRESS");
+const postalAddress = process.env.PHYSICAL_POSTAL_ADDRESS?.trim() || CAMPAIGN.postalAddress;
 
 if (recipients.length === 0) {
   throw new Error("No eligible opted-in recipients. Nothing was sent.");
@@ -80,7 +82,7 @@ function isEligibleRecipient(row) {
   );
 }
 
-function renderText(recipient, questionnaireUrl = "{{QUESTIONNAIRE_URL}}", postalAddress = "{{PHYSICAL_POSTAL_ADDRESS}}", unsubscribeUrl = "{{UNSUBSCRIBE_URL}}") {
+function renderText(recipient, questionnaireUrl = "{{QUESTIONNAIRE_URL}}", postalAddress = CAMPAIGN.postalAddress, unsubscribeUrl = "{{UNSUBSCRIBE_URL}}") {
   const firstName = recipient.first_name?.trim() || "there";
   return `Hi ${firstName},
 
@@ -94,9 +96,11 @@ ${questionnaireUrl}
 As a thank-you, questionnaire participants who later become new GrantDeskHQ customers can receive 10% off their first three monthly payments.
 
 Thank you,
-The GrantDeskHQ team
+Eli Katz
+GrantDeskHQ
 https://grantdeskhq.com
 
+This is a commercial message from GrantDeskHQ.
 You opted in via ${recipient.consent_source || "{{CONSENT_SOURCE}}"} on ${recipient.consent_date || "{{CONSENT_DATE}}"}.
 ${postalAddress}
 Unsubscribe: ${unsubscribeUrl}`;
@@ -104,7 +108,7 @@ Unsubscribe: ${unsubscribeUrl}`;
 
 function renderHtml(recipient, questionnaireUrl, postalAddress, unsubscribeUrl) {
   const firstName = escapeHtml(recipient.first_name?.trim() || "there");
-  return `<!doctype html><html><body style="margin:0;background:#f5f6f2;color:#263444;font-family:Arial,sans-serif"><div style="max-width:620px;margin:0 auto;padding:32px 20px"><div style="background:#fff;border:1px solid #dce2dd;padding:32px"><p style="margin:0 0 18px">Hi ${firstName},</p><p style="line-height:1.65">Nonprofit finance teams often spend significant time bringing award terms, GL data, program updates, and funder templates together for a single report.</p><p style="line-height:1.65">We’re validating <strong>GrantDeskHQ</strong>, an AI-assisted workflow designed to reduce that manual work, flag missing support earlier, and prepare a source-backed draft for professional review.</p><p style="line-height:1.65">Would you share how your team handles post-award reporting today? The questionnaire takes about three minutes.</p><p style="margin:26px 0"><a href="${escapeHtml(questionnaireUrl)}" style="display:inline-block;background:#16344c;color:#fff;text-decoration:none;padding:13px 18px;border-radius:6px;font-weight:700">Take the 3-minute questionnaire</a></p><p style="line-height:1.65">As a thank-you, questionnaire participants who later become new GrantDeskHQ customers can receive <strong>10% off their first three monthly payments</strong>.</p><p style="margin-top:26px;line-height:1.6">Thank you,<br>The GrantDeskHQ team<br><a href="https://grantdeskhq.com" style="color:#3f6f58">grantdeskhq.com</a></p></div><div style="padding:18px 6px;font-size:11px;line-height:1.55;color:#697580"><p>You opted in via ${escapeHtml(recipient.consent_source)} on ${escapeHtml(recipient.consent_date)}.</p><p>${escapeHtml(postalAddress)}<br><a href="${escapeHtml(unsubscribeUrl)}" style="color:#697580">Unsubscribe</a></p></div></div></body></html>`;
+  return `<!doctype html><html><body style="margin:0;background:#f5f6f2;color:#263444;font-family:Arial,sans-serif"><div style="max-width:620px;margin:0 auto;padding:32px 20px"><div style="background:#fff;border:1px solid #dce2dd;padding:32px"><p style="margin:0 0 18px">Hi ${firstName},</p><p style="line-height:1.65">Nonprofit finance teams often spend significant time bringing award terms, GL data, program updates, and funder templates together for a single report.</p><p style="line-height:1.65">We’re validating <strong>GrantDeskHQ</strong>, an AI-assisted workflow designed to reduce that manual work, flag missing support earlier, and prepare a source-backed draft for professional review.</p><p style="line-height:1.65">Would you share how your team handles post-award reporting today? The questionnaire takes about three minutes.</p><p style="margin:26px 0"><a href="${escapeHtml(questionnaireUrl)}" style="display:inline-block;background:#16344c;color:#fff;text-decoration:none;padding:13px 18px;border-radius:6px;font-weight:700">Take the 3-minute questionnaire</a></p><p style="line-height:1.65">As a thank-you, questionnaire participants who later become new GrantDeskHQ customers can receive <strong>10% off their first three monthly payments</strong>.</p><p style="margin-top:26px;line-height:1.6">Thank you,<br>Eli Katz<br>GrantDeskHQ<br><a href="https://grantdeskhq.com" style="color:#3f6f58">grantdeskhq.com</a></p></div><div style="padding:18px 6px;font-size:11px;line-height:1.55;color:#697580"><p>This is a commercial message from GrantDeskHQ.<br>You opted in via ${escapeHtml(recipient.consent_source)} on ${escapeHtml(recipient.consent_date)}.</p><p>${escapeHtml(postalAddress)}<br><a href="${escapeHtml(unsubscribeUrl)}" style="color:#697580">Unsubscribe</a></p></div></div></body></html>`;
 }
 
 function parseCsv(source) {

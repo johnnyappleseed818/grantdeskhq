@@ -6,6 +6,8 @@
 
 **Subject:** A 3-minute nonprofit grant-reporting questionnaire
 
+**From:** Eli Katz <eli@grantdeskhq.com>
+
 Hi {{first_name}},
 
 Nonprofit finance teams often spend significant time bringing award terms, GL data, program updates, and funder templates together for a single report.
@@ -14,26 +16,28 @@ We’re validating GrantDeskHQ, an AI-assisted workflow designed to reduce that 
 
 Would you share how your team handles post-award reporting today? The questionnaire takes about three minutes:
 
-{{QUESTIONNAIRE_URL}}
+https://docs.google.com/forms/d/e/1FAIpQLSddrmCFTno2tDYLKW2qCSUllnFxjxcjNMFFPtZJoOlPxQPSBQ/viewform
 
 As a thank-you, questionnaire participants who later become new GrantDeskHQ customers can receive **10% off their first three monthly payments**.
 
-Thank you,  
-The GrantDeskHQ team  
+Thank you,<br>
+Eli Katz<br>
+GrantDeskHQ<br>
 https://grantdeskhq.com
 
-You opted in via {{CONSENT_SOURCE}} on {{CONSENT_DATE}}.  
-{{PHYSICAL_POSTAL_ADDRESS}}  
-[Unsubscribe]({{UNSUBSCRIBE_URL}})
+This is a commercial message from GrantDeskHQ.<br>
+You opted in via {{CONSENT_SOURCE}} on {{CONSENT_DATE}}.<br>
+1021 East Lincolnway, Cheyenne, Wyoming 82001<br>
+[Unsubscribe]({{{RESEND_UNSUBSCRIBE_URL}}})
 
 ## Approval and send prerequisites
 
 - Rotate the API key that was pasted into chat. Never commit a Resend key.
-- Publish the Google Form and replace `{{QUESTIONNAIRE_URL}}` with its responder URL.
+- The published responder URL above has been verified and is also linked from the GrantDeskHQ assessment page.
 - Verify the sending domain and sender in Resend.
 - Configure a monitored reply-to address.
-- Add a valid physical postal address.
-- Give every recipient a working HTTPS unsubscribe URL.
+- The supplied physical postal address is included.
+- Use a Resend Broadcast with `{{{RESEND_UNSUBSCRIBE_URL}}}` so Resend creates and processes a working unsubscribe link for each opted-in contact.
 - Add only people with an explicit consent source and date to the opt-in CSV.
 - Obtain final approval for the exact email and eligible recipient count.
 
