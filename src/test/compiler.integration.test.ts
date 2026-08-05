@@ -1,11 +1,13 @@
 // @vitest-environment node
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { compileGrantReport } from "../../server/reportCompiler";
 import type { CompilationRequest, CompilerFile, SourceRole } from "../types/prototype";
 
 const enabled = process.env.RUN_AI_SMOKE === "1";
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 describe.skipIf(!enabled)("live AI compiler smoke test", () => {
   it("compiles and independently verifies the synthetic source package", async () => {
@@ -34,7 +36,7 @@ describe.skipIf(!enabled)("live AI compiler smoke test", () => {
 });
 
 function fromAsset(role: SourceRole, name: string, mimeType: string): CompilerFile {
-  const buffer = fs.readFileSync(path.resolve("public", "samples", name));
+  const buffer = fs.readFileSync(path.join(projectRoot, "public", "samples", name));
   return { role, name, mimeType, size: buffer.byteLength, data: `data:${mimeType};base64,${buffer.toString("base64")}` };
 }
 
