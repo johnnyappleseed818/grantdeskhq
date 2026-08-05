@@ -1461,7 +1461,7 @@
   }
 
   .source-upload.has-file {
-    @apply border-solid border-emeraldMuted-300 bg-emeraldMuted-50;
+    @apply border-solid border-emeraldMuted-500 bg-emeraldMuted-50;
   }
 
   .source-upload input {
