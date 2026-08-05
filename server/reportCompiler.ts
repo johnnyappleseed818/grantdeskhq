@@ -3,6 +3,7 @@ import type { CompilationRequest, CompilationResult, ValidationFinding } from ".
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = "gpt-5.6-terra";
+const DEFAULT_VERIFIER_MODEL = "gpt-5.6-luna";
 
 const SYSTEM_PROMPT = `You are the evidence-first report compiler inside GrantDeskHQ, a post-award grant-reporting prototype.
 
@@ -18,6 +19,7 @@ export async function compileGrantReport(request: CompilationRequest): Promise<C
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured.");
   const model = process.env.OPENAI_MODEL || DEFAULT_MODEL;
+  const verifierModel = process.env.OPENAI_VERIFIER_MODEL || DEFAULT_VERIFIER_MODEL;
 
   const sourceContent = request.files.map((file) => ({
     type: "input_file" as const,
@@ -65,7 +67,7 @@ export async function compileGrantReport(request: CompilationRequest): Promise<C
   if (!outputText) throw new Error("The AI compiler returned no structured report output.");
 
   const compiled = JSON.parse(outputText) as Omit<CompilationResult, "generatedAt" | "model" | "validation">;
-  const findings = await verifyAgainstSources(request, compiled, apiKey, model, sourceContent);
+  const findings = await verifyAgainstSources(request, compiled, apiKey, verifierModel, sourceContent);
   const sourceMatchedItems = findings.filter((finding) => finding.verdict === "source_matched").length;
   const itemsNeedingReview = findings.filter((finding) => finding.verdict === "review").length;
   const blockedItems = findings.filter((finding) => finding.verdict === "blocked").length;

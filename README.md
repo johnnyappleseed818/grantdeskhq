@@ -161,6 +161,7 @@ Create `.env.local` for server-side compiler execution:
 ```text
 OPENAI_API_KEY=your_server_side_key
 OPENAI_MODEL=gpt-5.6-terra
+OPENAI_VERIFIER_MODEL=gpt-5.6-luna
 ```
 
 Vite by itself serves the frontend and synthetic demo. Use `vercel dev` or
@@ -270,7 +271,8 @@ client-side paths.
 3. Set **Build Command** to `npm run build`.
 4. Set **Output Directory** to `dist`.
 5. Add `OPENAI_API_KEY` as a Production and Preview environment variable.
-6. Optionally set `OPENAI_MODEL` to `gpt-5.6-terra`.
+6. Optionally set `OPENAI_MODEL` to `gpt-5.6-terra` and
+   `OPENAI_VERIFIER_MODEL` to `gpt-5.6-luna`.
 7. Deploy and test `/api/compile-report` with synthetic files.
 8. Add `grantdeskhq.com` only after choosing Vercel instead of the existing
    GitHub Pages production target and updating DNS deliberately.
@@ -297,7 +299,8 @@ Review the project and domain selections before the production command.
 3. Set **Publish Directory** to `dist`.
 4. Set the functions directory to `netlify/functions` (also configured in
    `netlify.toml`).
-5. Add `OPENAI_API_KEY` and optionally `OPENAI_MODEL` in environment variables.
+5. Add `OPENAI_API_KEY` and optionally `OPENAI_MODEL` and
+   `OPENAI_VERIFIER_MODEL` in environment variables.
 6. Deploy and test `/api/compile-report` with synthetic files.
 7. Add the production domain only if Netlify is intentionally replacing
    GitHub Pages.
