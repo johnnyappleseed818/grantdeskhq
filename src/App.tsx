@@ -7,6 +7,7 @@ import { SampleReportPage } from "./pages/SampleReportPage";
 import { PrivacyPage } from "./pages/PrivacyPage";
 import { PilotPage } from "./pages/PilotPage";
 import { PricingPage } from "./pages/PricingPage";
+import { CompilePage } from "./pages/CompilePage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 
 function RouteEffects() {
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="sample-report" element={<SampleReportPage />} />
           <Route path="privacy" element={<PrivacyPage />} />
           <Route path="pricing" element={<PricingPage />} />
+          <Route path="compile" element={<CompilePage />} />
           <Route path="assessment" element={<PilotPage />} />
           <Route path="pilot" element={<Navigate replace to="/assessment" />} />
           <Route path="*" element={<NotFoundPage />} />

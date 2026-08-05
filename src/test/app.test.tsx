@@ -16,19 +16,20 @@ describe("important routes", () => {
     ["/demo", /Six-Month Progress Report/i],
     ["/sample-report", /See the complete review package/i],
     ["/privacy", /A careful start with client data/i],
-    ["/pricing", /Choose the reporting capacity your team needs/i],
-    ["/assessment", /See where AI can reduce reporting work before you subscribe/i]
+    ["/pricing", /Start affordably\. Prove the value on a real report/i],
+    ["/assessment", /Try GrantDeskHQ on one report before you pay/i],
+    ["/compile", /Turn source files into an evidence-backed report draft/i]
   ])("renders %s", (route, heading) => {
     renderRoute(route);
     expect(screen.getAllByRole("heading", { name: heading }).length).toBeGreaterThan(0);
   });
 
-  it("navigates from the landing page into the interactive demo", async () => {
+  it("navigates from the landing page into the working prototype", async () => {
     const user = userEvent.setup();
     renderRoute("/");
-    await user.click(screen.getByRole("link", { name: /See GrantDeskHQ in action/i }));
-    expect(await screen.findByText("Agency workspace")).toBeInTheDocument();
-    expect(screen.getByText("Northstar Nonprofit Finance")).toBeInTheDocument();
+    await user.click(screen.getAllByRole("link", { name: /Try the working prototype/i })[0]);
+    expect(await screen.findByRole("heading", { name: /Turn source files into an evidence-backed report draft/i })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Getting started steps" })).toBeInTheDocument();
   });
 
   it("explains AI benefits in clear customer language", () => {
@@ -61,33 +62,43 @@ describe("important routes", () => {
 
   it("provides a labelled contact form without exposing a personal address", () => {
     renderRoute("/assessment");
-    expect(screen.getByRole("link", { name: /Take the 3-minute questionnaire/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Tell us about your workflow/i })).toHaveAttribute(
       "href",
       expect.stringMatching(/^https:\/\/docs\.google\.com\/forms\/d\/e\//)
     );
-    expect(screen.getByRole("heading", { name: "Discuss the workflow assessment" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Request founding access" })).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
     expect(screen.getByLabelText("Work email")).toBeInTheDocument();
     expect(screen.getByLabelText("Organization")).toBeInTheDocument();
     expect(screen.getByLabelText("Current grant-reporting process")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Discuss the assessment/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Request founding access/i })).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/eli@|Eli Katz/i);
   });
 
   it("shows the exact subscription pricing and capacity", () => {
     renderRoute("/pricing");
-    for (const plan of ["Essentials", "Growth", "Portfolio"]) {
+    for (const plan of ["Founding Nonprofit", "Founding Agency"]) {
       expect(screen.getByText(plan)).toBeInTheDocument();
     }
-    for (const amount of ["$149", "$299", "$499", "or $1,490/year", "or $2,990/year", "or $4,990/year"]) {
+    for (const amount of ["$49", "$149", "or $490/year", "or $1,490/year"]) {
       expect(screen.getByText(amount)).toBeInTheDocument();
     }
-    expect(screen.getByText("Up to 5 active grants")).toBeInTheDocument();
-    expect(screen.getByText("Up to 15 active grants")).toBeInTheDocument();
-    expect(screen.getByText("Up to 40 active grants")).toBeInTheDocument();
-    expect(screen.getAllByText("Unlimited archived grants")).toHaveLength(3);
-    expect(screen.getByText("$75/month")).toBeInTheDocument();
-    expect(screen.getByText("$25")).toBeInTheDocument();
+    expect(screen.getByText("Up to 10 active grants")).toBeInTheDocument();
+    expect(screen.getByText("Up to 30 active grants")).toBeInTheDocument();
+    expect(screen.getAllByText("Unlimited archived grants")).toHaveLength(2);
+    expect(screen.getByText("$15")).toBeInTheDocument();
+  });
+
+  it("walks users through the report compiler one step at a time", async () => {
+    const user = userEvent.setup();
+    renderRoute("/compile");
+    expect(screen.getByText("Tell us which report you’re preparing")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /Continue/i }));
+    expect(screen.getByText("Add the files your team already uses")).toBeVisible();
+    expect(screen.getByLabelText(/Award agreement/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Approved grant budget/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/General ledger export/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back" })).toBeEnabled();
   });
 });
 

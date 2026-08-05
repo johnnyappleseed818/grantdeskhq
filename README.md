@@ -1,15 +1,15 @@
-# GrantDeskHQ interactive product demo
+# GrantDeskHQ AI report-compiler prototype
 
-GrantDeskHQ is a polished, static React product demonstration for an AI-powered
-post-award grant-reporting workflow used by fractional nonprofit CFO firms,
-outsourced accounting practices, and nonprofit controller teams. The product
-direction is designed to reduce repetitive assembly, catch missing evidence
-earlier, and make professional review easier.
+GrantDeskHQ is a working early-stage prototype for an AI-powered post-award
+grant-reporting workflow used by nonprofit finance teams, fractional nonprofit
+CFO firms, accounting practices, and controllers. It combines a guided React
+interface with a server-side OpenAI Responses API compiler and a separate
+evidence-verification pass.
 
-> Interactive demo using synthetic demonstration data. GrantDeskHQ outputs
-> are drafts and suggested mappings that require professional human review.
-> This repository contains no backend, database, external AI connection,
-> accounting-system integration, or automatic funder submission.
+> The public demo uses synthetic data. The working compiler accepts only
+> synthetic or appropriately redacted test files. All outputs are drafts,
+> suggested mappings, and source-matched statements that require professional
+> review. No report is submitted automatically.
 
 Production domain: [grantdeskhq.com](https://grantdeskhq.com)
 
@@ -27,16 +27,18 @@ Production domain: [grantdeskhq.com](https://grantdeskhq.com)
 | --- | --- |
 | `/` | Marketing landing page and AI Report Compiler positioning |
 | `/demo` | Stateful synthetic GrantDeskHQ agency workspace |
+| `/compile` | Guided working AI Report Compiler and evidence-validation workflow |
 | `/sample-report` | Print-ready funder-report review package |
-| `/privacy` | Honest demo and assessment data-handling boundaries |
-| `/pricing` | Essentials, Growth, and Portfolio subscription pricing |
-| `/assessment` | $500 Grant Reporting Workflow Assessment and contact enquiry |
+| `/privacy` | Honest prototype and test-file data-handling boundaries |
+| `/pricing` | Founding Nonprofit and Founding Agency pricing |
+| `/assessment` | Free-first-report founding access and contact enquiry |
 | `/pilot` | Compatibility redirect to `/assessment` |
 | `*` | Accessible not-found page |
 
-The demo includes Agency Overview, Source Package, Requirements, Financial
+The synthetic demo includes Agency Overview, Source Package, Requirements, Financial
 Mapping, Missing Inputs, Narrative Draft, Quality Review, and Export Package
-screens. All interactive changes are deterministic local React state.
+screens. The `/compile` route adds real file intake, structured AI output,
+an independent verification pass, evidence coverage, and an export gate.
 
 The landing page includes a touch-swipeable, keyboard-focusable carousel of
 clearly labelled illustrative finance-team use cases. These are not customer
@@ -51,10 +53,15 @@ when those are available.
 - React Router
 - Lucide React icons
 - Vitest, Testing Library, and jsdom
+- Vercel and Netlify serverless function adapters
+- OpenAI Responses API with strict JSON Schema output and `store: false`
 - `pdf-lib` for synthetic PDF generation
 - `write-excel-file` for XLSX generation and `read-excel-file` for asset verification
 - ESLint 9 flat configuration
 - System font stack and no external images, fonts, analytics, or tracking
+
+No database is used. The API key stays in the server environment and is never
+included in the browser bundle.
 
 ## Exact synthetic source model
 
@@ -98,6 +105,11 @@ a synthetic-data disclosure.
 ```text
 grantdesk/
 ├── .github/workflows/deploy-pages.yml
+├── api/compile-report.ts
+├── server/
+│   ├── compilerSchema.ts
+│   └── reportCompiler.ts
+├── netlify/functions/compile-report.ts
 ├── public/
 │   ├── 404.html
 │   ├── CNAME
@@ -113,9 +125,12 @@ grantdesk/
 │   ├── data/
 │   │   ├── grantData.json
 │   │   └── grantData.ts
-│   ├── lib/calculations.ts
+│   ├── lib/
+│   │   ├── calculations.ts
+│   │   └── prototype.ts
 │   ├── pages/
 │   ├── test/
+│   ├── types/prototype.ts
 │   ├── App.tsx
 │   └── main.tsx
 ├── index.html
@@ -127,7 +142,8 @@ grantdesk/
 ├── tailwind.config.js
 ├── vite.config.ts
 ├── vitest.config.ts
-└── vercel.json
+├── vercel.json
+└── netlify.toml
 ```
 
 ## Local setup and commands
@@ -140,8 +156,17 @@ npm run generate:assets
 npm run dev
 ```
 
-Vite prints the local development URL. The interactive demo requires no
-environment variables.
+Create `.env.local` for server-side compiler execution:
+
+```text
+OPENAI_API_KEY=your_server_side_key
+OPENAI_MODEL=gpt-5.6-terra
+```
+
+Vite by itself serves the frontend and synthetic demo. Use `vercel dev` or
+`netlify dev` when testing the `/api/compile-report` serverless endpoint
+locally. Never prefix the secret with `VITE_`; Vite-prefixed variables are
+exposed to the browser.
 
 Quality and production commands:
 
@@ -150,6 +175,9 @@ npm run lint
 npm test
 npm run build
 npm run preview
+npx vitest run
+# Optional, billable live smoke test:
+RUN_AI_SMOKE=1 npx vitest run src/test/compiler.integration.test.ts
 npm audit --omit=dev
 npm audit
 ```
@@ -158,7 +186,8 @@ npm audit
   generator sources with zero allowed warnings.
 - `npm test` regenerates assets, then runs all deterministic calculation,
   route, interaction, accessibility-label, mobile-navigation, review-gate,
-  asset-link, PDF, XLSX, and CSV tests.
+  asset-link, PDF, XLSX, CSV, wizard, request-validation, evidence-coverage,
+  and export-gate tests. The live AI test is skipped unless explicitly enabled.
 - `npm run build` regenerates assets, runs strict TypeScript validation, and
   creates the production output in `dist/`, including direct-load entry files
   for every public application route.
@@ -195,6 +224,7 @@ Runtime checks should confirm HTTP 200 for:
 ```text
 /
 /demo
+/compile
 /sample-report
 /privacy
 /pricing
@@ -208,6 +238,10 @@ Runtime checks should confirm HTTP 200 for:
 ```
 
 ## GitHub Pages deployment
+
+GitHub Pages can host the marketing pages and synthetic demo, but it cannot run
+the serverless AI endpoint. The working `/compile` workflow should be deployed
+to Vercel or Netlify before it is offered publicly.
 
 The production repository includes a Pages workflow. A push to `main` runs
 installation, linting, tests, the production build, artifact upload, and Pages
@@ -235,11 +269,14 @@ client-side paths.
 2. Select **Vite** as the framework preset.
 3. Set **Build Command** to `npm run build`.
 4. Set **Output Directory** to `dist`.
-5. Deploy.
-6. Add `grantdeskhq.com` only after choosing Vercel instead of the existing
+5. Add `OPENAI_API_KEY` as a Production and Preview environment variable.
+6. Optionally set `OPENAI_MODEL` to `gpt-5.6-terra`.
+7. Deploy and test `/api/compile-report` with synthetic files.
+8. Add `grantdeskhq.com` only after choosing Vercel instead of the existing
    GitHub Pages production target and updating DNS deliberately.
 
-The checked-in `vercel.json` rewrites application routes to `index.html`.
+The checked-in `vercel.json` provides the SPA rewrite. The
+`api/compile-report.ts` file is deployed as a serverless function automatically.
 
 ### CLI
 
@@ -258,12 +295,15 @@ Review the project and domain selections before the production command.
 1. Import the dedicated `johnnyappleseed818/grantdeskhq` repository.
 2. Set **Build Command** to `npm run build`.
 3. Set **Publish Directory** to `dist`.
-4. Deploy.
-5. Add the production domain only if Netlify is intentionally replacing
+4. Set the functions directory to `netlify/functions` (also configured in
+   `netlify.toml`).
+5. Add `OPENAI_API_KEY` and optionally `OPENAI_MODEL` in environment variables.
+6. Deploy and test `/api/compile-report` with synthetic files.
+7. Add the production domain only if Netlify is intentionally replacing
    GitHub Pages.
 
-The checked-in `public/_redirects` file is copied to `dist/_redirects` and
-provides the SPA fallback.
+`netlify.toml` routes `/api/compile-report` to the serverless function before
+applying the SPA fallback.
 
 ### CLI
 
@@ -319,17 +359,22 @@ excluded. All profiles are research records rather than Resend subscribers.
 
 ## Honest limitations
 
-- This is an interactive static demo using synthetic data.
-- Synthetic processing statuses and suggestions are deterministic local data.
-- No real files are accepted, processed, stored, reconciled, or transmitted.
-- No production security controls, certifications, integrations, accuracy
-  measurements, or performance measurements are claimed.
-- Questionnaire, assignment, due-date, mapping, and review controls update local
-  browser state only.
+- The synthetic `/demo` route remains deterministic local data. The `/compile`
+  route is a working AI prototype, not a production accounting system.
+- Uploaded prototype files are sent to the configured OpenAI API project for
+  processing. Use only synthetic or appropriately redacted test files. Provider
+  terms and retention settings apply.
+- A second AI verification pass materially improves traceability, but cannot
+  guarantee that every AI error is eliminated. Source evidence and professional
+  review remain mandatory.
+- No production security certification, accounting integration, accuracy
+  measurement, or performance statistic is claimed.
+- Reviewer resolutions update local browser state only; no user accounts or
+  application database exist yet.
 - The contact form opens a prefilled message in the visitor's email app; the
   website does not submit, transmit, or store the form data itself. The static
   destination is configured in `src/pages/PilotPage.tsx` and is not displayed
   in the public interface.
-- Generated outputs are synthetic drafts and cannot be used as accounting,
+- Generated outputs are drafts and cannot be used as accounting,
   legal, audit, or compliance advice.
 - Human controller review remains required before any external use.

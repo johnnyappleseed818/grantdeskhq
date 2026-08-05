@@ -1233,7 +1233,19 @@
   }
 
   .pricing-grid {
-    @apply grid gap-5 pt-10 md:grid-cols-3 lg:pt-14;
+    @apply mx-auto grid max-w-4xl gap-5 pt-10 md:grid-cols-2 lg:pt-14;
+  }
+
+  .pricing-promises {
+    @apply mx-auto mt-7 flex max-w-3xl flex-wrap justify-center gap-x-6 gap-y-2 text-sm font-semibold text-emeraldMuted-700;
+  }
+
+  .pricing-promises span {
+    @apply inline-flex items-center gap-2;
+  }
+
+  .pricing-promises span::before {
+    content: "✓";
   }
 
   .pricing-card {
@@ -1306,6 +1318,435 @@
 
   .assessment-process {
     @apply grid gap-4 md:grid-cols-3;
+  }
+
+  .validation-section {
+    @apply border-y border-emeraldMuted-100 bg-[#eff6f1];
+  }
+
+  .validation-value-grid {
+    @apply grid gap-3;
+  }
+
+  .validation-value-grid article {
+    @apply grid grid-cols-[42px_1fr] gap-4 border border-emeraldMuted-100 bg-white p-5 shadow-panel;
+    border-radius: 1rem;
+  }
+
+  .validation-value-grid article > svg {
+    @apply h-10 w-10 bg-emeraldMuted-50 p-2.5 text-emeraldMuted-700;
+  }
+
+  .validation-value-grid h3 {
+    @apply font-semibold text-navy-900;
+  }
+
+  .validation-value-grid p {
+    @apply mt-1 text-sm leading-6 text-slate-600;
+  }
+
+  .compile-page {
+    @apply min-h-screen bg-slate-50;
+  }
+
+  .compile-hero {
+    @apply border-b border-slate-200 bg-[linear-gradient(180deg,#f3f8f5_0%,#fbfaf6_100%)];
+  }
+
+  .compile-boundary {
+    @apply grid grid-cols-[40px_1fr] gap-4 border border-amberReview-200 bg-white p-5 shadow-panel;
+    border-radius: 1rem;
+  }
+
+  .compile-boundary > svg {
+    @apply h-10 w-10 bg-amberReview-50 p-2.5 text-amberReview-700;
+  }
+
+  .compile-boundary strong {
+    @apply text-sm text-navy-900;
+  }
+
+  .compile-boundary p {
+    @apply mt-1 text-xs leading-5 text-slate-600;
+  }
+
+  .compile-guide {
+    @apply border border-slate-200 bg-navy-950 p-6 text-white shadow-panel lg:sticky lg:top-24;
+    border-radius: 1.25rem;
+  }
+
+  .compile-guide .eyebrow {
+    @apply text-emerald-300;
+  }
+
+  .compile-guide-step {
+    @apply mt-5 grid grid-cols-[28px_1fr] items-center gap-3 text-sm text-slate-300;
+  }
+
+  .compile-guide-step > span {
+    @apply inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/20 text-[10px] font-bold text-emerald-300;
+  }
+
+  .compile-form {
+    @apply min-w-0 border border-slate-200 bg-white p-5 shadow-lift sm:p-7;
+    border-radius: 1.25rem;
+  }
+
+  .wizard-progress {
+    @apply mb-8 grid grid-cols-4 border-b border-slate-200 pb-5;
+  }
+
+  .wizard-progress li {
+    @apply relative;
+  }
+
+  .wizard-progress li:not(:last-child)::after {
+    content: "";
+    @apply absolute left-[calc(50%+1rem)] right-[calc(-50%+1rem)] top-4 h-px bg-slate-200;
+  }
+
+  .wizard-progress li.is-complete:not(:last-child)::after {
+    @apply bg-emeraldMuted-500;
+  }
+
+  .wizard-progress button {
+    @apply relative z-10 mx-auto flex flex-col items-center gap-2 bg-white px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400;
+  }
+
+  .wizard-progress button > span {
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-xs;
+  }
+
+  .wizard-progress button svg {
+    @apply h-4 w-4;
+  }
+
+  .wizard-progress .is-current button,
+  .wizard-progress .is-complete button {
+    @apply text-emeraldMuted-700;
+  }
+
+  .wizard-progress .is-current button > span,
+  .wizard-progress .is-complete button > span {
+    @apply border-emeraldMuted-600 bg-emeraldMuted-600 text-white;
+  }
+
+  .wizard-step[hidden] {
+    display: none;
+  }
+
+  .wizard-step {
+    @apply m-0 grid min-w-0 gap-5 border-0 p-0;
+  }
+
+  .wizard-step legend {
+    @apply mb-1 block w-full text-2xl font-semibold tracking-tight text-navy-900;
+  }
+
+  .wizard-step legend .eyebrow {
+    @apply mb-2 block;
+  }
+
+  .wizard-intro {
+    @apply text-sm leading-6 text-slate-600;
+  }
+
+  .source-upload-grid {
+    @apply grid gap-3 sm:grid-cols-2;
+  }
+
+  .source-upload {
+    @apply relative grid min-h-24 cursor-pointer grid-cols-[28px_1fr] items-center gap-3 border border-dashed border-slate-300 bg-slate-50 p-4 transition-colors hover:border-emeraldMuted-500 hover:bg-emeraldMuted-50/40;
+    border-radius: .75rem;
+  }
+
+  .source-upload.has-file {
+    @apply border-solid border-emeraldMuted-300 bg-emeraldMuted-50;
+  }
+
+  .source-upload input {
+    @apply sr-only;
+  }
+
+  .source-upload > svg {
+    @apply h-6 w-6 text-slate-400;
+  }
+
+  .source-upload span {
+    @apply min-w-0;
+  }
+
+  .source-upload strong,
+  .source-upload small {
+    @apply block;
+  }
+
+  .source-upload strong {
+    @apply text-sm text-navy-900;
+  }
+
+  .source-upload small {
+    @apply mt-1 truncate text-xs text-slate-500;
+  }
+
+  .source-upload .upload-check {
+    @apply absolute right-3 top-3 h-4 w-4 text-emeraldMuted-600;
+  }
+
+  .acknowledgement {
+    @apply flex cursor-pointer items-start gap-3 border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700;
+    border-radius: .75rem;
+  }
+
+  .acknowledgement input {
+    @apply mt-1 h-4 w-4 shrink-0 accent-emeraldMuted-600;
+  }
+
+  .preflight-list {
+    @apply grid gap-2;
+  }
+
+  .preflight-item {
+    @apply grid grid-cols-[24px_1fr] gap-3 border border-slate-200 p-4;
+    border-radius: .75rem;
+  }
+
+  .preflight-item > svg {
+    @apply mt-0.5 h-5 w-5;
+  }
+
+  .preflight-item.passed > svg {
+    @apply text-emeraldMuted-600;
+  }
+
+  .preflight-item.failed > svg {
+    @apply text-redBlocked-700;
+  }
+
+  .preflight-item strong {
+    @apply text-sm text-navy-900;
+  }
+
+  .preflight-item p {
+    @apply mt-1 text-xs leading-5 text-slate-500;
+  }
+
+  .compile-summary {
+    @apply divide-y divide-slate-200 border-y border-slate-200;
+  }
+
+  .compile-summary > div {
+    @apply grid gap-1 py-3 sm:grid-cols-[140px_1fr];
+  }
+
+  .compile-summary span {
+    @apply text-xs font-medium text-slate-500;
+  }
+
+  .compile-summary strong {
+    @apply text-sm text-navy-900;
+  }
+
+  .wizard-actions {
+    @apply mt-6 flex items-center justify-between border-t border-slate-200 pt-5;
+  }
+
+  .compiler-error {
+    @apply mt-5 flex items-start gap-3 border border-redBlocked-200 bg-redBlocked-50 p-4 text-sm leading-6 text-redBlocked-700;
+    border-radius: .75rem;
+  }
+
+  .compiler-error svg {
+    @apply mt-0.5 h-5 w-5 shrink-0;
+  }
+
+  .compiler-results {
+    @apply border-t border-slate-200 bg-white outline-none;
+  }
+
+  .compiler-result-heading {
+    @apply flex flex-col items-start justify-between gap-6 border-b border-slate-200 pb-7 md:flex-row;
+  }
+
+  .compiler-result-heading h2 {
+    @apply mt-2 text-3xl font-semibold tracking-tight text-navy-950;
+  }
+
+  .compiler-result-heading p:last-child {
+    @apply mt-3 max-w-3xl text-sm leading-6 text-slate-600;
+  }
+
+  .review-count {
+    @apply flex min-w-44 items-center gap-3 border p-4;
+    border-radius: .75rem;
+  }
+
+  .review-count strong {
+    @apply text-3xl;
+  }
+
+  .review-count span {
+    @apply max-w-24 text-xs leading-5;
+  }
+
+  .review-count.needs-review {
+    @apply border-amberReview-200 bg-amberReview-50 text-amberReview-700;
+  }
+
+  .review-count.ready {
+    @apply border-emerald-200 bg-emerald-50 text-emerald-800;
+  }
+
+  .result-tabs {
+    @apply mt-6 flex gap-1 overflow-x-auto border-b border-slate-200;
+  }
+
+  .result-tabs button {
+    @apply shrink-0 border-b-2 border-transparent px-4 py-3 text-xs font-semibold text-slate-500 hover:text-navy-900;
+  }
+
+  .result-tabs button.is-active {
+    @apply border-emeraldMuted-600 text-emeraldMuted-700;
+  }
+
+  .result-panel {
+    @apply min-h-64 py-6;
+  }
+
+  .result-metric-grid {
+    @apply grid gap-3 sm:grid-cols-2 lg:grid-cols-4;
+  }
+
+  .result-metric {
+    @apply border border-slate-200 bg-slate-50 p-5;
+    border-radius: .75rem;
+  }
+
+  .result-metric > span {
+    @apply text-xs font-medium text-slate-500;
+  }
+
+  .result-metric strong {
+    @apply mt-2 block text-3xl font-semibold text-navy-900;
+  }
+
+  .result-metric p {
+    @apply mt-2 text-xs text-slate-500;
+  }
+
+  .validation-method {
+    @apply grid grid-cols-[36px_1fr] gap-4 border border-emeraldMuted-100 bg-emeraldMuted-50 p-5;
+    border-radius: .75rem;
+  }
+
+  .validation-method svg {
+    @apply h-9 w-9 p-2 text-emeraldMuted-700;
+  }
+
+  .validation-method strong {
+    @apply text-sm text-navy-900;
+  }
+
+  .validation-method p {
+    @apply mt-1 text-xs leading-5 text-slate-600;
+  }
+
+  .prototype-warning {
+    @apply flex items-center gap-3 border-l-4 border-amber-500 bg-amberReview-50 p-3 text-xs text-amberReview-700;
+  }
+
+  .prototype-warning svg {
+    @apply h-4 w-4 shrink-0;
+  }
+
+  .compiled-list {
+    @apply grid gap-3;
+  }
+
+  .compiled-list > article {
+    @apply grid gap-4 border border-slate-200 p-5 lg:grid-cols-[1fr_.85fr];
+    border-radius: .75rem;
+  }
+
+  .compiled-list-main {
+    @apply flex items-start gap-3;
+  }
+
+  .compiled-list-main h3 {
+    @apply mt-2 text-sm font-semibold leading-6 text-navy-900;
+  }
+
+  .review-dot {
+    @apply mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full;
+  }
+
+  .review-dot.verified { @apply bg-emeraldMuted-500; }
+  .review-dot.review { @apply bg-amber-500; }
+  .review-dot.blocked { @apply bg-redBlocked-700; }
+
+  .compiled-source {
+    @apply grid grid-cols-[22px_1fr] gap-3 border-l-2 border-emeraldMuted-500 bg-slate-50 p-4;
+  }
+
+  .compiled-source > svg {
+    @apply h-5 w-5 text-emeraldMuted-600;
+  }
+
+  .compiled-source strong {
+    @apply text-xs text-navy-900;
+  }
+
+  .compiled-source blockquote {
+    @apply mt-2 text-xs italic leading-5 text-slate-600;
+  }
+
+  .prototype-mapping-table {
+    min-width: 1050px;
+  }
+
+  .prototype-review-item {
+    @apply grid grid-cols-[24px_1fr] items-start gap-3 border border-slate-200 p-4 sm:grid-cols-[24px_1fr_auto];
+    border-radius: .75rem;
+  }
+
+  .prototype-review-item > svg {
+    @apply mt-0.5 h-5 w-5 text-emeraldMuted-600;
+  }
+
+  .prototype-review-item.review,
+  .prototype-review-item.blocked,
+  .prototype-review-item.source_matched {
+    @apply border-amberReview-200 bg-amberReview-50;
+  }
+
+  .prototype-review-item.blocked > svg {
+    @apply text-redBlocked-700;
+  }
+
+  .prototype-review-item h3 {
+    @apply text-sm font-semibold text-navy-900;
+  }
+
+  .prototype-review-item p,
+  .prototype-review-item small {
+    @apply mt-1 block text-xs leading-5 text-slate-600;
+  }
+
+  .review-package-card {
+    @apply h-fit border border-slate-200 bg-navy-950 p-6 text-white;
+    border-radius: 1rem;
+  }
+
+  .review-package-card > svg {
+    @apply h-8 w-8 text-emerald-300;
+  }
+
+  .review-package-card h3 {
+    @apply mt-5 text-xl font-semibold;
+  }
+
+  .review-package-card p {
+    @apply mt-3 text-sm leading-6 text-slate-300;
   }
 
   .assessment-process article {

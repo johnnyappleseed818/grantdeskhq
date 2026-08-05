@@ -3,32 +3,25 @@ import { Link } from "react-router-dom";
 
 const plans = [
   {
-    name: "Essentials",
+    name: "Founding Nonprofit",
+    monthly: "$49",
+    annual: "$490",
+    activeGrants: "Up to 10",
+    reports: "12",
+    users: "5 internal users",
+    description: "For nonprofit finance teams that want to replace manual report assembly without adding an expensive grant-management system.",
+    extras: ["Unlimited guest reviewers", "Founding price locked for 24 months"]
+  },
+  {
+    name: "Founding Agency",
     monthly: "$149",
     annual: "$1,490",
-    activeGrants: "Up to 5",
-    reports: "24",
-    users: "3",
-    description: "For a smaller finance team establishing a consistent grant-reporting workflow."
-  },
-  {
-    name: "Growth",
-    monthly: "$299",
-    annual: "$2,990",
-    activeGrants: "Up to 15",
-    reports: "72",
-    users: "8",
-    description: "For teams preparing recurring funder reports across a growing grant portfolio.",
+    activeGrants: "Up to 30",
+    reports: "60",
+    users: "15 internal users",
+    description: "For fractional CFO and accounting firms that need a repeatable reporting workflow across nonprofit clients.",
+    extras: ["Separate client workspaces", "Unlimited guest reviewers", "Founding price locked for 24 months"],
     featured: true
-  },
-  {
-    name: "Portfolio",
-    monthly: "$499",
-    annual: "$4,990",
-    activeGrants: "Up to 40",
-    reports: "200",
-    users: "15",
-    description: "For established finance teams managing reporting across a larger portfolio."
   }
 ];
 
@@ -37,12 +30,13 @@ export function PricingPage() {
     <div className="pricing-page">
       <section className="pricing-hero">
         <div className="site-shell text-center">
-          <div className="prototype-pill mx-auto"><span aria-hidden="true" /> Clear pricing for nonprofit finance teams</div>
+          <div className="prototype-pill mx-auto"><span aria-hidden="true" /> Early-customer pricing</div>
           <p className="eyebrow mt-8">Pricing</p>
-          <h1 className="page-title mx-auto">Choose the reporting capacity your team needs.</h1>
+          <h1 className="page-title mx-auto">Start affordably. Prove the value on a real report.</h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-            Every plan is designed to reduce manual report preparation while keeping source evidence, review decisions, and final approval with your team.
+            Your first report is free. If GrantDeskHQ reduces the manual work for your team, continue on a simple founding plan with no setup fee.
           </p>
+          <div className="pricing-promises"><span>First report free</span><span>Free source import</span><span>No setup fee</span><span>Cancel anytime</span></div>
         </div>
       </section>
 
@@ -61,11 +55,12 @@ export function PricingPage() {
               <ul className="mt-7 grid gap-3 text-sm text-slate-700">
                 <Feature>{plan.activeGrants} active grants</Feature>
                 <Feature>{plan.reports} report packages per year</Feature>
-                <Feature>{plan.users} users</Feature>
+                <Feature>{plan.users}</Feature>
                 <Feature>Unlimited archived grants</Feature>
+                {plan.extras.map((extra) => <Feature key={extra}>{extra}</Feature>)}
               </ul>
               <Link className={`button mt-8 w-full ${plan.featured ? "button-primary" : "button-secondary"}`} to="/assessment#contact">
-                Discuss {plan.name} <ArrowRight aria-hidden="true" />
+                Request founding access <ArrowRight aria-hidden="true" />
               </Link>
             </article>
           ))}
@@ -73,13 +68,12 @@ export function PricingPage() {
 
         <div className="pricing-overages">
           <div>
-            <p className="eyebrow">Add capacity when you need it</p>
-            <h2>Simple, consistent add-on pricing</h2>
-            <p>Keep the same plan and add capacity during a busier reporting period.</p>
+            <p className="eyebrow">Only pay for the extra work you use</p>
+            <h2>Add a report during a busy period</h2>
+            <p>Keep the same plan instead of moving to a higher tier for an occasional reporting spike.</p>
           </div>
           <dl>
-            <div><dt>Additional 5 active grants</dt><dd>$75/month</dd></div>
-            <div><dt>Additional report package</dt><dd>$25</dd></div>
+            <div><dt>Additional report package</dt><dd>$15</dd></div>
           </dl>
         </div>
 
@@ -87,7 +81,7 @@ export function PricingPage() {
           <CircleHelp aria-hidden="true" />
           <div>
             <h2>How usage is counted</h2>
-            <p><strong>Active grants</strong> are grants currently being managed in the reporting workflow. <strong>Archived grants</strong> remain available for reference but do not count toward the active-grant limit. A <strong>report package</strong> is one compiled reporting cycle with its draft and supporting evidence.</p>
+            <p><strong>Active grants</strong> are grants currently being prepared or monitored in GrantDeskHQ. <strong>Archived grants</strong> stay available for reference without counting toward the limit. One <strong>report package</strong> includes a compiled draft, financial schedule, evidence log, missing-input list, and quality review.</p>
           </div>
         </div>
       </section>
@@ -95,11 +89,11 @@ export function PricingPage() {
       <section className="cta-section print:hidden">
         <div className="site-shell flex flex-col items-start justify-between gap-8 md:flex-row md:items-center">
           <div>
-            <p className="eyebrow">Not sure which plan fits?</p>
-            <h2 className="text-3xl font-semibold text-navy-900">Start with your actual reporting workflow.</h2>
-            <p className="mt-3 max-w-2xl text-slate-600">Tell us how many grants and report packages your team manages. We’ll help you understand which plan matches the workload.</p>
+            <p className="eyebrow">Try it before you commit</p>
+            <h2 className="text-3xl font-semibold text-navy-900">Use your first report to decide.</h2>
+            <p className="mt-3 max-w-2xl text-slate-600">Start with synthetic or redacted test files, review the evidence-backed output, and continue only if the workflow saves your team meaningful manual work.</p>
           </div>
-          <Link className="button button-primary button-large shrink-0" to="/assessment#contact">Discuss your needs <ArrowRight aria-hidden="true" /></Link>
+          <Link className="button button-primary button-large shrink-0" to="/assessment#contact">Request your free first report <ArrowRight aria-hidden="true" /></Link>
         </div>
       </section>
     </div>

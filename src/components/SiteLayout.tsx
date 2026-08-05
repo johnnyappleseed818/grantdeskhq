@@ -8,7 +8,7 @@ const marketingLinks = [
   ["AI Report Compiler", "/#compiler"],
   ["Sample Output", "/sample-report"],
   ["Pricing", "/pricing"],
-  ["Assessment", "/assessment"]
+  ["Founding Access", "/assessment"]
 ];
 
 export function SiteLayout() {
@@ -49,7 +49,7 @@ export function SiteLayout() {
             {marketingLinks.map(([label, href]) => (
               <NavLink key={label} to={href} className="nav-link">{label}</NavLink>
             ))}
-            <Link className="button button-primary whitespace-nowrap" to="/demo">See the demo</Link>
+            <Link className="button button-primary whitespace-nowrap" to="/compile">Try the prototype</Link>
           </nav>
         </div>
       </header>
@@ -68,9 +68,10 @@ export function SiteLayout() {
             <p className="footer-heading">Product</p>
             <div className="mt-3 grid gap-2 text-sm">
               <Link to="/demo">Interactive demo</Link>
+              <Link to="/compile">Working AI prototype</Link>
               <Link to="/sample-report">Synthetic sample report</Link>
               <Link to="/pricing">Pricing</Link>
-              <Link to="/assessment">Workflow assessment</Link>
+              <Link to="/assessment">Founding access</Link>
             </div>
           </div>
           <div>

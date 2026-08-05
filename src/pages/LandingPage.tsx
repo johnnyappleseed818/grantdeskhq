@@ -65,8 +65,8 @@ export function LandingPage() {
               GrantDeskHQ uses AI to organize award terms, approved budgets, GL exports, funder forms, and program updates in one workspace—so nonprofit finance teams can reduce manual work, catch missing support earlier, and focus more of their time on the mission.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link className="button button-primary button-large" to="/demo">See GrantDeskHQ in action <ArrowRight aria-hidden="true" /></Link>
-              <Link className="button button-secondary button-large" to="/sample-report">View the sample report</Link>
+              <Link className="button button-primary button-large" to="/compile">Try the working prototype <ArrowRight aria-hidden="true" /></Link>
+              <Link className="button button-secondary button-large" to="/demo">Explore the guided demo</Link>
             </div>
             <p className="trust-line"><CheckCircle2 aria-hidden="true" /> Interactive demo using synthetic data · Your team approves every draft</p>
           </div>
@@ -166,6 +166,27 @@ export function LandingPage() {
 
       <TeamPrioritiesCarousel />
 
+      <section className="section-block validation-section">
+        <div className="site-shell grid gap-12 lg:grid-cols-[.82fr_1.18fr] lg:items-start">
+          <div>
+            <p className="eyebrow">Evidence Validation</p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-navy-950 md:text-4xl">See what the AI used—and what it could not confirm.</h2>
+            <p className="mt-5 leading-7 text-slate-600">GrantDeskHQ does not ask your team to trust an unexplained answer. Every material output carries a source, a confidence level, and a review state.</p>
+            <Link className="button button-secondary mt-7" to="/compile">Walk through the setup wizard <ArrowRight aria-hidden="true" /></Link>
+          </div>
+          <div className="validation-value-grid">
+            {[
+              [FileSearch, "Source-linked output", "Open the excerpt behind a requirement, mapping, calculation, or narrative statement."],
+              [ShieldCheck, "Separate verification pass", "A second AI pass challenges each material output against the uploaded source package."],
+              [ClipboardCheck, "Review gate before export", "Unsupported, contradictory, or incomplete items stay blocked until a professional reviews them."]
+            ].map(([Icon, title, copy]) => {
+              const ValidationIcon = Icon as typeof FileSearch;
+              return <article key={title as string}><ValidationIcon aria-hidden="true" /><div><h3>{title as string}</h3><p>{copy as string}</p></div></article>;
+            })}
+          </div>
+        </div>
+      </section>
+
       <section className="section-block bg-white">
         <div className="site-shell grid gap-12 lg:grid-cols-[.85fr_1.15fr]">
           <div>
@@ -203,8 +224,8 @@ export function LandingPage() {
             <p className="mt-3 text-slate-600">Explore the complete demo, or tell us which parts of grant reporting take the most time for your team.</p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link className="button button-primary button-large shrink-0" to="/demo">Open the demo <ArrowRight aria-hidden="true" /></Link>
-            <Link className="button button-secondary button-large shrink-0" to="/assessment#contact">Assess your workflow</Link>
+            <Link className="button button-primary button-large shrink-0" to="/compile">Try the working prototype <ArrowRight aria-hidden="true" /></Link>
+            <Link className="button button-secondary button-large shrink-0" to="/assessment#contact">Request a free first report</Link>
           </div>
         </div>
       </section>

@@ -24,7 +24,7 @@ export default tseslint.config(
     }
   },
   {
-    files: ["vite.config.ts", "vitest.config.ts", "src/test/**/*.{ts,tsx}"],
+    files: ["vite.config.ts", "vitest.config.ts", "src/test/**/*.{ts,tsx}", "api/**/*.ts", "server/**/*.ts", "netlify/**/*.ts"],
     languageOptions: {
       globals: { ...globals.node, ...globals.browser }
     }
