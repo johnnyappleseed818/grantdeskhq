@@ -290,6 +290,26 @@ vercel --prod
 
 Review the project and domain selections before the production command.
 
+## Google Cloud Run preview
+
+The checked-in `Dockerfile` builds the Vite application and starts the minimal
+Node server in `server/cloudRun.ts`. Deploy only to the isolated GrantDeskHQ
+project and inject `OPENAI_API_KEY` from Secret Manager; never place it in a
+Docker build argument or committed file.
+
+```bash
+gcloud run deploy grantdeskhq-prototype \
+  --source=. \
+  --project=grantdeskhq-proto-ek-2026 \
+  --region=us-central1 \
+  --allow-unauthenticated \
+  --set-secrets=OPENAI_API_KEY=grantdeskhq-openai-key:latest \
+  --set-env-vars=OPENAI_MODEL=gpt-5.6-terra,OPENAI_VERIFIER_MODEL=gpt-5.6-luna
+```
+
+The default `run.app` URL is suitable for prototype review. Domain mapping and
+DNS changes are deliberately separate release steps.
+
 ## Netlify deployment
 
 ### Dashboard

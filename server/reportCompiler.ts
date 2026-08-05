@@ -1,5 +1,5 @@
-import { compilationSchema, verificationSchema } from "./compilerSchema";
-import type { CompilationRequest, CompilationResult, ValidationFinding } from "../src/types/prototype";
+import { compilationSchema, verificationSchema } from "./compilerSchema.ts";
+import type { CompilationRequest, CompilationResult, ValidationFinding } from "../src/types/prototype.ts";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = "gpt-5.6-terra";
