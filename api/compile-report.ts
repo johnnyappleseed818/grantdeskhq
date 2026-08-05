@@ -9,7 +9,7 @@ interface ApiResponse {
   setHeader(name: string, value: string): void;
 }
 
-export const config = { maxDuration: 60 };
+export const config = { maxDuration: 120 };
 
 export default async function handler(request: ApiRequest, response: ApiResponse) {
   response.setHeader("Cache-Control", "no-store");

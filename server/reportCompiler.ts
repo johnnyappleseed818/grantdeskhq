@@ -31,7 +31,7 @@ export async function compileGrantReport(request: CompilationRequest): Promise<C
     body: JSON.stringify({
       model,
       store: false,
-      reasoning: { effort: "medium" },
+      reasoning: { effort: "low" },
       input: [
         { role: "system", content: [{ type: "input_text", text: SYSTEM_PROMPT }] },
         {
@@ -104,7 +104,7 @@ async function verifyAgainstSources(
     body: JSON.stringify({
       model,
       store: false,
-      reasoning: { effort: "medium" },
+      reasoning: { effort: "low" },
       input: [
         {
           role: "system",
