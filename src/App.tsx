@@ -14,6 +14,7 @@ import { WorkspacePage } from "./pages/WorkspacePage";
 import { GtmDashboardPage } from "./pages/GtmDashboardPage";
 import { ReadinessPage } from "./pages/ReadinessPage";
 import { AuthProvider } from "./lib/auth";
+import { AnalyticsManager } from "./lib/analytics";
 
 function RouteEffects() {
   const location = useLocation();
@@ -34,6 +35,7 @@ function RouteEffects() {
 export default function App() {
   return (
     <AuthProvider>
+      <AnalyticsManager />
       <RouteEffects />
       <Routes>
         <Route element={<SiteLayout />}>

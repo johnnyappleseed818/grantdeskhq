@@ -124,7 +124,13 @@ function handleConfig(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   const apiKey = process.env.FIREBASE_WEB_API_KEY;
   if (!apiKey) return json(response, 503, { error: "Account service is not configured." });
-  return json(response, 200, { apiKey, authDomain: "grantdeskhq-proto-ek-2026.firebaseapp.com", projectId: "grantdeskhq-proto-ek-2026" });
+  return json(response, 200, {
+    apiKey,
+    authDomain: "grantdeskhq-proto-ek-2026.firebaseapp.com",
+    projectId: "grantdeskhq-proto-ek-2026",
+    googleAnalyticsMeasurementId: process.env.GOOGLE_ANALYTICS_MEASUREMENT_ID || undefined,
+    clarityProjectId: process.env.CLARITY_PROJECT_ID || undefined
+  });
 }
 
 async function readJson(request: IncomingMessage) {

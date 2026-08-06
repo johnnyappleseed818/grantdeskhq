@@ -3,6 +3,7 @@ import { Menu, X } from "lucide-react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { Logo } from "./Logo";
 import { useAuth } from "../lib/auth";
+import { openAnalyticsPreferences } from "../lib/analytics";
 
 const marketingLinks = [
   ["How It Works", "/#how-it-works"],
@@ -83,6 +84,7 @@ export function SiteLayout() {
             <p className="footer-heading">Information</p>
             <div className="mt-3 grid gap-2 text-sm">
               <Link to="/privacy">Privacy and data handling</Link>
+              <button type="button" className="footer-link-button" onClick={openAnalyticsPreferences}>Cookie settings</button>
               <Link to="/assessment#contact">Contact us</Link>
               <span className="text-slate-500">© {new Date().getFullYear()} GrantDeskHQ</span>
             </div>

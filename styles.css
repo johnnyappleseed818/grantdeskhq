@@ -2056,6 +2056,25 @@
   .report-row dl { grid-template-columns: 1fr 1fr; }
 }
 
+/* Consent-aware visitor analytics */
+.analytics-consent { position: fixed; right: 1rem; bottom: 1rem; z-index: 100; display: grid; width: min(680px, calc(100vw - 2rem)); gap: 1rem; padding: 1.15rem; border: 1px solid #bcc9c0; background: #fff; box-shadow: 0 20px 60px rgb(16 35 63 / 18%); border-radius: 1rem; }
+.analytics-consent h2 { color: #10233f; font-size: 1.05rem; font-weight: 800; }
+.analytics-consent p { margin-top: .35rem; color: #586879; font-size: .78rem; line-height: 1.55; }
+.analytics-consent a { display: inline-block; margin-top: .45rem; color: #286444; font-size: .75rem; font-weight: 800; text-decoration: underline; }
+.analytics-consent-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; }
+.analytics-consent-actions .button { min-height: 42px; }
+.footer-link-button { width: fit-content; color: inherit; text-align: left; }
+.footer-link-button:hover { color: #fff; }
+
+@media (min-width: 720px) {
+  .analytics-consent { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+}
+
+@media (max-width: 520px) {
+  .analytics-consent { right: .65rem; bottom: .65rem; width: calc(100vw - 1.3rem); }
+  .analytics-consent-actions, .analytics-consent-actions .button { width: 100%; }
+}
+
 /* GTM command center */
 .gtm-page { min-height: 80vh; background: #f4f6f3; }
 .gtm-header { color: #fff; background: #0b1b2d; border-bottom: 1px solid rgb(255 255 255 / 8%); }

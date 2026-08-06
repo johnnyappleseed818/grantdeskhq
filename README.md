@@ -226,9 +226,20 @@ OPENAI_MODEL=gpt-5.6-terra
 OPENAI_VERIFIER_MODEL=gpt-5.6-luna
 OPENAI_GTM_MODEL=gpt-5.5
 GTM_ADMIN_EMAILS=owner@example.com
+GOOGLE_ANALYTICS_MEASUREMENT_ID=G-XXXXXXXXXX
+CLARITY_PROJECT_ID=your_clarity_project_id
 GTM_SCHEDULER_SERVICE_ACCOUNT=grantdeskhq-gtm-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com
 GTM_SCHEDULER_AUDIENCE=https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app
 ```
+
+`GOOGLE_ANALYTICS_MEASUREMENT_ID` and `CLARITY_PROJECT_ID` are public
+configuration values, not secrets. When either value is absent, that analytics
+tool remains disabled. When configured, the browser still does not load either
+vendor until the visitor selects **Allow analytics**. Google Analytics receives
+manual page views for public marketing routes only; account, compiler,
+readiness, workspace, and private GTM routes are excluded. The application root
+is explicitly masked for Microsoft Clarity, and no account identifiers are sent
+to either tool.
 
 Vite by itself serves the frontend and synthetic demo. Use `vercel dev` or
 `netlify dev` when testing the `/api/compile-report` serverless endpoint

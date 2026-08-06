@@ -1,5 +1,6 @@
 import { ArrowRight, FileWarning, MessagesSquare, ShieldCheck, UserCheck } from "lucide-react";
 import { Link } from "react-router-dom";
+import { openAnalyticsPreferences } from "../lib/analytics";
 
 export function PrivacyPage() {
   return (
@@ -16,6 +17,7 @@ export function PrivacyPage() {
         <PrivacyCard icon={FileWarning} title="Use test files in the prototype"><p>The AI Report Compiler sends selected files to the configured AI provider for processing. Use only synthetic or appropriately redacted test files. Do not upload live client records or sensitive personal information.</p></PrivacyCard>
         <PrivacyCard icon={MessagesSquare} title="Contact messages do not accept files"><p>The contact form opens your email application and has no upload field. Please keep client names, financial details, and other sensitive information out of the message.</p></PrivacyCard>
         <PrivacyCard icon={UserCheck} title="Your team makes the final call"><p>GrantDeskHQ prepares drafts and suggestions. Your finance professionals review the mappings, calculations, evidence, narrative, and final report.</p></PrivacyCard>
+        <PrivacyCard icon={ShieldCheck} title="Visitor analytics are optional"><p>When enabled and accepted, Google Analytics measures visits to public marketing pages and Microsoft Clarity helps us understand navigation and interaction patterns. Analytics is disabled until you choose to allow it. GrantDeskHQ does not deliberately send uploaded files, report content, form entries, or account identifiers to either service, and all page content is explicitly masked for Clarity.</p><button type="button" className="mt-4 font-semibold text-emerald-800 underline" onClick={openAnalyticsPreferences}>Review cookie settings</button></PrivacyCard>
       </div>
 
       <section className="mt-10 border-y border-slate-200 py-8">
