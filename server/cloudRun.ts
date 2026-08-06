@@ -13,7 +13,9 @@ const maxBodyBytes = 4_000_000;
 createServer(async (request, response) => {
   try {
     const url = new URL(request.url || "/", "http://localhost");
-    if (url.pathname === "/healthz") return json(response, 200, { status: "ok", service: "grantdeskhq-prototype" });
+    if (url.pathname === "/healthz" || url.pathname === "/api/health") {
+      return json(response, 200, { status: "ok", service: "grantdeskhq-prototype" });
+    }
     if (url.pathname === "/api/compile-report") return handleCompiler(request, response);
     if (request.method !== "GET" && request.method !== "HEAD") return json(response, 405, { error: "Method not allowed." });
     return serveStatic(url.pathname, request.method === "HEAD", response);

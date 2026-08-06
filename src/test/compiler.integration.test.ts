@@ -25,7 +25,7 @@ describe.skipIf(!enabled)("live AI compiler smoke test", () => {
       reportingPeriod: "January 1–June 30, 2026",
       files
     };
-    const result = await compileGrantReport(request);
+    const result = await runCompiler(request);
     expect(result.reportTitle).toBeTruthy();
     expect(result.requirements.length).toBeGreaterThan(0);
     expect(result.validation.findings.length).toBeGreaterThan(0);
@@ -34,6 +34,18 @@ describe.skipIf(!enabled)("live AI compiler smoke test", () => {
     expect(result.warnings.length).toBeGreaterThan(0);
   }, 120_000);
 });
+
+async function runCompiler(request: CompilationRequest) {
+  const endpoint = process.env.COMPILER_ENDPOINT;
+  if (!endpoint) return compileGrantReport(request);
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.ok) throw new Error(`Remote compiler returned ${response.status}: ${await response.text()}`);
+  return response.json();
+}
 
 function fromAsset(role: SourceRole, name: string, mimeType: string): CompilerFile {
   const buffer = fs.readFileSync(path.join(projectRoot, "public", "samples", name));
