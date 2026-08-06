@@ -15,7 +15,10 @@
     "test:watch": "vitest",
     "build": "npm run generate:assets && tsc --noEmit && vite build && node scripts/create-spa-routes.js",
     "preview": "vite preview",
-    "outreach:preview": "node scripts/resend-questionnaire-email.mjs"
+    "outreach:preview": "node scripts/gtm/resend-opt-in-broadcast.mjs",
+    "gtm:build": "node scripts/gtm/build-engine.mjs",
+    "gtm:test": "node scripts/gtm/gtm.test.mjs",
+    "gtm:reddit": "node scripts/gtm/scan-reddit-api.mjs"
   },
   "dependencies": {
     "firebase": "12.17.1",

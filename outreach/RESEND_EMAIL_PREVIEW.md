@@ -4,17 +4,17 @@
 
 **Eligible recipients in the current opt-in CSV:** 0
 
-**Subject:** A 3-minute nonprofit grant-reporting questionnaire
+**Subject:** Still rebuilding funder reports in Excel?
 
-**From:** Eli Katz <eli@grantdeskhq.com>
+**From:** Eli Katz <eli.katz@grantdeskhq.com>
 
 Hi {{first_name}},
 
-Nonprofit finance teams often spend significant time bringing award terms, GL data, program updates, and funder templates together for a single report.
+Many nonprofit finance teams keep accurate records in QuickBooks or another accounting system and still rebuild each funder's report in Excel—mapping transactions to funder budget lines, chasing program updates, and copying the results into a separate template.
 
-We’re validating GrantDeskHQ, an AI-assisted workflow designed to reduce that manual work, flag missing support earlier, and prepare a source-backed draft for professional review.
+GrantDeskHQ is an AI-assisted workflow designed to turn an approved grant budget, accounting export, program update, and funder form into a source-linked report draft for professional review. It works around the accounting system you already use rather than replacing it.
 
-Would you share how your team handles post-award reporting today? The questionnaire takes about three minutes:
+Would you share how your team handles post-award grant reporting today? The short questionnaire is here:
 
 https://docs.google.com/forms/d/e/1FAIpQLSddrmCFTno2tDYLKW2qCSUllnFxjxcjNMFFPtZJoOlPxQPSBQ/viewform
 
@@ -25,8 +25,7 @@ Eli Katz<br>
 GrantDeskHQ<br>
 https://grantdeskhq.com
 
-This is a commercial message from GrantDeskHQ.<br>
-You opted in via {{CONSENT_SOURCE}} on {{CONSENT_DATE}}.<br>
+Advertisement from GrantDeskHQ. You received this because you opted in to GrantDeskHQ research and product updates.<br>
 1021 East Lincolnway, Cheyenne, Wyoming 82001<br>
 [Unsubscribe]({{{RESEND_UNSUBSCRIBE_URL}}})
 
@@ -37,8 +36,8 @@ You opted in via {{CONSENT_SOURCE}} on {{CONSENT_DATE}}.<br>
 - Verify the sending domain and sender in Resend.
 - Configure a monitored reply-to address.
 - The supplied physical postal address is included.
-- Use a Resend Broadcast with `{{{RESEND_UNSUBSCRIBE_URL}}}` so Resend creates and processes a working unsubscribe link for each opted-in contact.
+- Use the GTM Broadcast utility with `{{{RESEND_UNSUBSCRIBE_URL}}}` so Resend creates and processes a working unsubscribe link for each opted-in contact.
 - Add only people with an explicit consent source and date to the opt-in CSV.
 - Obtain final approval for the exact email and eligible recipient count.
 
-The send utility at `scripts/resend-questionnaire-email.mjs` defaults to preview mode and refuses rows without consent evidence or an unsubscribe URL.
+The send utility at `scripts/gtm/resend-opt-in-broadcast.mjs` defaults to preview mode, requires `consent_status=opted_in`, and refuses rows without consent evidence. It creates a draft by default; live sending requires three exact confirmations.

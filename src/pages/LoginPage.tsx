@@ -45,12 +45,12 @@ export function LoginPage() {
     <div className="site-shell account-grid">
       <div className="account-value">
         <p className="eyebrow">Private beta workspace</p>
-        <h1>Save every report, source and review decision.</h1>
-        <p>GrantDeskHQ keeps the AI draft tied to its evidence, so your team can leave, return and continue the same professional review.</p>
+        <h1>Build funder-specific grant reports with less spreadsheet work.</h1>
+        <p>Turn your approved budget, accounting export, program updates, and funder form into an AI-assisted draft with the supporting evidence attached—without replacing your accounting system.</p>
         <div className="account-benefits">
-          <span><ShieldCheck aria-hidden="true" />Private source-file storage</span>
-          <span><CheckCircle2 aria-hidden="true" />Saved evidence and validation results</span>
-          <span><KeyRound aria-hidden="true" />Account-isolated report workspaces</span>
+          <span><ShieldCheck aria-hidden="true" />Reduce manual report assembly</span>
+          <span><CheckCircle2 aria-hidden="true" />Find missing support before final review</span>
+          <span><KeyRound aria-hidden="true" />Keep every AI draft tied to its sources</span>
         </div>
       </div>
       <form className="account-card" onSubmit={submit}>

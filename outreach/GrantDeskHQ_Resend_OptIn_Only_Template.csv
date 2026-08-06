@@ -1,1 +1,1 @@
-email,first_name,last_name,unsubscribed,organization,role,consent_source,consent_date,unsubscribe_url
+email,first_name,last_name,unsubscribed,organization,role,consent_status,consent_source,consent_date,unsubscribe_url

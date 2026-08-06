@@ -1,0 +1,19 @@
+Hi {{{contact.first_name|there}}},
+
+Many nonprofit finance teams keep accurate records in QuickBooks or another accounting system and still rebuild each funder's report in Excel—mapping transactions to funder budget lines, chasing program updates, and copying the results into a separate template.
+
+GrantDeskHQ is an AI-assisted workflow designed to turn an approved grant budget, accounting export, program update, and funder form into a source-linked report draft for professional review. It works around the accounting system you already use rather than replacing it.
+
+Would you share how your team handles post-award grant reporting today? The short questionnaire is here:
+{{QUESTIONNAIRE_URL}}
+
+As a thank-you, eligible questionnaire participants who become new customers can receive 10% off their first three monthly payments.
+
+Thank you,
+Eli Katz
+GrantDeskHQ
+https://grantdeskhq.com
+
+Advertisement from GrantDeskHQ. You received this because you opted in to GrantDeskHQ research and product updates.
+1021 East Lincolnway, Cheyenne, Wyoming 82001
+Unsubscribe: {{{RESEND_UNSUBSCRIBE_URL}}}

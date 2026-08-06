@@ -1,0 +1,112 @@
+[
+  {
+    "id": "1f0ufr7",
+    "title": "worksheet/software to allocate expenses to different grantors",
+    "url": "https://www.reddit.com/r/nonprofit/comments/1f0ufr7/",
+    "community": "r/nonprofit",
+    "observedAt": "2026-08-06",
+    "painThemes": ["spreadsheet_bridge", "funder_mapping", "price_sensitivity"],
+    "evidenceSummary": "A volunteer sought a spreadsheet or inexpensive tool to allocate one expense category across multiple grants while respecting category and grant limits. QuickBooks and TechSoup suggestions did not resolve the stated workflow.",
+    "productImplication": "Lead with suggested allocation and funder-category mapping from existing accounting exports, while keeping reviewer approval explicit.",
+    "confidence": "high"
+  },
+  {
+    "id": "1r69dbu",
+    "title": "Anyone else struggling with manual transaction coding & reconciliation?",
+    "url": "https://www.reddit.com/r/nonprofit/comments/1r69dbu/anyone_else_struggling_with_manual_transaction/",
+    "community": "r/nonprofit",
+    "observedAt": "2026-08-06",
+    "painThemes": ["manual_coding", "fragmented_handoff", "missing_evidence"],
+    "evidenceSummary": "Nonprofit operations and finance participants described categorization and reconciliation as manual, error-prone, and dependent on a few people who understand the coding rules. Comments emphasized that judgment remains necessary even when routine work is automated.",
+    "productImplication": "Position AI as an explainable first pass with evidence and approval controls, not autonomous reconciliation.",
+    "confidence": "high"
+  },
+  {
+    "id": "1kkrq74",
+    "title": "QBO users: How do you track your reimbursable grants?",
+    "url": "https://www.reddit.com/r/nonprofit/comments/1kkrq74/qbo_users_how_do_you_track_your_reimbursable/",
+    "community": "r/nonprofit",
+    "observedAt": "2026-08-06",
+    "painThemes": ["spreadsheet_bridge", "funder_mapping", "funder_format"],
+    "evidenceSummary": "A QuickBooks user could track project expenses but could not produce the needed award-minus-spend view for reimbursable grants. The working answer was to export to Excel and maintain award and remaining-balance calculations separately.",
+    "productImplication": "Show that GrantDeskHQ starts with the GL export and approved award budget rather than asking the nonprofit to replace QuickBooks.",
+    "confidence": "high"
+  },
+  {
+    "id": "1qx3lpf",
+    "title": "Need help making a excel spreadsheet tracking grants",
+    "url": "https://www.reddit.com/r/nonprofit/comments/1qx3lpf/need_help_making_a_excel_spreadsheet_tracking/",
+    "community": "r/nonprofit",
+    "observedAt": "2026-08-06",
+    "painThemes": ["spreadsheet_bridge", "funder_format", "fragmented_handoff"],
+    "evidenceSummary": "A nonprofit wanted separate grant tabs containing award amount, costs, permitted activities, scope, deliverables, deadlines, and reporting requirements. Commenters suggested a master tab because the grant-by-grant workbook would otherwise be difficult to report from.",
+    "productImplication": "Extract award rules and reporting requirements into one structured source package, then compile the report around the funder's format.",
+    "confidence": "high"
+  },
+  {
+    "id": "1sx36i4",
+    "title": "Managing grant reporting",
+    "url": "https://www.reddit.com/r/nonprofit/comments/1sx36i4/managing_grant_reporting/",
+    "community": "r/nonprofit",
+    "observedAt": "2026-08-06",
+    "painThemes": ["fragmented_handoff", "funder_format", "price_sensitivity"],
+    "evidenceSummary": "Participants described grant reporting as a collaboration among development, program, and finance teams. One organization still used a shared spreadsheet for deadlines and requirements; another separated the written and financial portions between project and accounting staff.",
+    "productImplication": "Demonstrate a single handoff workflow that combines finance data, program responses, deadlines, and review status.",
+    "confidence": "high"
+  },
+  {
+    "id": "1g6fshd",
+    "title": "Expense tracking and reimbursement process for non profit",
+    "url": "https://www.reddit.com/r/nonprofit/comments/1g6fshd/",
+    "community": "r/nonprofit",
+    "observedAt": "2026-08-06",
+    "painThemes": ["spreadsheet_bridge", "missing_evidence", "price_sensitivity"],
+    "evidenceSummary": "A small-to-midsize nonprofit using plain Excel asked how to improve receipt collection, categorization, approval, and reimbursement. Responses favored affordable tools that connect to QuickBooks and prompt staff for missing receipts.",
+    "productImplication": "Make the missing-evidence checklist and targeted receipt request a visible product benefit, with lightweight pricing and setup.",
+    "confidence": "medium"
+  },
+  {
+    "id": "1r9job6",
+    "title": "How do you actually tie grants → programs → expenses → reporting using the systems you already have?",
+    "url": "https://www.reddit.com/r/nonprofittech/comments/1r9job6/how_do_you_actually_tie_grants_programs_expenses/",
+    "community": "r/nonprofittech",
+    "observedAt": "2026-08-06",
+    "painThemes": ["fragmented_handoff", "funder_mapping", "funder_format", "manual_coding"],
+    "evidenceSummary": "The discussion centers on how grants, programs, coded expenses, time allocations, and quarterly funder reports are connected across accounting, expense, program, and spreadsheet tools. A response described report assembly and cross-system reconciliation as the largest lift.",
+    "productImplication": "Use the end-to-end source-to-report workflow as the category story, while entering through the better-validated financial mapping and BVA use case.",
+    "confidence": "high"
+  },
+  {
+    "id": "1pgrsxq",
+    "title": "Does anyone have a good budget spreadsheet to track and plan individual expenses?",
+    "url": "https://www.reddit.com/r/nonprofit/comments/1pgrsxq/does_anyone_have_a_good_budget_spreadsheet_to/",
+    "community": "r/nonprofit",
+    "observedAt": "2026-08-06",
+    "painThemes": ["spreadsheet_bridge", "funder_mapping", "price_sensitivity"],
+    "evidenceSummary": "A nonprofit with multiple grants and expenses could track accounting activity in QuickBooks but lacked an easy planning view showing whether expenses were covered by grants over time. Several self-built spreadsheets had not produced an easy workflow.",
+    "productImplication": "Validate whether prospective users want only reporting or also forward-looking coverage; do not expand the product until reporting customers confirm this adjacent need.",
+    "confidence": "medium"
+  },
+  {
+    "id": "1v2q1oi",
+    "title": "QBO + Grants Management - What do you do?",
+    "url": "https://www.reddit.com/r/nonprofit/comments/1v2q1oi/qbo_grants_management_what_do_you_do/",
+    "community": "r/nonprofit",
+    "observedAt": "2026-08-06",
+    "painThemes": ["spreadsheet_bridge", "funder_mapping", "funder_format"],
+    "evidenceSummary": "A small nonprofit wanted to improve grant management in QuickBooks while avoiding more Excel files. The discussion notes that project reporting and budget-versus-actual reporting can break down when grant periods do not match the fiscal year.",
+    "productImplication": "Show grant-period BVA calculations outside the fiscal-year limitation while keeping QuickBooks as the book of record.",
+    "confidence": "high"
+  },
+  {
+    "id": "1ezbx8e",
+    "title": "Monitoring restricted funds",
+    "url": "https://www.reddit.com/r/nonprofit/comments/1ezbx8e/",
+    "community": "r/nonprofit",
+    "observedAt": "2026-08-06",
+    "painThemes": ["funder_mapping", "spreadsheet_bridge", "funder_format"],
+    "evidenceSummary": "A user could track programs with QuickBooks classes but needed a second dimension for individual funders and cross-program grants. The fallback was another Excel layer or a more complicated QuickBooks structure.",
+    "productImplication": "Explain that GrantDeskHQ maps approved GL dimensions to funder categories for the report without altering the chart of accounts.",
+    "confidence": "high"
+  }
+]

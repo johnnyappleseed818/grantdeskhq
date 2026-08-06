@@ -1,0 +1,74 @@
+[
+  {
+    "type": "public_post",
+    "title": "Grant Management Pain Points for Nonprofits",
+    "author": "Samoine Flanagan",
+    "url": "https://www.linkedin.com/posts/samoineflanagan_nonprofitleaders-grantconsultants-activity-7416901890598182912-0Hjz",
+    "observedPain": "The post identifies disconnected program and finance data, capacity gaps, unclear ownership, and last-minute reporting pressure.",
+    "suggestedComment": "The disconnect between program updates and finance data is especially important. We keep seeing accurate transactions in the accounting system, but a separate manual process to map them to each funder's budget lines and reporting form. What part of that handoff creates the most rework for the teams you support?",
+    "status": "review_before_posting"
+  },
+  {
+    "type": "public_post",
+    "title": "Improved nonprofit financial reporting with a grant tracking dashboard",
+    "author": "Markus Shobe",
+    "url": "https://www.linkedin.com/posts/markus-shobe_accountant-nonprofit-indianapolis-activity-7381674860571258880-9_Ma",
+    "observedPain": "The post describes one spreadsheet per grant, scattered files, receipt chasing, and uncertainty about current spend.",
+    "suggestedComment": "This is a strong example of why the accounting system alone rarely finishes the reporting job. The remaining work is usually translating approved data into the funder's categories, collecting missing support, and assembling the narrative and evidence. Have you found the same dashboard structure works across funders, or does each reporting template force another round of manual work?",
+    "status": "review_before_posting"
+  },
+  {
+    "type": "public_post",
+    "title": "Grant Reporting Challenges: Where Does Reconciliation Happen?",
+    "author": "Joshua Karrasch",
+    "url": "https://www.linkedin.com/posts/joshuakarrasch_nonprofit-folks-quick-question-if-your-activity-7432060258921066496-i-RY",
+    "observedPain": "The post asks where reconciliation happens and whether teams can pull a report directly or still clean and categorize transactions manually.",
+    "suggestedComment": "That distinction—where the books end and the funder report begins—is the gap worth examining. A useful workflow should leave the accounting system as the source of truth while reducing the manual mapping, variance explanation, and evidence collection that happens after export. Which step tends to consume the most reviewer time in your experience?",
+    "status": "review_before_posting"
+  },
+  {
+    "type": "public_post",
+    "title": "How to use bookkeeping for nonprofit strategy",
+    "author": "Jeanine Hall",
+    "url": "https://www.linkedin.com/posts/jeaninehall_nonprofit-bookkeeping-cleanup-beyond-activity-7364302302410657792-b9B3",
+    "observedPain": "The post connects QuickBooks grant tracking, cost allocation, variance analysis, and reducing grant-reporting administration.",
+    "suggestedComment": "Clean books are the foundation, and there is still a second workflow after that: turning those approved numbers into each funder's exact schedule, explanation, and supporting-document package. The best opportunity may be automating that repetitive assembly while keeping the accountant's judgment and approval visible.",
+    "status": "review_before_posting"
+  },
+  {
+    "type": "public_post",
+    "title": "NGO Finance Toolkit for Excel",
+    "author": "Mohammad Alsarfandi",
+    "url": "https://www.linkedin.com/posts/moalsarafandi_ngo-finance-in-practice-the-professional-activity-7470544040371904512-aEkk",
+    "observedPain": "The post argues that NGO finance teams repeatedly rebuild grant-management, donor-reporting, and evidence workflows in large Excel workbooks.",
+    "suggestedComment": "The fact that experienced finance leaders keep rebuilding these workbooks is a strong signal: the source data exists, but the donor-specific reporting workflow is still missing. The most valuable automation may be compiling the approved budget, GL export, program update, and donor form into one traceable draft—without asking teams to abandon Excel or their accounting system on day one.",
+    "status": "review_before_posting"
+  },
+  {
+    "type": "community_page",
+    "title": "Grant Professionals Association",
+    "author": "Grant Professionals Association",
+    "url": "https://www.linkedin.com/company/grant-professionals-association",
+    "observedPain": "A relevant professional community for grant managers, consultants, administrators, and evaluators; recent public updates include streamlined reporting discussions.",
+    "suggestedComment": "Before promoting GrantDeskHQ, follow reporting discussions and contribute specific, non-promotional observations about finance-program handoffs, funder templates, and evidence review. Disclose affiliation whenever the product is mentioned.",
+    "status": "follow_and_learn"
+  },
+  {
+    "type": "community_page",
+    "title": "Association of Nonprofit Accountants & Finance Professionals",
+    "author": "ANAFP",
+    "url": "https://www.linkedin.com/company/anafp",
+    "observedPain": "A relevant audience of nonprofit accounting and finance practitioners, including grant management and budgeting professionals.",
+    "suggestedComment": "Engage with practical posts about grant reporting, fund accounting, restricted funds, and finance-team capacity. Lead with a useful workflow observation or question; do not lead with a product link.",
+    "status": "follow_and_learn"
+  },
+  {
+    "type": "community_page",
+    "title": "Nonprofit Financial Commons",
+    "author": "Nonprofit Financial Commons",
+    "url": "https://www.linkedin.com/company/nonprofit-financial-commons",
+    "observedPain": "A nonprofit-finance peer community focused on usable financial knowledge and leadership for organizations of different sizes.",
+    "suggestedComment": "Use this channel to learn the language finance leaders use for capacity and process problems. Share educational material only when it directly answers a discussion and avoid unsupported AI claims.",
+    "status": "follow_and_learn"
+  }
+]

@@ -4,9 +4,9 @@ import { createHash } from "node:crypto";
 
 const CAMPAIGN = {
   id: "grant-reporting-workflow-assessment-v1",
-  subject: "A 3-minute nonprofit grant-reporting questionnaire",
+  subject: "Still rebuilding funder reports in Excel?",
   fromName: "Eli Katz",
-  fromAddress: "eli@grantdeskhq.com",
+  fromAddress: "eli.katz@grantdeskhq.com",
   postalAddress: "1021 East Lincolnway, Cheyenne, Wyoming 82001"
 };
 
@@ -75,6 +75,7 @@ function isEligibleRecipient(row) {
   const optedOut = /^(true|yes|1)$/i.test(row.unsubscribed ?? "");
   return Boolean(
     /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(row.email ?? "") &&
+    /^(opted_in|yes)$/i.test(row.consent_status ?? "") &&
     row.consent_source?.trim() &&
     row.consent_date?.trim() &&
     row.unsubscribe_url?.trim() &&

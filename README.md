@@ -418,24 +418,39 @@ headless browser binary is not available in the current Cloud Shell, so final
 cross-browser visual review should also be performed in current Safari, Chrome,
 and Firefox before a paid assessment.
 
-## Questionnaire and consent-based Resend email
+## Questionnaire and GTM engine
 
 The questionnaire builder is stored at
 `outreach/GrantDeskHQ_Google_Form_Builder.gs`. The published ten-question
 workflow assessment is linked from `/assessment`; it creates a linked response
 spreadsheet and includes an explicit email-consent question.
 
-The approval copy is in `outreach/RESEND_EMAIL_PREVIEW.md`. Preview the send
-utility without contacting anyone:
+The complete research and demand workflow is documented in `gtm/README.md`.
+It includes the nonprofit-finance ICP, ten reviewed Reddit pain signals, a
+human-reviewed LinkedIn engagement queue, a structured 27-person nonprofit
+research list, a four-week launch cycle, and a permission-based Resend
+Broadcast workflow.
+
+Build and test the GTM artifacts:
+
+```bash
+npm run gtm:build
+npm run gtm:test
+```
+
+Preview the current opt-in email without contacting Resend:
 
 ```bash
 npm run outreach:preview
 ```
 
 The utility reads `outreach/GrantDeskHQ_Resend_OptIn_Only_Template.csv` by
-default. It excludes unsubscribed rows and refuses any row without an email,
-consent source, consent date, and HTTPS unsubscribe URL. It never sends unless
-`--send` and the exact confirmation environment variable are both supplied.
+default. It excludes unsubscribed rows and refuses any row without a valid
+email, `consent_status=opted_in`, consent source, and ISO consent date. When
+authorized, it creates a dedicated Resend Segment, verifies the exact contact
+count, and creates a Broadcast using Resend's managed unsubscribe URL. It never
+sends unless the exact eligible count, campaign ID, and send confirmation are
+all supplied.
 Do not use the 30 researched public contacts in the validation workbook for a
 Resend campaign; they do not contain recorded opt-in consent.
 
@@ -443,6 +458,12 @@ Resend campaign; they do not contain recorded opt-in consent.
 grants, and compliance leaders verified against their organizations' official
 staff pages. Three older workbook records are separated as unverified and
 excluded. All profiles are research records rather than Resend subscribers.
+
+LinkedIn participation remains manual because LinkedIn prohibits unauthorized
+scraping and automated comments, messages, likes, and other engagement. The
+optional Reddit monitor requires approved OAuth access and an explicit
+commercial-access acknowledgement before it will run. See `gtm/COMPLIANCE.md`
+for the current provider and legal boundaries.
 
 ## Honest limitations
 

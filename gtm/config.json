@@ -1,0 +1,55 @@
+{
+  "brand": "GrantDeskHQ",
+  "website": "https://grantdeskhq.com",
+  "positioning": "Turn your grant budget, accounting export, program updates, and funder form into a review-ready report draft—without replacing your accounting system.",
+  "primaryAudience": "U.S. nonprofit finance teams responsible for recurring post-award grant reporting",
+  "buyers": [
+    "Chief financial officer",
+    "Controller",
+    "Vice president of finance and administration",
+    "Director of finance",
+    "Director of grants and compliance",
+    "Grants manager with financial-reporting responsibility"
+  ],
+  "painThemes": {
+    "spreadsheet_bridge": "Accounting data and grant requirements are repeatedly rebuilt in Excel.",
+    "funder_mapping": "GL categories do not cleanly match each funder's approved budget lines.",
+    "fragmented_handoff": "Finance, program, and grants teams assemble different parts of the same report in separate tools.",
+    "missing_evidence": "Receipts, explanations, approvals, and program facts are chased late in the reporting process.",
+    "manual_coding": "Transaction coding and allocation require judgment and are concentrated in a few people.",
+    "funder_format": "Teams must translate approved accounting data into different funder templates.",
+    "price_sensitivity": "Nonprofits prefer lightweight tools that work with existing systems and avoid complex implementation."
+  },
+  "valuePillars": [
+    "Reduce manual spreadsheet work",
+    "Prepare funder-specific financial schedules faster",
+    "Collect only the program information that is missing",
+    "Catch contradictions, unsupported statements, and missing evidence earlier",
+    "Keep professional review and approval in the finance team's hands"
+  ],
+  "qualification": {
+    "required": [
+      "Nonprofit organization or a finance firm serving nonprofits",
+      "Role touches finance, grants, compliance, or post-award reporting",
+      "Current role and organization verified by an official source"
+    ],
+    "discoveryQuestions": [
+      "How many active grants require financial or narrative reports?",
+      "Which accounting system and spreadsheets are used today?",
+      "Who maps GL activity to funder budget categories?",
+      "Where are program updates and supporting documents collected?",
+      "Which step causes the most rework before a report is approved?"
+    ],
+    "disqualifiers": [
+      "Grant discovery or proposal writing is the only need",
+      "No recurring post-award reporting workflow",
+      "Seeking autonomous submission or replacement accounting software",
+      "No professional reviewer is available"
+    ]
+  },
+  "offer": {
+    "name": "Historical Report Assessment",
+    "cta": "Test one completed historical report",
+    "discount": "eligible questionnaire participants who become new customers can receive 10% off their first three monthly payments"
+  }
+}

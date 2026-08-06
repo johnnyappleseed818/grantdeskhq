@@ -18,3 +18,14 @@
 4. [x] Add deterministic ledger checks that override model arithmetic and block fabricated, duplicate, missing or mismatched transactions.
 5. [x] Add saved-workspace and account onboarding screens optimized for desktop and mobile.
 6. [x] Deploy and verify the authenticated beta end to end in the isolated GrantDeskHQ project.
+
+## GTM research and demand engine
+
+1. [x] Replace account-page feature copy with a value-led promise grounded in the validated post-award reporting workflow.
+2. [x] Define the nonprofit finance ICP, discovery questions, disqualifiers, pain themes, positioning, and entry offer.
+3. [x] Review and code a bounded set of relevant Reddit threads with direct links, evidence summaries, and product implications.
+4. [x] Create a human-reviewed LinkedIn community and comment queue without prohibited scraping or automated engagement.
+5. [x] Structure the 27 verified nonprofit finance and grants leaders as a research list with visible qualification gaps and no invented contact data.
+6. [x] Build a deterministic GTM artifact generator and tests for scoring, consent gates, messaging, and unsupported-claim prevention.
+7. [x] Build a Resend Broadcast workflow that accepts documented opt-ins only, verifies the exact segment, creates drafts by default, and uses Resend-managed unsubscribe links.
+8. [x] Add an optional approved Reddit Data API monitor with an explicit commercial-access guard; do not scrape or automate posts/comments.

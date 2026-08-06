@@ -12,14 +12,14 @@ function renderRoute(route: string) {
 
 describe("important routes", () => {
   it.each([
-    ["/", /Build grant reports faster.*less manual work/i],
+    ["/", /Turn grant source files into funder-specific reports.*less manual work/i],
     ["/demo", /Six-Month Progress Report/i],
     ["/sample-report", /See the complete review package/i],
     ["/privacy", /A careful start with client data/i],
     ["/pricing", /Start affordably\. Prove the value on a real report/i],
     ["/assessment", /Try GrantDeskHQ on one report before you pay/i],
     ["/compile", /Turn source files into an evidence-backed report draft/i],
-    ["/login", /Save every report, source and review decision/i]
+    ["/login", /Build funder-specific grant reports with less spreadsheet work/i]
   ])("renders %s", (route, heading) => {
     renderRoute(route);
     expect(screen.getAllByRole("heading", { name: heading }).length).toBeGreaterThan(0);
