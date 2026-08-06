@@ -9,10 +9,22 @@ import { compileGrantReport } from "./reportCompiler.ts";
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
 const maxBodyBytes = 4_000_000;
+const allowedOrigins = new Set(
+  (process.env.CORS_ORIGINS || "https://grantdeskhq.com,https://www.grantdeskhq.com")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+);
 
 createServer(async (request, response) => {
   try {
     const url = new URL(request.url || "/", "http://localhost");
+    applyCors(request, response);
+    if (url.pathname === "/api/compile-report" && request.method === "OPTIONS") {
+      response.statusCode = 204;
+      response.end();
+      return;
+    }
     if (url.pathname === "/healthz" || url.pathname === "/api/health") {
       return json(response, 200, { status: "ok", service: "grantdeskhq-prototype" });
     }
@@ -81,6 +93,16 @@ function json(response: ServerResponse, statusCode: number, body: unknown) {
   response.setHeader("Cache-Control", "no-store");
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.end(JSON.stringify(body));
+}
+
+function applyCors(request: IncomingMessage, response: ServerResponse) {
+  const origin = request.headers.origin;
+  if (!origin || !allowedOrigins.has(origin)) return;
+  response.setHeader("Access-Control-Allow-Origin", origin);
+  response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  response.setHeader("Access-Control-Max-Age", "600");
+  response.setHeader("Vary", "Origin");
 }
 
 function mime(filePath: string) {

@@ -16,6 +16,8 @@ import {
 import { MAX_FILE_BYTES, MAX_TOTAL_BYTES, canGenerateReviewPackage, resultToDownload, validateCompilationRequest } from "../lib/prototype";
 import type { CompilationRequest, CompilationResult, CompilerFile, SourceRole } from "../types/prototype";
 
+const compilerEndpoint = import.meta.env.VITE_COMPILER_ENDPOINT || "/api/compile-report";
+
 const sourceFields: Array<{ role: SourceRole; label: string; help: string; accept: string; required: boolean }> = [
   { role: "awardAgreement", label: "Award agreement", help: "PDF, DOCX, or TXT", accept: ".pdf,.docx,.txt", required: true },
   { role: "approvedBudget", label: "Approved grant budget", help: "XLSX, CSV, or PDF", accept: ".xlsx,.csv,.pdf", required: true },
@@ -130,7 +132,7 @@ export function CompilePage() {
 
     setCompiling(true);
     try {
-      const response = await fetch("/api/compile-report", {
+      const response = await fetch(compilerEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)

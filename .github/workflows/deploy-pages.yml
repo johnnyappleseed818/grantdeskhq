@@ -27,6 +27,8 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+        env:
+          VITE_COMPILER_ENDPOINT: https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app/api/compile-report
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist

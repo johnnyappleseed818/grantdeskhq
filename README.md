@@ -135,7 +135,8 @@ grantdesk/
 │   ├── test/
 │   ├── types/prototype.ts
 │   ├── App.tsx
-│   └── main.tsx
+│   ├── main.tsx
+│   └── vite-env.d.ts
 ├── index.html
 ├── Dockerfile
 ├── styles.css
@@ -249,9 +250,11 @@ Runtime checks should confirm HTTP 200 for:
 
 ## GitHub Pages deployment
 
-GitHub Pages can host the marketing pages and synthetic demo, but it cannot run
-the serverless AI endpoint. The working `/compile` workflow should be deployed
-to Vercel or Netlify before it is offered publicly.
+GitHub Pages hosts the marketing pages and browser application; the AI endpoint
+runs separately in the isolated GrantDeskHQ Cloud Run project. The Pages build
+injects `VITE_COMPILER_ENDPOINT` so `/compile` sends its request to that public
+endpoint. Cloud Run allows browser requests only from `grantdeskhq.com` and
+`www.grantdeskhq.com`; the API key remains server-side in Secret Manager.
 
 The production repository includes a Pages workflow. A push to `main` runs
 installation, linting, tests, the production build, artifact upload, and Pages
