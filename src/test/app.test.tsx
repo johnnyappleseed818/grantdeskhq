@@ -18,7 +18,7 @@ describe("important routes", () => {
     ["/privacy", /A careful start with client data/i],
     ["/pricing", /Start affordably\. Prove the value on a real report/i],
     ["/assessment", /Try GrantDeskHQ on one report before you pay/i],
-    ["/compile", /Turn source files into an evidence-backed report draft/i],
+    ["/compile", /Automate grant-report preparation, save time, and reduce errors/i],
     ["/readiness", /Upload the agreement\. Get a source-linked reporting plan\./i],
     ["/login", /Turn scattered grant files into an evidence-backed funder report/i]
   ])("renders %s", (route, heading) => {
@@ -38,7 +38,7 @@ describe("important routes", () => {
     const user = userEvent.setup();
     renderRoute("/");
     await user.click(screen.getAllByRole("link", { name: /Try the working prototype/i })[0]);
-    expect(await screen.findByRole("heading", { name: /Turn source files into an evidence-backed report draft/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Automate grant-report preparation, save time, and reduce errors/i })).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Getting started steps" })).toBeInTheDocument();
   });
 

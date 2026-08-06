@@ -184,8 +184,8 @@ export function CompilePage() {
           <div>
             <div className="prototype-pill"><span aria-hidden="true" /> Private beta · professional review required</div>
             <p className="eyebrow mt-7">AI Report Compiler</p>
-            <h1 className="page-title">Turn source files into an evidence-backed report draft.</h1>
-            <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">Upload a small test package. GrantDeskHQ reads the funder’s structure, suggests transaction mappings, identifies missing information, drafts source-supported narrative, and saves the evidence trail for review.</p>
+            <h1 className="page-title">Automate grant-report preparation, save time, and reduce errors.</h1>
+            <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">GrantDeskHQ uses an AI-driven workflow to turn grant agreements, budgets, ledger exports, funder templates, and program updates into a structured report draft. It reviews the source material, suggests financial mappings, identifies missing information, and checks material statements against the evidence—helping your team prepare accurate reports with less manual work.</p>
             {user ? <p className="mt-4 text-sm font-semibold text-emerald-800">Signed in as {user.email}. Your report and review history will be saved.</p> : <p className="mt-4 text-sm text-slate-600"><Link className="font-semibold text-emerald-800 underline" to="/login?next=/compile">Create an account or sign in</Link> before compilation so the report can be saved securely.</p>}
           </div>
           <div className="compile-boundary">
