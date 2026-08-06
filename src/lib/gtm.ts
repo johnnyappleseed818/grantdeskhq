@@ -1,6 +1,32 @@
 export type SignalKind = "grant_award" | "job_posting" | "excel_pain" | "competitor_intent";
 export type SourceAuthority = "official" | "employer" | "professional" | "community" | "review_platform";
 export type OpportunityStage = "new" | "reviewing" | "ready" | "contacted" | "replied" | "converted" | "dismissed";
+export type SocialPlatform = "reddit" | "linkedin";
+
+export interface DailySocialSignal {
+  id: string;
+  platform: SocialPlatform;
+  title: string;
+  url: string;
+  author: string;
+  publishedAt: string;
+  observedAt: string;
+  evidenceSummary: string;
+  observedPain: string;
+  painThemes: string[];
+  whyRelevant: string;
+  status: "research_only";
+}
+
+export interface DailySocialScan {
+  generatedAt: string;
+  windowDays: number;
+  queryCount: number;
+  sourceCount: number;
+  coverage: string;
+  items: DailySocialSignal[];
+  limitations: string[];
+}
 
 export interface GtmEvidence {
   id: string;

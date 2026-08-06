@@ -40,3 +40,12 @@
 6. [x] Add a free Grant Reporting Readiness Audit entry point that extracts source-linked obligations, deadlines, financial requirements, program metrics, and missing evidence for review.
 7. [x] Add deterministic tests for signal scoring, qualification gates, duplicate and contradiction detection, safe outreach states, route accessibility, and the readiness workflow.
 8. [x] Run all GTM and application tests, lint, production build, route checks, deletion audit, and deployment verification.
+
+## Daily social-signal monitor
+
+1. [x] Add one bounded daily web-search pass for recent Reddit and LinkedIn grant-reporting pain signals without scraping, posting, messaging, or contact discovery.
+2. [x] Validate every returned URL against the web-search source list, remove duplicates, reject unsupported platform URLs, and keep all discoveries research-only.
+3. [x] Persist the latest scan in the isolated GrantDeskHQ Firestore database and expose it only to administrator-approved dashboard users.
+4. [x] Add new-signal alerts, last-run status, source links, limitations, and manual-review states to the GTM dashboard.
+5. [x] Create an authenticated Google Cloud Scheduler job in `grantdeskhq-proto-ek-2026` and verify one live scan.
+6. [x] Run tests, lint, production build, route/API checks, deletion audit, commit, push, and deploy.

@@ -12,6 +12,16 @@ export interface AuthenticatedUser {
   name: string;
 }
 
+export function requireGtmAdmin(user: AuthenticatedUser) {
+  const configured = (process.env.GTM_ADMIN_EMAILS || process.env.GTM_ADMIN_EMAIL || "")
+    .split(/[,;]/)
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+  if (!configured.length) throw new HttpError(503, "The private GTM workspace administrator is not configured.");
+  if (!configured.includes(user.email.trim().toLowerCase())) throw new HttpError(403, "This private workspace is restricted to the GrantDeskHQ administrator.");
+  return user;
+}
+
 export async function requireUser(request: IncomingMessage): Promise<AuthenticatedUser> {
   const authorization = request.headers.authorization || "";
   if (!authorization.startsWith("Bearer ")) throw new HttpError(401, "Sign in to continue.");

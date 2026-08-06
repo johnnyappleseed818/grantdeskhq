@@ -45,7 +45,7 @@ export function LoginPage() {
     <div className="site-shell account-grid">
       <div className="account-value">
         <p className="eyebrow">Private beta workspace</p>
-        <h1>Build funder-specific grant reports with less spreadsheet work.</h1>
+        <h1>Turn scattered grant files into an evidence-backed funder report—without rebuilding everything in spreadsheets.</h1>
         <p>Turn your approved budget, accounting export, program updates, and funder form into an AI-assisted draft with the supporting evidence attached—without replacing your accounting system.</p>
         <div className="account-benefits">
           <span><ShieldCheck aria-hidden="true" />Reduce manual report assembly</span>

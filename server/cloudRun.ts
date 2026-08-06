@@ -6,8 +6,10 @@ import { validateCompilationRequest, validateReadinessRequest } from "../src/lib
 import type { CompilationRequest, ReadinessRequest } from "../src/types/prototype.ts";
 import { compileGrantReport } from "./reportCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
-import { HttpError, requireUser } from "./auth.ts";
-import { listReports, saveCompilation, saveReview } from "./persistence.ts";
+import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
+import { readGtmDailyScan, listReports, saveCompilation, saveGtmDailyScan, saveReview } from "./persistence.ts";
+import { runDailySocialScan } from "./gtmDailyScanner.ts";
+import { requireGtmScheduler } from "./schedulerAuth.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
@@ -34,6 +36,9 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/config") return handleConfig(request, response);
     if (url.pathname === "/api/compile-report" || url.pathname === "/api/reports/compile") return await handleCompiler(request, response);
     if (url.pathname === "/api/readiness-assessment") return await handleReadiness(request, response);
+    if (url.pathname === "/api/gtm/access") return await handleGtmAccess(request, response);
+    if (url.pathname === "/api/gtm/daily-signals") return await handleGtmDailySignals(request, response);
+    if (url.pathname === "/api/gtm/daily-scan") return await handleGtmDailyScan(request, response);
     if (url.pathname === "/api/reports") return await handleReports(request, response);
     const reviewMatch = url.pathname.match(/^\/api\/reports\/(report_[a-f0-9]{32})\/review$/);
     if (reviewMatch) return await handleReview(request, response, reviewMatch[1]);
@@ -63,6 +68,25 @@ async function handleCompiler(request: IncomingMessage, response: ServerResponse
     console.error("GrantDeskHQ compiler error:", error instanceof Error ? error.message : "Unknown error");
     return json(response, 502, { error: "The AI compiler could not complete this package. Try the synthetic package again." });
   }
+}
+
+async function handleGtmDailySignals(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  requireGtmAdmin(await requireUser(request));
+  return json(response, 200, { scan: await readGtmDailyScan() });
+}
+
+async function handleGtmAccess(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  requireGtmAdmin(await requireUser(request));
+  return json(response, 200, { allowed: true });
+}
+
+async function handleGtmDailyScan(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const scan = await saveGtmDailyScan(await runDailySocialScan());
+  return json(response, 200, { status: "completed", generatedAt: scan.generatedAt, itemCount: scan.items.length });
 }
 
 async function handleReadiness(request: IncomingMessage, response: ServerResponse) {

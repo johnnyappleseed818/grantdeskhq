@@ -11,6 +11,7 @@ import {
   scoreOpportunity,
   type GtmOpportunity
 } from "../lib/gtm";
+import type { DailySocialScan } from "../lib/gtm";
 
 beforeEach(() => localStorage.clear());
 
@@ -54,6 +55,29 @@ describe("GTM opportunity accuracy", () => {
 });
 
 describe("GTM command center", () => {
+  const dailyScan: DailySocialScan = {
+    generatedAt: "2026-08-06T13:35:00.000Z",
+    windowDays: 7,
+    queryCount: 2,
+    sourceCount: 3,
+    coverage: "3 indexed sources checked; 1 passed the strict gates.",
+    limitations: ["Search indexes can delay public posts."],
+    items: [{
+      id: "social-daily-one",
+      platform: "reddit",
+      title: "Manual grant reporting workflow",
+      url: "https://www.reddit.com/r/nonprofit/comments/example/manual_grant_reporting/",
+      author: "unknown",
+      publishedAt: "2026-08-06",
+      observedAt: "2026-08-06T13:35:00.000Z",
+      evidenceSummary: "A finance user describes rebuilding funder reports in spreadsheets.",
+      observedPain: "Accounting exports still require manual funder-category mapping.",
+      painThemes: ["spreadsheet_bridge"],
+      whyRelevant: "Supports the post-award reporting workflow.",
+      status: "research_only"
+    }]
+  };
+
   it("renders the alert queue, source evidence, and no-send boundary", async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><GtmDashboardContent /></MemoryRouter>);
@@ -87,5 +111,14 @@ describe("GTM command center", () => {
     for (const button of [...screen.getAllByRole("tab"), ...screen.queryAllByRole("button")]) {
       expect((button.getAttribute("aria-label") || button.textContent || "").trim()).not.toBe("");
     }
+  });
+
+  it("shows the latest daily social scan as research-only evidence", async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><GtmDashboardContent initialDailyScan={dailyScan} /></MemoryRouter>);
+    await user.click(screen.getByRole("tab", { name: "Reddit & LinkedIn" }));
+    expect(screen.getByRole("heading", { name: "1 source-linked result" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Manual grant reporting workflow/i })).toHaveAttribute("href", dailyScan.items[0].url);
+    expect(screen.getAllByText("research only").length).toBeGreaterThan(0);
   });
 });

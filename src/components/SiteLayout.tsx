@@ -51,7 +51,6 @@ export function SiteLayout() {
             {marketingLinks.map(([label, href]) => (
               <NavLink key={label} to={href} className="nav-link">{label}</NavLink>
             ))}
-            {user && <Link className="nav-link" to="/gtm">GTM command center</Link>}
             <Link className="nav-link account-nav-link" to={user ? "/workspace" : "/login"}>{user ? "My workspace" : "Sign in"}</Link>
             <Link className="button button-primary whitespace-nowrap" to={user ? "/compile" : "/login?next=/compile"}>{user ? "New report" : "Create account"}</Link>
           </nav>
@@ -77,7 +76,6 @@ export function SiteLayout() {
               <Link to="/sample-report">Synthetic sample report</Link>
               <Link to="/pricing">Pricing</Link>
               <Link to={user ? "/workspace" : "/login"}>{user ? "My workspace" : "Account sign in"}</Link>
-              {user && <Link to="/gtm">GTM command center</Link>}
               <Link to="/assessment">Founding access</Link>
             </div>
           </div>

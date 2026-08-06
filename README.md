@@ -33,7 +33,7 @@ Working Cloud Run prototype: [grantdeskhq-prototype-me423s5k5a-uc.a.run.app](htt
 | `/login` | Managed account creation, sign-in, and password reset |
 | `/workspace` | Account-isolated saved report workspace |
 | `/readiness` | Free source-linked Grant Reporting Readiness Audit |
-| `/gtm` | Signed-in GTM command center, alert queue, source registry, and progress monitor |
+| `/gtm` | Administrator-only GTM command center, alert queue, source registry, and progress monitor |
 | `/sample-report` | Print-ready funder-report review package |
 | `/privacy` | Honest prototype and test-file data-handling boundaries |
 | `/pricing` | Founding Nonprofit and Founding Agency pricing |
@@ -73,6 +73,7 @@ when those are available.
 - ESLint 9 flat configuration
 - Official USAspending API scanner for bounded federal nonprofit-award alerts
 - Scheduled GitHub Actions refresh for the static GTM award feed
+- Daily Google Cloud Scheduler trigger for bounded OpenAI web-search discovery across indexed Reddit and LinkedIn results
 - System font stack and no external images, fonts, analytics, or tracking
 
 The private beta stores report records and audit events in Firestore and source
@@ -106,6 +107,10 @@ requires corroboration for a “very high intent” label, warns on stale eviden
 blocks unresolved or conflicting entities, and never invents a contact. Public
 discussion signals remain market evidence until an organization is independently
 resolved. No social action or email is sent from the dashboard.
+The route is absent from customer navigation, and the browser must pass a
+server-side administrator-email allowlist before any dashboard or daily-signal
+API data is returned. Scheduler requests use a dedicated GrantDeskHQ service
+account and independently verified Google OIDC token.
 
 ## Exact synthetic source model
 
@@ -155,6 +160,9 @@ grantdesk/
 │   ├── cloudRun.ts
 │   ├── readinessCompiler.ts
 │   ├── readinessSchema.ts
+│   ├── gtmDailyScanner.ts
+│   ├── gtmDailySchema.ts
+│   ├── schedulerAuth.ts
 │   └── reportCompiler.ts
 ├── netlify/functions/compile-report.ts
 ├── public/
@@ -216,6 +224,10 @@ Create `.env.local` for server-side compiler execution:
 OPENAI_API_KEY=your_server_side_key
 OPENAI_MODEL=gpt-5.6-terra
 OPENAI_VERIFIER_MODEL=gpt-5.6-luna
+OPENAI_GTM_MODEL=gpt-5.5
+GTM_ADMIN_EMAILS=owner@example.com
+GTM_SCHEDULER_SERVICE_ACCOUNT=grantdeskhq-gtm-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com
+GTM_SCHEDULER_AUDIENCE=https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app
 ```
 
 Vite by itself serves the frontend and synthetic demo. Use `vercel dev` or
@@ -277,7 +289,7 @@ npm audit --omit=dev
 npm audit
 ```
 
-Verified result on August 6, 2026: lint passed with zero warnings; 55
+Verified result on August 6, 2026: lint passed with zero warnings; 59
 deterministic tests passed with the opt-in live test skipped; TypeScript and the
 Vite production build passed; and all 11 direct-load routes were generated. A
 separate billable smoke test passed through the deployed Cloud Run endpoint in
@@ -386,7 +398,7 @@ gcloud run deploy grantdeskhq-prototype \
   --allow-unauthenticated \
   --service-account=grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com \
   --set-secrets=OPENAI_API_KEY=grantdeskhq-openai-key:latest,FIREBASE_WEB_API_KEY=grantdeskhq-firebase-web-key:latest \
-  --set-env-vars=OPENAI_MODEL=gpt-5.6-terra,OPENAI_VERIFIER_MODEL=gpt-5.6-luna,REPORT_FILES_BUCKET=grantdeskhq-proto-ek-2026-report-files \
+  --set-env-vars=OPENAI_MODEL=gpt-5.6-terra,OPENAI_VERIFIER_MODEL=gpt-5.6-luna,OPENAI_GTM_MODEL=gpt-5.5,REPORT_FILES_BUCKET=grantdeskhq-proto-ek-2026-report-files,GTM_ADMIN_EMAILS=owner@example.com,GTM_SCHEDULER_SERVICE_ACCOUNT=grantdeskhq-gtm-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com,GTM_SCHEDULER_AUDIENCE=https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app \
   --memory=1Gi \
   --cpu=1 \
   --timeout=180 \
@@ -397,11 +409,19 @@ gcloud run deploy grantdeskhq-prototype \
 
 The deployed service is `grantdeskhq-prototype` in
 `grantdeskhq-proto-ek-2026`; the current verified revision is
-`grantdeskhq-prototype-00007-9jv`. It scales to zero when idle and is capped at
+`grantdeskhq-prototype-00008-qx5`. It scales to zero when idle and is capped at
 two instances. Its `/api/health`, `/gtm`, and `/readiness` routes returned HTTP
 200 in the final audit; an unauthenticated request to
 `/api/readiness-assessment` correctly returned HTTP 401. Domain mapping and DNS
 changes are deliberately separate release steps.
+
+The `grantdeskhq-daily-social-scan` Cloud Scheduler job runs at 13:35 UTC.
+It invokes `/api/gtm/daily-scan` with the dedicated
+`grantdeskhq-gtm-scheduler` identity. The endpoint runs one bounded OpenAI
+Responses API web-search workflow, accepts only Reddit or LinkedIn post URLs
+present in the returned search-source list, deduplicates them, marks every item
+research-only, and saves the latest scan in Firestore. The first live run
+completed with HTTP 200 on August 6, 2026.
 
 ## Netlify deployment
 
@@ -491,11 +511,12 @@ grants, and compliance leaders verified against their organizations' official
 staff pages. Three older workbook records are separated as unverified and
 excluded. All profiles are research records rather than Resend subscribers.
 
-LinkedIn participation remains manual because LinkedIn prohibits unauthorized
-scraping and automated comments, messages, likes, and other engagement. The
-optional Reddit monitor requires approved OAuth access and an explicit
-commercial-access acknowledgement before it will run. See `gtm/COMPLIANCE.md`
-for the current provider and legal boundaries.
+LinkedIn and Reddit participation remains manual. A once-daily OpenAI
+web-search pass can discover recent indexed post or thread URLs, but it does
+not crawl profiles or platform pages and never posts, comments, messages,
+discovers contacts, or emails anyone. The separate optional Reddit Data API
+monitor remains disabled unless approved commercial API access is documented.
+See `gtm/COMPLIANCE.md` for the current provider and legal boundaries.
 
 ## Honest limitations
 
@@ -525,3 +546,5 @@ for the current provider and legal boundaries.
 - Generated outputs are drafts and cannot be used as accounting,
   legal, audit, or compliance advice.
 - Human controller review remains required before any external use.
+- Daily social results depend on third-party search indexes, which may omit,
+  delay, or misdate posts. Results remain research-only until reviewed.

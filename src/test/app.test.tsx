@@ -20,7 +20,7 @@ describe("important routes", () => {
     ["/assessment", /Try GrantDeskHQ on one report before you pay/i],
     ["/compile", /Turn source files into an evidence-backed report draft/i],
     ["/readiness", /Upload the agreement\. Get a source-linked reporting plan\./i],
-    ["/login", /Build funder-specific grant reports with less spreadsheet work/i]
+    ["/login", /Turn scattered grant files into an evidence-backed funder report/i]
   ])("renders %s", (route, heading) => {
     renderRoute(route);
     expect(screen.getAllByRole("heading", { name: heading }).length).toBeGreaterThan(0);

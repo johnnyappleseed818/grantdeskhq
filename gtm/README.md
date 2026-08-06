@@ -20,6 +20,7 @@ The entry point is not broad grant management. It is the repetitive work between
 - Resend-managed unsubscribe links
 - Optional metadata-only Reddit monitoring through approved Data API access
 - Daily federal nonprofit-award discovery through the official USAspending API
+- One bounded daily OpenAI web-search check for recent indexed Reddit and LinkedIn post URLs
 - A source-backed daily hot list with transparent Pain × Timing × Fit × Value scoring
 - Browser-saved review, ready, contacted, replied, converted, and dismissed states
 - Draft-only outreach and partner-channel actions
@@ -49,6 +50,7 @@ The entry point is not broad grant management. It is the repetitive work between
 - `../public/gtm/award-signals.json` — generated official-source alert feed consumed by the dashboard
 - `../src/data/gtmData.ts` — reviewed starter opportunities and signal-source registry
 - `../src/lib/gtm.ts` — deterministic scoring, corroboration, freshness, duplicate, conflict, and action gates
+- `../server/gtmDailyScanner.ts` — source-validated daily social discovery with no platform interaction
 
 ## Commands
 
@@ -115,6 +117,13 @@ npm run gtm:reddit
 
 The monitor writes metadata to `/tmp` by default. A person must open and review every promising thread before adding an evidence summary or participating.
 
+The production daily social monitor is separate from that optional Data API
+script. Google Cloud Scheduler calls the private server endpoint once per day.
+The server uses OpenAI hosted web search with Reddit and LinkedIn domain filters,
+validates every model-returned URL against the API's source list, rejects search
+pages and unsupported hostnames, deduplicates results, and persists only
+research-only items. It does not scrape either platform or automate engagement.
+
 ## Dashboard action model
 
 1. A scanner or reviewed research file creates an observed signal.
@@ -133,5 +142,5 @@ warned and should be rechecked.
 
 - **Used:** public Reddit threads, public LinkedIn posts/company pages, official organization staff pages, G2 review pages, official Resend policy/docs, official LinkedIn policy, official Reddit developer terms, and FTC CAN-SPAM guidance.
 - **Used:** official USAspending API, public Reddit threads, public LinkedIn posts/company pages, employer-controlled or public job pages, official organization pages, G2 review pages, official Resend policy/docs, official LinkedIn policy, official Reddit developer terms, IRS nonprofit data documentation, and FTC CAN-SPAM guidance.
-- **Unavailable or limited:** no configured Sales Intelligence provider, CRM, job-feed API, permissioned web-search API, LinkedIn API, or approved Reddit commercial API credentials. Organization-level grant volume, current process, budget, accounting software, named buyer, and purchase intent remain unknown until verified.
-- **Coverage:** a bounded recent federal-award feed, five reviewed starter opportunities, ten qualitative Reddit signals, eight LinkedIn research/engagement items, and 27 previously verified nonprofit leaders. This is not exhaustive market coverage or a qualified sales pipeline.
+- **Unavailable or limited:** no configured Sales Intelligence provider, CRM, job-feed API, LinkedIn API, or approved Reddit commercial API credentials. OpenAI web search supplies bounded indexed-result discovery, not complete platform coverage. Organization-level grant volume, current process, budget, accounting software, named buyer, and purchase intent remain unknown until verified.
+- **Coverage:** a bounded daily Reddit/LinkedIn indexed-result check, a bounded recent federal-award feed, five reviewed starter opportunities, ten qualitative Reddit signals, eight LinkedIn research/engagement items, and 27 previously verified nonprofit leaders. This is not exhaustive market coverage or a qualified sales pipeline.

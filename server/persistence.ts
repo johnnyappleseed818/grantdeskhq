@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { canGenerateReviewPackage } from "../src/lib/prototype.ts";
 import type { CompilationRequest, CompilationResult, SavedReportSummary } from "../src/types/prototype.ts";
+import type { DailySocialScan } from "../src/lib/gtm.ts";
 import type { AuthenticatedUser } from "./auth.ts";
 
 const projectId = process.env.GOOGLE_CLOUD_PROJECT || "grantdeskhq-proto-ek-2026";
@@ -59,6 +60,26 @@ export async function saveReview(user: AuthenticatedUser, reportId: string, resu
     auditJson: JSON.stringify([...priorAudit, { at: now, actorUid: user.uid, action: "review_confirmed", itemId }])
   });
   return { report: summary };
+}
+
+export async function saveGtmDailyScan(scan: DailySocialScan) {
+  const accessToken = await gcpToken();
+  await writeDocument(accessToken, "gtm/daily-social", {
+    generatedAt: scan.generatedAt,
+    itemCount: scan.items.length,
+    scanJson: JSON.stringify(scan)
+  });
+  return scan;
+}
+
+export async function readGtmDailyScan(): Promise<DailySocialScan | null> {
+  const response = await authorizedFetch(`${firestoreBase}/gtm/daily-social`, await gcpToken());
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Daily GTM signals could not be loaded (${response.status}).`);
+  const document = await response.json() as { fields?: Record<string, FirestoreValue> };
+  const record = decodeFields(document.fields || {});
+  if (!record.scanJson) return null;
+  return JSON.parse(String(record.scanJson)) as DailySocialScan;
 }
 
 function summarize(id: string, request: CompilationRequest, result: CompilationResult, createdAt: string, updatedAt: string, sourceCount = request.files.length): SavedReportSummary {

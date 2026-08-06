@@ -27,11 +27,13 @@ import { Link, Navigate } from "react-router-dom";
 import redditSignals from "../../gtm/data/reddit-signals.json";
 import linkedinItems from "../../gtm/data/linkedin-engagement.json";
 import { initialOpportunities, referralChannels, signalSources } from "../data/gtmData";
+import { apiRequest } from "../lib/api";
 import {
   assessOpportunityAccuracy,
   canMoveToContacted,
   formatOpportunityScore,
   labelForSignal,
+  type DailySocialScan,
   type GtmOpportunity,
   type OpportunityStage,
   type SignalKind
@@ -44,13 +46,23 @@ type StageState = Record<string, OpportunityStage>;
 const STORAGE_KEY = "grantdeskhq:gtm-stages:v1";
 
 export function GtmDashboardPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, token } = useAuth();
+  const [access, setAccess] = useState<"checking" | "allowed" | "denied">("checking");
+  useEffect(() => {
+    if (!user) return;
+    token()
+      .then((idToken) => apiRequest<{ allowed: boolean }>("/api/gtm/access", idToken))
+      .then(() => setAccess("allowed"))
+      .catch(() => setAccess("denied"));
+  }, [user, token]);
   if (loading) return <div className="workspace-loading"><LoaderCircle className="animate-spin" aria-hidden="true" />Loading GTM command center…</div>;
   if (!user) return <Navigate replace to="/login?next=/gtm" />;
-  return <GtmDashboardContent />;
+  if (access === "checking") return <div className="workspace-loading"><LoaderCircle className="animate-spin" aria-hidden="true" />Verifying private workspace access…</div>;
+  if (access === "denied") return <section className="workspace-page"><div className="site-shell py-16"><div className="workspace-empty"><ShieldCheck aria-hidden="true" /><h1>Private workspace</h1><p>The GTM command center is restricted to the GrantDeskHQ administrator.</p><Link className="button button-primary" to="/workspace">Return to your reports</Link></div></div></section>;
+  return <GtmDashboardContent dailySignalToken={token} />;
 }
 
-export function GtmDashboardContent() {
+export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null }: { dailySignalToken?: () => Promise<string>; initialDailyScan?: DailySocialScan | null } = {}) {
   const [activeTab, setActiveTab] = useState<DashboardTab>("hot-list");
   const [filter, setFilter] = useState<"all" | SignalKind>("all");
   const [query, setQuery] = useState("");
@@ -58,6 +70,9 @@ export function GtmDashboardContent() {
   const [copied, setCopied] = useState<string | null>(null);
   const [liveOpportunities, setLiveOpportunities] = useState<GtmOpportunity[]>(initialOpportunities);
   const [stages, setStages] = useState<StageState>(() => readStages());
+  const [dailyScan, setDailyScan] = useState<DailySocialScan | null>(initialDailyScan);
+  const [signalsLoading, setSignalsLoading] = useState(Boolean(dailySignalToken));
+  const [signalsError, setSignalsError] = useState("");
 
   useEffect(() => {
     fetch("/gtm/award-signals.json", { cache: "no-store" })
@@ -69,6 +84,17 @@ export function GtmDashboardContent() {
       })
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!dailySignalToken) return;
+    let active = true;
+    dailySignalToken()
+      .then((idToken) => apiRequest<{ scan: DailySocialScan | null }>("/api/gtm/daily-signals", idToken))
+      .then((body) => { if (active) setDailyScan(body.scan); })
+      .catch((requestError) => { if (active) setSignalsError(requestError instanceof Error ? requestError.message : "Daily signals could not be loaded."); })
+      .finally(() => { if (active) setSignalsLoading(false); });
+    return () => { active = false; };
+  }, [dailySignalToken]);
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(stages)); } catch { /* Browser storage can be unavailable. */ }
@@ -105,7 +131,7 @@ export function GtmDashboardContent() {
         <div className="gtm-metrics" aria-label="GTM summary">
           <Metric icon={BellRing} label="Current alerts" value={ranked.length} detail="verified organizations" />
           <Metric icon={Target} label="Actionable now" value={readyCount} detail="source gate passed" />
-          <Metric icon={MessageSquareText} label="Pain signals" value={redditSignals.length + linkedinItems.length} detail="Reddit + LinkedIn" />
+          <Metric icon={MessageSquareText} label="Pain signals" value={redditSignals.length + linkedinItems.length + (dailyScan?.items.length || 0)} detail="reviewed + today’s scan" />
           <Metric icon={MailCheck} label="Contacted" value={contactedCount} detail="marked by you" />
         </div>
       </div>
@@ -156,7 +182,7 @@ export function GtmDashboardContent() {
         </div>
       </section>}
 
-      {activeTab === "signals" && <SignalsPanel />}
+      {activeTab === "signals" && <SignalsPanel dailyScan={dailyScan} loading={signalsLoading} error={signalsError} />}
       {activeTab === "sources" && <SourcesPanel />}
       {activeTab === "partners" && <PartnersPanel />}
       {activeTab === "pipeline" && <PipelinePanel opportunities={ranked} stages={stages} stagesOrder={pipelineStages} onStageChange={updateStage} />}
@@ -165,13 +191,17 @@ export function GtmDashboardContent() {
   </div>;
 }
 
-function SignalsPanel() {
+function SignalsPanel({ dailyScan, loading, error }: { dailyScan: DailySocialScan | null; loading: boolean; error: string }) {
   return <section><div className="gtm-section-heading"><div><p className="eyebrow">Voice of the market</p><h2>Public pain signals stay separate from contactable leads</h2><p>Anonymous or unresolved posts help refine positioning. They do not become outreach targets unless the organization and role are independently verified.</p></div></div>
     <div className="gtm-signal-grid">
-      <div className="panel"><div className="panel-heading"><div><p className="eyebrow">Reddit research</p><h3>{redditSignals.length} reviewed threads</h3></div><span className="status-badge status-review">Manual / approved API only</span></div><div className="gtm-feed-list">{redditSignals.slice(0, 6).map((item) => <article key={item.id}><MessageSquareText aria-hidden="true" /><div><a href={item.url} target="_blank" rel="noreferrer">{item.title}<ExternalLink aria-hidden="true" /></a><p>{item.evidenceSummary}</p><small>{item.community} · {item.confidence} confidence</small></div></article>)}</div></div>
+      <div className="panel gtm-daily-panel"><div className="panel-heading"><div><p className="eyebrow">Daily Reddit + LinkedIn check</p><h3>{loading ? "Checking the latest saved scan…" : dailyScan ? `${dailyScan.items.length} source-linked result${dailyScan.items.length === 1 ? "" : "s"}` : "Waiting for the first scheduled scan"}</h3></div><span className="status-badge status-success">Once daily</span></div>
+        {error && <div className="compiler-error" role="alert"><AlertCircle aria-hidden="true" />{error}</div>}
+        {dailyScan && <><p className="gtm-daily-summary">Last completed {formatDateTime(dailyScan.generatedAt)} · {dailyScan.coverage}</p><div className="gtm-feed-list">{dailyScan.items.map((item) => <article key={item.id}>{item.platform === "reddit" ? <MessageSquareText aria-hidden="true" /> : <UsersRound aria-hidden="true" />}<div><div className="flex flex-wrap items-center gap-2"><span className="status-badge status-neutral">{item.platform}</span><span className="status-badge status-review">research only</span></div><a href={item.url} target="_blank" rel="noreferrer">{item.title}<ExternalLink aria-hidden="true" /></a><p>{item.observedPain}</p><small>{item.author !== "unknown" ? `${item.author} · ` : ""}{item.publishedAt !== "unknown" ? item.publishedAt : "publication date needs verification"}</small></div></article>)}</div><details className="gtm-scan-limitations"><summary>Coverage and limitations</summary><ul>{dailyScan.limitations.map((item) => <li key={item}>{item}</li>)}</ul></details></>}
+      </div>
+      <div className="panel"><div className="panel-heading"><div><p className="eyebrow">Reddit research</p><h3>{redditSignals.length} reviewed threads</h3></div><span className="status-badge status-success">Daily discovery + manual review</span></div><div className="gtm-feed-list">{redditSignals.slice(0, 6).map((item) => <article key={item.id}><MessageSquareText aria-hidden="true" /><div><a href={item.url} target="_blank" rel="noreferrer">{item.title}<ExternalLink aria-hidden="true" /></a><p>{item.evidenceSummary}</p><small>{item.community} · {item.confidence} confidence</small></div></article>)}</div></div>
       <div className="panel"><div className="panel-heading"><div><p className="eyebrow">LinkedIn review queue</p><h3>{linkedinItems.length} posts and communities</h3></div><span className="status-badge status-neutral">No automated engagement</span></div><div className="gtm-feed-list">{linkedinItems.slice(0, 6).map((item) => <article key={item.url}><UsersRound aria-hidden="true" /><div><a href={item.url} target="_blank" rel="noreferrer">{item.title}<ExternalLink aria-hidden="true" /></a><p>{item.observedPain}</p><small>{item.status.replaceAll("_", " ")} · draft response requires review</small></div></article>)}</div></div>
     </div>
-    <div className="gtm-boundary-note"><ShieldCheck aria-hidden="true" /><div><strong>No scraping or automated posting.</strong><p>LinkedIn actions remain manual. Automated Reddit monitoring stays off until commercial API access is documented.</p></div></div>
+    <div className="gtm-boundary-note"><ShieldCheck aria-hidden="true" /><div><strong>One bounded discovery check per day—no platform automation.</strong><p>The monitor searches public, indexed results and preserves source links. It does not crawl profiles, discover contact details, post, comment, message, or email anyone.</p></div></div>
   </section>;
 }
 
@@ -218,4 +248,8 @@ function formatMoney(value: number) {
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`));
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" }).format(new Date(value));
 }

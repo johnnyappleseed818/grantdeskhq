@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, ArrowRight, FilePlus2, FolderCheck, LoaderCircle, LogOut, Radar, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowRight, FilePlus2, FolderCheck, LoaderCircle, LogOut, ShieldCheck } from "lucide-react";
 import { Link, Navigate } from "react-router-dom";
 import { apiRequest } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -26,7 +26,7 @@ export function WorkspacePage() {
     <div className="site-shell py-10 lg:py-14">
       <header className="workspace-header">
         <div><p className="eyebrow">Private beta workspace</p><h1>{user.displayName ? `${user.displayName}’s reports` : "Your reports"}</h1><p>Resume evidence review or start a new source-backed funder report.</p></div>
-        <div className="workspace-actions"><Link className="button button-secondary" to="/gtm"><Radar aria-hidden="true" />GTM command center</Link><button type="button" className="button button-secondary" onClick={() => signOut()}><LogOut aria-hidden="true" />Sign out</button><Link className="button button-primary" to="/compile"><FilePlus2 aria-hidden="true" />New report</Link></div>
+        <div className="workspace-actions"><button type="button" className="button button-secondary" onClick={() => signOut()}><LogOut aria-hidden="true" />Sign out</button><Link className="button button-primary" to="/compile"><FilePlus2 aria-hidden="true" />New report</Link></div>
       </header>
       <div className="workspace-trust"><ShieldCheck aria-hidden="true" /><div><strong>AI output stays connected to its evidence.</strong><p>Reports, source inventory, validation findings and reviewer decisions are saved to your account-isolated workspace.</p></div></div>
       {error && <div className="compiler-error" role="alert"><AlertTriangle aria-hidden="true" />{error}</div>}

@@ -2117,6 +2117,12 @@
 .gtm-caveats strong { font-size: .78rem; }
 .gtm-caveats ul { margin: .35rem 0 0; padding-left: 1rem; font-size: .7rem; line-height: 1.55; }
 .gtm-signal-grid { display: grid; gap: 1rem; }
+.gtm-daily-panel { grid-column: 1 / -1; border-color: #bad8c5; background: #f8fcf9; }
+.gtm-daily-summary { margin: .25rem 0 .75rem; color: #526779; font-size: .8rem; line-height: 1.55; }
+.gtm-scan-limitations { margin-top: .75rem; border-top: 1px solid #e5e9e6; padding-top: .75rem; color: #5d6c7c; font-size: .76rem; }
+.gtm-scan-limitations summary { cursor: pointer; color: #2f6547; font-weight: 800; }
+.gtm-scan-limitations ul { margin: .55rem 0 0 1rem; list-style: disc; }
+.gtm-scan-limitations li + li { margin-top: .25rem; }
 .gtm-feed-list { display: grid; gap: 0; }
 .gtm-feed-list article { display: grid; grid-template-columns: 28px 1fr; gap: .75rem; padding: .9rem 0; border-top: 1px solid #e5e9e6; }
 .gtm-feed-list article > svg { width: 28px; height: 28px; padding: .4rem; background: #edf5ef; color: #347553; border-radius: .5rem; }
