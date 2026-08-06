@@ -66,7 +66,7 @@ export function LandingPage() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link className="button button-primary button-large" to="/compile">Try the working prototype <ArrowRight aria-hidden="true" /></Link>
-              <Link className="button button-secondary button-large" to="/demo">Explore the guided demo</Link>
+              <Link className="button button-secondary button-large" to="/readiness">Get a free readiness audit</Link>
             </div>
             <p className="trust-line"><CheckCircle2 aria-hidden="true" /> Interactive demo using synthetic data · Your team approves every draft</p>
           </div>
@@ -225,7 +225,7 @@ export function LandingPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link className="button button-primary button-large shrink-0" to="/compile">Try the working prototype <ArrowRight aria-hidden="true" /></Link>
-            <Link className="button button-secondary button-large shrink-0" to="/assessment#contact">Request a free first report</Link>
+            <Link className="button button-secondary button-large shrink-0" to="/readiness">Audit one grant agreement free</Link>
           </div>
         </div>
       </section>

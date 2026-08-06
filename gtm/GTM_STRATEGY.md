@@ -58,7 +58,7 @@ Weak fit:
 | Stage | Customer question | Asset | Primary measure |
 | --- | --- | --- | --- |
 | Pain discovery | “Is this my workflow?” | Reddit/LinkedIn educational post | Relevant replies and profile visits |
-| Self-qualification | “Where is my process breaking?” | Post-award workflow questionnaire | Completed assessments |
+| Self-qualification | “What will this new award require?” | Free Grant Reporting Readiness Audit | Audits started and completed |
 | Proof | “Can it handle a real report?” | Historical report assessment / working prototype | Historical reports started |
 | Trust | “Can I verify the AI?” | Evidence links, contradiction checks, review gates | Drafts reviewed and open items resolved |
 | Conversion | “Is this worth keeping?” | Founding nonprofit plan | Paid conversions and retained reporting cycles |
@@ -98,6 +98,26 @@ Build pages around the exact problem language:
 - Instrumentl plus QuickBooks: what still happens after the award
 
 Each page should include a practical worksheet or synthetic example and one CTA: test a completed historical report.
+
+### 5. Grant-winner alerts
+
+- Scan recent official award records and foundation or agency announcements.
+- Treat the award as timing evidence only; verify the reporting requirements from the agreement.
+- Rank higher when a second source confirms a relevant hiring or public workflow signal.
+- Offer the free readiness audit rather than asserting that the organization has a problem.
+
+### 6. Reporting-work job alerts
+
+- Prioritize current Grant Accountant, Grants Manager, Finance Manager, Compliance Manager, and Sponsored Programs roles.
+- Preserve the exact job-description excerpt and employer or job-board source.
+- Recheck that a role remains open before contact.
+- Position GrantDeskHQ as support for the finance professional, not as a replacement for the role.
+
+### 7. Partner channels
+
+- Give nonprofit accountants and fractional-CFO firms a co-branded Grant Reporting Health Check they can offer clients.
+- Give grant consultants a clean post-award handoff after they help a client win funding.
+- Do not advertise referral fees, discounts, or formal partnerships until terms are approved and real partners exist.
 
 ## Four-week launch cycle
 

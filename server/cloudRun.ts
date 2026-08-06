@@ -2,9 +2,10 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { validateCompilationRequest } from "../src/lib/prototype.ts";
-import type { CompilationRequest } from "../src/types/prototype.ts";
+import { validateCompilationRequest, validateReadinessRequest } from "../src/lib/prototype.ts";
+import type { CompilationRequest, ReadinessRequest } from "../src/types/prototype.ts";
 import { compileGrantReport } from "./reportCompiler.ts";
+import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireUser } from "./auth.ts";
 import { listReports, saveCompilation, saveReview } from "./persistence.ts";
 
@@ -32,6 +33,7 @@ createServer(async (request, response) => {
     }
     if (url.pathname === "/api/config") return handleConfig(request, response);
     if (url.pathname === "/api/compile-report" || url.pathname === "/api/reports/compile") return await handleCompiler(request, response);
+    if (url.pathname === "/api/readiness-assessment") return await handleReadiness(request, response);
     if (url.pathname === "/api/reports") return await handleReports(request, response);
     const reviewMatch = url.pathname.match(/^\/api\/reports\/(report_[a-f0-9]{32})\/review$/);
     if (reviewMatch) return await handleReview(request, response, reviewMatch[1]);
@@ -60,6 +62,24 @@ async function handleCompiler(request: IncomingMessage, response: ServerResponse
   } catch (error) {
     console.error("GrantDeskHQ compiler error:", error instanceof Error ? error.message : "Unknown error");
     return json(response, 502, { error: "The AI compiler could not complete this package. Try the synthetic package again." });
+  }
+}
+
+async function handleReadiness(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") {
+    response.setHeader("Allow", "POST");
+    return json(response, 405, { error: "Method not allowed." });
+  }
+  await requireUser(request);
+  const input = await readJson(request) as ReadinessRequest;
+  if (!input || !Array.isArray(input.files)) return json(response, 400, { error: "An award agreement is required." });
+  const errors = validateReadinessRequest(input);
+  if (errors.length) return json(response, 400, { error: errors.join(" ") });
+  try {
+    return json(response, 200, await compileReadinessAudit(input));
+  } catch (error) {
+    console.error("GrantDeskHQ readiness compiler error:", error instanceof Error ? error.message : "Unknown error");
+    return json(response, 502, { error: "The readiness audit could not be completed. Confirm the test files and try again." });
   }
 }
 

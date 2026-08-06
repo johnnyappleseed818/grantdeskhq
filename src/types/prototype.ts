@@ -121,3 +121,50 @@ export interface CompilationResult {
   generatedAt: string;
   model: string;
 }
+
+export type ReadinessSourceRole = "awardAgreement" | "reportingRequirements" | "approvedBudget";
+
+export interface ReadinessFile {
+  role: ReadinessSourceRole;
+  name: string;
+  mimeType: string;
+  size: number;
+  data: string;
+}
+
+export interface ReadinessRequest {
+  organizationName: string;
+  grantName: string;
+  files: ReadinessFile[];
+}
+
+export interface ReadinessItem {
+  id: string;
+  label: string;
+  detail: string;
+  source: SourceReference;
+  confidence: number;
+  status: ReviewState;
+}
+
+export interface ReadinessGap {
+  id: string;
+  item: string;
+  reason: string;
+  suggestedOwner: string;
+  status: "open" | "confirmed";
+}
+
+export interface ReadinessResult {
+  title: string;
+  summary: string;
+  nextDeadline: { date: string; label: string; source: SourceReference; status: ReviewState };
+  obligations: ReadinessItem[];
+  financialRequirements: ReadinessItem[];
+  programMetrics: ReadinessItem[];
+  evidenceGaps: ReadinessGap[];
+  validation: ValidationSummary;
+  warnings: string[];
+  generatedAt: string;
+  model: string;
+}

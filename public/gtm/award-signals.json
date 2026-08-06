@@ -1,0 +1,595 @@
+{
+  "generatedAt": "2026-08-06T15:56:55.189Z",
+  "source": "https://api.usaspending.gov/api/v2/search/spending_by_award/",
+  "query": {
+    "startDate": "2026-07-01",
+    "endDate": "2026-08-06",
+    "minimumAward": 100000,
+    "recipientType": "Nonprofit Organization",
+    "awardTypes": [
+      "02",
+      "03",
+      "04",
+      "05"
+    ]
+  },
+  "coverage": "First 40 matching federal assistance records, reduced to 12 usable nonprofit candidates. This is not exhaustive.",
+  "opportunities": [
+    {
+      "id": "usaspending-na26nmfx469g0017",
+      "organization": "City Island Oyster Reef, INC.",
+      "signalKind": "grant_award",
+      "headline": "Recent federal assistance record detected",
+      "observedAt": "2026-08-06",
+      "amount": 403000,
+      "awardStartDate": "2027-01-01",
+      "funder": "National Oceanic and Atmospheric Administration",
+      "evidence": [
+        {
+          "id": "source-ASST_NON_NA26NMFX469G0017_013",
+          "title": "USAspending award NA26NMFX469G0017",
+          "url": "https://www.usaspending.gov/award/ASST_NON_NA26NMFX469G0017_013/",
+          "observedAt": "2026-08-06",
+          "authority": "official",
+          "excerpt": "IN NEW YORK CITY AND WESTERN LONG ISLAND SOUND, OYSTERS ARE FUNCTIONALLY EXTINCT WITH A GREATER THAN 99% LOSS. THIS PROJECT WILL INSTALL AN OYSTER REEF AT DELMOURS POINT IN THE BRONX, NEW YORK, ESTABLISHING A SELF-SUSTAINING OYSTER POPULATION THROUGH THE STRATEGIC INSTALLATION O… Award amount: $403,000.",
+          "supports": [
+            "recipient",
+            "award amount",
+            "funder",
+            "program description",
+            "award period"
+          ]
+        }
+      ],
+      "score": {
+        "pain": 18,
+        "timing": 25,
+        "fit": 22,
+        "value": 14
+      },
+      "entityVerified": true,
+      "nonprofitVerified": true,
+      "conflicts": [],
+      "unknowns": [
+        "The award record does not establish report cadence, current software, reporting pain, or a contact person."
+      ],
+      "recommendedRoles": [
+        "Chief financial officer",
+        "Controller",
+        "Finance director",
+        "Grants manager"
+      ],
+      "whyNow": "A recent federal assistance record creates a timely reason to verify the post-award reporting requirements before implementation work accelerates.",
+      "recommendedAngle": "Offer a free readiness audit of the award agreement. Ask about the reporting workflow instead of asserting that the organization has a problem.",
+      "draftMessage": "I noticed the recent federal award record for City Island Oyster Reef, INC. If your team is translating the agreement into reporting deadlines, financial schedules, program metrics, and an evidence checklist, GrantDeskHQ can prepare a free source-linked readiness audit for professional review."
+    },
+    {
+      "id": "usaspending-na26nmfx469g0026",
+      "organization": "Interdistrict Committee For Project Oceanology Corporation",
+      "signalKind": "grant_award",
+      "headline": "Recent federal assistance record detected",
+      "observedAt": "2026-08-06",
+      "amount": 960000,
+      "awardStartDate": "2026-10-01",
+      "funder": "National Oceanic and Atmospheric Administration",
+      "evidence": [
+        {
+          "id": "source-ASST_NON_NA26NMFX469G0026_013",
+          "title": "USAspending award NA26NMFX469G0026",
+          "url": "https://www.usaspending.gov/award/ASST_NON_NA26NMFX469G0026_013/",
+          "observedAt": "2026-08-06",
+          "authority": "official",
+          "excerpt": "PROJECT OCEANOLOGY WILL USE FEDERAL FUNDING TO ACQUIRE AND OUTFIT A SECOND U.S. COAST GUARDINSPECTED RESEARCH VESSEL TO EXPAND HANDS-ON MARINE SCIENCE EDUCATION, APPLIED FIELD RESEARCH, AND ENVIRONMENTAL MONITORING IN LONG ISLAND SOUND AND ITS WATERSHED. OUTCOMES INCLUDE RESTORA… Award amount: $960,000.",
+          "supports": [
+            "recipient",
+            "award amount",
+            "funder",
+            "program description",
+            "award period"
+          ]
+        }
+      ],
+      "score": {
+        "pain": 18,
+        "timing": 25,
+        "fit": 22,
+        "value": 17
+      },
+      "entityVerified": true,
+      "nonprofitVerified": true,
+      "conflicts": [],
+      "unknowns": [
+        "The award record does not establish report cadence, current software, reporting pain, or a contact person."
+      ],
+      "recommendedRoles": [
+        "Chief financial officer",
+        "Controller",
+        "Finance director",
+        "Grants manager"
+      ],
+      "whyNow": "A recent federal assistance record creates a timely reason to verify the post-award reporting requirements before implementation work accelerates.",
+      "recommendedAngle": "Offer a free readiness audit of the award agreement. Ask about the reporting workflow instead of asserting that the organization has a problem.",
+      "draftMessage": "I noticed the recent federal award record for Interdistrict Committee For Project Oceanology Corporation. If your team is translating the agreement into reporting deadlines, financial schedules, program metrics, and an evidence checklist, GrantDeskHQ can prepare a free source-linked readiness audit for professional review."
+    },
+    {
+      "id": "usaspending-na26nmfx469g0018",
+      "organization": "Sealaska Heritage Institute, INC",
+      "signalKind": "grant_award",
+      "headline": "Recent federal assistance record detected",
+      "observedAt": "2026-08-06",
+      "amount": 500000,
+      "awardStartDate": "2026-10-01",
+      "funder": "National Oceanic and Atmospheric Administration",
+      "evidence": [
+        {
+          "id": "source-ASST_NON_NA26NMFX469G0018_013",
+          "title": "USAspending award NA26NMFX469G0018",
+          "url": "https://www.usaspending.gov/award/ASST_NON_NA26NMFX469G0018_013/",
+          "observedAt": "2026-08-06",
+          "authority": "official",
+          "excerpt": "THE SEALASKA HERITAGE INSTITUTE'S COMMUNITY PROJECT SUPPORTS THE DEVELOPMENT OF ALASKA MARINE SCIENCE UNITS THAT WILL BE AVAILABLE FOR MIDDLE SCHOOL TEACHERS AT 14 SCHOOL DISTRICTS FOR 700 STUDENTS (GRADES 6-8), LIVING IN 14 COASTAL COMMUNITIES IN SOUTHEAST ALASKA. THIS PROJECT… Award amount: $500,000.",
+          "supports": [
+            "recipient",
+            "award amount",
+            "funder",
+            "program description",
+            "award period"
+          ]
+        }
+      ],
+      "score": {
+        "pain": 18,
+        "timing": 25,
+        "fit": 22,
+        "value": 17
+      },
+      "entityVerified": true,
+      "nonprofitVerified": true,
+      "conflicts": [],
+      "unknowns": [
+        "The award record does not establish report cadence, current software, reporting pain, or a contact person."
+      ],
+      "recommendedRoles": [
+        "Chief financial officer",
+        "Controller",
+        "Finance director",
+        "Grants manager"
+      ],
+      "whyNow": "A recent federal assistance record creates a timely reason to verify the post-award reporting requirements before implementation work accelerates.",
+      "recommendedAngle": "Offer a free readiness audit of the award agreement. Ask about the reporting workflow instead of asserting that the organization has a problem.",
+      "draftMessage": "I noticed the recent federal award record for Sealaska Heritage Institute, INC. If your team is translating the agreement into reporting deadlines, financial schedules, program metrics, and an evidence checklist, GrantDeskHQ can prepare a free source-linked readiness audit for professional review."
+    },
+    {
+      "id": "usaspending-na26nmfx469g0001",
+      "organization": "Collective Oyster Recycling & Restoration Foundation INC",
+      "signalKind": "grant_award",
+      "headline": "Recent federal assistance record detected",
+      "observedAt": "2026-08-06",
+      "amount": 184000,
+      "awardStartDate": "2026-10-01",
+      "funder": "National Oceanic and Atmospheric Administration",
+      "evidence": [
+        {
+          "id": "source-ASST_NON_NA26NMFX469G0001_013",
+          "title": "USAspending award NA26NMFX469G0001",
+          "url": "https://www.usaspending.gov/award/ASST_NON_NA26NMFX469G0001_013/",
+          "observedAt": "2026-08-06",
+          "authority": "official",
+          "excerpt": "CORRS PROJECT WILL RECOVER AND RECYCLE SHELLS FROM RESTAURANTS, SEAFOOD BUSINESSES, AND FESTIVALS TO CONTINUE TO MAINTAIN A STATEWIDE SHELL RECOVERY AND RECYCLING NETWORK IN CONNECTICUT FOR OYSTER REEF HABITAT RESTORATION IN LONG ISLAND SOUND TO PRESERVE HISTORICAL OYSTER BEDS A… Award amount: $184,000.",
+          "supports": [
+            "recipient",
+            "award amount",
+            "funder",
+            "program description",
+            "award period"
+          ]
+        }
+      ],
+      "score": {
+        "pain": 18,
+        "timing": 25,
+        "fit": 22,
+        "value": 12
+      },
+      "entityVerified": true,
+      "nonprofitVerified": true,
+      "conflicts": [],
+      "unknowns": [
+        "The award record does not establish report cadence, current software, reporting pain, or a contact person."
+      ],
+      "recommendedRoles": [
+        "Chief financial officer",
+        "Controller",
+        "Finance director",
+        "Grants manager"
+      ],
+      "whyNow": "A recent federal assistance record creates a timely reason to verify the post-award reporting requirements before implementation work accelerates.",
+      "recommendedAngle": "Offer a free readiness audit of the award agreement. Ask about the reporting workflow instead of asserting that the organization has a problem.",
+      "draftMessage": "I noticed the recent federal award record for Collective Oyster Recycling & Restoration Foundation INC. If your team is translating the agreement into reporting deadlines, financial schedules, program metrics, and an evidence checklist, GrantDeskHQ can prepare a free source-linked readiness audit for professional review."
+    },
+    {
+      "id": "usaspending-na26nmfx463c0019",
+      "organization": "Trout Unlimited, INC.",
+      "signalKind": "grant_award",
+      "headline": "Recent federal assistance record detected",
+      "observedAt": "2026-08-06",
+      "amount": 7993541,
+      "awardStartDate": "2026-10-01",
+      "funder": "National Oceanic and Atmospheric Administration",
+      "evidence": [
+        {
+          "id": "source-ASST_NON_NA26NMFX463C0019_013",
+          "title": "USAspending award NA26NMFX463C0019",
+          "url": "https://www.usaspending.gov/award/ASST_NON_NA26NMFX463C0019_013/",
+          "observedAt": "2026-08-06",
+          "authority": "official",
+          "excerpt": "TROUT UNLIMITED IS BEING AWARDED MORE THAN 7 MILLION TO REPLACE PRIORITY FISH BARRIER CULVERTS IN THE CHENA RIVER WATERSHED NEAR FAIRBANKS, ALASKA RESTORING ACCESS TO NEARLY 50 MILES OF HIGH-QUALITY HABITAT FOR YUKON RIVER CHINOOK AND CHUM SALMON. THIS HABITAT RESTORATION PROJEC… Award amount: $7,993,541.",
+          "supports": [
+            "recipient",
+            "award amount",
+            "funder",
+            "program description",
+            "award period"
+          ]
+        }
+      ],
+      "score": {
+        "pain": 18,
+        "timing": 25,
+        "fit": 22,
+        "value": 20
+      },
+      "entityVerified": true,
+      "nonprofitVerified": true,
+      "conflicts": [],
+      "unknowns": [
+        "The award record does not establish report cadence, current software, reporting pain, or a contact person."
+      ],
+      "recommendedRoles": [
+        "Chief financial officer",
+        "Controller",
+        "Finance director",
+        "Grants manager"
+      ],
+      "whyNow": "A recent federal assistance record creates a timely reason to verify the post-award reporting requirements before implementation work accelerates.",
+      "recommendedAngle": "Offer a free readiness audit of the award agreement. Ask about the reporting workflow instead of asserting that the organization has a problem.",
+      "draftMessage": "I noticed the recent federal award record for Trout Unlimited, INC. If your team is translating the agreement into reporting deadlines, financial schedules, program metrics, and an evidence checklist, GrantDeskHQ can prepare a free source-linked readiness audit for professional review."
+    },
+    {
+      "id": "usaspending-na26nmfx463c0005",
+      "organization": "Trout Unlimited, INC.",
+      "signalKind": "grant_award",
+      "headline": "Recent federal assistance record detected",
+      "observedAt": "2026-08-06",
+      "amount": 7732040,
+      "awardStartDate": "2026-10-01",
+      "funder": "National Oceanic and Atmospheric Administration",
+      "evidence": [
+        {
+          "id": "source-ASST_NON_NA26NMFX463C0005_013",
+          "title": "USAspending award NA26NMFX463C0005",
+          "url": "https://www.usaspending.gov/award/ASST_NON_NA26NMFX463C0005_013/",
+          "observedAt": "2026-08-06",
+          "authority": "official",
+          "excerpt": "TROUT UNLIMITED WILL BE AWARDED $7,732,040 TO OPEN UP BLOCKED RIVERS AND STREAMS FOR BROOK TROUT AND OTHER NATIVE FISH POPULATIONS BY REPLACING UNDERSIZED CULVERTS, BRIDGES, AND OTHER PASSAGE BARRIERS. THIS WORK WILL, RECONNECT OVER 135 MILES OF HIGH QUALITY GREAT LAKES TRIBUTAR… Award amount: $7,732,040.",
+          "supports": [
+            "recipient",
+            "award amount",
+            "funder",
+            "program description",
+            "award period"
+          ]
+        }
+      ],
+      "score": {
+        "pain": 18,
+        "timing": 25,
+        "fit": 22,
+        "value": 20
+      },
+      "entityVerified": true,
+      "nonprofitVerified": true,
+      "conflicts": [],
+      "unknowns": [
+        "The award record does not establish report cadence, current software, reporting pain, or a contact person."
+      ],
+      "recommendedRoles": [
+        "Chief financial officer",
+        "Controller",
+        "Finance director",
+        "Grants manager"
+      ],
+      "whyNow": "A recent federal assistance record creates a timely reason to verify the post-award reporting requirements before implementation work accelerates.",
+      "recommendedAngle": "Offer a free readiness audit of the award agreement. Ask about the reporting workflow instead of asserting that the organization has a problem.",
+      "draftMessage": "I noticed the recent federal award record for Trout Unlimited, INC. If your team is translating the agreement into reporting deadlines, financial schedules, program metrics, and an evidence checklist, GrantDeskHQ can prepare a free source-linked readiness audit for professional review."
+    },
+    {
+      "id": "usaspending-h326t260001",
+      "organization": "Perkins School For The Blind",
+      "signalKind": "grant_award",
+      "headline": "Recent federal assistance record detected",
+      "observedAt": "2026-08-06",
+      "amount": 493100,
+      "awardStartDate": "2026-10-01",
+      "funder": "Department of Education",
+      "evidence": [
+        {
+          "id": "source-ASST_NON_H326T260001_091",
+          "title": "USAspending award H326T260001",
+          "url": "https://www.usaspending.gov/award/ASST_NON_H326T260001_091/",
+          "observedAt": "2026-08-06",
+          "authority": "official",
+          "excerpt": "NEW ENGLAND CONSORTIUM ON DEAFBLINDNESS (NEC) - STATE TECHNICAL ASSISTANCE PROJECTS TO IMPROVE SERVICES AND RESULTS FOR DEAFBLIND CHILDREN Award amount: $493,100.",
+          "supports": [
+            "recipient",
+            "award amount",
+            "funder",
+            "program description",
+            "award period"
+          ]
+        }
+      ],
+      "score": {
+        "pain": 18,
+        "timing": 25,
+        "fit": 22,
+        "value": 14
+      },
+      "entityVerified": true,
+      "nonprofitVerified": true,
+      "conflicts": [],
+      "unknowns": [
+        "The award record does not establish report cadence, current software, reporting pain, or a contact person."
+      ],
+      "recommendedRoles": [
+        "Chief financial officer",
+        "Controller",
+        "Finance director",
+        "Grants manager"
+      ],
+      "whyNow": "A recent federal assistance record creates a timely reason to verify the post-award reporting requirements before implementation work accelerates.",
+      "recommendedAngle": "Offer a free readiness audit of the award agreement. Ask about the reporting workflow instead of asserting that the organization has a problem.",
+      "draftMessage": "I noticed the recent federal award record for Perkins School For The Blind. If your team is translating the agreement into reporting deadlines, financial schedules, program metrics, and an evidence checklist, GrantDeskHQ can prepare a free source-linked readiness audit for professional review."
+    },
+    {
+      "id": "usaspending-na26nmfx463c0188",
+      "organization": "Ducks Unlimited, INC.",
+      "signalKind": "grant_award",
+      "headline": "Recent federal assistance record detected",
+      "observedAt": "2026-08-06",
+      "amount": 9998764,
+      "awardStartDate": "2026-10-01",
+      "funder": "National Oceanic and Atmospheric Administration",
+      "evidence": [
+        {
+          "id": "source-ASST_NON_NA26NMFX463C0188_013",
+          "title": "USAspending award NA26NMFX463C0188",
+          "url": "https://www.usaspending.gov/award/ASST_NON_NA26NMFX463C0188_013/",
+          "observedAt": "2026-08-06",
+          "authority": "official",
+          "excerpt": "THE PROPOSED ACTIONS DESCRIBED HEREIN WILL STRENGTHEN CRITICAL ECOSYSTEMS AND BENEFIT UNDERSERVED COMMUNITIES IN TWO COUNTIES WITHIN THE GREATER HOUSTON METRO AREA. THESE ACTIONS WILL IMPLEMENT NATURE-BASED SOLUTIONS TO STABILIZE SHORELINES AND PROTECT ESTUARINE MARSH WHICH IN T… Award amount: $9,998,764.",
+          "supports": [
+            "recipient",
+            "award amount",
+            "funder",
+            "program description",
+            "award period"
+          ]
+        }
+      ],
+      "score": {
+        "pain": 18,
+        "timing": 25,
+        "fit": 22,
+        "value": 20
+      },
+      "entityVerified": true,
+      "nonprofitVerified": true,
+      "conflicts": [],
+      "unknowns": [
+        "The award record does not establish report cadence, current software, reporting pain, or a contact person."
+      ],
+      "recommendedRoles": [
+        "Chief financial officer",
+        "Controller",
+        "Finance director",
+        "Grants manager"
+      ],
+      "whyNow": "A recent federal assistance record creates a timely reason to verify the post-award reporting requirements before implementation work accelerates.",
+      "recommendedAngle": "Offer a free readiness audit of the award agreement. Ask about the reporting workflow instead of asserting that the organization has a problem.",
+      "draftMessage": "I noticed the recent federal award record for Ducks Unlimited, INC. If your team is translating the agreement into reporting deadlines, financial schedules, program metrics, and an evidence checklist, GrantDeskHQ can prepare a free source-linked readiness audit for professional review."
+    },
+    {
+      "id": "usaspending-h79sm091004",
+      "organization": "Dena Nena Henash",
+      "signalKind": "grant_award",
+      "headline": "Recent federal assistance record detected",
+      "observedAt": "2026-08-06",
+      "amount": 997063,
+      "awardStartDate": "2026-09-30",
+      "funder": "Substance Abuse and Mental Health Services Administration",
+      "evidence": [
+        {
+          "id": "source-ASST_NON_H79SM091004_075",
+          "title": "USAspending award H79SM091004",
+          "url": "https://www.usaspending.gov/award/ASST_NON_H79SM091004_075/",
+          "observedAt": "2026-08-06",
+          "authority": "official",
+          "excerpt": "BUILDING PATHWAYS - CHILDREN'S SYSTEM OF CARE IN THE INTERIOR - TANANA CHIEFS CONFERENCE WILL IMPLEMENT THE BUILDING PATHWAYS CHILDREN'S SYSTEM OF CARE TO EXPAND COORDINATED BEHAVIORAL HEALTH SERVICES FOR CHILDREN, YOUTH, AND YOUNG ADULTS AGES 0–21 ACROSS THREE INTERIOR ALASKA S… Award amount: $997,063.",
+          "supports": [
+            "recipient",
+            "award amount",
+            "funder",
+            "program description",
+            "award period"
+          ]
+        }
+      ],
+      "score": {
+        "pain": 18,
+        "timing": 25,
+        "fit": 22,
+        "value": 17
+      },
+      "entityVerified": true,
+      "nonprofitVerified": true,
+      "conflicts": [],
+      "unknowns": [
+        "The award record does not establish report cadence, current software, reporting pain, or a contact person."
+      ],
+      "recommendedRoles": [
+        "Chief financial officer",
+        "Controller",
+        "Finance director",
+        "Grants manager"
+      ],
+      "whyNow": "A recent federal assistance record creates a timely reason to verify the post-award reporting requirements before implementation work accelerates.",
+      "recommendedAngle": "Offer a free readiness audit of the award agreement. Ask about the reporting workflow instead of asserting that the organization has a problem.",
+      "draftMessage": "I noticed the recent federal award record for Dena Nena Henash. If your team is translating the agreement into reporting deadlines, financial schedules, program metrics, and an evidence checklist, GrantDeskHQ can prepare a free source-linked readiness audit for professional review."
+    },
+    {
+      "id": "usaspending-h79sm090985",
+      "organization": "Northkey Community Care",
+      "signalKind": "grant_award",
+      "headline": "Recent federal assistance record detected",
+      "observedAt": "2026-08-06",
+      "amount": 800000,
+      "awardStartDate": "2026-09-30",
+      "funder": "Substance Abuse and Mental Health Services Administration",
+      "evidence": [
+        {
+          "id": "source-ASST_NON_H79SM090985_075",
+          "title": "USAspending award H79SM090985",
+          "url": "https://www.usaspending.gov/award/ASST_NON_H79SM090985_075/",
+          "observedAt": "2026-08-06",
+          "authority": "official",
+          "excerpt": "REGIONAL COALITION ACROSS EIGHT NORTHERN KENTUCKY COUNTIES USING DATA-DRIVEN, EVIDENCE-BASED AND EQUITABLE STRATEGIES FOR SUICIDE PREVENTION, INTERVENTION, AND POSTVENTION. - NORTHKEY COMMUNITY CARE WILL IMPLEMENT A SYSTEMWIDE ZERO SUICIDE INITIATIVE ACROSS EIGHT COUNTIES IN NOR… Award amount: $800,000.",
+          "supports": [
+            "recipient",
+            "award amount",
+            "funder",
+            "program description",
+            "award period"
+          ]
+        }
+      ],
+      "score": {
+        "pain": 18,
+        "timing": 25,
+        "fit": 22,
+        "value": 17
+      },
+      "entityVerified": true,
+      "nonprofitVerified": true,
+      "conflicts": [],
+      "unknowns": [
+        "The award record does not establish report cadence, current software, reporting pain, or a contact person."
+      ],
+      "recommendedRoles": [
+        "Chief financial officer",
+        "Controller",
+        "Finance director",
+        "Grants manager"
+      ],
+      "whyNow": "A recent federal assistance record creates a timely reason to verify the post-award reporting requirements before implementation work accelerates.",
+      "recommendedAngle": "Offer a free readiness audit of the award agreement. Ask about the reporting workflow instead of asserting that the organization has a problem.",
+      "draftMessage": "I noticed the recent federal award record for Northkey Community Care. If your team is translating the agreement into reporting deadlines, financial schedules, program metrics, and an evidence checklist, GrantDeskHQ can prepare a free source-linked readiness audit for professional review."
+    },
+    {
+      "id": "usaspending-h79sm090984",
+      "organization": "Texas Health Resources INC",
+      "signalKind": "grant_award",
+      "headline": "Recent federal assistance record detected",
+      "observedAt": "2026-08-06",
+      "amount": 279757,
+      "awardStartDate": "2026-09-30",
+      "funder": "Substance Abuse and Mental Health Services Administration",
+      "evidence": [
+        {
+          "id": "source-ASST_NON_H79SM090984_075",
+          "title": "USAspending award H79SM090984",
+          "url": "https://www.usaspending.gov/award/ASST_NON_H79SM090984_075/",
+          "observedAt": "2026-08-06",
+          "authority": "official",
+          "excerpt": "TEXAS HEALTH RESOURCES -- JOURNEY TO ZERO SUICIDE - TEXAS HEALTH RESOURCES WILL IMPLEMENT THE TEXAS HEALTH JOURNEY TO ZERO SUICIDE PROJECT ACROSS NINE HOSPITALS AND AFFILIATED PRIMARY CARE PRACTICES SERVING SIX COUNTIES IN NORTH TEXAS. BUILDING ON EXISTING ZERO SUICIDE EFFORTS,… Award amount: $279,757.",
+          "supports": [
+            "recipient",
+            "award amount",
+            "funder",
+            "program description",
+            "award period"
+          ]
+        }
+      ],
+      "score": {
+        "pain": 18,
+        "timing": 25,
+        "fit": 22,
+        "value": 14
+      },
+      "entityVerified": true,
+      "nonprofitVerified": true,
+      "conflicts": [],
+      "unknowns": [
+        "The award record does not establish report cadence, current software, reporting pain, or a contact person."
+      ],
+      "recommendedRoles": [
+        "Chief financial officer",
+        "Controller",
+        "Finance director",
+        "Grants manager"
+      ],
+      "whyNow": "A recent federal assistance record creates a timely reason to verify the post-award reporting requirements before implementation work accelerates.",
+      "recommendedAngle": "Offer a free readiness audit of the award agreement. Ask about the reporting workflow instead of asserting that the organization has a problem.",
+      "draftMessage": "I noticed the recent federal award record for Texas Health Resources INC. If your team is translating the agreement into reporting deadlines, financial schedules, program metrics, and an evidence checklist, GrantDeskHQ can prepare a free source-linked readiness audit for professional review."
+    },
+    {
+      "id": "usaspending-h79sm090965",
+      "organization": "Seattle Indian Health Board",
+      "signalKind": "grant_award",
+      "headline": "Recent federal assistance record detected",
+      "observedAt": "2026-08-06",
+      "amount": 799983,
+      "awardStartDate": "2026-09-30",
+      "funder": "Substance Abuse and Mental Health Services Administration",
+      "evidence": [
+        {
+          "id": "source-ASST_NON_H79SM090965_075",
+          "title": "USAspending award H79SM090965",
+          "url": "https://www.usaspending.gov/award/ASST_NON_H79SM090965_075/",
+          "observedAt": "2026-08-06",
+          "authority": "official",
+          "excerpt": "ZERO SUICIDE INITIATIVE - SEATTLE INDIAN HEALTH BOARD WILL IMPLEMENT A FIVE-YEAR ZERO SUICIDE INITIATIVE TO STRENGTHEN AGENCY-WIDE SUICIDE PREVENTION FOR ADULTS IN KING COUNTY, WASHINGTON, WITH A FOCUS ON AMERICAN INDIAN AND ALASKA NATIVE ADULTS, VETERANS, INDIVIDUALS WITH LOW I… Award amount: $799,983.",
+          "supports": [
+            "recipient",
+            "award amount",
+            "funder",
+            "program description",
+            "award period"
+          ]
+        }
+      ],
+      "score": {
+        "pain": 18,
+        "timing": 25,
+        "fit": 22,
+        "value": 17
+      },
+      "entityVerified": true,
+      "nonprofitVerified": true,
+      "conflicts": [],
+      "unknowns": [
+        "The award record does not establish report cadence, current software, reporting pain, or a contact person."
+      ],
+      "recommendedRoles": [
+        "Chief financial officer",
+        "Controller",
+        "Finance director",
+        "Grants manager"
+      ],
+      "whyNow": "A recent federal assistance record creates a timely reason to verify the post-award reporting requirements before implementation work accelerates.",
+      "recommendedAngle": "Offer a free readiness audit of the award agreement. Ask about the reporting workflow instead of asserting that the organization has a problem.",
+      "draftMessage": "I noticed the recent federal award record for Seattle Indian Health Board. If your team is translating the agreement into reporting deadlines, financial schedules, program metrics, and an evidence checklist, GrantDeskHQ can prepare a free source-linked readiness audit for professional review."
+    }
+  ]
+}

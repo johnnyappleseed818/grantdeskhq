@@ -32,6 +32,8 @@ Working Cloud Run prototype: [grantdeskhq-prototype-me423s5k5a-uc.a.run.app](htt
 | `/compile` | Guided working AI Report Compiler and evidence-validation workflow |
 | `/login` | Managed account creation, sign-in, and password reset |
 | `/workspace` | Account-isolated saved report workspace |
+| `/readiness` | Free source-linked Grant Reporting Readiness Audit |
+| `/gtm` | Signed-in GTM command center, alert queue, source registry, and progress monitor |
 | `/sample-report` | Print-ready funder-report review package |
 | `/privacy` | Honest prototype and test-file data-handling boundaries |
 | `/pricing` | Founding Nonprofit and Founding Agency pricing |
@@ -43,6 +45,10 @@ The synthetic demo includes Agency Overview, Source Package, Requirements, Finan
 Mapping, Missing Inputs, Narrative Draft, Quality Review, and Export Package
 screens. The `/compile` route adds real file intake, structured AI output,
 an independent verification pass, evidence coverage, and an export gate.
+The `/readiness` route provides the lighter lead-magnet workflow: one award
+agreement is required, while separate reporting instructions and the approved
+budget are optional. The `/gtm` route keeps signal evidence, inference, suggested
+actions, and browser-saved progress visibly separate.
 
 The landing page includes a touch-swipeable, keyboard-focusable carousel of
 clearly labelled illustrative finance-team use cases. These are not customer
@@ -65,6 +71,8 @@ when those are available.
 - `pdf-lib` for synthetic PDF generation
 - `write-excel-file` for XLSX generation and `read-excel-file` for asset verification
 - ESLint 9 flat configuration
+- Official USAspending API scanner for bounded federal nonprofit-award alerts
+- Scheduled GitHub Actions refresh for the static GTM award feed
 - System font stack and no external images, fonts, analytics, or tracking
 
 The private beta stores report records and audit events in Firestore and source
@@ -91,6 +99,13 @@ combines:
 The system must abstain or block when evidence is insufficient. AI verification
 reduces risk but does not prove factual correctness; professional review remains
 mandatory.
+
+The GTM command center applies the same principle to sales signals. It requires
+source URLs and excerpts, caps the visible Pain × Timing × Fit × Value score,
+requires corroboration for a “very high intent” label, warns on stale evidence,
+blocks unresolved or conflicting entities, and never invents a contact. Public
+discussion signals remain market evidence until an organization is independently
+resolved. No social action or email is sent from the dashboard.
 
 ## Exact synthetic source model
 
@@ -138,12 +153,15 @@ grantdesk/
 ├── server/
 │   ├── compilerSchema.ts
 │   ├── cloudRun.ts
+│   ├── readinessCompiler.ts
+│   ├── readinessSchema.ts
 │   └── reportCompiler.ts
 ├── netlify/functions/compile-report.ts
 ├── public/
 │   ├── 404.html
 │   ├── CNAME
 │   ├── _redirects
+│   ├── gtm/award-signals.json
 │   └── samples/
 ├── src/
 │   ├── components/
@@ -154,9 +172,11 @@ grantdesk/
 │   │   └── StatusBadge.tsx
 │   ├── data/
 │   │   ├── grantData.json
-│   │   └── grantData.ts
+│   │   ├── grantData.ts
+│   │   └── gtmData.ts
 │   ├── lib/
 │   │   ├── calculations.ts
+│   │   ├── gtm.ts
 │   │   └── prototype.ts
 │   ├── pages/
 │   ├── test/
@@ -169,6 +189,8 @@ grantdesk/
 ├── styles.css
 ├── script.js
 ├── scripts/create-spa-routes.js
+├── scripts/gtm/scan-usaspending-awards.mjs
+├── gtm/
 ├── PLAN.md
 ├── package.json
 ├── tailwind.config.js
@@ -207,6 +229,10 @@ Quality and production commands:
 npm run lint
 npm test
 npm run build
+npm run gtm:build
+npm run gtm:test
+# Refreshes public/gtm/award-signals.json from the official API:
+npm run gtm:awards
 npm run preview
 npx vitest run
 # Optional, billable live smoke test:
@@ -224,6 +250,9 @@ npm audit
 - `npm run build` regenerates assets, runs strict TypeScript validation, and
   creates the production output in `dist/`, including direct-load entry files
   for every public application route.
+- `npm run gtm:awards` replaces only the generated
+  `public/gtm/award-signals.json` feed after a successful, non-empty official
+  USAspending response. It does not discover contacts or send messages.
 - `npm run preview -- --host 127.0.0.1 --port 4173` serves the production
   build for runtime route and download verification.
 - The current npm advisory database flags React Router's server/RSC action
@@ -248,9 +277,9 @@ npm audit --omit=dev
 npm audit
 ```
 
-Verified result on August 6, 2026: lint passed with zero warnings; 45
+Verified result on August 6, 2026: lint passed with zero warnings; 55
 deterministic tests passed with the opt-in live test skipped; TypeScript and the
-Vite production build passed; and all 7 direct-load routes were generated. A
+Vite production build passed; and all 11 direct-load routes were generated. A
 separate billable smoke test passed through the deployed Cloud Run endpoint in
 48.89 seconds, exercising source upload, the compiler model, the independent
 verifier model, and strict structured output. The audit commands report the
@@ -269,6 +298,8 @@ Runtime checks should confirm HTTP 200 for:
 /
 /demo
 /compile
+/readiness
+/gtm
 /sample-report
 /privacy
 /pricing
@@ -365,11 +396,12 @@ gcloud run deploy grantdeskhq-prototype \
 ```
 
 The deployed service is `grantdeskhq-prototype` in
-`grantdeskhq-proto-ek-2026`; the final verified revision is
-`grantdeskhq-prototype-00005-w9w`. It scales to zero when idle and is capped at
-two instances. Its `/api/health` endpoint and all documented routes and sample
-downloads returned HTTP 200 in the final audit. Domain mapping and DNS changes
-are deliberately separate release steps.
+`grantdeskhq-proto-ek-2026`; the current verified revision is
+`grantdeskhq-prototype-00007-9jv`. It scales to zero when idle and is capped at
+two instances. Its `/api/health`, `/gtm`, and `/readiness` routes returned HTTP
+200 in the final audit; an unauthenticated request to
+`/api/readiness-assessment` correctly returned HTTP 401. Domain mapping and DNS
+changes are deliberately separate release steps.
 
 ## Netlify deployment
 

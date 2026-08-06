@@ -1,4 +1,4 @@
-import type { CompilationRequest, CompilationResult, SourceRole } from "../types/prototype";
+import type { CompilationRequest, CompilationResult, ReadinessRequest, SourceRole } from "../types/prototype";
 
 export const REQUIRED_SOURCE_ROLES: SourceRole[] = [
   "awardAgreement",
@@ -21,6 +21,18 @@ export function validateCompilationRequest(input: CompilationRequest): string[] 
     if (!input.files.some((file) => file.role === role)) errors.push(`Missing required source: ${role}.`);
   }
 
+  const totalSize = input.files.reduce((sum, file) => sum + file.size, 0);
+  if (totalSize > MAX_TOTAL_BYTES) errors.push("Combined file size must be 2.5 MB or less for this prototype.");
+  if (input.files.some((file) => file.size > MAX_FILE_BYTES)) errors.push("Each file must be 1 MB or less for this prototype.");
+  if (input.files.some((file) => !file.data.startsWith("data:"))) errors.push("Every source file must contain valid encoded file data.");
+  return errors;
+}
+
+export function validateReadinessRequest(input: ReadinessRequest): string[] {
+  const errors: string[] = [];
+  if (!input.organizationName.trim()) errors.push("Organization name is required.");
+  if (!input.grantName.trim()) errors.push("Grant name is required.");
+  if (!input.files.some((file) => file.role === "awardAgreement")) errors.push("An award agreement is required.");
   const totalSize = input.files.reduce((sum, file) => sum + file.size, 0);
   if (totalSize > MAX_TOTAL_BYTES) errors.push("Combined file size must be 2.5 MB or less for this prototype.");
   if (input.files.some((file) => file.size > MAX_FILE_BYTES)) errors.push("Each file must be 1 MB or less for this prototype.");

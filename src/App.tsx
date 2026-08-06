@@ -11,6 +11,8 @@ import { CompilePage } from "./pages/CompilePage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { LoginPage } from "./pages/LoginPage";
 import { WorkspacePage } from "./pages/WorkspacePage";
+import { GtmDashboardPage } from "./pages/GtmDashboardPage";
+import { ReadinessPage } from "./pages/ReadinessPage";
 import { AuthProvider } from "./lib/auth";
 
 function RouteEffects() {
@@ -43,6 +45,8 @@ export default function App() {
           <Route path="compile" element={<CompilePage />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="workspace" element={<WorkspacePage />} />
+          <Route path="gtm" element={<GtmDashboardPage />} />
+          <Route path="readiness" element={<ReadinessPage />} />
           <Route path="assessment" element={<PilotPage />} />
           <Route path="pilot" element={<Navigate replace to="/assessment" />} />
           <Route path="*" element={<NotFoundPage />} />

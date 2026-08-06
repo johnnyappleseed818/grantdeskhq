@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { prototypeFixture } from "../data/prototypeFixture";
-import { canGenerateReviewPackage, validateCompilationRequest } from "../lib/prototype";
-import type { CompilationRequest, CompilationResult, SourceRole } from "../types/prototype";
+import { canGenerateReviewPackage, validateCompilationRequest, validateReadinessRequest } from "../lib/prototype";
+import type { CompilationRequest, CompilationResult, ReadinessRequest, SourceRole } from "../types/prototype";
 
 const requiredRoles: SourceRole[] = ["awardAgreement", "approvedBudget", "ledgerExport", "funderTemplate", "programUpdate"];
 
@@ -23,6 +23,16 @@ describe("prototype request validation", () => {
     const input = request();
     input.files = input.files.filter((file) => file.role !== "ledgerExport");
     expect(validateCompilationRequest(input)).toContain("Missing required source: ledgerExport.");
+  });
+
+  it("accepts an agreement-only readiness audit and rejects a missing agreement", () => {
+    const readiness: ReadinessRequest = {
+      organizationName: "Hope Community Services",
+      grantName: "Youth Access Initiative",
+      files: [{ role: "awardAgreement", name: "agreement.txt", mimeType: "text/plain", size: 20, data: "data:text/plain;base64,dGVzdA==" }]
+    };
+    expect(validateReadinessRequest(readiness)).toEqual([]);
+    expect(validateReadinessRequest({ ...readiness, files: [] })).toContain("An award agreement is required.");
   });
 });
 

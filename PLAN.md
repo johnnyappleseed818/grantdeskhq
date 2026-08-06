@@ -29,3 +29,14 @@
 6. [x] Build a deterministic GTM artifact generator and tests for scoring, consent gates, messaging, and unsupported-claim prevention.
 7. [x] Build a Resend Broadcast workflow that accepts documented opt-ins only, verifies the exact segment, creates drafts by default, and uses Resend-managed unsubscribe links.
 8. [x] Add an optional approved Reddit Data API monitor with an explicit commercial-access guard; do not scrape or automate posts/comments.
+
+## GTM command center and signal engines
+
+1. [x] Add a private, mobile-responsive GTM command center with a daily hot list, alert filters, evidence review, human-approved actions, and pipeline progress.
+2. [x] Add transparent Pain × Timing × Fit × Value scoring with source-quality gates, corroboration rules, stale-data checks, conflict flags, and no invented contacts.
+3. [x] Add a federal grant-winner scanner backed by the official USAspending API and a scheduled GitHub Actions refresh.
+4. [x] Add job, Excel-pain, competitor-intent, Reddit, and LinkedIn lanes with honest connection states and manual-review boundaries where automation is restricted or not configured.
+5. [x] Add accountant and grant-consultant referral work queues, draft-only partner messaging, and funnel progress tracking.
+6. [x] Add a free Grant Reporting Readiness Audit entry point that extracts source-linked obligations, deadlines, financial requirements, program metrics, and missing evidence for review.
+7. [x] Add deterministic tests for signal scoring, qualification gates, duplicate and contradiction detection, safe outreach states, route accessibility, and the readiness workflow.
+8. [x] Run all GTM and application tests, lint, production build, route checks, deletion audit, and deployment verification.

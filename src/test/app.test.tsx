@@ -19,6 +19,7 @@ describe("important routes", () => {
     ["/pricing", /Start affordably\. Prove the value on a real report/i],
     ["/assessment", /Try GrantDeskHQ on one report before you pay/i],
     ["/compile", /Turn source files into an evidence-backed report draft/i],
+    ["/readiness", /Upload the agreement\. Get a source-linked reporting plan\./i],
     ["/login", /Build funder-specific grant reports with less spreadsheet work/i]
   ])("renders %s", (route, heading) => {
     renderRoute(route);

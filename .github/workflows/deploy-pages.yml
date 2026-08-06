@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: "20 13 * * *"
 
 permissions:
   contents: read
@@ -24,6 +26,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Refresh official federal award signals
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: npm run gtm:awards
       - run: npm run lint
       - run: npm test
       - run: npm run build
