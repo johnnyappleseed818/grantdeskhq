@@ -21,6 +21,25 @@ export interface CompilationRequest {
   files: CompilerFile[];
 }
 
+export interface SavedReportSummary {
+  id: string;
+  organizationName: string;
+  grantName: string;
+  reportingPeriod: string;
+  status: "review_required" | "ready";
+  evidenceCoveragePercent: number;
+  unresolvedItems: number;
+  sourceCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PersistedCompilationResponse {
+  reportId: string;
+  report: SavedReportSummary;
+  result: CompilationResult;
+}
+
 export type ReviewState = "verified" | "review" | "blocked";
 
 export interface SourceReference {

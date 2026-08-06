@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import { validateCompilationRequest } from "../src/lib/prototype.ts";
 import type { CompilationRequest } from "../src/types/prototype.ts";
 import { compileGrantReport } from "./reportCompiler.ts";
+import { HttpError, requireUser } from "./auth.ts";
+import { listReports, saveCompilation, saveReview } from "./persistence.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
@@ -20,7 +22,7 @@ createServer(async (request, response) => {
   try {
     const url = new URL(request.url || "/", "http://localhost");
     applyCors(request, response);
-    if (url.pathname === "/api/compile-report" && request.method === "OPTIONS") {
+    if (url.pathname.startsWith("/api/") && request.method === "OPTIONS") {
       response.statusCode = 204;
       response.end();
       return;
@@ -28,11 +30,16 @@ createServer(async (request, response) => {
     if (url.pathname === "/healthz" || url.pathname === "/api/health") {
       return json(response, 200, { status: "ok", service: "grantdeskhq-prototype" });
     }
-    if (url.pathname === "/api/compile-report") return handleCompiler(request, response);
+    if (url.pathname === "/api/config") return handleConfig(request, response);
+    if (url.pathname === "/api/compile-report" || url.pathname === "/api/reports/compile") return await handleCompiler(request, response);
+    if (url.pathname === "/api/reports") return await handleReports(request, response);
+    const reviewMatch = url.pathname.match(/^\/api\/reports\/(report_[a-f0-9]{32})\/review$/);
+    if (reviewMatch) return await handleReview(request, response, reviewMatch[1]);
     if (request.method !== "GET" && request.method !== "HEAD") return json(response, 405, { error: "Method not allowed." });
     return serveStatic(url.pathname, request.method === "HEAD", response);
   } catch (error) {
     console.error("GrantDeskHQ server error:", error instanceof Error ? error.message : "Unknown error");
+    if (error instanceof HttpError) return json(response, error.statusCode, { error: error.message });
     return json(response, 500, { error: "The prototype server could not complete this request." });
   }
 }).listen(port, "0.0.0.0", () => console.log(`GrantDeskHQ prototype listening on ${port}`));
@@ -42,16 +49,38 @@ async function handleCompiler(request: IncomingMessage, response: ServerResponse
     response.setHeader("Allow", "POST");
     return json(response, 405, { error: "Method not allowed." });
   }
+  const user = await requireUser(request);
   const input = await readJson(request) as CompilationRequest;
   if (!input || !Array.isArray(input.files)) return json(response, 400, { error: "A source package is required." });
   const errors = validateCompilationRequest(input);
   if (errors.length) return json(response, 400, { error: errors.join(" ") });
   try {
-    return json(response, 200, await compileGrantReport(input));
+    const result = await compileGrantReport(input);
+    return json(response, 200, await saveCompilation(user, input, result));
   } catch (error) {
     console.error("GrantDeskHQ compiler error:", error instanceof Error ? error.message : "Unknown error");
     return json(response, 502, { error: "The AI compiler could not complete this package. Try the synthetic package again." });
   }
+}
+
+async function handleReports(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  return json(response, 200, { reports: await listReports(await requireUser(request)) });
+}
+
+async function handleReview(request: IncomingMessage, response: ServerResponse, reportId: string) {
+  if (request.method !== "PATCH") return json(response, 405, { error: "Method not allowed." });
+  const user = await requireUser(request);
+  const input = await readJson(request) as { itemId?: string; result?: unknown };
+  if (!input.itemId || !input.result || typeof input.result !== "object") return json(response, 400, { error: "A reviewed item and report result are required." });
+  return json(response, 200, await saveReview(user, reportId, input.result as Awaited<ReturnType<typeof compileGrantReport>>, input.itemId));
+}
+
+function handleConfig(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  const apiKey = process.env.FIREBASE_WEB_API_KEY;
+  if (!apiKey) return json(response, 503, { error: "Account service is not configured." });
+  return json(response, 200, { apiKey, authDomain: "grantdeskhq-proto-ek-2026.firebaseapp.com", projectId: "grantdeskhq-proto-ek-2026" });
 }
 
 async function readJson(request: IncomingMessage) {
@@ -99,8 +128,8 @@ function applyCors(request: IncomingMessage, response: ServerResponse) {
   const origin = request.headers.origin;
   if (!origin || !allowedOrigins.has(origin)) return;
   response.setHeader("Access-Control-Allow-Origin", origin);
-  response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  response.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
+  response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
   response.setHeader("Access-Control-Max-Age", "600");
   response.setHeader("Vary", "Origin");
 }

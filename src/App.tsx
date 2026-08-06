@@ -9,6 +9,9 @@ import { PilotPage } from "./pages/PilotPage";
 import { PricingPage } from "./pages/PricingPage";
 import { CompilePage } from "./pages/CompilePage";
 import { NotFoundPage } from "./pages/NotFoundPage";
+import { LoginPage } from "./pages/LoginPage";
+import { WorkspacePage } from "./pages/WorkspacePage";
+import { AuthProvider } from "./lib/auth";
 
 function RouteEffects() {
   const location = useLocation();
@@ -28,7 +31,7 @@ function RouteEffects() {
 
 export default function App() {
   return (
-    <>
+    <AuthProvider>
       <RouteEffects />
       <Routes>
         <Route element={<SiteLayout />}>
@@ -38,11 +41,13 @@ export default function App() {
           <Route path="privacy" element={<PrivacyPage />} />
           <Route path="pricing" element={<PricingPage />} />
           <Route path="compile" element={<CompilePage />} />
+          <Route path="login" element={<LoginPage />} />
+          <Route path="workspace" element={<WorkspacePage />} />
           <Route path="assessment" element={<PilotPage />} />
           <Route path="pilot" element={<Navigate replace to="/assessment" />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
-    </>
+    </AuthProvider>
   );
 }

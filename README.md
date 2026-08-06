@@ -30,6 +30,8 @@ Working Cloud Run prototype: [grantdeskhq-prototype-me423s5k5a-uc.a.run.app](htt
 | `/` | Marketing landing page and AI Report Compiler positioning |
 | `/demo` | Stateful synthetic GrantDeskHQ agency workspace |
 | `/compile` | Guided working AI Report Compiler and evidence-validation workflow |
+| `/login` | Managed account creation, sign-in, and password reset |
+| `/workspace` | Account-isolated saved report workspace |
 | `/sample-report` | Print-ready funder-report review package |
 | `/privacy` | Honest prototype and test-file data-handling boundaries |
 | `/pricing` | Founding Nonprofit and Founding Agency pricing |
@@ -57,13 +59,38 @@ when those are available.
 - Vitest, Testing Library, and jsdom
 - Vercel and Netlify serverless function adapters
 - OpenAI Responses API with strict JSON Schema output and `store: false`
+- Google Identity Platform and the Firebase web SDK for managed accounts
+- Firestore for account-isolated report records and reviewer audit events
+- Private Google Cloud Storage for persisted source files
 - `pdf-lib` for synthetic PDF generation
 - `write-excel-file` for XLSX generation and `read-excel-file` for asset verification
 - ESLint 9 flat configuration
 - System font stack and no external images, fonts, analytics, or tracking
 
-No database is used. The API key stays in the server environment and is never
-included in the browser bundle.
+The private beta stores report records and audit events in Firestore and source
+objects in a private, public-access-blocked Cloud Storage bucket. OpenAI and
+browser-auth configuration remain in Secret Manager and are never committed to
+the repository. The Firebase browser key is domain- and API-restricted; it is
+configuration rather than an administrative credential.
+
+## Accuracy and anti-hallucination controls
+
+The beta does not treat a model response as a verified report. Its export gate
+combines:
+
+- strict JSON Schema output;
+- an independent evidence-verification model;
+- exact source-name, locator, and excerpt completeness checks;
+- deterministic CSV ledger parsing and transaction-ID matching;
+- deterministic replacement of model dates, descriptions, and amounts with
+  uploaded-ledger values;
+- duplicate, fabricated, omitted, and amount-mismatch blocking;
+- visible confidence, evidence coverage, and unresolved-review counts; and
+- a saved audit event whenever a signed-in reviewer confirms an item.
+
+The system must abstain or block when evidence is insufficient. AI verification
+reduces risk but does not prove factual correctness; professional review remains
+mandatory.
 
 ## Exact synthetic source model
 
@@ -221,7 +248,7 @@ npm audit --omit=dev
 npm audit
 ```
 
-Verified result on August 6, 2026: lint passed with zero warnings; 40
+Verified result on August 6, 2026: lint passed with zero warnings; 45
 deterministic tests passed with the opt-in live test skipped; TypeScript and the
 Vite production build passed; and all 7 direct-load routes were generated. A
 separate billable smoke test passed through the deployed Cloud Run endpoint in
@@ -276,6 +303,11 @@ client-side paths.
 
 ## Vercel deployment
 
+The persistent private beta is currently supported on Cloud Run only. The
+Vercel adapter remains useful for the earlier stateless compiler prototype but
+does not implement Identity Platform, Firestore, private source storage, or the
+saved review log.
+
 ### Dashboard
 
 1. Import the dedicated `johnnyappleseed818/grantdeskhq` repository.
@@ -316,8 +348,8 @@ gcloud run deploy grantdeskhq-prototype \
   --region=us-central1 \
   --allow-unauthenticated \
   --service-account=grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com \
-  --set-secrets=OPENAI_API_KEY=grantdeskhq-openai-key:latest \
-  --set-env-vars=OPENAI_MODEL=gpt-5.6-terra,OPENAI_VERIFIER_MODEL=gpt-5.6-luna \
+  --set-secrets=OPENAI_API_KEY=grantdeskhq-openai-key:latest,FIREBASE_WEB_API_KEY=grantdeskhq-firebase-web-key:latest \
+  --set-env-vars=OPENAI_MODEL=gpt-5.6-terra,OPENAI_VERIFIER_MODEL=gpt-5.6-luna,REPORT_FILES_BUCKET=grantdeskhq-proto-ek-2026-report-files \
   --memory=1Gi \
   --cpu=1 \
   --timeout=180 \
@@ -334,6 +366,9 @@ downloads returned HTTP 200 in the final audit. Domain mapping and DNS changes
 are deliberately separate release steps.
 
 ## Netlify deployment
+
+The Netlify function is also the earlier stateless prototype adapter. Use the
+isolated Cloud Run deployment for accounts and persisted client workspaces.
 
 ### Dashboard
 
@@ -415,8 +450,15 @@ excluded. All profiles are research records rather than Resend subscribers.
   review remain mandatory.
 - No production security certification, accounting integration, accuracy
   measurement, or performance statistic is claimed.
-- Reviewer resolutions update local browser state only; no user accounts or
-  application database exist yet.
+- Managed accounts, persistent reports, private source objects and reviewer
+  audit events are implemented. The beta currently creates one owner workspace
+  per account; team invitations and granular reviewer roles are not yet built.
+- Email verification is not yet mandatory, and there is not yet a self-service
+  source-download, retention, or account-deletion workflow. Those controls are
+  required before accepting unredacted production client data.
+- CSV ledgers receive deterministic row-level validation. XLSX ledger uploads
+  still rely on AI extraction and verification and therefore remain higher
+  risk until deterministic workbook parsing is added.
 - The contact form opens a prefilled message in the visitor's email app; the
   website does not submit, transmit, or store the form data itself. The static
   destination is configured in `src/pages/PilotPage.tsx` and is not displayed

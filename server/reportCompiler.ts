@@ -1,5 +1,6 @@
 import { compilationSchema, verificationSchema } from "./compilerSchema.ts";
 import type { CompilationRequest, CompilationResult, ValidationFinding } from "../src/types/prototype.ts";
+import { applyDeterministicAccuracyChecks } from "./accuracy.ts";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = "gpt-5.6-terra";
@@ -73,7 +74,7 @@ export async function compileGrantReport(request: CompilationRequest): Promise<C
   const blockedItems = findings.filter((finding) => finding.verdict === "blocked").length;
   const denominator = findings.length || 1;
 
-  return {
+  const result: CompilationResult = {
     ...compiled,
     validation: {
       evidenceCoveragePercent: Math.round((sourceMatchedItems / denominator) * 100),
@@ -86,6 +87,7 @@ export async function compileGrantReport(request: CompilationRequest): Promise<C
     generatedAt: new Date().toISOString(),
     model: body.model || model
   };
+  return applyDeterministicAccuracyChecks(request, result);
 }
 
 async function verifyAgainstSources(

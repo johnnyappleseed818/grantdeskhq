@@ -18,10 +18,19 @@ describe("important routes", () => {
     ["/privacy", /A careful start with client data/i],
     ["/pricing", /Start affordably\. Prove the value on a real report/i],
     ["/assessment", /Try GrantDeskHQ on one report before you pay/i],
-    ["/compile", /Turn source files into an evidence-backed report draft/i]
+    ["/compile", /Turn source files into an evidence-backed report draft/i],
+    ["/login", /Save every report, source and review decision/i]
   ])("renders %s", (route, heading) => {
     renderRoute(route);
     expect(screen.getAllByRole("heading", { name: heading }).length).toBeGreaterThan(0);
+  });
+
+  it("offers managed account access without collecting source files on the sign-in screen", () => {
+    renderRoute("/login");
+    expect(screen.getByRole("tab", { name: "Create account" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByLabelText("Work email")).toHaveAttribute("type", "email");
+    expect(screen.getByLabelText("Password")).toHaveAttribute("minlength", "8");
+    expect(screen.queryByLabelText(/file/i)).not.toBeInTheDocument();
   });
 
   it("navigates from the landing page into the working prototype", async () => {

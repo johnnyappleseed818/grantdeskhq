@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { Logo } from "./Logo";
+import { useAuth } from "../lib/auth";
 
 const marketingLinks = [
   ["How It Works", "/#how-it-works"],
@@ -14,6 +15,7 @@ const marketingLinks = [
 export function SiteLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
+  const { user } = useAuth();
 
   useEffect(() => setMenuOpen(false), [location.pathname, location.hash]);
 
@@ -49,7 +51,8 @@ export function SiteLayout() {
             {marketingLinks.map(([label, href]) => (
               <NavLink key={label} to={href} className="nav-link">{label}</NavLink>
             ))}
-            <Link className="button button-primary whitespace-nowrap" to="/compile">Try the prototype</Link>
+            <Link className="nav-link account-nav-link" to={user ? "/workspace" : "/login"}>{user ? "My workspace" : "Sign in"}</Link>
+            <Link className="button button-primary whitespace-nowrap" to={user ? "/compile" : "/login?next=/compile"}>{user ? "New report" : "Create account"}</Link>
           </nav>
         </div>
       </header>
@@ -71,6 +74,7 @@ export function SiteLayout() {
               <Link to="/compile">Working AI prototype</Link>
               <Link to="/sample-report">Synthetic sample report</Link>
               <Link to="/pricing">Pricing</Link>
+              <Link to={user ? "/workspace" : "/login"}>{user ? "My workspace" : "Account sign in"}</Link>
               <Link to="/assessment">Founding access</Link>
             </div>
           </div>

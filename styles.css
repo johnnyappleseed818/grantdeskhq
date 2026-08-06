@@ -2004,3 +2004,54 @@
     text-decoration: none !important;
   }
 }
+
+/* Private beta accounts and persistent workspace */
+.account-page { background: linear-gradient(180deg, #f7f8f5 0%, #eef3ef 100%); min-height: 72vh; }
+.account-grid { display: grid; gap: 2rem; align-items: center; padding-block: 4rem; }
+.account-value h1 { margin-top: .75rem; max-width: 700px; font-size: clamp(2.35rem, 5vw, 4.6rem); line-height: 1.02; letter-spacing: -.045em; color: #10233f; }
+.account-value > p:not(.eyebrow) { margin-top: 1.25rem; max-width: 650px; color: #526174; font-size: 1.1rem; line-height: 1.75; }
+.account-benefits { display: grid; gap: .8rem; margin-top: 2rem; }
+.account-benefits span { display: flex; align-items: center; gap: .65rem; color: #294d3a; font-weight: 700; }
+.account-benefits svg { width: 1.15rem; }
+.account-card { width: 100%; max-width: 510px; justify-self: end; padding: 1.6rem; border: 1px solid #d7ded8; background: #fff; box-shadow: 0 22px 60px rgb(16 35 63 / 10%); }
+.account-card h2 { margin: 1.5rem 0 1.2rem; color: #10233f; font-size: 1.6rem; }
+.account-card .field-label { display: grid; gap: .45rem; margin-top: 1rem; }
+.account-card .button { margin-top: 1.35rem; }
+.account-tabs { display: grid; grid-template-columns: 1fr 1fr; padding: .25rem; background: #eef1ee; }
+.account-tabs button { padding: .7rem; color: #596779; font-weight: 800; }
+.account-tabs button[aria-selected="true"] { background: #fff; color: #10233f; box-shadow: 0 1px 5px rgb(16 35 63 / 10%); }
+.account-boundary { margin-top: 1rem; color: #697586; font-size: .75rem; line-height: 1.6; }
+.account-notice { margin-block: 1rem; padding: .85rem 1rem; border-left: 3px solid #5d806b; background: #edf5ef; color: #294d3a; font-size: .875rem; }
+.text-button { margin-top: .9rem; color: #315c46; font-weight: 700; text-decoration: underline; }
+.workspace-page { min-height: 70vh; background: #f7f8f5; }
+.workspace-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 1.5rem; }
+.workspace-header h1 { margin-top: .45rem; color: #10233f; font-size: clamp(2rem, 4vw, 3.4rem); letter-spacing: -.035em; }
+.workspace-header p:not(.eyebrow) { margin-top: .6rem; color: #5a6879; }
+.workspace-actions { display: flex; flex-wrap: wrap; gap: .65rem; }
+.workspace-trust { display: flex; gap: .9rem; margin-top: 2rem; padding: 1rem 1.1rem; border: 1px solid #cbd9ce; background: #eef5ef; color: #294d3a; }
+.workspace-trust svg { flex: 0 0 1.3rem; }
+.workspace-trust p { margin-top: .2rem; font-size: .875rem; }
+.workspace-loading, .workspace-empty { display: flex; align-items: center; justify-content: center; gap: .65rem; min-height: 260px; color: #5a6879; }
+.workspace-empty { flex-direction: column; text-align: center; border: 1px dashed #c4cec6; background: #fff; margin-top: 2rem; padding: 2rem; }
+.workspace-empty > svg { width: 2.2rem; height: 2.2rem; color: #5d806b; }
+.workspace-empty h2 { color: #10233f; font-size: 1.45rem; }
+.report-list { display: grid; gap: .85rem; margin-top: 2rem; }
+.report-row { display: grid; gap: 1.25rem; padding: 1.25rem; border: 1px solid #d8deda; background: #fff; }
+.report-row h2 { margin-top: .6rem; color: #10233f; font-size: 1.2rem; }
+.report-row p { margin-top: .2rem; color: #667386; font-size: .875rem; }
+.report-row dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.report-row dt { color: #788493; font-size: .7rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.report-row dd { margin-top: .15rem; color: #10233f; font-weight: 800; }
+
+@media (min-width: 900px) {
+  .account-grid { grid-template-columns: 1.08fr .92fr; padding-block: 6rem; }
+  .report-row { grid-template-columns: minmax(0, 1fr) minmax(500px, .9fr); align-items: center; }
+  .report-row dl { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .account-grid { padding-block: 2rem; }
+  .account-card { padding: 1.1rem; }
+  .workspace-actions, .workspace-actions .button { width: 100%; }
+  .report-row dl { grid-template-columns: 1fr 1fr; }
+}

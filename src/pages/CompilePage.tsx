@@ -1,4 +1,5 @@
 import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowRight,
@@ -14,9 +15,9 @@ import {
   UploadCloud
 } from "lucide-react";
 import { MAX_FILE_BYTES, MAX_TOTAL_BYTES, canGenerateReviewPackage, resultToDownload, validateCompilationRequest } from "../lib/prototype";
-import type { CompilationRequest, CompilationResult, CompilerFile, SourceRole } from "../types/prototype";
-
-const compilerEndpoint = import.meta.env.VITE_COMPILER_ENDPOINT || "/api/compile-report";
+import { apiRequest } from "../lib/api";
+import { useAuth } from "../lib/auth";
+import type { CompilationRequest, CompilationResult, CompilerFile, PersistedCompilationResponse, SourceRole } from "../types/prototype";
 
 const sourceFields: Array<{ role: SourceRole; label: string; help: string; accept: string; required: boolean }> = [
   { role: "awardAgreement", label: "Award agreement", help: "PDF, DOCX, or TXT", accept: ".pdf,.docx,.txt", required: true },
@@ -44,6 +45,8 @@ const sampleAssets: Array<{ role: SourceRole; url?: string; name: string; text?:
 type ResultTab = "overview" | "requirements" | "mapping" | "narrative" | "review";
 
 export function CompilePage() {
+  const { user, token } = useAuth();
+  const navigate = useNavigate();
   const [meta, setMeta] = useState({
     organizationName: "Hope Community Services",
     grantName: "Pacific Youth Foundation — Youth Access Initiative",
@@ -57,6 +60,7 @@ export function CompilePage() {
   const [result, setResult] = useState<CompilationResult | null>(null);
   const [activeTab, setActiveTab] = useState<ResultTab>("overview");
   const [wizardStep, setWizardStep] = useState(1);
+  const [reportId, setReportId] = useState("");
 
   const totalBytes = useMemo(() => Object.values(files).reduce((sum, file) => sum + (file?.size || 0), 0), [files]);
   const requiredFilesComplete = sourceFields.filter((field) => field.required).every((field) => files[field.role]);
@@ -130,16 +134,16 @@ export function CompilePage() {
       return;
     }
 
+    if (!user) {
+      navigate("/login?next=/compile");
+      return;
+    }
+
     setCompiling(true);
     try {
-      const response = await fetch(compilerEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const body = await response.json() as CompilationResult & { error?: string };
-      if (!response.ok) throw new Error(body.error || "The report compiler could not complete this package.");
-      setResult(body);
+      const body = await apiRequest<PersistedCompilationResponse>("/api/reports/compile", await token(), { method: "POST", body: JSON.stringify(payload) });
+      setResult(body.result);
+      setReportId(body.reportId);
       setActiveTab("overview");
       window.requestAnimationFrame(() => document.getElementById("compiler-results")?.focus());
     } catch (compileError) {
@@ -149,14 +153,19 @@ export function CompilePage() {
     }
   };
 
-  const resolveCheck = (id: string) => setResult((current) => current ? {
-    ...current,
-    qualityChecks: current.qualityChecks.map((check) => check.id === id ? { ...check, status: "passed", detail: `${check.detail} Reviewed and confirmed in this prototype session.` } : check),
-    validation: {
-      ...current.validation,
-      findings: current.validation.findings.map((finding) => finding.id === id ? { ...finding, verdict: "source_matched", reason: `${finding.reason} A professional reviewer confirmed this item in the current session.` } : finding)
-    }
-  } : current);
+  const resolveCheck = (id: string) => setResult((current) => {
+    if (!current) return current;
+    const next = {
+      ...current,
+      qualityChecks: current.qualityChecks.map((check) => check.id === id ? { ...check, status: "passed" as const, detail: `${check.detail} Reviewed and confirmed by the signed-in user.` } : check),
+      validation: {
+        ...current.validation,
+        findings: current.validation.findings.map((finding) => finding.id === id ? { ...finding, verdict: "source_matched" as const, reason: `${finding.reason} A professional reviewer confirmed this item.` } : finding)
+      }
+    };
+    if (reportId && user) token().then((idToken) => apiRequest(`/api/reports/${reportId}/review`, idToken, { method: "PATCH", body: JSON.stringify({ itemId: id, result: next }) })).catch(() => setError("The review changed locally but could not be saved. Try again before leaving this page."));
+    return next;
+  });
 
   const download = () => {
     if (!result || !canGenerateReviewPackage(result)) return;
@@ -173,10 +182,11 @@ export function CompilePage() {
       <section className="compile-hero">
         <div className="site-shell grid items-start gap-10 py-12 lg:grid-cols-[1fr_.78fr] lg:py-16">
           <div>
-            <div className="prototype-pill"><span aria-hidden="true" /> Working AI prototype · professional review required</div>
+            <div className="prototype-pill"><span aria-hidden="true" /> Private beta · professional review required</div>
             <p className="eyebrow mt-7">AI Report Compiler</p>
             <h1 className="page-title">Turn source files into an evidence-backed report draft.</h1>
-            <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">Upload a small test package. GrantDeskHQ reads the funder’s structure, suggests transaction mappings, identifies missing information, drafts source-supported narrative, and builds a focused review list.</p>
+            <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">Upload a small test package. GrantDeskHQ reads the funder’s structure, suggests transaction mappings, identifies missing information, drafts source-supported narrative, and saves the evidence trail for review.</p>
+            {user ? <p className="mt-4 text-sm font-semibold text-emerald-800">Signed in as {user.email}. Your report and review history will be saved.</p> : <p className="mt-4 text-sm text-slate-600"><Link className="font-semibold text-emerald-800 underline" to="/login?next=/compile">Create an account or sign in</Link> before compilation so the report can be saved securely.</p>}
           </div>
           <div className="compile-boundary">
             <LockKeyhole aria-hidden="true" />
@@ -272,6 +282,7 @@ export function CompilePage() {
         </form>
       </section>
 
+      {reportId && <div className="site-shell"><div className="account-notice">Report saved to your private workspace. <Link className="underline" to="/workspace">View saved reports</Link></div></div>}
       {result && <CompilerResults result={result} activeTab={activeTab} setActiveTab={setActiveTab} onResolve={resolveCheck} onDownload={download} />}
     </div>
   );
