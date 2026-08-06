@@ -257,6 +257,12 @@ verifier model, and strict structured output. The audit commands report the
 upstream React Router RSC-mode advisory described above; no affected RSC or
 server-action mode exists in this project.
 
+The authenticated private-beta smoke test also passed: a disposable Identity
+Platform account compiled six synthetic sources, received 91% evidence
+coverage with review items held open, retrieved the saved report through the
+workspace API, and persisted all six sources to its account-isolated private
+bucket path. The disposable QA account was disabled afterward.
+
 Runtime checks should confirm HTTP 200 for:
 
 ```text
@@ -360,7 +366,7 @@ gcloud run deploy grantdeskhq-prototype \
 
 The deployed service is `grantdeskhq-prototype` in
 `grantdeskhq-proto-ek-2026`; the final verified revision is
-`grantdeskhq-prototype-00003-d5p`. It scales to zero when idle and is capped at
+`grantdeskhq-prototype-00005-w9w`. It scales to zero when idle and is capped at
 two instances. Its `/api/health` endpoint and all documented routes and sample
 downloads returned HTTP 200 in the final audit. Domain mapping and DNS changes
 are deliberately separate release steps.

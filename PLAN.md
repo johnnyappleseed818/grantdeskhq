@@ -17,4 +17,4 @@
 3. [x] Store uploaded source files in a private Cloud Storage bucket with public access prevention.
 4. [x] Add deterministic ledger checks that override model arithmetic and block fabricated, duplicate, missing or mismatched transactions.
 5. [x] Add saved-workspace and account onboarding screens optimized for desktop and mobile.
-6. [ ] Deploy and verify the authenticated beta end to end in the isolated GrantDeskHQ project.
+6. [x] Deploy and verify the authenticated beta end to end in the isolated GrantDeskHQ project.
