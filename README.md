@@ -241,6 +241,11 @@ readiness, workspace, and private GTM routes are excluded. The application root
 is explicitly masked for Microsoft Clarity, and no account identifiers are sent
 to either tool.
 
+Before activating GA4, open the web data stream's **Enhanced measurement**
+settings and disable **Page changes based on browser history events**. GA4 can
+otherwise emit its own SPA history-change page views in addition to the
+application's filtered manual events.
+
 Vite by itself serves the frontend and synthetic demo. Use `vercel dev` or
 `netlify dev` when testing the `/api/compile-report` serverless endpoint
 locally. Never prefix the secret with `VITE_`; Vite-prefixed variables are
