@@ -13,6 +13,8 @@ evidence-verification pass.
 
 Production domain: [grantdeskhq.com](https://grantdeskhq.com)
 
+Working Cloud Run prototype: [grantdeskhq-prototype-me423s5k5a-uc.a.run.app](https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app)
+
 ## Repository isolation
 
 - Local Git root: `/home/eli_katz/grantdesk`
@@ -108,6 +110,7 @@ grantdesk/
 ├── api/compile-report.ts
 ├── server/
 │   ├── compilerSchema.ts
+│   ├── cloudRun.ts
 │   └── reportCompiler.ts
 ├── netlify/functions/compile-report.ts
 ├── public/
@@ -134,6 +137,7 @@ grantdesk/
 │   ├── App.tsx
 │   └── main.tsx
 ├── index.html
+├── Dockerfile
 ├── styles.css
 ├── script.js
 ├── scripts/create-spa-routes.js
@@ -195,11 +199,12 @@ npm audit
 - `npm run preview -- --host 127.0.0.1 --port 4173` serves the production
   build for runtime route and download verification.
 - The current npm advisory database flags React Router's server/RSC action
-  mode. GrantDeskHQ is a static client-only application: it has no server
-  rendering, React Server Components, route actions, backend, or action
-  endpoints. The finding is therefore not reachable in this deployment, but
-  the dependency should be upgraded when the router project publishes a fixed
-  release.
+  mode. GrantDeskHQ uses React Router only in the compiled browser application;
+  it has no React Server Components, React Router server rendering, or React
+  Router route actions. The custom Node compiler endpoint does not execute
+  React Router code. The reported path is therefore not reachable in this
+  deployment, but the dependency should be upgraded when the router project
+  publishes a fixed current release.
 
 ## Verified implementation commands
 
@@ -215,8 +220,12 @@ npm audit --omit=dev
 npm audit
 ```
 
-Verified result: lint passed with zero warnings, all 33 tests passed, and the
-Vite production build completed. The two audit commands report only the same
+Verified result on August 6, 2026: lint passed with zero warnings; 40
+deterministic tests passed with the opt-in live test skipped; TypeScript and the
+Vite production build passed; and all 7 direct-load routes were generated. A
+separate billable smoke test passed through the deployed Cloud Run endpoint in
+48.89 seconds, exercising source upload, the compiler model, the independent
+verifier model, and strict structured output. The audit commands report the
 upstream React Router RSC-mode advisory described above; no affected RSC or
 server-action mode exists in this project.
 
@@ -303,12 +312,23 @@ gcloud run deploy grantdeskhq-prototype \
   --project=grantdeskhq-proto-ek-2026 \
   --region=us-central1 \
   --allow-unauthenticated \
+  --service-account=grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com \
   --set-secrets=OPENAI_API_KEY=grantdeskhq-openai-key:latest \
-  --set-env-vars=OPENAI_MODEL=gpt-5.6-terra,OPENAI_VERIFIER_MODEL=gpt-5.6-luna
+  --set-env-vars=OPENAI_MODEL=gpt-5.6-terra,OPENAI_VERIFIER_MODEL=gpt-5.6-luna \
+  --memory=1Gi \
+  --cpu=1 \
+  --timeout=180 \
+  --concurrency=4 \
+  --min=0 \
+  --max=2
 ```
 
-The default `run.app` URL is suitable for prototype review. Domain mapping and
-DNS changes are deliberately separate release steps.
+The deployed service is `grantdeskhq-prototype` in
+`grantdeskhq-proto-ek-2026`, revision `grantdeskhq-prototype-00002-wjm`. It
+scales to zero when idle and is capped at two instances. Its `/api/health`
+endpoint and all documented routes and sample downloads returned HTTP 200 in
+the final audit. Domain mapping and DNS changes are deliberately separate
+release steps.
 
 ## Netlify deployment
 
