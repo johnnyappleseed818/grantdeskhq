@@ -327,11 +327,11 @@ gcloud run deploy grantdeskhq-prototype \
 ```
 
 The deployed service is `grantdeskhq-prototype` in
-`grantdeskhq-proto-ek-2026`, revision `grantdeskhq-prototype-00002-wjm`. It
-scales to zero when idle and is capped at two instances. Its `/api/health`
-endpoint and all documented routes and sample downloads returned HTTP 200 in
-the final audit. Domain mapping and DNS changes are deliberately separate
-release steps.
+`grantdeskhq-proto-ek-2026`; the final verified revision is
+`grantdeskhq-prototype-00003-d5p`. It scales to zero when idle and is capped at
+two instances. Its `/api/health` endpoint and all documented routes and sample
+downloads returned HTTP 200 in the final audit. Domain mapping and DNS changes
+are deliberately separate release steps.
 
 ## Netlify deployment
 
