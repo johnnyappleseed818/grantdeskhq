@@ -13,6 +13,7 @@
     "pretest": "npm run generate:assets",
     "test": "vitest run",
     "test:watch": "vitest",
+    "eval:ai": "node scripts/run-ai-accuracy-eval.mjs",
     "build": "npm run generate:assets && tsc --noEmit && vite build && node scripts/create-spa-routes.js",
     "preview": "vite preview",
     "outreach:preview": "node scripts/gtm/resend-opt-in-broadcast.mjs",
