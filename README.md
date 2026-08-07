@@ -427,7 +427,7 @@ gcloud run deploy grantdeskhq-prototype \
 
 The deployed service is `grantdeskhq-prototype` in
 `grantdeskhq-proto-ek-2026`; the current verified revision is
-`grantdeskhq-prototype-00008-qx5`. It scales to zero when idle and is capped at
+`grantdeskhq-prototype-00012-987`. It scales to zero when idle and is capped at
 two instances. Its `/api/health`, `/gtm`, and `/readiness` routes returned HTTP
 200 in the final audit; an unauthenticated request to
 `/api/readiness-assessment` correctly returned HTTP 401. Domain mapping and DNS
