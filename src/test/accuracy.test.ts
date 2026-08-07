@@ -81,4 +81,13 @@ describe("deterministic accuracy controls", () => {
     expect(checked.narrative[0].status).toBe("blocked");
     expect(checked.validation.findings.some((item) => item.itemId === checked.narrative[0].id && /not present in the confirmed current-period KPI data/i.test(item.reason))).toBe(true);
   });
+
+  it("allows financial amounts that come from the ledger or a source-matched requirement", () => {
+    const requirement = { ...prototypeFixture.requirements[0], id: "REQ-TRAVEL", requirement: "Travel over $1,000 requires a receipt.", source: { ...prototypeFixture.requirements[0].source, excerpt: "Travel over $1,000 requires a receipt." } };
+    const validation = { ...prototypeFixture.validation, findings: [...prototypeFixture.validation.findings, { ...prototypeFixture.validation.findings[0], id: "VAL-TRAVEL", itemId: "requirement:REQ-TRAVEL", verdict: "source_matched" as const }] };
+    const withSupportedAmounts = { ...prototypeFixture, requirements: [...prototypeFixture.requirements, requirement], validation, narrative: prototypeFixture.narrative.map((item, index) => index === 0 ? { ...item, text: "Transaction TRV-003 was $3,450 and exceeds the $1,000 receipt threshold." } : item) };
+    const checked = applyDeterministicAccuracyChecks(requestWithConfirmedKpi(), withSupportedAmounts);
+    expect(checked.narrative[0].status).not.toBe("blocked");
+    expect(checked.qualityChecks.find((item) => item.id === "deterministic-workflow-facts")?.status).toBe("passed");
+  });
 });

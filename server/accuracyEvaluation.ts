@@ -57,7 +57,7 @@ function requirementAccuracy(result: CompilationResult) {
     signal("Variance threshold is 10% of elapsed-period plan", corpus, /10\s*%.{0,180}(elapsed|spending plan)|(elapsed|spending plan).{0,180}10\s*%/),
     signal("Narrative limit is 200 words", corpus, /200.{0,80}word|word.{0,80}200/),
     signal("Youth-served count is required", corpus, /youth.{0,80}serv/),
-    signal("Signed certification is required", corpus, /signed.{0,80}certification|certification.{0,80}signed/)
+    signal("Signed certification is required", corpus, /sign(ed|ature)?.{0,80}certification|certification.{0,80}sign(ed|ature)?/)
   ];
   return category("Funder-rule recall", 25, checks);
 }

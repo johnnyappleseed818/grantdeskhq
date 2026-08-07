@@ -14,7 +14,7 @@ if (secret.status !== 0 || !secret.stdout.trim()) {
 
 const evaluation = spawnSync(
   "npx",
-  ["vitest", "run", "src/test/compiler.accuracy-evaluation.test.ts"],
+  ["vitest", "run", "--disableConsoleIntercept", "src/test/compiler.accuracy-evaluation.test.ts"],
   {
     cwd: process.cwd(),
     env: {

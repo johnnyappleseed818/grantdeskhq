@@ -4,6 +4,7 @@ interface LedgerRow { id: string; date: string; description: string; amount: num
 interface WorkflowFacts {
   programMetrics?: Array<{ label: string; target: number; actual: number }>;
   budgetVsActual?: Array<{ approvedAmount: number; actualEligibleExpenditure: number; remainingAmount: number; percentageSpent: number; varianceAmount: number; spendRateAgainstElapsedPlan: number | null }>;
+  knownFinancialAmounts?: number[];
 }
 
 export function applyDeterministicAccuracyChecks(request: CompilationRequest, result: CompilationResult): CompilationResult {
@@ -50,9 +51,14 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
   }
 
   const workflowFacts = parseWorkflowFacts(request);
+  const sourceMatchedRequirementIds = new Set(result.validation.findings.filter((item) => item.verdict === "source_matched" && item.itemId.startsWith("requirement:")).map((item) => item.itemId.slice("requirement:".length)));
+  const sourceMatchedRequirementAmounts = result.requirements
+    .filter((item) => sourceMatchedRequirementIds.has(item.id))
+    .flatMap((item) => extractFinancialAmounts(`${item.requirement} ${item.source.excerpt}`));
+  const sourceFinancialAmounts = [...ledger.map((row) => row.amount), ...sourceMatchedRequirementAmounts];
   let workflowFactIssue = false;
   const narrative = result.narrative.map((item) => {
-    const reasons = narrativeContradictions(item.text, workflowFacts);
+    const reasons = narrativeContradictions(item.text, workflowFacts, sourceFinancialAmounts);
     if (!reasons.length) return item;
     workflowFactIssue = true;
     deterministicFindings.push(finding(item.id, "blocked", reasons.join(" ")));
@@ -107,7 +113,7 @@ function parseWorkflowFacts(request: CompilationRequest): WorkflowFacts {
   catch { return {}; }
 }
 
-function narrativeContradictions(text: string, facts: WorkflowFacts) {
+function narrativeContradictions(text: string, facts: WorkflowFacts, sourceFinancialAmounts: number[]) {
   const reasons: string[] = [];
   const lower = text.toLowerCase();
   for (const metric of facts.programMetrics || []) {
@@ -123,12 +129,16 @@ function narrativeContradictions(text: string, facts: WorkflowFacts) {
       else if (close(value, metric.target) && !close(metric.target, metric.actual) && !/(target|goal|planned|plan)/.test(context)) reasons.push(`${metric.label} uses the target ${metric.target} as an achieved result; the confirmed actual is ${metric.actual}.`);
     }
   }
-  const allowedFinancialValues = (facts.budgetVsActual || []).flatMap((line) => [line.approvedAmount, line.actualEligibleExpenditure, line.remainingAmount, line.percentageSpent, line.varianceAmount, line.spendRateAgainstElapsedPlan]).filter((value): value is number => value !== null && Number.isFinite(value));
+  const allowedFinancialValues = [...(facts.budgetVsActual || []).flatMap((line) => [line.approvedAmount, line.actualEligibleExpenditure, line.remainingAmount, line.percentageSpent, line.varianceAmount, line.spendRateAgainstElapsedPlan]), ...(facts.knownFinancialAmounts || []), ...sourceFinancialAmounts].filter((value): value is number => value !== null && Number.isFinite(value));
   for (const match of text.matchAll(/\$\s*([\d,]+(?:\.\d+)?)/g)) {
     const value = Number(match[1].replaceAll(",", ""));
     if (allowedFinancialValues.length && !allowedFinancialValues.some((allowed) => close(Math.abs(value), Math.abs(allowed), 0.011))) reasons.push(`The financial amount ${match[0]} is not present in the deterministic budget-versus-actual results.`);
   }
   return [...new Set(reasons)];
+}
+
+function extractFinancialAmounts(text: string) {
+  return [...text.matchAll(/\$\s*([\d,]+(?:\.\d+)?)/g)].map((match) => Number(match[1].replaceAll(",", ""))).filter(Number.isFinite);
 }
 
 function close(left: number, right: number, tolerance = 0.005) { return Math.abs(left - right) < tolerance; }

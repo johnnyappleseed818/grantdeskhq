@@ -30,7 +30,8 @@ function evaluationRequest(): CompilationRequest {
       { approvedAmount: 35000, actualEligibleExpenditure: 14850, remainingAmount: 20150, percentageSpent: 42.4285714286, varianceAmount: -2650, spendRateAgainstElapsedPlan: 84.8571428571 },
       { approvedAmount: 15000, actualEligibleExpenditure: 9800, remainingAmount: 5200, percentageSpent: 65.3333333333, varianceAmount: 2300, spendRateAgainstElapsedPlan: 130.6666666667 },
       { approvedAmount: 10000, actualEligibleExpenditure: 5000, remainingAmount: 5000, percentageSpent: 50, varianceAmount: 0, spendRateAgainstElapsedPlan: 100 }
-    ]
+    ],
+    knownFinancialAmounts: [150000, 75400, 74150, 75850, 1250, 75000, 850, 2300, 7500]
   };
   return {
     organizationName: "Hope Community Services",
