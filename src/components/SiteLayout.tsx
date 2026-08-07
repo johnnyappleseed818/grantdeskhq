@@ -65,14 +65,14 @@ export function SiteLayout() {
           <div>
             <Logo inverse />
             <p className="mt-4 max-w-md text-sm leading-6 text-slate-400">
-              AI-powered grant-reporting workflow designed to reduce manual overhead and catch issues earlier. The public demo uses synthetic data; final decisions stay with your team.
+              Prepare funder-specific grant reports faster with AI. GrantDeskHQ organizes source files, drafts source-linked content, and surfaces missing evidence so finance teams can reduce manual work and review with confidence.
             </p>
           </div>
           <div>
             <p className="footer-heading">Product</p>
             <div className="mt-3 grid gap-2 text-sm">
               <Link to="/demo">Interactive demo</Link>
-              <Link to="/compile">Working AI prototype</Link>
+              <Link to="/compile">AI Report Compiler</Link>
               <Link to="/readiness">Free readiness audit</Link>
               <Link to="/sample-report">Synthetic sample report</Link>
               <Link to="/pricing">Pricing</Link>

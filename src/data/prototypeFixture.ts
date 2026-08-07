@@ -64,7 +64,7 @@ export const prototypeFixture: CompilationResult = {
       { id: "VAL-004", itemId: "UNM-001", verdict: "blocked", reason: "No source establishes the appropriate grant category.", source: { sourceName: "General_Ledger_Export.csv", locator: "UNM-001", excerpt: "Class / grant tag: blank" } }
     ]
   },
-  warnings: ["Prototype output requires professional review.", "No report has been submitted automatically."],
+  warnings: ["This output requires professional review.", "No report has been submitted automatically."],
   generatedAt: "2026-08-05T00:00:00.000Z",
   model: "synthetic-fixture"
 };

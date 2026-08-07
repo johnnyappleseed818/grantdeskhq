@@ -38,6 +38,17 @@ export interface GtmEvidence {
   supports: string[];
 }
 
+export interface GtmContact {
+  name: string;
+  title: string;
+  email: string;
+  emailKind: "direct" | "organization_inbox";
+  roleSourceUrl: string;
+  emailSourceUrl: string;
+  verifiedAt: string;
+  note: string;
+}
+
 export interface OpportunityScoringInput {
   pain: number;
   timing: number;
@@ -65,6 +76,8 @@ export interface GtmOpportunity {
   recommendedRoles: string[];
   whyNow: string;
   recommendedAngle: string;
+  primaryContact?: GtmContact;
+  emailSubject: string;
   draftMessage: string;
 }
 
@@ -98,6 +111,9 @@ export function assessOpportunityAccuracy(opportunity: GtmOpportunity, today = "
   if (!opportunity.nonprofitVerified) blockers.push("Nonprofit status has not been verified.");
   if (!validSources.length) blockers.push("No usable source evidence is attached.");
   if (opportunity.conflicts.length) blockers.push(...opportunity.conflicts.map((conflict) => `Conflicting evidence: ${conflict}`));
+  if (!opportunity.primaryContact?.name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(opportunity.primaryContact.email)) blockers.push("A named recipient and verified email have not been attached.");
+  if (opportunity.primaryContact && (!opportunity.primaryContact.roleSourceUrl.startsWith("https://") || !opportunity.primaryContact.emailSourceUrl.startsWith("https://"))) blockers.push("The recipient role and email require authoritative source links.");
+  if (!opportunity.emailSubject?.trim() || !opportunity.draftMessage?.trim()) blockers.push("The outreach subject and draft are incomplete.");
   if (!opportunity.recommendedRoles.length) warnings.push("No supported buyer role has been identified.");
   if (opportunity.unknowns.length) warnings.push(...opportunity.unknowns);
   if (age > 45) warnings.push("Signal is older than 45 days and should be rechecked.");

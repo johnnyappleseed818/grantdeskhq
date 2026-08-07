@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Download,
-  FileCheck2,
   FileText,
   LoaderCircle,
   LockKeyhole,
@@ -28,20 +27,6 @@ const sourceFields: Array<{ role: SourceRole; label: string; help: string; accep
   { role: "supportingEvidence", label: "Supporting evidence", help: "Optional PDF, XLSX, CSV, or image", accept: ".pdf,.xlsx,.csv,.png,.jpg,.jpeg", required: false }
 ];
 
-const sampleAssets: Array<{ role: SourceRole; url?: string; name: string; text?: string; type?: string }> = [
-  { role: "awardAgreement", url: "/samples/Synthetic_Grant_Agreement.pdf", name: "Synthetic_Grant_Agreement.pdf" },
-  { role: "approvedBudget", url: "/samples/Approved_Grant_Budget.xlsx", name: "Approved_Grant_Budget.xlsx" },
-  { role: "ledgerExport", url: "/samples/General_Ledger_Export.csv", name: "General_Ledger_Export.csv" },
-  { role: "funderTemplate", url: "/samples/Synthetic_Funder_Report_Draft.pdf", name: "Synthetic_Funder_Template.pdf" },
-  {
-    role: "programUpdate",
-    name: "Synthetic_Program_Update.txt",
-    type: "text/plain",
-    text: "SYNTHETIC DEMONSTRATION DATA\nConfirmed youth served: 118 of a six-month target of 120. Two workshops were deferred. Three additional school-site visits were approved. The program expanded into two additional schools. Mileage reimbursement increased. One travel receipt remains missing."
-  },
-  { role: "supportingEvidence", url: "/samples/Transaction_Evidence_Schedule.xlsx", name: "Transaction_Evidence_Schedule.xlsx" }
-];
-
 type ResultTab = "overview" | "requirements" | "mapping" | "narrative" | "review";
 
 export function CompilePage() {
@@ -54,7 +39,6 @@ export function CompilePage() {
   });
   const [files, setFiles] = useState<Partial<Record<SourceRole, File>>>({});
   const [acknowledged, setAcknowledged] = useState(false);
-  const [loadingSamples, setLoadingSamples] = useState(false);
   const [compiling, setCompiling] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<CompilationResult | null>(null);
@@ -73,26 +57,15 @@ export function CompilePage() {
     setError("");
   };
 
-  const loadSamples = async () => {
-    setLoadingSamples(true);
-    setError("");
-    try {
-      const entries = await Promise.all(sampleAssets.map(async (asset) => {
-        if (asset.text) return [asset.role, new File([asset.text], asset.name, { type: asset.type })] as const;
-        const response = await fetch(asset.url!);
-        if (!response.ok) throw new Error(`Could not load ${asset.name}.`);
-        const blob = await response.blob();
-        return [asset.role, new File([blob], asset.name, { type: blob.type })] as const;
-      }));
-      setFiles(Object.fromEntries(entries));
-      setAcknowledged(true);
-      setWizardStep(3);
-      setMeta({ organizationName: "Hope Community Services", grantName: "Pacific Youth Foundation — Youth Access Initiative", reportingPeriod: "January 1–June 30, 2026" });
-    } catch (sampleError) {
-      setError(sampleError instanceof Error ? sampleError.message : "The sample package could not be loaded.");
-    } finally {
-      setLoadingSamples(false);
-    }
+  const uploadPackage = (event: ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(event.target.files || []);
+    if (!selected.length) return;
+    const { assigned, unmatched } = assignPackageFiles(selected, files);
+    setFiles((current) => ({ ...current, ...assigned }));
+    setResult(null);
+    setWizardStep(2);
+    setError(unmatched.length ? `${unmatched.map((file) => file.name).join(", ")} could not be assigned automatically. Add each file to the appropriate source box below.` : "");
+    event.target.value = "";
   };
 
   const moveWizard = (direction: 1 | -1) => {
@@ -190,7 +163,7 @@ export function CompilePage() {
           </div>
           <div className="compile-boundary">
             <LockKeyhole aria-hidden="true" />
-            <div><strong>Use synthetic or redacted test files only.</strong><p>This early prototype sends the selected files to the configured AI provider for processing. It does not connect to your accounting system or submit a report.</p></div>
+            <div><strong>Use synthetic or appropriately redacted files during private beta.</strong><p>GrantDeskHQ sends only the files you select to the configured AI service to prepare the draft and evidence review. It does not connect to your accounting system or submit reports on your behalf.</p></div>
           </div>
         </div>
       </section>
@@ -201,10 +174,10 @@ export function CompilePage() {
           {["Read funder rules and report structure", "Suggest financial mappings with confidence", "Ask only for evidence that is missing", "Draft statements with visible citations", "Block unsupported content before export"].map((step, index) => (
             <div className="compile-guide-step" key={step}><span>{index + 1}</span><p>{step}</p></div>
           ))}
-          <button type="button" className="button button-secondary mt-6 w-full" onClick={loadSamples} disabled={loadingSamples}>
-            {loadingSamples ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <FileCheck2 aria-hidden="true" />}
-            {loadingSamples ? "Loading sample package…" : "Load synthetic sample package"}
-          </button>
+          <label className="button button-secondary mt-6 w-full cursor-pointer" htmlFor="package-upload">
+            <UploadCloud aria-hidden="true" />Upload documentation for evaluation
+          </label>
+          <input id="package-upload" className="sr-only" type="file" multiple accept=".pdf,.docx,.txt,.xlsx,.csv,.png,.jpg,.jpeg" onChange={uploadPackage} />
         </aside>
 
         <form className="compile-form" onSubmit={submit}>
@@ -248,7 +221,7 @@ export function CompilePage() {
             <p className="wizard-intro">GrantDeskHQ runs these controls before it starts drafting, then runs a separate evidence-verification pass after compilation.</p>
             <div className="preflight-list">
               <Preflight label="Required source roles present" passed={requiredFilesComplete} detail={`${sourceFields.filter((field) => field.required && files[field.role]).length} of 5 required sources`} />
-              <Preflight label="Package fits prototype limits" passed={totalBytes <= MAX_TOTAL_BYTES && Object.values(files).every((file) => (file?.size || 0) <= MAX_FILE_BYTES)} detail={`${formatBytes(totalBytes)} total · 1 MB maximum per file`} />
+              <Preflight label="Package fits file limits" passed={totalBytes <= MAX_TOTAL_BYTES && Object.values(files).every((file) => (file?.size || 0) <= MAX_FILE_BYTES)} detail={`${formatBytes(totalBytes)} total · 1 MB maximum per file`} />
               <Preflight label="Independent evidence verification enabled" passed detail="A second pass challenges citations, mappings, calculations, and narrative claims." />
               <Preflight label="Unsupported output blocked from export" passed detail="Required review items must be resolved by a professional before package generation." />
             </div>
@@ -380,6 +353,42 @@ function Preflight({ label, passed, detail }: { label: string; passed: boolean; 
 
 function Field({ label, id, children }: { label: string; id: string; children: React.ReactNode }) {
   return <div><label className="field-label" htmlFor={id}>{label}</label>{children}</div>;
+}
+
+const roleHints: Array<[SourceRole, RegExp]> = [
+  ["awardAgreement", /(award|agreement|grant[ _-]?agreement)/i],
+  ["approvedBudget", /(approved[ _-]?budget|grant[ _-]?budget|budget)/i],
+  ["ledgerExport", /(general[ _-]?ledger|ledger|gl[ _-]?export|transactions?)/i],
+  ["funderTemplate", /(funder|report[ _-]?template|blank[ _-]?report|template)/i],
+  ["programUpdate", /(program[ _-]?update|program[ _-]?report|narrative|outcomes?)/i],
+  ["supportingEvidence", /(support|evidence|receipt|invoice|documentation)/i]
+];
+
+function assignPackageFiles(selected: File[], current: Partial<Record<SourceRole, File>>) {
+  const assigned: Partial<Record<SourceRole, File>> = {};
+  const occupied = new Set<SourceRole>(Object.keys(current) as SourceRole[]);
+  const unmatched: File[] = [];
+
+  for (const file of selected) {
+    const hinted = roleHints.find(([role, pattern]) => pattern.test(file.name) && acceptsFile(role, file))?.[0];
+    const role = hinted && !occupied.has(hinted)
+      ? hinted
+      : sourceFields.find((field) => !occupied.has(field.role) && acceptsFile(field.role, file))?.role;
+    if (!role) {
+      unmatched.push(file);
+      continue;
+    }
+    assigned[role] = file;
+    occupied.add(role);
+  }
+
+  return { assigned, unmatched };
+}
+
+function acceptsFile(role: SourceRole, file: File) {
+  const field = sourceFields.find((candidate) => candidate.role === role);
+  const extension = file.name.toLowerCase().match(/\.[a-z0-9]+$/)?.[0] || "";
+  return Boolean(field?.accept.split(",").includes(extension));
 }
 
 async function fileToCompilerFile(role: SourceRole, file: File): Promise<CompilerFile> {

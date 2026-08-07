@@ -47,7 +47,7 @@ createServer(async (request, response) => {
   } catch (error) {
     console.error("GrantDeskHQ server error:", error instanceof Error ? error.message : "Unknown error");
     if (error instanceof HttpError) return json(response, error.statusCode, { error: error.message });
-    return json(response, 500, { error: "The prototype server could not complete this request." });
+    return json(response, 500, { error: "GrantDeskHQ could not complete this request." });
   }
 }).listen(port, "0.0.0.0", () => console.log(`GrantDeskHQ prototype listening on ${port}`));
 
@@ -139,7 +139,7 @@ async function readJson(request: IncomingMessage) {
   for await (const chunk of request) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     received += buffer.length;
-    if (received > maxBodyBytes) throw new Error("Request body exceeds the prototype limit.");
+    if (received > maxBodyBytes) throw new Error("Request body exceeds the current file limit.");
     chunks.push(buffer);
   }
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));

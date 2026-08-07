@@ -2104,6 +2104,10 @@
 .gtm-filters { display: flex; flex-wrap: wrap; gap: .35rem; }
 .gtm-filters button { padding: .55rem .7rem; border: 1px solid #d8dfda; border-radius: 999px; color: #5c6b7d; font-size: .7rem; font-weight: 800; }
 .gtm-filters button.is-active { border-color: #347553; background: #eaf5ee; color: #215f43; }
+.gtm-candidate-note { display: flex; gap: .7rem; margin-bottom: 1rem; padding: .85rem 1rem; border: 1px solid #d8dfda; background: #f7f9f7; color: #566777; border-radius: .8rem; }
+.gtm-candidate-note > svg { flex: 0 0 1.1rem; margin-top: .15rem; color: #347553; }
+.gtm-candidate-note p { font-size: .76rem; line-height: 1.55; }
+.gtm-candidate-note strong { color: #17334a; }
 .gtm-opportunity-list { display: grid; gap: .85rem; }
 .gtm-opportunity { display: grid; overflow: hidden; border: 1px solid #d7ded9; background: #fff; box-shadow: 0 4px 18px rgb(16 35 63 / 4%); border-radius: 1rem; }
 .gtm-score { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem 1rem; background: #edf4ef; color: #245d42; }
@@ -2118,6 +2122,15 @@
 .gtm-facts { display: flex; flex-wrap: wrap; gap: .55rem 1rem; margin-top: .75rem; color: #5e6d7d; font-size: .75rem; }
 .gtm-facts span { display: inline-flex; align-items: center; gap: .35rem; }
 .gtm-facts svg { width: .9rem; color: #347553; }
+.gtm-contact-summary { display: flex; align-items: flex-start; gap: .65rem; margin-top: .85rem; padding: .75rem .85rem; border: 1px solid #cfe0d4; background: #f5faf6; border-radius: .7rem; }
+.gtm-contact-summary > svg { flex: 0 0 1rem; margin-top: .15rem; color: #347553; }
+.gtm-contact-summary div { min-width: 0; }
+.gtm-contact-summary span, .gtm-contact-summary strong, .gtm-contact-summary a { display: block; }
+.gtm-contact-summary span { color: #6c7a87; font-size: .65rem; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
+.gtm-contact-summary strong { margin-top: .15rem; color: #17334a; font-size: .78rem; }
+.gtm-contact-summary a { margin-top: .2rem; overflow-wrap: anywhere; color: #245f43; font-size: .76rem; font-weight: 800; text-decoration: underline; }
+.gtm-contact-summary.needs-contact { border-color: #efcf9d; background: #fff8eb; }
+.gtm-contact-summary.needs-contact > svg { color: #9a661d; }
 .gtm-why { margin-top: .9rem; padding-left: .8rem; border-left: 2px solid #79a98a; color: #4f5f70; font-size: .84rem; line-height: 1.6; }
 .gtm-why strong { color: #17334a; }
 .gtm-actions { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: 1rem; }
@@ -2131,6 +2144,16 @@
 .gtm-interpretation { display: grid; gap: .25rem; margin-top: .6rem; color: #5b6979; font-size: .78rem; line-height: 1.55; }
 .gtm-interpretation strong:not(:first-child) { margin-top: .55rem; }
 .gtm-interpretation strong { color: #17334a; }
+.gtm-contact-card { display: grid; gap: .75rem; margin-top: .6rem; padding: .9rem; border: 1px solid #bad8c5; background: #f8fcf9; border-radius: .75rem; }
+.gtm-contact-card span, .gtm-contact-card strong, .gtm-contact-card a { display: block; }
+.gtm-contact-card span { color: #347553; font-size: .64rem; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
+.gtm-contact-card strong { margin-top: .2rem; color: #17334a; font-size: .95rem; }
+.gtm-contact-card p { margin-top: .18rem; color: #5b6979; font-size: .76rem; line-height: 1.55; }
+.gtm-contact-card a { margin-top: .25rem; overflow-wrap: anywhere; color: #245f43; font-size: .78rem; font-weight: 800; text-decoration: underline; }
+.gtm-contact-sources { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; padding-top: .7rem; border-top: 1px solid #d7e8dc; }
+.gtm-contact-sources a { display: inline-flex; align-items: center; gap: .25rem; margin: 0; font-size: .7rem; }
+.gtm-contact-sources a svg { width: .7rem; }
+.gtm-contact-sources small { color: #788694; font-size: .68rem; }
 .gtm-caveats { display: flex; gap: .65rem; margin-top: .8rem; padding: .8rem; border: 1px solid #efcf9d; background: #fff8eb; color: #72521f; border-radius: .7rem; }
 .gtm-caveats > svg { flex: 0 0 1rem; margin-top: .15rem; }
 .gtm-caveats strong { font-size: .78rem; }

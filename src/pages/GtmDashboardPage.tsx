@@ -13,6 +13,7 @@ import {
   FileSearch,
   Handshake,
   LoaderCircle,
+  Mail,
   MailCheck,
   MessageSquareText,
   Radar,
@@ -69,6 +70,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null 
   const [expanded, setExpanded] = useState<string | null>(initialOpportunities[0]?.id || null);
   const [copied, setCopied] = useState<string | null>(null);
   const [liveOpportunities, setLiveOpportunities] = useState<GtmOpportunity[]>(initialOpportunities);
+  const [unresolvedAwardCandidates, setUnresolvedAwardCandidates] = useState(0);
   const [stages, setStages] = useState<StageState>(() => readStages());
   const [dailyScan, setDailyScan] = useState<DailySocialScan | null>(initialDailyScan);
   const [signalsLoading, setSignalsLoading] = useState(Boolean(dailySignalToken));
@@ -79,8 +81,10 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null 
       .then(async (response) => response.ok ? response.json() as Promise<{ opportunities?: GtmOpportunity[] }> : null)
       .then((body) => {
         if (!body?.opportunities?.length) return;
-        const generatedIds = new Set(body.opportunities.map((item) => item.id));
-        setLiveOpportunities([...body.opportunities, ...initialOpportunities.filter((item) => !generatedIds.has(item.id))]);
+        const contactable = body.opportunities.filter((item) => item.primaryContact?.email && item.emailSubject);
+        const generatedIds = new Set(contactable.map((item) => item.id));
+        setUnresolvedAwardCandidates(body.opportunities.length - contactable.length);
+        setLiveOpportunities([...contactable, ...initialOpportunities.filter((item) => !generatedIds.has(item.id))]);
       })
       .catch(() => undefined);
   }, []);
@@ -113,7 +117,8 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null 
   const updateStage = (id: string, stage: OpportunityStage) => setStages((current) => ({ ...current, [id]: stage }));
   const copyDraft = async (opportunity: GtmOpportunity) => {
     try {
-      await navigator.clipboard.writeText(opportunity.draftMessage);
+      const recipient = opportunity.primaryContact?.email || "Contact not yet verified";
+      await navigator.clipboard.writeText(`To: ${recipient}\nSubject: ${opportunity.emailSubject}\n\n${opportunity.draftMessage}`);
       setCopied(opportunity.id);
       window.setTimeout(() => setCopied(null), 1800);
     } catch {
@@ -152,6 +157,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null 
           <label className="gtm-search"><Search aria-hidden="true" /><span className="sr-only">Search opportunities</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search organizations or funders" /></label>
           <div className="gtm-filters" aria-label="Filter alerts">{(["all", "grant_award", "job_posting", "excel_pain", "competitor_intent"] as const).map((kind) => <button type="button" className={filter === kind ? "is-active" : ""} aria-pressed={filter === kind} onClick={() => setFilter(kind)} key={kind}>{kind === "all" ? "All alerts" : labelForSignal(kind)}</button>)}</div>
         </div>
+        {unresolvedAwardCandidates > 0 && <div className="gtm-candidate-note"><FileSearch aria-hidden="true" /><p><strong>{unresolvedAwardCandidates} new award record{unresolvedAwardCandidates === 1 ? " is" : "s are"} waiting for contact verification.</strong> They remain research candidates and are not shown as contactable leads until a named recipient and authoritative email source are attached.</p></div>}
         <div className="gtm-opportunity-list" aria-live="polite">
           {visible.map((opportunity) => {
             const accuracy = assessOpportunityAccuracy(opportunity);
@@ -163,17 +169,19 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null 
                 <div className="gtm-opportunity-top"><div className="flex flex-wrap items-center gap-2"><span className="status-badge status-info">{labelForSignal(opportunity.signalKind)}</span><span className={`status-badge ${accuracy.readyForAction ? "status-success" : "status-review"}`}>{accuracy.confidence} confidence</span><span className="status-badge status-neutral">{stage.replaceAll("_", " ")}</span></div><span className="text-xs text-slate-500">Observed {formatDate(opportunity.observedAt)}</span></div>
                 <h3>{opportunity.organization}</h3><p className="gtm-headline">{opportunity.headline}</p>
                 <div className="gtm-facts">{opportunity.amount && <span><CircleDollarSign aria-hidden="true" />{formatMoney(opportunity.amount)}</span>}{opportunity.funder && <span><Building2 aria-hidden="true" />{opportunity.funder}</span>}{opportunity.location && <span><Radar aria-hidden="true" />{opportunity.location}</span>}</div>
+                {opportunity.primaryContact ? <div className="gtm-contact-summary"><Mail aria-hidden="true" /><div><span>Suggested recipient</span><strong>{opportunity.primaryContact.name} · {opportunity.primaryContact.title}</strong><a href={`mailto:${opportunity.primaryContact.email}`}>{opportunity.primaryContact.email}</a></div></div> : <div className="gtm-contact-summary needs-contact"><AlertCircle aria-hidden="true" /><div><span>Contact research needed</span><strong>No verified recipient email is attached to this generated alert.</strong></div></div>}
                 <p className="gtm-why"><strong>Why now:</strong> {opportunity.whyNow}</p>
                 <div className="gtm-actions">
                   <button type="button" className="button button-secondary button-small" onClick={() => { setExpanded(isExpanded ? null : opportunity.id); updateStage(opportunity.id, stage === "new" ? "reviewing" : stage); }}>{isExpanded ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}{isExpanded ? "Hide evidence" : "Review evidence"}</button>
                   <button type="button" className="button button-secondary button-small" disabled={!accuracy.readyForAction || stage === "dismissed"} onClick={() => updateStage(opportunity.id, "ready")}><ClipboardCheck aria-hidden="true" />Approve for outreach</button>
                   <button type="button" className="button button-secondary button-small" disabled={stage !== "ready"} onClick={() => copyDraft(opportunity)}><Copy aria-hidden="true" />{copied === opportunity.id ? "Copied" : "Copy draft"}</button>
+                  {opportunity.primaryContact && stage === "ready" ? <a className="button button-secondary button-small" href={buildEmailHref(opportunity)}><Mail aria-hidden="true" />Open email draft</a> : <button type="button" className="button button-secondary button-small" disabled><Mail aria-hidden="true" />Open email draft</button>}
                   <button type="button" className="button button-primary button-small" disabled={!canMoveToContacted(stage, accuracy) || stage === "contacted"} onClick={() => updateStage(opportunity.id, "contacted")}><MailCheck aria-hidden="true" />{stage === "contacted" ? "Contacted" : "Mark contacted"}</button>
                   <button type="button" className="gtm-dismiss" onClick={() => updateStage(opportunity.id, "dismissed")}>Dismiss</button>
                 </div>
                 {isExpanded && <div className="gtm-evidence-panel">
                   <div><p className="eyebrow">Observed evidence</p>{opportunity.evidence.map((source) => <article className="gtm-source-evidence" key={source.id}><a href={source.url} target="_blank" rel="noreferrer">{source.title}<ExternalLink aria-hidden="true" /></a><blockquote>“{source.excerpt}”</blockquote><p>Supports: {source.supports.join(", ")}</p></article>)}</div>
-                  <div><p className="eyebrow">Interpretation and next action</p><div className="gtm-interpretation"><strong>Recommended roles</strong><p>{opportunity.recommendedRoles.join(" · ")}</p><strong>Suggested angle</strong><p>{opportunity.recommendedAngle}</p><strong>Draft for human review</strong><p>{opportunity.draftMessage}</p></div>{[...accuracy.blockers, ...accuracy.warnings].length > 0 && <div className="gtm-caveats"><AlertCircle aria-hidden="true" /><div><strong>Before contact</strong><ul>{[...accuracy.blockers, ...accuracy.warnings].map((item) => <li key={item}>{item}</li>)}</ul></div></div>}</div>
+                  <div><p className="eyebrow">Recipient and draft</p>{opportunity.primaryContact ? <div className="gtm-contact-card"><div><span>{opportunity.primaryContact.emailKind === "direct" ? "Verified direct email" : "Verified organization inbox"}</span><strong>{opportunity.primaryContact.name}</strong><p>{opportunity.primaryContact.title}</p><a href={`mailto:${opportunity.primaryContact.email}`}>{opportunity.primaryContact.email}</a></div><p>{opportunity.primaryContact.note}</p><div className="gtm-contact-sources"><a href={opportunity.primaryContact.roleSourceUrl} target="_blank" rel="noreferrer">Verify role <ExternalLink aria-hidden="true" /></a><a href={opportunity.primaryContact.emailSourceUrl} target="_blank" rel="noreferrer">Verify email <ExternalLink aria-hidden="true" /></a><small>Checked {formatDate(opportunity.primaryContact.verifiedAt)}</small></div></div> : <div className="gtm-caveats"><AlertCircle aria-hidden="true" /><div><strong>Contact not verified</strong><p>Research a named finance or grants leader and confirm the email from an authoritative source before outreach.</p></div></div>}<div className="gtm-interpretation"><strong>Recommended roles</strong><p>{opportunity.recommendedRoles.join(" · ")}</p><strong>Suggested angle</strong><p>{opportunity.recommendedAngle}</p><strong>Email subject</strong><p>{opportunity.emailSubject}</p><strong>Draft for human review</strong><p className="whitespace-pre-line">{opportunity.draftMessage}</p></div>{[...accuracy.blockers, ...accuracy.warnings].length > 0 && <div className="gtm-caveats"><AlertCircle aria-hidden="true" /><div><strong>Before contact</strong><ul>{[...accuracy.blockers, ...accuracy.warnings].map((item) => <li key={item}>{item}</li>)}</ul></div></div>}</div>
                 </div>}
               </div>
             </article>;
@@ -214,7 +222,7 @@ function PartnersPanel() {
 }
 
 function PipelinePanel({ opportunities, stages, stagesOrder, onStageChange }: { opportunities: GtmOpportunity[]; stages: StageState; stagesOrder: OpportunityStage[]; onStageChange(id: string, stage: OpportunityStage): void }) {
-  return <section><div className="gtm-section-heading"><div><p className="eyebrow">Progress monitor</p><h2>Track every opportunity without pretending there is a CRM</h2><p>Progress is saved in this browser for the prototype. No external CRM, email inbox, or campaign analytics are connected yet.</p></div></div><div className="gtm-pipeline-summary">{stagesOrder.map((stage) => <article key={stage}><strong>{opportunities.filter((item) => (stages[item.id] || "new") === stage).length}</strong><span>{stage.replaceAll("_", " ")}</span></article>)}</div><div className="panel panel-flush mt-6"><div className="table-scroll"><table className="data-table gtm-pipeline-table"><thead><tr><th>Organization</th><th>Signal</th><th>Score</th><th>Evidence</th><th>Progress</th></tr></thead><tbody>{opportunities.map((opportunity) => { const accuracy = assessOpportunityAccuracy(opportunity); return <tr key={opportunity.id}><th>{opportunity.organization}</th><td>{labelForSignal(opportunity.signalKind)}</td><td>{accuracy.score} · {formatOpportunityScore(accuracy.label)}</td><td>{opportunity.evidence.length} source{opportunity.evidence.length === 1 ? "" : "s"} · {accuracy.confidence}</td><td><label className="sr-only" htmlFor={`stage-${opportunity.id}`}>Progress for {opportunity.organization}</label><select id={`stage-${opportunity.id}`} className="table-select" value={stages[opportunity.id] || "new"} onChange={(event) => onStageChange(opportunity.id, event.target.value as OpportunityStage)}>{stagesOrder.map((stage) => <option value={stage} key={stage}>{stage.replaceAll("_", " ")}</option>)}</select></td></tr>; })}</tbody></table></div></div></section>;
+  return <section><div className="gtm-section-heading"><div><p className="eyebrow">Progress monitor</p><h2>Track every opportunity without pretending there is a CRM</h2><p>Progress is saved in this private browser workspace. No external CRM, email inbox, or campaign analytics are connected yet.</p></div></div><div className="gtm-pipeline-summary">{stagesOrder.map((stage) => <article key={stage}><strong>{opportunities.filter((item) => (stages[item.id] || "new") === stage).length}</strong><span>{stage.replaceAll("_", " ")}</span></article>)}</div><div className="panel panel-flush mt-6"><div className="table-scroll"><table className="data-table gtm-pipeline-table"><thead><tr><th>Organization</th><th>Signal</th><th>Score</th><th>Evidence</th><th>Progress</th></tr></thead><tbody>{opportunities.map((opportunity) => { const accuracy = assessOpportunityAccuracy(opportunity); return <tr key={opportunity.id}><th>{opportunity.organization}</th><td>{labelForSignal(opportunity.signalKind)}</td><td>{accuracy.score} · {formatOpportunityScore(accuracy.label)}</td><td>{opportunity.evidence.length} source{opportunity.evidence.length === 1 ? "" : "s"} · {accuracy.confidence}</td><td><label className="sr-only" htmlFor={`stage-${opportunity.id}`}>Progress for {opportunity.organization}</label><select id={`stage-${opportunity.id}`} className="table-select" value={stages[opportunity.id] || "new"} onChange={(event) => onStageChange(opportunity.id, event.target.value as OpportunityStage)}>{stagesOrder.map((stage) => <option value={stage} key={stage}>{stage.replaceAll("_", " ")}</option>)}</select></td></tr>; })}</tbody></table></div></div></section>;
 }
 
 function AccuracyPanel() {
@@ -252,4 +260,9 @@ function formatDate(value: string) {
 
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" }).format(new Date(value));
+}
+
+function buildEmailHref(opportunity: GtmOpportunity) {
+  if (!opportunity.primaryContact) return "#";
+  return `mailto:${opportunity.primaryContact.email}?subject=${encodeURIComponent(opportunity.emailSubject)}&body=${encodeURIComponent(opportunity.draftMessage)}`;
 }

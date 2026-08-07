@@ -60,15 +60,15 @@ export function LandingPage() {
         <div className="site-shell relative z-10 grid items-center gap-12 py-16 lg:grid-cols-[1.02fr_.98fr] lg:py-24">
           <div>
             <div className="prototype-pill"><span aria-hidden="true" /> AI-powered post-award reporting</div>
-            <h1 className="hero-title">Turn grant source files into funder-specific reports—with <span className="hero-highlight">less manual work.</span></h1>
+            <h1 className="hero-title">Save time on grant reporting with <span className="hero-highlight">AI-powered preparation.</span></h1>
             <p className="hero-copy">
-              Built for nonprofit finance teams, GrantDeskHQ uses AI to map approved accounting data to funder budget lines, calculate budget versus actual, collect missing program updates, and draft source-backed report sections—without replacing your accounting system.
+              Built for nonprofit finance teams, GrantDeskHQ turns approved grant documents, accounting exports, funder templates, and program updates into a source-linked draft. Automate repetitive preparation, catch missing support earlier, and give your team a faster, more accurate path to final review.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link className="button button-primary button-large" to="/compile">Try the working prototype <ArrowRight aria-hidden="true" /></Link>
+              <Link className="button button-primary button-large" to="/compile">Prepare a report with AI <ArrowRight aria-hidden="true" /></Link>
               <Link className="button button-secondary button-large" to="/readiness">Get a free readiness audit</Link>
             </div>
-            <p className="trust-line"><CheckCircle2 aria-hidden="true" /> Interactive demo using synthetic data · Your team approves every draft</p>
+            <p className="trust-line"><CheckCircle2 aria-hidden="true" /> Source-linked AI output · Accuracy checks built in · Professional review required</p>
           </div>
 
           <ProductPreview />
@@ -224,7 +224,7 @@ export function LandingPage() {
             <p className="mt-3 text-slate-600">Explore the complete demo, or tell us which parts of grant reporting take the most time for your team.</p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link className="button button-primary button-large shrink-0" to="/compile">Try the working prototype <ArrowRight aria-hidden="true" /></Link>
+            <Link className="button button-primary button-large shrink-0" to="/assessment">Analyze your first report free <ArrowRight aria-hidden="true" /></Link>
             <Link className="button button-secondary button-large shrink-0" to="/readiness">Audit one grant agreement free</Link>
           </div>
         </div>

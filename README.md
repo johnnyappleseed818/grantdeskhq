@@ -1,19 +1,19 @@
-# GrantDeskHQ AI report-compiler prototype
+# GrantDeskHQ AI Report Compiler
 
-GrantDeskHQ is a working early-stage prototype for an AI-powered post-award
-grant-reporting workflow used by nonprofit finance teams, fractional nonprofit
+GrantDeskHQ is a private-beta AI-powered post-award grant-reporting workflow
+used by nonprofit finance teams, fractional nonprofit
 CFO firms, accounting practices, and controllers. It combines a guided React
 interface with a server-side OpenAI Responses API compiler and a separate
 evidence-verification pass.
 
-> The public demo uses synthetic data. The working compiler accepts only
-> synthetic or appropriately redacted test files. All outputs are drafts,
+> Sample workspaces use synthetic data. During private beta, the compiler accepts
+> only synthetic or appropriately redacted files. All outputs are drafts,
 > suggested mappings, and source-matched statements that require professional
 > review. No report is submitted automatically.
 
 Production domain: [grantdeskhq.com](https://grantdeskhq.com)
 
-Working Cloud Run prototype: [grantdeskhq-prototype-me423s5k5a-uc.a.run.app](https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app)
+Cloud Run application: [grantdeskhq-prototype-me423s5k5a-uc.a.run.app](https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app)
 
 ## Repository isolation
 
@@ -35,7 +35,7 @@ Working Cloud Run prototype: [grantdeskhq-prototype-me423s5k5a-uc.a.run.app](htt
 | `/readiness` | Free source-linked Grant Reporting Readiness Audit |
 | `/gtm` | Administrator-only GTM command center, alert queue, source registry, and progress monitor |
 | `/sample-report` | Print-ready funder-report review package |
-| `/privacy` | Honest prototype and test-file data-handling boundaries |
+| `/privacy` | Private-beta and test-file data-handling boundaries |
 | `/pricing` | Founding Nonprofit and Founding Agency pricing |
 | `/assessment` | Free-first-report founding access and contact enquiry |
 | `/pilot` | Compatibility redirect to `/assessment` |
@@ -48,7 +48,9 @@ an independent verification pass, evidence coverage, and an export gate.
 The `/readiness` route provides the lighter lead-magnet workflow: one award
 agreement is required, while separate reporting instructions and the approved
 budget are optional. The `/gtm` route keeps signal evidence, inference, suggested
-actions, and browser-saved progress visibly separate.
+actions, named contacts, email-source verification, human-reviewed drafts, and
+browser-saved progress visibly separate. New award records remain research
+candidates until a recipient and authoritative contact source are attached.
 
 The landing page includes a touch-swipeable, keyboard-focusable carousel of
 clearly labelled illustrative finance-team use cases. These are not customer
@@ -305,7 +307,7 @@ npm audit --omit=dev
 npm audit
 ```
 
-Verified result on August 6, 2026: lint passed with zero warnings; 59
+Verified result on August 7, 2026: lint passed with zero warnings; 65
 deterministic tests passed with the opt-in live test skipped; TypeScript and the
 Vite production build passed; and all 11 direct-load routes were generated. A
 separate billable smoke test passed through the deployed Cloud Run endpoint in
@@ -537,8 +539,8 @@ See `gtm/COMPLIANCE.md` for the current provider and legal boundaries.
 ## Honest limitations
 
 - The synthetic `/demo` route remains deterministic local data. The `/compile`
-  route is a working AI prototype, not a production accounting system.
-- Uploaded prototype files are sent to the configured OpenAI API project for
+  route is a private-beta AI workflow, not a production accounting system.
+- Uploaded files are sent to the configured OpenAI API project for
   processing. Use only synthetic or appropriately redacted test files. Provider
   terms and retention settings apply.
 - A second AI verification pass materially improves traceability, but cannot

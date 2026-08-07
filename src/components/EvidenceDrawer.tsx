@@ -60,7 +60,7 @@ export function EvidenceDrawer({ evidence, onClose }: { evidence: EvidenceDetail
             <p className="eyebrow mb-2">Synthetic source excerpt</p>
             <blockquote>“{evidence.excerpt}”</blockquote>
           </div>
-          <p className="prototype-note">Interactive demo using synthetic demonstration data. Your finance team reviews and approves the work.</p>
+          <p className="prototype-note">This sample workspace uses fictional data. Your finance team reviews and approves the work.</p>
         </div>
       </aside>
     </div>

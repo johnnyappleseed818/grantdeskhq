@@ -12,12 +12,12 @@ function renderRoute(route: string) {
 
 describe("important routes", () => {
   it.each([
-    ["/", /Turn grant source files into funder-specific reports.*less manual work/i],
+    ["/", /Save time on grant reporting with AI-powered preparation/i],
     ["/demo", /Six-Month Progress Report/i],
     ["/sample-report", /See the complete review package/i],
-    ["/privacy", /A careful start with client data/i],
+    ["/privacy", /Know how your files are handled/i],
     ["/pricing", /Start affordably\. Prove the value on a real report/i],
-    ["/assessment", /Try GrantDeskHQ on one report before you pay/i],
+    ["/assessment", /Analyze your first report for free/i],
     ["/compile", /Automate grant-report preparation, save time, and reduce errors/i],
     ["/readiness", /Upload the agreement\. Get a source-linked reporting plan\./i],
     ["/login", /Turn scattered grant files into an evidence-backed funder report/i]
@@ -34,10 +34,10 @@ describe("important routes", () => {
     expect(screen.queryByLabelText(/file/i)).not.toBeInTheDocument();
   });
 
-  it("navigates from the landing page into the working prototype", async () => {
+  it("navigates from the landing page into the AI report compiler", async () => {
     const user = userEvent.setup();
     renderRoute("/");
-    await user.click(screen.getAllByRole("link", { name: /Try the working prototype/i })[0]);
+    await user.click(screen.getByRole("link", { name: /Prepare a report with AI/i }));
     expect(await screen.findByRole("heading", { name: /Automate grant-report preparation, save time, and reduce errors/i })).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Getting started steps" })).toBeInTheDocument();
   });
@@ -109,6 +109,25 @@ describe("important routes", () => {
     expect(screen.getByLabelText(/Approved grant budget/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/General ledger export/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Back" })).toBeEnabled();
+  });
+
+  it("opens a bulk document chooser and assigns clearly named source files", async () => {
+    const user = userEvent.setup();
+    renderRoute("/compile");
+    const packageInput = screen.getByLabelText("Upload documentation for evaluation");
+    await user.upload(packageInput, [
+      new File(["award"], "Award_Agreement.pdf", { type: "application/pdf" }),
+      new File(["budget"], "Approved_Grant_Budget.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+      new File(["ledger"], "General_Ledger_Export.csv", { type: "text/csv" }),
+      new File(["template"], "Funder_Report_Template.docx", { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
+      new File(["update"], "Program_Update.txt", { type: "text/plain" })
+    ]);
+    expect(screen.getByText("Add the files your team already uses")).toBeVisible();
+    expect(screen.getByText(/Award_Agreement\.pdf/)).toBeInTheDocument();
+    expect(screen.getByText(/Approved_Grant_Budget\.xlsx/)).toBeInTheDocument();
+    expect(screen.getByText(/General_Ledger_Export\.csv/)).toBeInTheDocument();
+    expect(screen.getByText(/Funder_Report_Template\.docx/)).toBeInTheDocument();
+    expect(screen.getByText(/Program_Update\.txt/)).toBeInTheDocument();
   });
 });
 

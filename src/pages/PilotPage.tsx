@@ -37,7 +37,7 @@ export function PilotPage() {
           <div className="mt-8 grid items-start gap-12 lg:grid-cols-[1.05fr_.95fr]">
             <div>
               <p className="eyebrow">Founding access</p>
-              <h1 className="page-title">Try GrantDeskHQ on one report before you pay.</h1>
+              <h1 className="page-title">Analyze your first report for free.</h1>
               <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">Use one completed, redacted historical report to compare GrantDeskHQ with the process your team uses today. See whether AI can reduce manual assembly, identify missing evidence sooner, and give reviewers a clearer starting point.</p>
               <div className="mt-7 flex flex-wrap gap-3">
                 <a className="button button-secondary button-large" href={QUESTIONNAIRE_URL} target="_blank" rel="noreferrer">Tell us about your workflow <ArrowRight aria-hidden="true" /></a>
@@ -71,7 +71,7 @@ export function PilotPage() {
           <h2 className="text-3xl font-semibold tracking-tight text-navy-900">Judge the product against work you already know.</h2>
           <p className="mt-4 max-w-xl leading-7 text-slate-600">A completed historical report gives your team a clear comparison without replacing your accounting system or committing to a long implementation.</p>
           <ul className="mt-8 grid gap-3 sm:grid-cols-2">{scope.map((item) => <li key={item} className="flex gap-2 text-sm text-slate-700"><Check className="h-5 w-5 shrink-0 text-emeraldMuted-600" aria-hidden="true" />{item}</li>)}</ul>
-          <div className="mt-8 border-l-4 border-amber-500 bg-amberReview-50 p-5 text-sm leading-6 text-amberReview-700"><strong>Prototype outputs are drafts for professional review and are not accounting, legal, audit, or compliance advice.</strong></div>
+          <div className="mt-8 border-l-4 border-amber-500 bg-amberReview-50 p-5 text-sm leading-6 text-amberReview-700"><strong>Outputs are drafts for professional review and are not accounting, legal, audit, or compliance advice.</strong></div>
         </section>
 
         <section id="contact" className="contact-panel">

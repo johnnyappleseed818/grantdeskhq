@@ -41,6 +41,13 @@ describe("GTM opportunity accuracy", () => {
     expect(accuracy.blockers.join(" ")).toMatch(/award amounts disagree/i);
   });
 
+  it("blocks outreach when the recipient email has not been verified", () => {
+    const withoutContact: GtmOpportunity = { ...initialOpportunities[0], id: "missing-contact", primaryContact: undefined };
+    const accuracy = assessOpportunityAccuracy(withoutContact);
+    expect(accuracy.readyForAction).toBe(false);
+    expect(accuracy.blockers.join(" ")).toMatch(/named recipient and verified email/i);
+  });
+
   it("detects duplicate organization signals without silently merging them", () => {
     const source = initialOpportunities[0];
     const duplicate = { ...source, id: "duplicate-id" };
@@ -51,6 +58,17 @@ describe("GTM opportunity accuracy", () => {
     const accuracy = assessOpportunityAccuracy(initialOpportunities[2]);
     expect(canMoveToContacted("new", accuracy)).toBe(false);
     expect(canMoveToContacted("ready", accuracy)).toBe(true);
+  });
+
+  it("keeps every contactable lead tied to a named recipient and verified email source", () => {
+    expect(initialOpportunities).toHaveLength(5);
+    for (const opportunity of initialOpportunities) {
+      expect(opportunity.primaryContact?.name).toBeTruthy();
+      expect(opportunity.primaryContact?.email).toMatch(/^[^@\s]+@[^@\s]+\.[^@\s]+$/);
+      expect(opportunity.primaryContact?.emailSourceUrl).toMatch(/^https:\/\//);
+      expect(opportunity.emailSubject).toBeTruthy();
+      expect(opportunity.draftMessage).toMatch(/^Hi /);
+    }
   });
 });
 
@@ -86,6 +104,8 @@ describe("GTM command center", () => {
     expect(screen.getByText(/Nothing is posted or emailed automatically/i)).toBeInTheDocument();
     await user.click(screen.getAllByRole("button", { name: "Review evidence" })[0]);
     expect(screen.getByText("Observed evidence")).toBeInTheDocument();
+    expect(screen.getAllByText(/Maureen Lister/).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: "info@perkins.org" }).length).toBeGreaterThan(0);
   });
 
   it("requires explicit approval before the contacted action is enabled", async () => {
@@ -98,6 +118,8 @@ describe("GTM command center", () => {
     const approve = Array.from(card.querySelectorAll("button")).find((button) => button.textContent?.includes("Approve for outreach"))!;
     await user.click(approve);
     expect(contacted).toBeEnabled();
+    const emailDraft = screen.getByRole("link", { name: "Open email draft" });
+    expect(emailDraft).toHaveAttribute("href", expect.stringMatching(/^mailto:allie\.martinez@jasouthflorida\.org\?/));
     await user.click(contacted);
     expect(card.textContent).toMatch(/contacted/i);
   });

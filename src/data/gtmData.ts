@@ -31,7 +31,18 @@ export const initialOpportunities: GtmOpportunity[] = [
     recommendedRoles: ["Chief financial officer", "Controller", "Director of grants"],
     whyNow: "A new federal assistance record creates a timely reason to ask how post-award financial and program reporting will be organized before the grant begins.",
     recommendedAngle: "Offer a free readiness audit of the agreement and reporting requirements; do not imply that the award record proves reporting difficulty.",
-    draftMessage: "I saw the new Department of Education award record for the New England Consortium on Deafblindness. If your team is mapping the award requirements into a reporting calendar and evidence checklist, GrantDeskHQ can provide a free, source-linked readiness audit for review."
+    primaryContact: {
+      name: "Maureen Lister",
+      title: "Chief Financial Officer",
+      email: "info@perkins.org",
+      emailKind: "organization_inbox",
+      roleSourceUrl: "https://www.perkins.org/team-member/maureen-lister/",
+      emailSourceUrl: "https://askhowe.perkins.org/sites/default/files/CVI%20Messaging.pdf",
+      verifiedAt: "2026-08-07",
+      note: "Perkins does not publish Maureen Lister's direct email. Use the verified organization inbox and address the message to her."
+    },
+    emailSubject: "Free reporting analysis for Perkins' new federal award",
+    draftMessage: "Hi Maureen,\n\nI saw the Department of Education award for the New England Consortium on Deafblindness. New awards often create manual work as finance and program teams translate the agreement, approved budget, program updates, and supporting documentation into the funder's reporting format.\n\nGrantDeskHQ uses AI to prepare a source-linked report draft, flag missing information, and check material claims against the uploaded evidence. We are offering to analyze a first report at no cost so your team can compare the output with its current process.\n\nWould it be useful if I sent a short overview?\n\nBest,\nEli\nGrantDeskHQ"
   },
   {
     id: "award-project-oceanology-2026",
@@ -63,7 +74,18 @@ export const initialOpportunities: GtmOpportunity[] = [
     recommendedRoles: ["Chief financial officer", "Finance director", "Grants manager"],
     whyNow: "The new award combines financial activity with measurable education and monitoring outcomes, making a reporting-readiness review potentially useful.",
     recommendedAngle: "Lead with organizing financial and program evidence around the funder's exact requirements.",
-    draftMessage: "I noticed the new NOAA award record supporting Project Oceanology's vessel, education, and monitoring work. GrantDeskHQ can turn the award requirements and approved budget into a free reporting-readiness checklist so finance and program teams know what evidence to collect from the start."
+    primaryContact: {
+      name: "Lisa Colón",
+      title: "Accounts Manager",
+      email: "lmcolon@oceanology.org",
+      emailKind: "direct",
+      roleSourceUrl: "https://www.oceanology.org/about-us",
+      emailSourceUrl: "https://www.oceanology.org/about-us",
+      verifiedAt: "2026-08-07",
+      note: "Direct email and current role are published together on Project Oceanology's official team page."
+    },
+    emailSubject: "Free reporting analysis for Project Oceanology's new NOAA award",
+    draftMessage: "Hi Lisa,\n\nI noticed the new NOAA award supporting Project Oceanology's vessel, education, and environmental-monitoring work. Bringing the financial activity, program results, supporting evidence, and funder questions into one report can create substantial manual preparation.\n\nGrantDeskHQ uses AI to organize those sources into a funder-specific draft, highlight missing information, and show the evidence behind each material statement. We are offering to analyze a first report at no cost so you can judge whether it reduces work for your team.\n\nWould a short overview be useful?\n\nBest,\nEli\nGrantDeskHQ"
   },
   {
     id: "job-ja-south-florida-2026",
@@ -101,7 +123,18 @@ export const initialOpportunities: GtmOpportunity[] = [
     recommendedRoles: ["Chief financial officer", "Senior grants manager"],
     whyNow: "The organization is publicly investing in a role that connects grant accounting, reporting templates, Excel, compliance, and process improvement.",
     recommendedAngle: "Position GrantDeskHQ as workflow support for the new hire—not as a replacement for the finance team.",
-    draftMessage: "Your Grant Accountant posting describes the exact handoff GrantDeskHQ is built to simplify: grant budgets and accounting data flowing into funder-specific financial, narrative, and program reports. I would be glad to prepare a free readiness audit using one redacted agreement so your team can evaluate the workflow before considering software."
+    primaryContact: {
+      name: "Allie Martinez",
+      title: "Chief Financial Officer",
+      email: "allie.martinez@jasouthflorida.org",
+      emailKind: "direct",
+      roleSourceUrl: "https://jasouthflorida.org/staff/",
+      emailSourceUrl: "https://jasouthflorida.org/staff/",
+      verifiedAt: "2026-08-07",
+      note: "Direct email is published in the CFO entry on Junior Achievement of South Florida's official staff page."
+    },
+    emailSubject: "A faster post-award workflow for your grant accounting team",
+    draftMessage: "Hi Allie,\n\nYour Grant Accountant posting describes the exact handoff GrantDeskHQ is designed to simplify: approved grant budgets and accounting data flowing into funder-specific financial, narrative, and program reports.\n\nGrantDeskHQ uses AI to assemble the first draft, connect material statements to source evidence, and surface missing support before review. It supports the finance team rather than replacing its judgment. We are offering to analyze a first report at no cost so you can compare the result with your current workflow.\n\nWould you be open to a brief look?\n\nBest,\nEli\nGrantDeskHQ"
   },
   {
     id: "job-sustainable-food-center-2026",
@@ -139,7 +172,18 @@ export const initialOpportunities: GtmOpportunity[] = [
     recommendedRoles: ["Director of grants", "Finance director"],
     whyNow: "A current role explicitly coordinates reporting across grants, finance, program data, records, and funder portals.",
     recommendedAngle: "Offer a source-linked workflow assessment that the incoming grants manager can use as an operating baseline.",
-    draftMessage: "I saw that Sustainable Food Center is hiring a Grants Manager to coordinate reporting across program, finance, and data teams. GrantDeskHQ is focused on that post-award handoff—turning the agreement, approved budget, GL export, and program update into a source-linked report draft for professional review."
+    primaryContact: {
+      name: "Nicole Thompson",
+      title: "Senior Grants Manager",
+      email: "info@sustainablefoodcenter.org",
+      emailKind: "organization_inbox",
+      roleSourceUrl: "https://sustainablefoodcenter.org/about-us/our-team/",
+      emailSourceUrl: "https://sustainablefoodcenter.org/about-us/our-team/",
+      verifiedAt: "2026-08-07",
+      note: "Sustainable Food Center publishes Nicole Thompson's role and its administration inbox, but not a direct email. Address the message to Nicole."
+    },
+    emailSubject: "Free analysis of one Sustainable Food Center grant report",
+    draftMessage: "Hi Nicole,\n\nI saw Sustainable Food Center's focus on coordinating grant reporting across program, finance, and data teams. That handoff often means rebuilding the same information across spreadsheets, funder templates, and narrative documents.\n\nGrantDeskHQ uses AI to turn the agreement, approved budget, GL export, program update, and supporting evidence into a source-linked report draft. It also identifies missing information and blocks unsupported claims before export. We are offering to analyze a first report at no cost so your team can evaluate the workflow on familiar work.\n\nWould a short overview be helpful?\n\nBest,\nEli\nGrantDeskHQ"
   },
   {
     id: "job-rodale-2026",
@@ -168,7 +212,18 @@ export const initialOpportunities: GtmOpportunity[] = [
     recommendedRoles: ["Chief financial officer"],
     whyNow: "The organization is assigning grant reporting and evidence responsibilities to a new finance role that reports directly to the CFO.",
     recommendedAngle: "Show how the tool reduces repeat report assembly while preserving the new accountant's review authority.",
-    draftMessage: "I saw Rodale Institute's Grants Accountant posting and the emphasis on reporting, deliverables, timesheets, and support schedules. GrantDeskHQ can assemble those approved sources around each funder's reporting format, with citations and review gates, so the finance team spends less time rebuilding the package manually."
+    primaryContact: {
+      name: "Elaine Macbeth",
+      title: "Executive Vice President, Chief Finance and Administration Officer",
+      email: "Elaine.Macbeth@RodaleInstitute.org",
+      emailKind: "direct",
+      roleSourceUrl: "https://rodaleinstitute.org/about/staff/",
+      emailSourceUrl: "https://rodaleinstitute.org/wp-content/uploads/Rodale-Institute-BIPOC-micro-grant-evaluation_v2.pdf",
+      verifiedAt: "2026-08-07",
+      note: "Current finance leadership role and the direct email are published by Rodale Institute on its staff page and grant materials."
+    },
+    emailSubject: "Reduce manual grant-report preparation at Rodale Institute",
+    draftMessage: "Hi Elaine,\n\nI saw Rodale Institute's Grants Accountant posting and its emphasis on reporting, deliverables, timesheets, and supporting-document schedules. Those requirements can leave finance teams repeatedly assembling the same evidence into different funder formats.\n\nGrantDeskHQ uses AI to prepare a source-linked report draft, suggest financial mappings, identify missing support, and check narrative claims against the evidence. We are offering to analyze a first report at no cost so your team can decide whether the workflow meaningfully reduces manual preparation.\n\nWould you be open to a brief look?\n\nBest,\nEli\nGrantDeskHQ"
   }
 ];
 
