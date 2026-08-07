@@ -8,10 +8,10 @@ import { openAnalyticsPreferences } from "../lib/analytics";
 
 const marketingLinks = [
   ["How It Works", "/#how-it-works"],
-  ["AI Report Compiler", "/#compiler"],
   ["Sample Output", "/sample-report"],
+  ["Security & FAQ", "/#security-faq"],
   ["Pricing", "/pricing"],
-  ["Founding Access", "/assessment"]
+  ["Free First Report", "/assessment"]
 ];
 
 export function SiteLayout() {
@@ -73,18 +73,19 @@ export function SiteLayout() {
             <p className="footer-heading">Product</p>
             <div className="mt-3 grid gap-2 text-sm">
               <Link to="/demo">Interactive demo</Link>
-              <Link to="/compile">AI Report Compiler</Link>
+              <Link to="/compile">Prepare a report</Link>
               <Link to="/readiness">Free readiness audit</Link>
               <Link to="/sample-report">Synthetic sample report</Link>
               <Link to="/pricing">Pricing</Link>
               <Link to={user ? "/workspace" : "/login"}>{user ? "My workspace" : "Account sign in"}</Link>
-              <Link to="/assessment">Founding access</Link>
+              <Link to="/assessment">Free first report</Link>
             </div>
           </div>
           <div>
             <p className="footer-heading">Information</p>
             <div className="mt-3 grid gap-2 text-sm">
               <Link to="/privacy">Privacy and data handling</Link>
+              <Link to="/#security-faq">Security and FAQ</Link>
               <button type="button" className="footer-link-button" onClick={openAnalyticsPreferences}>Cookie settings</button>
               <Link to="/assessment#contact">Contact us</Link>
               <span className="text-slate-500">© {new Date().getFullYear()} GrantDeskHQ</span>

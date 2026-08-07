@@ -23,8 +23,8 @@ export function PilotPage() {
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const body = `Hello GrantDeskHQ team,\n\nI would like to request founding access and discuss a free first report.\n\nName: ${form.name}\nWork email: ${form.email}\nOrganization: ${form.firm}\nRole: ${form.role}\nApproximate nonprofit clients: ${form.clients}\nCurrent reporting process: ${form.process}\n\nI understand that I should not send client files through this website.`;
-    window.location.href = `mailto:${CONTACT_DESTINATION}?subject=${encodeURIComponent("GrantDeskHQ Founding Access")}&body=${encodeURIComponent(body)}`;
+    const body = `Hello GrantDeskHQ team,\n\nI would like to try one grant report at no cost.\n\nName: ${form.name}\nWork email: ${form.email}\nOrganization: ${form.firm}\nRole: ${form.role}\nApproximate active grants: ${form.clients}\nCurrent reporting process: ${form.process}\n\nI understand that I should not send client files through this website.`;
+    window.location.href = `mailto:${CONTACT_DESTINATION}?subject=${encodeURIComponent("GrantDeskHQ Free First Report")}&body=${encodeURIComponent(body)}`;
   };
 
   const update = (field: keyof typeof form, value: string) => setForm((current) => ({ ...current, [field]: value }));
@@ -36,7 +36,7 @@ export function PilotPage() {
           <div className="prototype-pill"><span aria-hidden="true" /> First report free · no setup fee</div>
           <div className="mt-8 grid items-start gap-12 lg:grid-cols-[1.05fr_.95fr]">
             <div>
-              <p className="eyebrow">Founding access</p>
+              <p className="eyebrow">Free first report</p>
               <h1 className="page-title">Let AI prepare your first report draft at no cost.</h1>
               <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">Use one completed, appropriately redacted historical report to compare GrantDeskHQ with the process your team uses today. See whether AI can reduce spreadsheet rebuilding, identify missing evidence sooner, and give your reviewers a stronger starting point.</p>
               <div className="mt-7 flex flex-wrap gap-3">
@@ -76,7 +76,7 @@ export function PilotPage() {
 
         <section id="contact" className="contact-panel">
           <p className="eyebrow">Start a conversation</p>
-          <h2 className="text-3xl font-semibold tracking-tight text-navy-900">Request founding access</h2>
+          <h2 className="text-3xl font-semibold tracking-tight text-navy-900">Try one report at no cost</h2>
           <p className="mt-3 text-sm leading-6 text-slate-600">Tell us which parts of grant reporting create the most manual work. We’ll reply with the next step for trying one report. Please don’t include client information or files in this message.</p>
           <form className="mt-7 grid gap-5" onSubmit={submit}>
             <div className="grid gap-5 sm:grid-cols-2">
@@ -85,10 +85,10 @@ export function PilotPage() {
               <Field label="Organization" id="assessment-firm"><input id="assessment-firm" className="form-control" required autoComplete="organization" value={form.firm} onChange={(event) => update("firm", event.target.value)} /></Field>
               <Field label="Role" id="assessment-role"><input id="assessment-role" className="form-control" required autoComplete="organization-title" value={form.role} onChange={(event) => update("role", event.target.value)} /></Field>
             </div>
-            <Field label="Approximate number of nonprofit clients" id="assessment-clients"><select id="assessment-clients" className="form-control" required value={form.clients} onChange={(event) => update("clients", event.target.value)}><option value="">Select a range</option><option>1–5</option><option>6–15</option><option>16–30</option><option>31+</option></select></Field>
+            <Field label="Approximate number of active grants" id="assessment-clients"><select id="assessment-clients" className="form-control" required value={form.clients} onChange={(event) => update("clients", event.target.value)}><option value="">Select a range</option><option>1–5</option><option>6–15</option><option>16–30</option><option>31+</option></select></Field>
             <Field label="Current grant-reporting process" id="assessment-process"><textarea id="assessment-process" className="form-control min-h-28" required value={form.process} onChange={(event) => update("process", event.target.value)} placeholder="Which reporting steps take the most time today?" /></Field>
             <div className="form-note">Your email app will open with the message ready to send. This website does not store your answers or accept file uploads.</div>
-            <button type="submit" className="button button-primary button-large w-full"><Mail aria-hidden="true" /> Request founding access <ArrowRight aria-hidden="true" /></button>
+            <button type="submit" className="button button-primary button-large w-full"><Mail aria-hidden="true" /> Try one report free <ArrowRight aria-hidden="true" /></button>
           </form>
         </section>
       </div>

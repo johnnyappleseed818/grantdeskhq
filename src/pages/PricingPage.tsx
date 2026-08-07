@@ -3,24 +3,24 @@ import { Link } from "react-router-dom";
 
 const plans = [
   {
-    name: "Founding Nonprofit",
+    name: "Essentials",
     monthly: "$49",
     annual: "$490",
     activeGrants: "Up to 10",
     reports: "12",
     users: "5 internal users",
     description: "For nonprofit finance teams that want to replace manual report assembly without adding an expensive grant-management system.",
-    extras: ["Unlimited guest reviewers", "Founding price locked for 24 months"]
+    extras: ["Unlimited guest reviewers", "Report history and evidence log"]
   },
   {
-    name: "Founding Agency",
+    name: "Growth",
     monthly: "$149",
     annual: "$1,490",
     activeGrants: "Up to 30",
     reports: "60",
     users: "15 internal users",
-    description: "For fractional CFO and accounting firms that need a repeatable reporting workflow across nonprofit clients.",
-    extras: ["Separate client workspaces", "Unlimited guest reviewers", "Founding price locked for 24 months"],
+    description: "For larger nonprofits, multi-program finance teams, and accounting partners managing a higher volume of grant reports.",
+    extras: ["Separate program or client workspaces", "Unlimited guest reviewers", "Report history and evidence log"],
     featured: true
   }
 ];
@@ -30,7 +30,7 @@ export function PricingPage() {
     <div className="pricing-page">
       <section className="pricing-hero">
         <div className="site-shell text-center">
-          <div className="prototype-pill mx-auto"><span aria-hidden="true" /> Early-customer pricing</div>
+          <div className="prototype-pill mx-auto"><span aria-hidden="true" /> Simple, transparent pricing</div>
           <p className="eyebrow mt-8">Pricing</p>
           <h1 className="page-title mx-auto">Start with one report. Keep going only if the workflow saves your team time.</h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-600">
@@ -44,7 +44,7 @@ export function PricingPage() {
         <div className="pricing-grid">
           {plans.map((plan) => (
             <article key={plan.name} className={`pricing-card ${plan.featured ? "is-featured" : ""}`}>
-              {plan.featured && <div className="pricing-label">Best fit for growing teams</div>}
+              {plan.featured && <div className="pricing-label">Best fit for larger teams</div>}
               <p className="text-sm font-semibold text-emeraldMuted-700">{plan.name}</p>
               <div className="mt-4 flex items-end gap-1">
                 <strong className="text-4xl font-semibold tracking-tight text-navy-950">{plan.monthly}</strong>
@@ -60,7 +60,7 @@ export function PricingPage() {
                 {plan.extras.map((extra) => <Feature key={extra}>{extra}</Feature>)}
               </ul>
               <Link className={`button mt-8 w-full ${plan.featured ? "button-primary" : "button-secondary"}`} to="/assessment#contact">
-                Request founding access <ArrowRight aria-hidden="true" />
+                Try your first report free <ArrowRight aria-hidden="true" />
               </Link>
             </article>
           ))}

@@ -15,7 +15,7 @@ describe("important routes", () => {
     ["/", /Finish grant reports faster/i],
     ["/demo", /Six-Month Progress Report/i],
     ["/sample-report", /See the complete review package/i],
-    ["/privacy", /Know how your files are handled/i],
+    ["/privacy", /Understand where your data goes and who can access it/i],
     ["/pricing", /Start with one report\. Keep going only if the workflow saves your team time/i],
     ["/assessment", /Let AI prepare your first report draft at no cost/i],
     ["/compile", /Let AI do the first pass on your grant report/i],
@@ -44,14 +44,13 @@ describe("important routes", () => {
 
   it("explains AI benefits in clear customer language", () => {
     renderRoute("/");
-    expect(screen.getByRole("heading", { name: /Automate the manual work behind every grant report\./i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Let AI prepare the report\. Keep your team focused on the decisions\./i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Start with the awarded grant" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Bring finance and program updates together" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Get a funder-specific first draft" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Review the exceptions and finish confidently" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Prepare your documentation automatically" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Catch errors before they create rework" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Straight answers about your data/i })).toBeInTheDocument();
+    expect(screen.getByText(/No\. You can begin with the documents your team already uses and an approved CSV export/i)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Reduce manual overhead" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Reduce reporting errors" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Free up team resources" })).toBeInTheDocument();
@@ -83,18 +82,18 @@ describe("important routes", () => {
       "href",
       expect.stringMatching(/^https:\/\/docs\.google\.com\/forms\/d\/e\//)
     );
-    expect(screen.getByRole("heading", { name: "Request founding access" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Try one report at no cost" })).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
     expect(screen.getByLabelText("Work email")).toBeInTheDocument();
     expect(screen.getByLabelText("Organization")).toBeInTheDocument();
     expect(screen.getByLabelText("Current grant-reporting process")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Request founding access/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Try one report free/i })).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/eli@|Eli Katz/i);
   });
 
   it("shows the exact subscription pricing and capacity", () => {
     renderRoute("/pricing");
-    for (const plan of ["Founding Nonprofit", "Founding Agency"]) {
+    for (const plan of ["Essentials", "Growth"]) {
       expect(screen.getByText(plan)).toBeInTheDocument();
     }
     for (const amount of ["$49", "$149", "or $490/year", "or $1,490/year"]) {
