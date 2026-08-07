@@ -22,6 +22,13 @@ function request(): CompilationRequest {
   };
 }
 
+function requestWithConfirmedKpi(): CompilationRequest {
+  const input = request();
+  const facts = JSON.stringify({ programMetrics: [{ label: "Youth served", target: 120, actual: 118 }], budgetVsActual: [] });
+  input.files.push({ role: "supportingEvidence", name: "GrantDeskHQ_Confirmed_Workflow_Data.txt", mimeType: "text/plain", size: Buffer.byteLength(facts), data: `data:text/plain;base64,${Buffer.from(facts).toString("base64")}` });
+  return input;
+}
+
 describe("deterministic accuracy controls", () => {
   it("parses exactly 20 ledger transactions totaling $75,400", () => {
     const rows = parseLedger(request());
@@ -45,5 +52,33 @@ describe("deterministic accuracy controls", () => {
     const checked = applyDeterministicAccuracyChecks(request(), fabricated);
     expect(checked.mappings[0].status).toBe("blocked");
     expect(checked.qualityChecks.find((item) => item.id === "deterministic-ledger")?.status).toBe("blocked");
+  });
+
+  it("blocks the deterministic ledger gate when AI omits a transaction", () => {
+    const omitted = { ...prototypeFixture, mappings: prototypeFixture.mappings.slice(1) };
+    const checked = applyDeterministicAccuracyChecks(request(), omitted);
+    expect(checked.qualityChecks.find((item) => item.id === "deterministic-ledger")?.status).toBe("blocked");
+    expect(checked.validation.findings.some((item) => item.itemId === `ledger:${prototypeFixture.mappings[0].transactionId}` && item.verdict === "blocked")).toBe(true);
+  });
+
+  it("blocks a narrative that reports the KPI target as the current-period result", () => {
+    const contradicted = { ...prototypeFixture, narrative: prototypeFixture.narrative.map((item, index) => index === 0 ? { ...item, text: "Hope Community Services served 120 youth during the first six months." } : item) };
+    const checked = applyDeterministicAccuracyChecks(requestWithConfirmedKpi(), contradicted);
+    expect(checked.narrative[0].status).toBe("blocked");
+    expect(checked.qualityChecks.find((item) => item.id === "deterministic-workflow-facts")?.status).toBe("blocked");
+  });
+
+  it("accepts the confirmed KPI actual and its deterministic achievement percentage", () => {
+    const corrected = { ...prototypeFixture, narrative: prototypeFixture.narrative.map((item, index) => index === 0 ? { ...item, text: "Hope Community Services served 118 youth, reaching 98.3% of its six-month target." } : item) };
+    const checked = applyDeterministicAccuracyChecks(requestWithConfirmedKpi(), corrected);
+    expect(checked.narrative[0].status).not.toBe("blocked");
+    expect(checked.qualityChecks.find((item) => item.id === "deterministic-workflow-facts")?.status).toBe("passed");
+  });
+
+  it("blocks a prior-period participant count when the current-period value is 118", () => {
+    const stale = { ...prototypeFixture, narrative: prototypeFixture.narrative.map((item, index) => index === 0 ? { ...item, text: "Hope Community Services served 150 youth during the reporting period." } : item) };
+    const checked = applyDeterministicAccuracyChecks(requestWithConfirmedKpi(), stale);
+    expect(checked.narrative[0].status).toBe("blocked");
+    expect(checked.validation.findings.some((item) => item.itemId === checked.narrative[0].id && /not present in the confirmed current-period KPI data/i.test(item.reason))).toBe(true);
   });
 });
