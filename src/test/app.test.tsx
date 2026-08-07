@@ -12,15 +12,15 @@ function renderRoute(route: string) {
 
 describe("important routes", () => {
   it.each([
-    ["/", /Save time on grant reporting with AI-powered preparation/i],
+    ["/", /Finish grant reports faster/i],
     ["/demo", /Six-Month Progress Report/i],
     ["/sample-report", /See the complete review package/i],
     ["/privacy", /Know how your files are handled/i],
-    ["/pricing", /Start affordably\. Prove the value on a real report/i],
-    ["/assessment", /Analyze your first report for free/i],
-    ["/compile", /Automate grant-report preparation, save time, and reduce errors/i],
-    ["/readiness", /Upload the agreement\. Get a source-linked reporting plan\./i],
-    ["/login", /Turn scattered grant files into an evidence-backed funder report/i]
+    ["/pricing", /Start with one report\. Keep going only if the workflow saves your team time/i],
+    ["/assessment", /Let AI prepare your first report draft at no cost/i],
+    ["/compile", /Let AI do the first pass on your grant report/i],
+    ["/readiness", /Find every reporting requirement before the deadline gets close/i],
+    ["/login", /Spend less time building grant reports from scattered files/i]
   ])("renders %s", (route, heading) => {
     renderRoute(route);
     expect(screen.getAllByRole("heading", { name: heading }).length).toBeGreaterThan(0);
@@ -38,13 +38,18 @@ describe("important routes", () => {
     const user = userEvent.setup();
     renderRoute("/");
     await user.click(screen.getByRole("link", { name: /Prepare a report with AI/i }));
-    expect(await screen.findByRole("heading", { name: /Automate grant-report preparation, save time, and reduce errors/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Let AI do the first pass on your grant report/i })).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Getting started steps" })).toBeInTheDocument();
   });
 
   it("explains AI benefits in clear customer language", () => {
     renderRoute("/");
-    expect(screen.getByRole("heading", { name: /Automate tedious manual work\. Keep every decision in your hands\./i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Automate the manual work behind every grant report\./i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Let AI prepare the report\. Keep your team focused on the decisions\./i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Start with the awarded grant" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Bring finance and program updates together" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Get a funder-specific first draft" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Review the exceptions and finish confidently" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Prepare your documentation automatically" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Catch errors before they create rework" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Reduce manual overhead" })).toBeInTheDocument();
@@ -55,6 +60,8 @@ describe("important routes", () => {
     expect(screen.getByRole("button", { name: "View next priority" })).toBeInTheDocument();
     expect(screen.getByText(/no customer endorsement is implied/i)).toBeInTheDocument();
     expect(document.body.textContent).toMatch(/nonprofit finance teams/i);
+    expect(document.body.textContent).toMatch(/built for what happens after the award/i);
+    expect(document.body.textContent).toMatch(/GrantDeskHQ turns your grant agreement, accounting data, and program updates into a funder-specific report draft with the sources attached/i);
     expect(document.body.textContent).not.toMatch(/outsourced finance teams/i);
     expect(document.body.textContent).not.toMatch(/Catch more before review|production AI service|deterministic synthetic data/i);
   });
@@ -102,9 +109,9 @@ describe("important routes", () => {
   it("walks users through the report compiler one step at a time", async () => {
     const user = userEvent.setup();
     renderRoute("/compile");
-    expect(screen.getByText("Tell us which report you’re preparing")).toBeVisible();
+    expect(screen.getByText("Choose the report")).toBeVisible();
     await user.click(screen.getByRole("button", { name: /Continue/i }));
-    expect(screen.getByText("Add the files your team already uses")).toBeVisible();
+    expect(screen.getByText("Add the files your team already has")).toBeVisible();
     expect(screen.getByLabelText(/Award agreement/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Approved grant budget/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/General ledger export/i)).toBeInTheDocument();
@@ -122,12 +129,34 @@ describe("important routes", () => {
       new File(["template"], "Funder_Report_Template.docx", { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
       new File(["update"], "Program_Update.txt", { type: "text/plain" })
     ]);
-    expect(screen.getByText("Add the files your team already uses")).toBeVisible();
+    expect(screen.getByText("Add the files your team already has")).toBeVisible();
     expect(screen.getByText(/Award_Agreement\.pdf/)).toBeInTheDocument();
     expect(screen.getByText(/Approved_Grant_Budget\.xlsx/)).toBeInTheDocument();
     expect(screen.getByText(/General_Ledger_Export\.csv/)).toBeInTheDocument();
     expect(screen.getByText(/Funder_Report_Template\.docx/)).toBeInTheDocument();
     expect(screen.getByText(/Program_Update\.txt/)).toBeInTheDocument();
+  });
+});
+
+describe("product messaging safeguards", () => {
+  it("keeps the product promise human, post-award focused, and professionally reviewed", () => {
+    const files = [
+      "src/pages/LandingPage.tsx",
+      "src/pages/LoginPage.tsx",
+      "src/pages/CompilePage.tsx",
+      "src/pages/ReadinessPage.tsx",
+      "src/pages/PricingPage.tsx",
+      "src/pages/PilotPage.tsx",
+      "src/components/SiteLayout.tsx",
+      "src/content/positioning.ts"
+    ];
+    const copy = files.map((file) => fs.readFileSync(path.resolve(file), "utf8")).join("\n");
+
+    expect(copy).toMatch(/post-award|after the award/i);
+    expect(copy).toMatch(/accounting data/i);
+    expect(copy).toMatch(/program updates/i);
+    expect(copy).toMatch(/professional review/i);
+    expect(copy).not.toMatch(/submission[- ]ready|fully automated|automated reconciliation|100% accurate|guaranteed accuracy|dozens of hours|complete reports in five minutes|AI compliance/i);
   });
 });
 

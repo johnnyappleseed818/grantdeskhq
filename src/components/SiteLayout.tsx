@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { Logo } from "./Logo";
+import { CORE_VALUE_PROPOSITION, REVIEW_PROMISE } from "../content/positioning";
 import { useAuth } from "../lib/auth";
 import { openAnalyticsPreferences } from "../lib/analytics";
 
@@ -65,7 +66,7 @@ export function SiteLayout() {
           <div>
             <Logo inverse />
             <p className="mt-4 max-w-md text-sm leading-6 text-slate-400">
-              Prepare funder-specific grant reports faster with AI. GrantDeskHQ organizes source files, drafts source-linked content, and surfaces missing evidence so finance teams can reduce manual work and review with confidence.
+              {CORE_VALUE_PROPOSITION} {REVIEW_PROMISE}
             </p>
           </div>
           <div>

@@ -37,8 +37,8 @@ export function PilotPage() {
           <div className="mt-8 grid items-start gap-12 lg:grid-cols-[1.05fr_.95fr]">
             <div>
               <p className="eyebrow">Founding access</p>
-              <h1 className="page-title">Analyze your first report for free.</h1>
-              <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">Use one completed, redacted historical report to compare GrantDeskHQ with the process your team uses today. See whether AI can reduce manual assembly, identify missing evidence sooner, and give reviewers a clearer starting point.</p>
+              <h1 className="page-title">Let AI prepare your first report draft at no cost.</h1>
+              <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">Use one completed, appropriately redacted historical report to compare GrantDeskHQ with the process your team uses today. See whether AI can reduce spreadsheet rebuilding, identify missing evidence sooner, and give your reviewers a stronger starting point.</p>
               <div className="mt-7 flex flex-wrap gap-3">
                 <a className="button button-secondary button-large" href={QUESTIONNAIRE_URL} target="_blank" rel="noreferrer">Tell us about your workflow <ArrowRight aria-hidden="true" /></a>
               </div>
@@ -46,7 +46,7 @@ export function PilotPage() {
             </div>
             <div className="assessment-summary">
               <p className="text-sm font-semibold text-emeraldMuted-700">What you can evaluate</p>
-              <h2>A complete AI-assisted draft with the evidence visible.</h2>
+              <h2>See the full post-award reporting workflow on one report.</h2>
               <p>See extracted funder requirements, suggested financial mappings, tailored missing-input questions, a cited narrative draft, and the review items that GrantDeskHQ blocks until a professional resolves them.</p>
             </div>
           </div>
@@ -56,8 +56,8 @@ export function PilotPage() {
       <section className="site-shell py-14 lg:py-20">
         <div className="assessment-process">
           {[
-            [MessagesSquare, "Tell us what you prepare today", "Share the funder-reporting steps that require the most copying, checking, and follow-up."],
-            [FileSearch, "Try one completed report", "Use synthetic or redacted historical files to compare GrantDeskHQ’s draft, evidence links, and review controls with familiar work."],
+            [MessagesSquare, "Show us where the work gets stuck", "Tell us which reporting steps require the most spreadsheet work, checking, and follow-up."],
+            [FileSearch, "See what AI can prepare", "Use synthetic or appropriately redacted historical files to compare GrantDeskHQ's draft, evidence links, and review controls with work your team already knows."],
             [Presentation, "Decide from the actual output", "Continue only if the result reduces meaningful manual work for your team. There is no setup fee or subscription commitment for the first report."]
           ].map(([Icon, title, copy], index) => {
             const ProcessIcon = Icon as typeof MessagesSquare;
@@ -68,7 +68,7 @@ export function PilotPage() {
         <div className="mt-14 grid gap-12 lg:grid-cols-[.9fr_1.1fr]">
         <section>
           <p className="eyebrow">Free first report</p>
-          <h2 className="text-3xl font-semibold tracking-tight text-navy-900">Judge the product against work you already know.</h2>
+          <h2 className="text-3xl font-semibold tracking-tight text-navy-900">Compare it with the way your team prepares reports today.</h2>
           <p className="mt-4 max-w-xl leading-7 text-slate-600">A completed historical report gives your team a clear comparison without replacing your accounting system or committing to a long implementation.</p>
           <ul className="mt-8 grid gap-3 sm:grid-cols-2">{scope.map((item) => <li key={item} className="flex gap-2 text-sm text-slate-700"><Check className="h-5 w-5 shrink-0 text-emeraldMuted-600" aria-hidden="true" />{item}</li>)}</ul>
           <div className="mt-8 border-l-4 border-amber-500 bg-amberReview-50 p-5 text-sm leading-6 text-amberReview-700"><strong>Outputs are drafts for professional review and are not accounting, legal, audit, or compliance advice.</strong></div>

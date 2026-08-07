@@ -32,9 +32,9 @@ export function PricingPage() {
         <div className="site-shell text-center">
           <div className="prototype-pill mx-auto"><span aria-hidden="true" /> Early-customer pricing</div>
           <p className="eyebrow mt-8">Pricing</p>
-          <h1 className="page-title mx-auto">Start affordably. Prove the value on a real report.</h1>
+          <h1 className="page-title mx-auto">Start with one report. Keep going only if the workflow saves your team time.</h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-            Your first report is free. If GrantDeskHQ reduces the manual work for your team, continue on a simple founding plan with no setup fee.
+            Your first report is free. See how GrantDeskHQ turns the agreement, accounting export, and program updates into a source-linked draft before choosing a plan.
           </p>
           <div className="pricing-promises"><span>First report free</span><span>Free source import</span><span>No setup fee</span><span>Cancel anytime</span></div>
         </div>
@@ -90,8 +90,8 @@ export function PricingPage() {
         <div className="site-shell flex flex-col items-start justify-between gap-8 md:flex-row md:items-center">
           <div>
             <p className="eyebrow">Try it before you commit</p>
-            <h2 className="text-3xl font-semibold text-navy-900">Use your first report to decide.</h2>
-            <p className="mt-3 max-w-2xl text-slate-600">Start with synthetic or redacted test files, review the evidence-backed output, and continue only if the workflow saves your team meaningful manual work.</p>
+            <h2 className="text-3xl font-semibold text-navy-900">See the value on a report your team already knows.</h2>
+            <p className="mt-3 max-w-2xl text-slate-600">Use synthetic or appropriately redacted test files, compare the source-linked output with your current process, and continue only if it reduces meaningful manual work.</p>
           </div>
           <Link className="button button-primary button-large shrink-0" to="/assessment#contact">Request your free first report <ArrowRight aria-hidden="true" /></Link>
         </div>

@@ -19,6 +19,7 @@ import {
 import { useRef } from "react";
 import { Link } from "react-router-dom";
 import { StatusBadge } from "../components/StatusBadge";
+import { CORE_VALUE_PROPOSITION, POST_AWARD_FOCUS } from "../content/positioning";
 import { formatCurrency } from "../lib/calculations";
 
 const compilerSteps = [
@@ -59,16 +60,16 @@ export function LandingPage() {
         <div className="hero-shape hero-shape-two" aria-hidden="true" />
         <div className="site-shell relative z-10 grid items-center gap-12 py-16 lg:grid-cols-[1.02fr_.98fr] lg:py-24">
           <div>
-            <div className="prototype-pill"><span aria-hidden="true" /> AI-powered post-award reporting</div>
-            <h1 className="hero-title">Save time on grant reporting with <span className="hero-highlight">AI-powered preparation.</span></h1>
+            <div className="prototype-pill"><span aria-hidden="true" /> AI-powered reporting after the award</div>
+            <h1 className="hero-title">Finish grant reports faster, <span className="hero-highlight">without rebuilding everything in spreadsheets.</span></h1>
             <p className="hero-copy">
-              Built for nonprofit finance teams, GrantDeskHQ turns approved grant documents, accounting exports, funder templates, and program updates into a source-linked draft. Automate repetitive preparation, catch missing support earlier, and give your team a faster, more accurate path to final review.
+              {CORE_VALUE_PROPOSITION} Built for nonprofit finance teams, the AI organizes the funder's requirements, prepares the financial schedules and narrative, and flags missing or conflicting information before final review.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link className="button button-primary button-large" to="/compile">Prepare a report with AI <ArrowRight aria-hidden="true" /></Link>
               <Link className="button button-secondary button-large" to="/readiness">Get a free readiness audit</Link>
             </div>
-            <p className="trust-line"><CheckCircle2 aria-hidden="true" /> Source-linked AI output · Accuracy checks built in · Professional review required</p>
+            <p className="trust-line"><CheckCircle2 aria-hidden="true" /> Source-linked AI output · Built-in evidence checks · Professional review required</p>
           </div>
 
           <ProductPreview />
@@ -94,15 +95,16 @@ export function LandingPage() {
       <section id="how-it-works" className="section-block bg-white">
         <div className="site-shell">
           <div className="section-heading">
-            <p className="eyebrow">How it helps</p>
-            <h2>Go from scattered files to a clear report draft</h2>
-            <p>GrantDeskHQ brings the source material together and uses AI to complete the repetitive first pass, so your team can spend less time assembling reports and more time reviewing the work that matters.</p>
+            <p className="eyebrow">From award to final review</p>
+            <h2>Let AI prepare the report. Keep your team focused on the decisions.</h2>
+            <p>{POST_AWARD_FOCUS}</p>
           </div>
           <div className="workflow-grid">
             {[
-              [FileText, "Bring every source file into one place", "Add the award agreement, budget, ledger export, funder form, and program update once instead of working across scattered folders."],
-              [BookOpenCheck, "Let AI prepare the report draft", "Get the reporting rules, suggested transaction mappings, calculated variances, and a source-backed narrative without building each section by hand."],
-              [ClipboardCheck, "Review faster with evidence attached", "Focus on the few items that need judgment, then download the draft and its supporting documentation together."]
+              [FileText, "Start with the awarded grant", "Upload the grant agreement and funder form. AI identifies the deadlines, questions, financial schedules, program measures, and supporting documents the funder expects."],
+              [Database, "Bring finance and program updates together", "Add the approved budget, accounting export, and program results in one place instead of coordinating the report through spreadsheets and email chains."],
+              [BookOpenCheck, "Get a funder-specific first draft", "AI suggests transaction mappings, calculates budget versus actuals, drafts source-supported answers, and asks only for information that is still missing."],
+              [ClipboardCheck, "Review the exceptions and finish confidently", "Your team sees conflicting figures, missing evidence, and unsupported statements in one review list before downloading the report package."]
             ].map(([Icon, title, copy], index) => {
               const StepIcon = Icon as typeof FileText;
               return (
@@ -124,9 +126,9 @@ export function LandingPage() {
         <div className="site-shell compiler-shell grid gap-14 lg:grid-cols-[.78fr_1.22fr]">
           <div className="lg:sticky lg:top-28 lg:self-start">
             <p className="eyebrow text-emerald-300">AI-powered, evidence-first</p>
-            <h2 className="max-w-lg text-3xl font-semibold tracking-tight text-white md:text-4xl">Automate tedious manual work. Keep every decision in your hands.</h2>
+            <h2 className="max-w-lg text-3xl font-semibold tracking-tight text-white md:text-4xl">Automate the manual work behind every grant report.</h2>
             <p className="mt-5 max-w-lg leading-7 text-slate-300">
-              GrantDeskHQ uses AI to read funder instructions, organize documents, suggest financial mappings, and prepare a sourced first draft—so your team can get to review sooner.
+              GrantDeskHQ uses AI to read funder instructions, organize documents, suggest financial mappings, and prepare a source-linked first draft. Your team gets to the important review decisions sooner.
             </p>
             <div className="mt-7 border-l-2 border-emeraldMuted-500 pl-4 text-sm leading-6 text-slate-300">AI handles the repetitive preparation. Your finance team reviews the sources, makes the decisions, and approves the final work.</div>
           </div>
@@ -170,7 +172,7 @@ export function LandingPage() {
         <div className="site-shell grid gap-12 lg:grid-cols-[.82fr_1.18fr] lg:items-start">
           <div>
             <p className="eyebrow">Evidence Validation</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-navy-950 md:text-4xl">See what the AI used—and what it could not confirm.</h2>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-navy-950 md:text-4xl">Know where every important answer came from.</h2>
             <p className="mt-5 leading-7 text-slate-600">GrantDeskHQ does not ask your team to trust an unexplained answer. Every material output carries a source, a confidence level, and a review state.</p>
             <Link className="button button-secondary mt-7" to="/compile">Walk through the setup wizard <ArrowRight aria-hidden="true" /></Link>
           </div>
@@ -190,18 +192,19 @@ export function LandingPage() {
       <section className="section-block bg-white">
         <div className="site-shell grid gap-12 lg:grid-cols-[.85fr_1.15fr]">
           <div>
-            <p className="eyebrow">Keep the systems you already use</p>
-            <h2 className="text-3xl font-semibold text-navy-900">Improve grant reporting without replacing your current tools</h2>
+            <p className="eyebrow">Built for what happens after the award</p>
+            <h2 className="text-3xl font-semibold text-navy-900">Keep the tools you use. Replace the reporting busywork between them.</h2>
             <p className="mt-4 leading-7 text-slate-600">
-              GrantDeskHQ adds an AI-powered reporting workflow around the systems your team already trusts, helping you improve the process without a disruptive migration.
+              Keep your discovery, grant-management, accounting, and program systems. GrantDeskHQ picks up after the award and turns their approved information into the funder's reporting structure.
             </p>
           </div>
           <div className="divide-y divide-slate-200 border-y border-slate-200">
             {[
-              [Database, "Accounting systems", "Keep the accounting system you already trust. GrantDeskHQ works from approved GL exports, so you can improve reporting without changing the books or adding a live connection."],
-              [Link2, "Grant-management systems", "Avoid another system migration. Keep award records, deadlines, and funder access where they are while GrantDeskHQ helps prepare the report."],
-              [FileText, "Program-data systems", "Use program results your team has already reviewed instead of asking staff to enter the same information in another system."],
-              [TriangleAlert, "Professional judgment", "Give controllers a shorter, evidence-backed review list so they can focus on important decisions instead of chasing documents."]
+              [FileSearch, "Discovery and proposal tools", "Keep using the tools that help your team find and win grants. GrantDeskHQ focuses on the financial and program reporting work that begins after the award."],
+              [Database, "Accounting systems", "Your accounting system remains the book of record. GrantDeskHQ works from an approved export and turns those transactions into the funder's budget and reporting format."],
+              [Link2, "Grant-management systems", "Keep award records, deadlines, and funder access where they are. GrantDeskHQ brings the documents and updates together when it is time to prepare the report."],
+              [FileText, "Program-data systems", "Use program results your team has already reviewed. GrantDeskHQ connects those results to the funder's questions without asking staff to re-enter the same information."],
+              [TriangleAlert, "Professional judgment", "AI prepares and checks the draft. Finance and program professionals still approve mappings, explanations, evidence, and the final report."]
             ].map(([Icon, title, copy]) => {
               const BoundaryIcon = Icon as typeof Database;
               return (
@@ -220,8 +223,8 @@ export function LandingPage() {
         <div className="site-shell flex flex-col items-start justify-between gap-8 md:flex-row md:items-center">
           <div>
             <p className="eyebrow">See it for yourself</p>
-            <h2 className="text-3xl font-semibold text-navy-900">See how AI can reduce your reporting workload.</h2>
-            <p className="mt-3 text-slate-600">Explore the complete demo, or tell us which parts of grant reporting take the most time for your team.</p>
+            <h2 className="text-3xl font-semibold text-navy-900">See how much of your next report AI can prepare.</h2>
+            <p className="mt-3 text-slate-600">Follow the workflow from grant agreement to source-linked draft, or let us analyze one report at no cost.</p>
           </div>
           <div className="flex flex-wrap gap-3">
             <Link className="button button-primary button-large shrink-0" to="/assessment">Analyze your first report free <ArrowRight aria-hidden="true" /></Link>

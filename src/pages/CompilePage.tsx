@@ -157,8 +157,8 @@ export function CompilePage() {
           <div>
             <div className="prototype-pill"><span aria-hidden="true" /> Private beta · professional review required</div>
             <p className="eyebrow mt-7">AI Report Compiler</p>
-            <h1 className="page-title">Automate grant-report preparation, save time, and reduce errors.</h1>
-            <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">GrantDeskHQ uses an AI-driven workflow to turn grant agreements, budgets, ledger exports, funder templates, and program updates into a structured report draft. It reviews the source material, suggests financial mappings, identifies missing information, and checks material statements against the evidence—helping your team prepare accurate reports with less manual work.</p>
+            <h1 className="page-title">Let AI do the first pass on your grant report.</h1>
+            <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">Add the grant agreement, approved budget, accounting export, funder form, and program update. GrantDeskHQ organizes the funder's requirements, suggests financial mappings, prepares a source-linked draft, and flags anything your team still needs to confirm.</p>
             {user ? <p className="mt-4 text-sm font-semibold text-emerald-800">Signed in as {user.email}. Your report and review history will be saved.</p> : <p className="mt-4 text-sm text-slate-600"><Link className="font-semibold text-emerald-800 underline" to="/login?next=/compile">Create an account or sign in</Link> before compilation so the report can be saved securely.</p>}
           </div>
           <div className="compile-boundary">
@@ -170,8 +170,8 @@ export function CompilePage() {
 
       <section className="site-shell grid gap-8 py-10 lg:grid-cols-[.8fr_1.2fr] lg:py-14">
         <aside className="compile-guide">
-          <p className="eyebrow">What happens next</p>
-          {["Read funder rules and report structure", "Suggest financial mappings with confidence", "Ask only for evidence that is missing", "Draft statements with visible citations", "Block unsupported content before export"].map((step, index) => (
+          <p className="eyebrow">How AI reduces the manual work</p>
+          {["Find every reporting requirement in the funder's documents", "Turn accounting rows into suggested grant-budget mappings", "Ask program staff only for information that is still missing", "Prepare narrative answers with the supporting sources attached", "Hold conflicting or unsupported content for professional review"].map((step, index) => (
             <div className="compile-guide-step" key={step}><span>{index + 1}</span><p>{step}</p></div>
           ))}
           <label className="button button-secondary mt-6 w-full cursor-pointer" htmlFor="package-upload">
@@ -182,15 +182,15 @@ export function CompilePage() {
 
         <form className="compile-form" onSubmit={submit}>
           <ol className="wizard-progress" aria-label="Getting started steps">
-            {["Report", "Sources", "Validate", "Compile"].map((label, index) => {
+            {["Report", "Sources", "Check", "Draft"].map((label, index) => {
               const number = index + 1;
               return <li key={label} className={wizardStep === number ? "is-current" : wizardStep > number ? "is-complete" : ""}><button type="button" onClick={() => number < wizardStep && setWizardStep(number)} disabled={number > wizardStep} aria-current={wizardStep === number ? "step" : undefined}><span>{wizardStep > number ? <CheckCircle2 aria-hidden="true" /> : number}</span>{label}</button></li>;
             })}
           </ol>
 
           <fieldset className="wizard-step" hidden={wizardStep !== 1}>
-            <legend><span className="eyebrow">Step 1 of 4</span>Tell us which report you’re preparing</legend>
-            <p className="wizard-intro">This information labels the report package and helps the compiler keep the right grant and reporting period in view.</p>
+            <legend><span className="eyebrow">Step 1 of 4</span>Choose the report</legend>
+            <p className="wizard-intro">Tell GrantDeskHQ which grant and reporting period these files belong to.</p>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Organization" id="compiler-organization"><input id="compiler-organization" className="form-control" required value={meta.organizationName} onChange={(event) => setMeta({ ...meta, organizationName: event.target.value })} /></Field>
               <Field label="Grant or award" id="compiler-grant"><input id="compiler-grant" className="form-control" required value={meta.grantName} onChange={(event) => setMeta({ ...meta, grantName: event.target.value })} /></Field>
@@ -199,7 +199,7 @@ export function CompilePage() {
           </fieldset>
 
           <fieldset className="wizard-step" hidden={wizardStep !== 2}>
-            <legend><span className="eyebrow">Step 2 of 4</span>Add the files your team already uses</legend>
+            <legend><span className="eyebrow">Step 2 of 4</span>Add the files your team already has</legend>
             <div className="wizard-intro flex items-center justify-between gap-4"><span>Required files are marked with an asterisk. No accounting connection is needed.</span><strong>{formatBytes(totalBytes)} / 2.5 MB</strong></div>
             <div className="source-upload-grid">
               {sourceFields.map((field) => {
@@ -217,8 +217,8 @@ export function CompilePage() {
           </fieldset>
 
           <fieldset className="wizard-step" hidden={wizardStep !== 3}>
-            <legend><span className="eyebrow">Step 3 of 4</span>Check the package before AI processing</legend>
-            <p className="wizard-intro">GrantDeskHQ runs these controls before it starts drafting, then runs a separate evidence-verification pass after compilation.</p>
+            <legend><span className="eyebrow">Step 3 of 4</span>Review what the AI will use</legend>
+            <p className="wizard-intro">GrantDeskHQ checks that the required files are present before drafting, then compares the material output with the source package.</p>
             <div className="preflight-list">
               <Preflight label="Required source roles present" passed={requiredFilesComplete} detail={`${sourceFields.filter((field) => field.required && files[field.role]).length} of 5 required sources`} />
               <Preflight label="Package fits file limits" passed={totalBytes <= MAX_TOTAL_BYTES && Object.values(files).every((file) => (file?.size || 0) <= MAX_FILE_BYTES)} detail={`${formatBytes(totalBytes)} total · 1 MB maximum per file`} />
@@ -232,8 +232,8 @@ export function CompilePage() {
           </fieldset>
 
           <fieldset className="wizard-step" hidden={wizardStep !== 4}>
-            <legend><span className="eyebrow">Step 4 of 4</span>Compile and verify the report draft</legend>
-            <p className="wizard-intro">The compiler prepares the draft first. A separate verification pass then checks every requirement, mapping, and narrative statement against the source package.</p>
+            <legend><span className="eyebrow">Step 4 of 4</span>Create and check the report draft</legend>
+            <p className="wizard-intro">AI prepares the first draft, then a separate evidence check compares each requirement, mapping, and material statement with the uploaded sources.</p>
             <div className="compile-summary">
               <div><span>Organization</span><strong>{meta.organizationName}</strong></div>
               <div><span>Grant</span><strong>{meta.grantName}</strong></div>
@@ -242,7 +242,7 @@ export function CompilePage() {
             </div>
             <button className="button button-primary button-large mt-6 w-full" type="submit" disabled={compiling}>
               {compiling ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <Sparkles aria-hidden="true" />}
-              {compiling ? "Compiling and independently verifying…" : "Compile and verify report draft"}
+              {compiling ? "Preparing and checking the draft…" : "Create and verify report draft"}
             </button>
             <p className="mt-3 text-center text-xs leading-5 text-slate-500">Nothing is submitted to a funder. Suggested mappings, calculations, and draft language require professional review.</p>
           </fieldset>

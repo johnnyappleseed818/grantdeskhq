@@ -1090,7 +1090,7 @@
   }
 
   .workflow-grid {
-    @apply mt-9 grid gap-5 md:grid-cols-3;
+    @apply mt-9 grid gap-5 md:grid-cols-2 xl:grid-cols-4;
   }
 
   .compiler-section {
@@ -1112,6 +1112,10 @@
 
   .workflow-card:nth-child(3) {
     background: #f1f5f8;
+  }
+
+  .workflow-card:nth-child(4) {
+    background: #f7f4ef;
   }
 
   .step-number {

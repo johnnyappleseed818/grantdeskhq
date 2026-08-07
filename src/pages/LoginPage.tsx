@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { CheckCircle2, KeyRound, LoaderCircle, ShieldCheck } from "lucide-react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { CORE_VALUE_PROPOSITION } from "../content/positioning";
 import { useAuth } from "../lib/auth";
 
 export function LoginPage() {
@@ -45,12 +46,12 @@ export function LoginPage() {
     <div className="site-shell account-grid">
       <div className="account-value">
         <p className="eyebrow">Private beta workspace</p>
-        <h1>Turn scattered grant files into an evidence-backed funder report—without rebuilding everything in spreadsheets.</h1>
-        <p>Turn your approved budget, accounting export, program updates, and funder form into an AI-assisted draft with the supporting evidence attached—without replacing your accounting system.</p>
+        <h1>Spend less time building grant reports from scattered files.</h1>
+        <p>{CORE_VALUE_PROPOSITION} Keep your accounting system, and let AI handle the repetitive first pass.</p>
         <div className="account-benefits">
-          <span><ShieldCheck aria-hidden="true" />Reduce manual report assembly</span>
-          <span><CheckCircle2 aria-hidden="true" />Find missing support before final review</span>
-          <span><KeyRound aria-hidden="true" />Keep every AI draft tied to its sources</span>
+          <span><ShieldCheck aria-hidden="true" />Reduce spreadsheet rebuilding</span>
+          <span><CheckCircle2 aria-hidden="true" />Find missing support before it delays review</span>
+          <span><KeyRound aria-hidden="true" />See the source behind every material answer</span>
         </div>
       </div>
       <form className="account-card" onSubmit={submit}>
