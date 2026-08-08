@@ -170,7 +170,7 @@ export function CompilePage() {
 
       <section className="site-shell grid gap-8 py-10 lg:grid-cols-[.8fr_1.2fr] lg:py-14">
         <aside className="compile-guide">
-          <p className="eyebrow">How AI reduces the manual work</p>
+          <p className="eyebrow">How GrantDeskHQ saves you time</p>
           {["Find every reporting requirement in the funder's documents", "Turn accounting rows into suggested grant-budget mappings", "Ask program staff only for information that is still missing", "Prepare narrative answers with the supporting sources attached", "Hold conflicting or unsupported content for professional review"].map((step, index) => (
             <div className="compile-guide-step" key={step}><span>{index + 1}</span><p>{step}</p></div>
           ))}
