@@ -18,7 +18,7 @@ describe("important routes", () => {
     ["/privacy", /Understand where your data goes and who can access it/i],
     ["/pricing", /Start with one report\. Keep going only if the workflow saves your team time/i],
     ["/assessment", /Let AI prepare your first report draft at no cost/i],
-    ["/compile", /Let AI do the first pass on your grant report/i],
+    ["/compile", /Bring what you have\. We’ll help with the rest/i],
     ["/readiness", /Find every reporting requirement before the deadline gets close/i],
     ["/login", /Spend less time building grant reports from scattered files/i]
   ])("renders %s", (route, heading) => {
@@ -38,7 +38,7 @@ describe("important routes", () => {
     const user = userEvent.setup();
     renderRoute("/");
     await user.click(screen.getByRole("link", { name: /Prepare a report with AI/i }));
-    expect(await screen.findByRole("heading", { name: /Let AI do the first pass on your grant report/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Bring what you have\. We’ll help with the rest/i })).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Getting started steps" })).toBeInTheDocument();
   });
 
@@ -111,15 +111,32 @@ describe("important routes", () => {
     expect(screen.getByText(/AI-assisted report preparation/i)).toBeInTheDocument();
     expect(screen.getByText(/You control which files GrantDeskHQ analyzes/i)).toBeInTheDocument();
     expect(screen.getByText("How GrantDeskHQ saves you time")).toBeInTheDocument();
+    expect(screen.getByText(/You don’t need every document upfront/i)).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/private beta/i);
     expect(document.body.textContent).not.toMatch(/How AI reduces the manual work/i);
     expect(screen.getByText("Choose the report")).toBeVisible();
     await user.click(screen.getByRole("button", { name: /Continue/i }));
     expect(screen.getByText("Add the files your team already has")).toBeVisible();
-    expect(screen.getByLabelText(/Award agreement/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Approved grant budget/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/General ledger export/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Award agreement or Notice of Award/i)).toBeRequired();
+    expect(screen.getByLabelText(/Approved grant budget/i)).not.toBeRequired();
+    expect(screen.getByLabelText(/General ledger export/i)).not.toBeRequired();
+    expect(screen.getByLabelText(/Funder report template/i)).not.toBeRequired();
+    expect(screen.getByLabelText(/Program update/i)).not.toBeRequired();
     expect(screen.getByRole("button", { name: "Back" })).toBeEnabled();
+  });
+
+  it("continues with an award document while allowing every other source later", async () => {
+    const user = userEvent.setup();
+    renderRoute("/compile");
+    await user.click(screen.getByRole("button", { name: /Continue/i }));
+    await user.upload(
+      screen.getByLabelText(/Award agreement or Notice of Award/i),
+      new File(["award"], "Notice_of_Award.pdf", { type: "application/pdf" })
+    );
+    await user.click(screen.getByRole("button", { name: /Continue/i }));
+    expect(screen.getByText("Review what the AI will use")).toBeVisible();
+    expect(screen.getByText("1 of 1 required to start")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("opens a bulk document chooser and assigns clearly named source files", async () => {

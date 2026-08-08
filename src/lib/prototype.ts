@@ -1,11 +1,7 @@
 import type { CompilationRequest, CompilationResult, ReadinessRequest, SourceRole } from "../types/prototype";
 
 export const REQUIRED_SOURCE_ROLES: SourceRole[] = [
-  "awardAgreement",
-  "approvedBudget",
-  "ledgerExport",
-  "funderTemplate",
-  "programUpdate"
+  "awardAgreement"
 ];
 
 export const MAX_FILE_BYTES = 1_000_000;
@@ -22,8 +18,8 @@ export function validateCompilationRequest(input: CompilationRequest): string[] 
   }
 
   const totalSize = input.files.reduce((sum, file) => sum + file.size, 0);
-  if (totalSize > MAX_TOTAL_BYTES) errors.push("Combined file size must be 2.5 MB or less during private beta.");
-  if (input.files.some((file) => file.size > MAX_FILE_BYTES)) errors.push("Each file must be 1 MB or less during private beta.");
+  if (totalSize > MAX_TOTAL_BYTES) errors.push("Combined file size must be 2.5 MB or less.");
+  if (input.files.some((file) => file.size > MAX_FILE_BYTES)) errors.push("Each file must be 1 MB or less.");
   if (input.files.some((file) => !file.data.startsWith("data:"))) errors.push("Every source file must contain valid encoded file data.");
   return errors;
 }
@@ -34,8 +30,8 @@ export function validateReadinessRequest(input: ReadinessRequest): string[] {
   if (!input.grantName.trim()) errors.push("Grant name is required.");
   if (!input.files.some((file) => file.role === "awardAgreement")) errors.push("An award agreement is required.");
   const totalSize = input.files.reduce((sum, file) => sum + file.size, 0);
-  if (totalSize > MAX_TOTAL_BYTES) errors.push("Combined file size must be 2.5 MB or less during private beta.");
-  if (input.files.some((file) => file.size > MAX_FILE_BYTES)) errors.push("Each file must be 1 MB or less during private beta.");
+  if (totalSize > MAX_TOTAL_BYTES) errors.push("Combined file size must be 2.5 MB or less.");
+  if (input.files.some((file) => file.size > MAX_FILE_BYTES)) errors.push("Each file must be 1 MB or less.");
   if (input.files.some((file) => !file.data.startsWith("data:"))) errors.push("Every source file must contain valid encoded file data.");
   return errors;
 }

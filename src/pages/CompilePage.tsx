@@ -19,12 +19,12 @@ import { useAuth } from "../lib/auth";
 import type { CompilationRequest, CompilationResult, CompilerFile, PersistedCompilationResponse, SourceRole } from "../types/prototype";
 
 const sourceFields: Array<{ role: SourceRole; label: string; help: string; accept: string; required: boolean }> = [
-  { role: "awardAgreement", label: "Award agreement", help: "PDF, DOCX, or TXT", accept: ".pdf,.docx,.txt", required: true },
-  { role: "approvedBudget", label: "Approved grant budget", help: "XLSX, CSV, or PDF", accept: ".xlsx,.csv,.pdf", required: true },
-  { role: "ledgerExport", label: "General ledger export", help: "CSV or XLSX", accept: ".csv,.xlsx", required: true },
-  { role: "funderTemplate", label: "Funder report template", help: "DOCX or PDF", accept: ".docx,.pdf", required: true },
-  { role: "programUpdate", label: "Program update", help: "DOCX, PDF, or TXT", accept: ".docx,.pdf,.txt", required: true },
-  { role: "supportingEvidence", label: "Supporting evidence", help: "Optional PDF, XLSX, CSV, or image", accept: ".pdf,.xlsx,.csv,.png,.jpg,.jpeg", required: false }
+  { role: "awardAgreement", label: "Award agreement or Notice of Award", help: "PDF, DOCX, or TXT", accept: ".pdf,.docx,.txt", required: true },
+  { role: "approvedBudget", label: "Approved grant budget", help: "Add now or later · XLSX, CSV, or PDF", accept: ".xlsx,.csv,.pdf", required: false },
+  { role: "ledgerExport", label: "General ledger export", help: "Add now or later · CSV or XLSX", accept: ".csv,.xlsx", required: false },
+  { role: "funderTemplate", label: "Funder report template", help: "Optional · DOCX or PDF", accept: ".docx,.pdf", required: false },
+  { role: "programUpdate", label: "Program update", help: "Add now or later · DOCX, PDF, or TXT", accept: ".docx,.pdf,.txt", required: false },
+  { role: "supportingEvidence", label: "Supporting evidence", help: "Add if required · PDF, XLSX, CSV, or image", accept: ".pdf,.xlsx,.csv,.png,.jpg,.jpeg", required: false }
 ];
 
 type ResultTab = "overview" | "requirements" | "mapping" | "narrative" | "review";
@@ -79,7 +79,7 @@ export function CompilePage() {
       return;
     }
     if (wizardStep === 2 && !requiredFilesComplete) {
-      setError("Add each required source file before continuing. Supporting evidence is optional.");
+      setError("Add an award agreement or Notice of Award to continue. Everything else can be added later.");
       return;
     }
     if (wizardStep === 2 && (totalBytes > MAX_TOTAL_BYTES || Object.values(files).some((file) => (file?.size || 0) > MAX_FILE_BYTES))) {
@@ -157,8 +157,9 @@ export function CompilePage() {
           <div>
             <div className="prototype-pill"><span aria-hidden="true" /> AI-assisted report preparation · professional review required</div>
             <p className="eyebrow mt-7">AI Report Compiler</p>
-            <h1 className="page-title">Let AI do the first pass on your grant report.</h1>
-            <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">Add the grant agreement, approved budget, accounting export, funder form, and program update. GrantDeskHQ organizes the funder's requirements, suggests financial mappings, prepares a source-linked draft, and flags anything your team still needs to confirm.</p>
+            <h1 className="page-title">Bring what you have. We’ll help with the rest.</h1>
+            <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">Upload the grant documents and reporting data already available to you. GrantDeskHQ organizes the funder’s requirements, shows what’s still missing, helps coordinate the remaining inputs across your team, and prepares a source-linked draft as the report comes together.</p>
+            <p className="mt-3 max-w-3xl text-base leading-7 text-slate-600">You don’t need every document upfront. Add more information as it becomes available.</p>
             {user ? <p className="mt-4 text-sm font-semibold text-emerald-800">Signed in as {user.email}. Your report and review history will be saved.</p> : <p className="mt-4 text-sm text-slate-600"><Link className="font-semibold text-emerald-800 underline" to="/login?next=/compile">Create an account or sign in</Link> before compilation so the report can be saved securely.</p>}
           </div>
           <div className="compile-boundary">
@@ -200,7 +201,7 @@ export function CompilePage() {
 
           <fieldset className="wizard-step" hidden={wizardStep !== 2}>
             <legend><span className="eyebrow">Step 2 of 4</span>Add the files your team already has</legend>
-            <div className="wizard-intro flex items-center justify-between gap-4"><span>Required files are marked with an asterisk. No accounting connection is needed.</span><strong>{formatBytes(totalBytes)} / 2.5 MB</strong></div>
+            <div className="wizard-intro flex items-center justify-between gap-4"><span>Only an award agreement or Notice of Award is needed to start. Add everything else now or later. No accounting connection is needed.</span><strong>{formatBytes(totalBytes)} / 2.5 MB</strong></div>
             <div className="source-upload-grid">
               {sourceFields.map((field) => {
                 const file = files[field.role];
@@ -218,9 +219,9 @@ export function CompilePage() {
 
           <fieldset className="wizard-step" hidden={wizardStep !== 3}>
             <legend><span className="eyebrow">Step 3 of 4</span>Review what the AI will use</legend>
-            <p className="wizard-intro">GrantDeskHQ checks that the required files are present before drafting, then compares the material output with the source package.</p>
+            <p className="wizard-intro">GrantDeskHQ starts with the available sources, identifies missing inputs, and compares the material output with the source package.</p>
             <div className="preflight-list">
-              <Preflight label="Required source roles present" passed={requiredFilesComplete} detail={`${sourceFields.filter((field) => field.required && files[field.role]).length} of 5 required sources`} />
+              <Preflight label="Award document present" passed={requiredFilesComplete} detail={`${sourceFields.filter((field) => field.required && files[field.role]).length} of ${sourceFields.filter((field) => field.required).length} required to start`} />
               <Preflight label="Package fits file limits" passed={totalBytes <= MAX_TOTAL_BYTES && Object.values(files).every((file) => (file?.size || 0) <= MAX_FILE_BYTES)} detail={`${formatBytes(totalBytes)} total · 1 MB maximum per file`} />
               <Preflight label="Independent evidence verification enabled" passed detail="A second pass challenges citations, mappings, calculations, and narrative claims." />
               <Preflight label="Unsupported output blocked from export" passed detail="Required review items must be resolved by a professional before package generation." />

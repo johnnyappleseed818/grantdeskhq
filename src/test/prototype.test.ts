@@ -19,10 +19,16 @@ describe("prototype request validation", () => {
     expect(validateCompilationRequest(request())).toEqual([]);
   });
 
-  it("identifies a missing source role", () => {
+  it("allows financial, template, and program sources to be added later", () => {
     const input = request();
-    input.files = input.files.filter((file) => file.role !== "ledgerExport");
-    expect(validateCompilationRequest(input)).toContain("Missing required source: ledgerExport.");
+    input.files = input.files.filter((file) => file.role === "awardAgreement");
+    expect(validateCompilationRequest(input)).toEqual([]);
+  });
+
+  it("requires an award document to start compilation", () => {
+    const input = request();
+    input.files = input.files.filter((file) => file.role !== "awardAgreement");
+    expect(validateCompilationRequest(input)).toContain("Missing required source: awardAgreement.");
   });
 
   it("accepts an agreement-only readiness audit and rejects a missing agreement", () => {
