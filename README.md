@@ -3,8 +3,8 @@
 GrantDeskHQ is a private-beta AI-powered post-award grant-reporting workflow
 used by nonprofit finance teams, fractional nonprofit
 CFO firms, accounting practices, and controllers. It combines a guided React
-interface with a server-side OpenAI Responses API compiler and a separate
-evidence-verification pass.
+interface with a server-side OpenAI Responses API compiler, an independent
+obligation-completeness audit, and a separate evidence-verification pass.
 
 > Sample workspaces use synthetic data. During private beta, the compiler accepts
 > only synthetic or appropriately redacted files. All outputs are drafts,
@@ -76,7 +76,8 @@ when those are available.
 - Official USAspending API scanner for bounded federal nonprofit-award alerts
 - Scheduled GitHub Actions refresh for the static GTM award feed
 - Daily Google Cloud Scheduler trigger for bounded OpenAI web-search discovery across indexed Reddit and LinkedIn results
-- System font stack and no external images, fonts, analytics, or tracking
+- System font stack and no external images or fonts
+- Consent-aware Google Analytics and Microsoft Clarity on public marketing pages, with private application content masked or excluded
 
 The private beta stores report records and audit events in Firestore and source
 objects in a private, public-access-blocked Cloud Storage bucket. OpenAI and
@@ -90,13 +91,21 @@ The beta does not treat a model response as a verified report. Its export gate
 combines:
 
 - strict JSON Schema output;
+- an early grant-identity and reporting-period check that requires correction
+  when verified setup facts conflict;
+- an independent obligation-completeness audit that looks for source-cited
+  reporting duties omitted by the first extraction;
 - an independent evidence-verification model;
 - exact source-name, locator, and excerpt completeness checks;
 - deterministic CSV ledger parsing and transaction-ID matching;
 - deterministic replacement of model dates, descriptions, and amounts with
   uploaded-ledger values;
 - duplicate, fabricated, omitted, and amount-mismatch blocking;
-- visible confidence, evidence coverage, and unresolved-review counts; and
+- separate report-readiness, source-verification, missing-input, and
+  unresolved-action indicators;
+- explicit Verified, Needs review, Action required, and Not evaluated states;
+- no successful status for a check that could not run because its source data
+  was not supplied; and
 - a saved audit event whenever a signed-in reviewer confirms an item.
 
 The system must abstain or block when evidence is insufficient. AI verification
@@ -265,6 +274,8 @@ npm run gtm:test
 npm run gtm:awards
 npm run preview
 npx vitest run
+# Billable live accuracy and obligation-coverage release gates (>95% required):
+npm run eval:ai
 # Optional, billable live smoke test:
 RUN_AI_SMOKE=1 npx vitest run src/test/compiler.integration.test.ts
 npm audit --omit=dev
@@ -307,9 +318,10 @@ npm audit --omit=dev
 npm audit
 ```
 
-Verified result on August 7, 2026: lint passed with zero warnings; 65
-deterministic tests passed with the opt-in live test skipped; TypeScript and the
-Vite production build passed; and all 11 direct-load routes were generated. A
+Verified local result on August 8, 2026: lint passed with zero warnings; 85
+tests passed with three opt-in live checks skipped; TypeScript and the Vite
+production build passed. The billable live accuracy and coverage gate must be
+rerun for every AI workflow release before production promotion. A
 separate billable smoke test passed through the deployed Cloud Run endpoint in
 48.89 seconds, exercising source upload, the compiler model, the independent
 verifier model, and strict structured output. The audit commands report the

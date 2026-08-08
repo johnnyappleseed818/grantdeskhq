@@ -16,7 +16,7 @@ import {
 import { MAX_FILE_BYTES, MAX_TOTAL_BYTES, canGenerateReviewPackage, resultToDownload, validateCompilationRequest } from "../lib/prototype";
 import { apiRequest } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import type { CompilationRequest, CompilationResult, CompilerFile, PersistedCompilationResponse, SourceRole } from "../types/prototype";
+import type { CompilationPreflightResult, CompilationRequest, CompilationResult, CompilerFile, PersistedCompilationResponse, ReviewState, SourceRole } from "../types/prototype";
 
 const sourceFields: Array<{ role: SourceRole; label: string; help: string; accept: string; required: boolean }> = [
   { role: "awardAgreement", label: "Award agreement or Notice of Award", help: "PDF, DOCX, or TXT", accept: ".pdf,.docx,.txt", required: true },
@@ -27,7 +27,7 @@ const sourceFields: Array<{ role: SourceRole; label: string; help: string; accep
   { role: "supportingEvidence", label: "Supporting evidence", help: "Add if required · PDF, XLSX, CSV, or image", accept: ".pdf,.xlsx,.csv,.png,.jpg,.jpeg", required: false }
 ];
 
-type ResultTab = "overview" | "requirements" | "mapping" | "narrative" | "review";
+type ResultTab = "overview" | "requirements" | "inputs" | "mapping" | "narrative" | "review";
 
 export function CompilePage() {
   const { user, token } = useAuth();
@@ -45,6 +45,9 @@ export function CompilePage() {
   const [activeTab, setActiveTab] = useState<ResultTab>("overview");
   const [wizardStep, setWizardStep] = useState(1);
   const [reportId, setReportId] = useState("");
+  const [preflighting, setPreflighting] = useState(false);
+  const [preflight, setPreflight] = useState<CompilationPreflightResult | null>(null);
+  const [preflightKey, setPreflightKey] = useState("");
 
   const totalBytes = useMemo(() => Object.values(files).reduce((sum, file) => sum + (file?.size || 0), 0), [files]);
   const requiredFilesComplete = sourceFields.filter((field) => field.required).every((field) => files[field.role]);
@@ -54,7 +57,17 @@ export function CompilePage() {
     if (!file) return;
     setFiles((current) => ({ ...current, [role]: file }));
     setResult(null);
+    if (role === "awardAgreement") {
+      setPreflight(null);
+      setPreflightKey("");
+    }
     setError("");
+  };
+
+  const updateMeta = (next: typeof meta) => {
+    setMeta(next);
+    setPreflight(null);
+    setPreflightKey("");
   };
 
   const uploadPackage = (event: ChangeEvent<HTMLInputElement>) => {
@@ -63,12 +76,16 @@ export function CompilePage() {
     const { assigned, unmatched } = assignPackageFiles(selected, files);
     setFiles((current) => ({ ...current, ...assigned }));
     setResult(null);
+    if (assigned.awardAgreement) {
+      setPreflight(null);
+      setPreflightKey("");
+    }
     setWizardStep(2);
     setError(unmatched.length ? `${unmatched.map((file) => file.name).join(", ")} could not be assigned automatically. Add each file to the appropriate source box below.` : "");
     event.target.value = "";
   };
 
-  const moveWizard = (direction: 1 | -1) => {
+  const moveWizard = async (direction: 1 | -1) => {
     setError("");
     if (direction === -1) {
       setWizardStep((step) => Math.max(1, step - 1));
@@ -85,6 +102,30 @@ export function CompilePage() {
     if (wizardStep === 2 && (totalBytes > MAX_TOTAL_BYTES || Object.values(files).some((file) => (file?.size || 0) > MAX_FILE_BYTES))) {
       setError("Reduce the source package size before continuing.");
       return;
+    }
+    if (wizardStep === 2 && user && files.awardAgreement) {
+      const key = `${meta.organizationName}|${meta.grantName}|${meta.reportingPeriod}|${files.awardAgreement.name}|${files.awardAgreement.size}|${files.awardAgreement.lastModified}`;
+      let checked = preflightKey === key ? preflight : null;
+      if (!checked) {
+        setPreflighting(true);
+        try {
+          checked = await apiRequest<CompilationPreflightResult>("/api/reports/preflight", await token(), {
+            method: "POST",
+            body: JSON.stringify({ ...meta, file: await fileToCompilerFile("awardAgreement", files.awardAgreement) })
+          });
+          setPreflight(checked);
+          setPreflightKey(key);
+        } catch (preflightError) {
+          setError(preflightError instanceof Error ? preflightError.message : "GrantDeskHQ could not check the award details.");
+          return;
+        } finally {
+          setPreflighting(false);
+        }
+      }
+      if (checked.setupConflicts.length) {
+        setError("Correct the report setup conflicts below before continuing.");
+        return;
+      }
     }
     if (wizardStep === 3 && !acknowledged) {
       setError("Confirm the test-file and professional-review requirement before continuing.");
@@ -128,14 +169,15 @@ export function CompilePage() {
 
   const resolveCheck = (id: string) => setResult((current) => {
     if (!current) return current;
-    const next = {
+    const updated = {
       ...current,
-      qualityChecks: current.qualityChecks.map((check) => check.id === id ? { ...check, status: "passed" as const, detail: `${check.detail} Reviewed and confirmed by the signed-in user.` } : check),
+      qualityChecks: current.qualityChecks.map((check) => check.id === id && check.status === "review" ? { ...check, status: "passed" as const, detail: `${check.detail} Reviewed and confirmed by the signed-in user.` } : check),
       validation: {
         ...current.validation,
-        findings: current.validation.findings.map((finding) => finding.id === id ? { ...finding, verdict: "source_matched" as const, reason: `${finding.reason} A professional reviewer confirmed this item.` } : finding)
+        findings: current.validation.findings.map((finding) => finding.id === id && finding.verdict === "review" ? { ...finding, verdict: "source_matched" as const, reason: `${finding.reason} A professional reviewer confirmed this item.` } : finding)
       }
     };
+    const next = synchronizeClientResult(updated);
     if (reportId && user) token().then((idToken) => apiRequest(`/api/reports/${reportId}/review`, idToken, { method: "PATCH", body: JSON.stringify({ itemId: id, result: next }) })).catch(() => setError("The review changed locally but could not be saved. Try again before leaving this page."));
     return next;
   });
@@ -148,6 +190,40 @@ export function CompilePage() {
     anchor.download = "GrantDeskHQ_Review_Package.json";
     anchor.click();
     URL.revokeObjectURL(url);
+  };
+
+  const acceptAgreementDetails = () => {
+    if (!preflight) return;
+    const values = [preflight.grantProfile.funderName.value, preflight.grantProfile.grantName.value]
+      .filter((value) => value && !/^information required|unknown|not (found|stated)/i.test(value));
+    if (values.length) setMeta({ ...meta, grantName: values.join(" — ") });
+    setPreflight({ ...preflight, setupConflicts: preflight.setupConflicts.filter((conflict) => conflict.type !== "grant_identity") });
+    setPreflightKey("");
+    setError("");
+  };
+
+  const replaceAwardAgreement = () => {
+    setFiles((current) => {
+      const next = { ...current };
+      delete next.awardAgreement;
+      return next;
+    });
+    setPreflight(null);
+    setPreflightKey("");
+    setError("");
+    setWizardStep(2);
+  };
+
+  const returnToSetup = (fieldId: string) => {
+    setError("");
+    setWizardStep(1);
+    window.requestAnimationFrame(() => document.getElementById(fieldId)?.focus());
+  };
+
+  const returnToSources = () => {
+    setError("");
+    setWizardStep(2);
+    window.requestAnimationFrame(() => document.querySelector(".compile-form")?.scrollIntoView({ block: "start" }));
   };
 
   return (
@@ -193,10 +269,10 @@ export function CompilePage() {
             <legend><span className="eyebrow">Step 1 of 4</span>Choose the report</legend>
             <p className="wizard-intro">Tell GrantDeskHQ which grant and reporting period these files belong to.</p>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Organization" id="compiler-organization"><input id="compiler-organization" className="form-control" required value={meta.organizationName} onChange={(event) => setMeta({ ...meta, organizationName: event.target.value })} /></Field>
-              <Field label="Grant or award" id="compiler-grant"><input id="compiler-grant" className="form-control" required value={meta.grantName} onChange={(event) => setMeta({ ...meta, grantName: event.target.value })} /></Field>
+              <Field label="Organization" id="compiler-organization"><input id="compiler-organization" className="form-control" required value={meta.organizationName} onChange={(event) => updateMeta({ ...meta, organizationName: event.target.value })} /></Field>
+              <Field label="Grant or award" id="compiler-grant"><input id="compiler-grant" className="form-control" required value={meta.grantName} onChange={(event) => updateMeta({ ...meta, grantName: event.target.value })} /></Field>
             </div>
-            <Field label="Reporting period" id="compiler-period"><input id="compiler-period" className="form-control" required value={meta.reportingPeriod} onChange={(event) => setMeta({ ...meta, reportingPeriod: event.target.value })} /></Field>
+            <Field label="Reporting period" id="compiler-period"><input id="compiler-period" className="form-control" required value={meta.reportingPeriod} onChange={(event) => updateMeta({ ...meta, reportingPeriod: event.target.value })} /></Field>
           </fieldset>
 
           <fieldset className="wizard-step" hidden={wizardStep !== 2}>
@@ -215,6 +291,24 @@ export function CompilePage() {
                 );
               })}
             </div>
+            {preflighting && <div className="setup-checking" role="status"><LoaderCircle className="animate-spin" aria-hidden="true" /><div><strong>Checking the award details</strong><p>GrantDeskHQ is comparing the funder, grant, and reporting period before drafting begins.</p></div></div>}
+            {preflight && preflight.setupConflicts.length > 0 && (
+              <section className="setup-conflict-panel" aria-labelledby="setup-conflict-title">
+                <div><p className="eyebrow">Action required</p><h3 id="setup-conflict-title">We found {preflight.setupConflicts.length} {preflight.setupConflicts.length === 1 ? "conflict" : "conflicts"} with your report setup</h3></div>
+                {preflight.setupConflicts.map((conflict) => (
+                  <article key={conflict.id} className="setup-conflict-card">
+                    <AlertTriangle aria-hidden="true" />
+                    <div><h4>{conflict.title}</h4><p>{conflict.detail}</p><small>{conflict.source.sourceName} · {conflict.source.locator}</small></div>
+                    <div className="setup-conflict-actions">
+                      {conflict.type === "grant_identity" && <button type="button" className="button button-secondary button-small" onClick={acceptAgreementDetails}>Use agreement details</button>}
+                      {conflict.type === "grant_identity" && <button type="button" className="button button-secondary button-small" onClick={replaceAwardAgreement}>Replace agreement</button>}
+                      <button type="button" className="button button-primary button-small" onClick={() => returnToSetup(conflict.type === "reporting_period" ? "compiler-period" : "compiler-grant")}>{conflict.type === "reporting_period" ? "Change reporting period" : "Edit report setup"}</button>
+                    </div>
+                  </article>
+                ))}
+              </section>
+            )}
+            {preflight && preflight.setupConflicts.length === 0 && <div className="setup-match"><CheckCircle2 aria-hidden="true" /><div><strong>Award details match this report setup</strong><p>GrantDeskHQ checked the grant identity and reporting period before moving forward.</p></div></div>}
           </fieldset>
 
           <fieldset className="wizard-step" hidden={wizardStep !== 3}>
@@ -223,7 +317,7 @@ export function CompilePage() {
             <div className="preflight-list">
               <Preflight label="Award document present" passed={requiredFilesComplete} detail={`${sourceFields.filter((field) => field.required && files[field.role]).length} of ${sourceFields.filter((field) => field.required).length} required to start`} />
               <Preflight label="Package fits file limits" passed={totalBytes <= MAX_TOTAL_BYTES && Object.values(files).every((file) => (file?.size || 0) <= MAX_FILE_BYTES)} detail={`${formatBytes(totalBytes)} total · 1 MB maximum per file`} />
-              <Preflight label="Independent evidence verification enabled" passed detail="A second pass challenges citations, mappings, calculations, and narrative claims." />
+              <Preflight label="Source checks ready" passed detail="Every important item is checked against the uploaded sources before it can be marked verified." />
               <Preflight label="Unsupported output blocked from export" passed detail="Required review items must be resolved by a professional before package generation." />
             </div>
             <label className="acknowledgement">
@@ -234,7 +328,7 @@ export function CompilePage() {
 
           <fieldset className="wizard-step" hidden={wizardStep !== 4}>
             <legend><span className="eyebrow">Step 4 of 4</span>Create and check the report draft</legend>
-            <p className="wizard-intro">AI prepares the first draft, then a separate evidence check compares each requirement, mapping, and material statement with the uploaded sources.</p>
+            <p className="wizard-intro">AI prepares the first draft, then GrantDeskHQ compares each requirement, mapping, and important statement with the uploaded sources.</p>
             <div className="compile-summary">
               <div><span>Organization</span><strong>{meta.organizationName}</strong></div>
               <div><span>Grant</span><strong>{meta.grantName}</strong></div>
@@ -251,51 +345,64 @@ export function CompilePage() {
           {error && <div className="compiler-error" role="alert"><AlertTriangle aria-hidden="true" /><span>{error}</span></div>}
           <div className="wizard-actions">
             <button type="button" className="button button-secondary" onClick={() => moveWizard(-1)} disabled={wizardStep === 1 || compiling}>Back</button>
-            {wizardStep < 4 && <button type="button" className="button button-primary" onClick={() => moveWizard(1)}>Continue <ArrowRight aria-hidden="true" /></button>}
+            {wizardStep < 4 && <button type="button" className="button button-primary" onClick={() => moveWizard(1)} disabled={preflighting}>{preflighting ? "Checking award…" : "Continue"} {!preflighting && <ArrowRight aria-hidden="true" />}</button>}
           </div>
         </form>
       </section>
 
       {reportId && <div className="site-shell"><div className="account-notice">Report saved to your private workspace. <Link className="underline" to="/workspace">View saved reports</Link></div></div>}
-      {result && <CompilerResults result={result} activeTab={activeTab} setActiveTab={setActiveTab} onResolve={resolveCheck} onDownload={download} />}
+      {result && <CompilerResults result={result} activeTab={activeTab} setActiveTab={setActiveTab} onResolve={resolveCheck} onDownload={download} onEditSetup={() => returnToSetup("compiler-grant")} onAddSources={returnToSources} />}
     </div>
   );
 }
 
-function CompilerResults({ result, activeTab, setActiveTab, onResolve, onDownload }: { result: CompilationResult; activeTab: ResultTab; setActiveTab(tab: ResultTab): void; onResolve(id: string): void; onDownload(): void }) {
-  const unresolved = result.qualityChecks.filter((check) => check.required && check.status !== "passed").length
-    + result.validation.findings.filter((finding) => finding.verdict !== "source_matched").length;
-  const tabs: Array<[ResultTab, string]> = [["overview", "Overview"], ["requirements", "Requirements"], ["mapping", "Financial mapping"], ["narrative", "Narrative & evidence"], ["review", `Quality review (${unresolved})`]];
+export function CompilerResults({ result, activeTab, setActiveTab, onResolve, onDownload, onEditSetup, onAddSources }: { result: CompilationResult; activeTab: ResultTab; setActiveTab(tab: ResultTab): void; onResolve(id: string): void; onDownload(): void; onEditSetup(): void; onAddSources(): void }) {
+  const actions = result.workflow.actionRequiredCount + result.workflow.needsReviewCount + result.workflow.missingInputCount;
+  const hasLedger = result.inputStatus.some((item) => item.role === "ledgerExport" && item.available);
+  const tabs: Array<[ResultTab, string]> = [
+    ["overview", "Overview"],
+    ["requirements", "Requirements"],
+    ["inputs", "Inputs"],
+    ["mapping", hasLedger ? "Financial mapping" : "Financial mapping · add data"],
+    ["narrative", "Draft & evidence"],
+    ["review", `Review & approval · ${actions} ${actions === 1 ? "action" : "actions"}`]
+  ];
   return (
     <section id="compiler-results" tabIndex={-1} className="compiler-results">
       <div className="site-shell py-12 lg:py-16">
         <div className="compiler-result-heading">
           <div><p className="eyebrow">Compiled draft</p><h2>{result.reportTitle}</h2><p>{result.summary}</p></div>
-          <div className={`review-count ${unresolved ? "needs-review" : "ready"}`}><strong>{unresolved}</strong><span>{unresolved === 1 ? "required item" : "required items"} to review</span></div>
+          <div className={`review-count ${actions ? "needs-review" : "ready"}`}><strong>{actions}</strong><span>{actions === 1 ? "action" : "actions"} remaining</span></div>
         </div>
         <div className="result-tabs" role="tablist" aria-label="Compiled report sections">
           {tabs.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={activeTab === id} className={activeTab === id ? "is-active" : ""} onClick={() => setActiveTab(id)}>{label}</button>)}
         </div>
         <div className="result-panel">
-          {activeTab === "overview" && <Overview result={result} />}
+          {activeTab === "overview" && <Overview result={result} onEditSetup={onEditSetup} />}
           {activeTab === "requirements" && <Requirements result={result} />}
-          {activeTab === "mapping" && <Mappings result={result} />}
-          {activeTab === "narrative" && <Narrative result={result} />}
-          {activeTab === "review" && <Review result={result} onResolve={onResolve} onDownload={onDownload} />}
+          {activeTab === "inputs" && <Inputs result={result} onAddSources={onAddSources} />}
+          {activeTab === "mapping" && <Mappings result={result} onAddSources={onAddSources} />}
+          {activeTab === "narrative" && <Narrative result={result} onAddSources={onAddSources} />}
+          {activeTab === "review" && <Review result={result} onResolve={onResolve} onDownload={onDownload} onEditSetup={onEditSetup} onAddSources={onAddSources} />}
         </div>
       </div>
     </section>
   );
 }
 
-function Overview({ result }: { result: CompilationResult }) {
+function Overview({ result, onEditSetup }: { result: CompilationResult; onEditSetup(): void }) {
+  const coreInputs = result.inputStatus.filter((item) => item.core);
+  const availableInputs = coreInputs.filter((item) => item.available).length;
+  const readinessLabel = result.workflow.readiness === "not_ready" ? "Not ready" : result.workflow.readiness === "needs_review" ? "Needs review" : "Ready for review";
   return <div className="result-metric-grid">
-    <ResultMetric label="Evidence coverage" value={result.validation.evidenceCoveragePercent} suffix="%" detail="Source-matched by verification pass" />
+    <TextResultMetric label="Report readiness" value={readinessLabel} detail={result.workflow.readiness === "not_ready" ? "Resolve setup conflicts and missing inputs before export." : "Professional review and approval are still required."} />
+    <ResultMetric label="Source verification" value={result.validation.evidenceCoveragePercent} suffix="%" detail="Share of checked claims matched to a source—not overall report readiness" />
+    <TextResultMetric label="Inputs available" value={`${availableInputs} of ${coreInputs.length}`} detail="Core report inputs currently available" />
+    <ResultMetric label="Actions required" value={result.workflow.actionRequiredCount} detail="Objective conflicts or blocked checks that must be corrected" />
     <ResultMetric label="Funder requirements" value={result.requirements.length} detail={`${result.requirements.filter((item) => item.status === "verified").length} source-verified`} />
-    <ResultMetric label="Transaction mappings" value={result.mappings.length} detail={`${result.mappings.filter((item) => item.status !== "verified").length} need review`} />
-    <ResultMetric label="Missing inputs" value={result.missingInputs.filter((item) => item.status === "open").length} detail="Tailored follow-up questions" />
-    <ResultMetric label="Blocked outputs" value={result.validation.blockedItems} detail="Held back for reviewer action" />
-    <div className="validation-method col-span-full"><ShieldCheck aria-hidden="true" /><div><strong>Independent evidence verification</strong><p>{result.validation.method}</p></div></div>
+    <ResultMetric label="Missing inputs" value={result.workflow.missingInputCount} detail="Information still needed from Finance, Program, or Grants" />
+    {result.setupConflicts.length > 0 && <div className="setup-conflict-summary col-span-full"><AlertTriangle aria-hidden="true" /><div><strong>{result.setupConflicts.length} setup {result.setupConflicts.length === 1 ? "conflict" : "conflicts"} must be corrected</strong><p>{result.setupConflicts.map((item) => item.title).join(" · ")}</p></div><button type="button" className="button button-primary button-small" onClick={onEditSetup}>Fix report setup</button></div>}
+    <div className="validation-method col-span-full"><ShieldCheck aria-hidden="true" /><div><strong>Source verification</strong><p>{result.validation.method}</p></div></div>
     <div className="col-span-full mt-3 grid gap-3">
       {result.warnings.map((warning) => <div className="prototype-warning" key={warning}><ShieldCheck aria-hidden="true" />{warning}</div>)}
     </div>
@@ -304,35 +411,70 @@ function Overview({ result }: { result: CompilationResult }) {
 
 function Requirements({ result }: { result: CompilationResult }) {
   return <div className="compiled-list">{result.requirements.map((item) => <article key={item.id}>
-    <div className="compiled-list-main"><span className={`review-dot ${item.status}`} /><div><p className="eyebrow">{item.id} · {Math.round(item.confidence * 100)}% confidence</p><h3>{item.requirement}</h3></div></div>
+    <div className="compiled-list-main"><ReviewLabel status={item.status} /><div><p className="eyebrow">{Math.round(item.confidence * 100)}% extraction confidence</p><h3>{item.requirement}</h3></div></div>
     <Source reference={item.source} />
   </article>)}</div>;
 }
 
-function Mappings({ result }: { result: CompilationResult }) {
+function Inputs({ result, onAddSources }: { result: CompilationResult; onAddSources(): void }) {
+  return <div className="input-status-list">
+    <div className="input-request-card">
+      <div><p className="eyebrow">Start with what you have</p><h3>GrantDeskHQ shows exactly what is still needed</h3><p>Add the remaining information as it becomes available. Missing inputs stay visible and cannot be mistaken for completed work.</p></div>
+      <button type="button" className="button button-primary button-small" onClick={onAddSources}>Add report inputs</button>
+    </div>
+    {result.inputStatus.map((item) => <article key={item.role} className={`input-status-card ${item.available ? "is-available" : "is-missing"}`}>
+      {item.available ? <CheckCircle2 aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
+      <div><div className="input-status-heading"><h3>{item.label}</h3><ReviewLabel status={item.available ? "verified" : "not_evaluated"} /></div><p>{item.detail}</p>{!item.available && item.requiredForCompletion && <small>Needed before the report can be prepared for approval.</small>}</div>
+      {!item.available && <button type="button" className="button button-secondary button-small" onClick={onAddSources}>{item.actionLabel}</button>}
+    </article>)}
+  </div>;
+}
+
+function Mappings({ result, onAddSources }: { result: CompilationResult; onAddSources(): void }) {
+  const hasLedger = result.inputStatus.some((item) => item.role === "ledgerExport" && item.available);
+  if (!hasLedger) return <EmptyResultState title="Accounting data is still needed" detail="Add a general-ledger export when it is available. GrantDeskHQ will then suggest grant-budget mappings and calculate the financial schedule from those source rows." action="Add accounting data" onAction={onAddSources} />;
+  if (!result.mappings.length) return <EmptyResultState title="No transaction mappings are available yet" detail="GrantDeskHQ could not produce usable mapping suggestions from the current accounting file. Review the file format or add a different export." action="Review accounting data" onAction={onAddSources} />;
   return <div className="table-scroll"><table className="data-table prototype-mapping-table"><thead><tr><th>ID</th><th>Date</th><th>Description</th><th>Amount</th><th>Suggested category</th><th>Confidence</th><th>Evidence / rule</th><th>Status</th></tr></thead><tbody>{result.mappings.map((item) => <tr key={item.transactionId} className={item.status === "blocked" ? "row-unresolved" : ""}><th>{item.transactionId}</th><td>{item.date}</td><td>{item.description}</td><td>{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(item.amount)}</td><td>{item.suggestedCategory}</td><td>{Math.round(item.confidence * 100)}%</td><td>{item.rationale}</td><td><ReviewLabel status={item.status} /></td></tr>)}</tbody></table></div>;
 }
 
-function Narrative({ result }: { result: CompilationResult }) {
-  return <div className="compiled-list">{result.narrative.map((item) => <article key={item.id}>
-    <div className="compiled-list-main"><ReviewLabel status={item.status} /><div><p className="eyebrow">{item.evidenceType.replaceAll("_", " ")}</p><h3 className={item.status === "blocked" ? "text-redBlocked-700 line-through" : ""}>{item.text}</h3></div></div>
-    <Source reference={item.source} />
-  </article>)}</div>;
+function Narrative({ result, onAddSources }: { result: CompilationResult; onAddSources(): void }) {
+  const programMissing = result.inputStatus.some((item) => item.role === "programUpdate" && !item.available);
+  const financialMissing = result.inputStatus.some((item) => item.role === "ledgerExport" && !item.available);
+  return <div className="grid gap-4">
+    {(programMissing || financialMissing) && <EmptyResultState title="Program and financial results are still needed" detail="You haven’t provided all current-period program results or financial activity, so GrantDeskHQ will not generate those parts of the report yet." action="Add report inputs" onAction={onAddSources} compact />}
+    {result.narrative.length ? <div className="compiled-list">{result.narrative.map((item) => <article key={item.id}>
+      <div className="compiled-list-main"><ReviewLabel status={item.status} /><div><p className="eyebrow">{humanEvidenceType(item.evidenceType)}</p><h3 className={item.status === "blocked" ? "text-redBlocked-700 line-through" : ""}>{item.text}</h3></div></div>
+      <Source reference={item.source} />
+    </article>)}</div> : <p className="empty-copy">No source-supported narrative can be drafted from the current inputs.</p>}
+  </div>;
 }
 
-function Review({ result, onResolve, onDownload }: { result: CompilationResult; onResolve(id: string): void; onDownload(): void }) {
+function Review({ result, onResolve, onDownload, onEditSetup, onAddSources }: { result: CompilationResult; onResolve(id: string): void; onDownload(): void; onEditSetup(): void; onAddSources(): void }) {
   const ready = canGenerateReviewPackage(result);
+  const unresolvedFindings = result.validation.findings.filter((finding) => finding.verdict !== "source_matched");
+  const blockedCount = result.setupConflicts.length
+    + unresolvedFindings.filter((finding) => finding.verdict === "blocked").length
+    + result.qualityChecks.filter((check) => check.required && check.status === "blocked").length;
+  const missingCount = result.inputStatus.filter((item) => item.requiredForCompletion && !item.available).length;
+  const reviewCount = unresolvedFindings.filter((finding) => finding.verdict === "review").length
+    + result.qualityChecks.filter((check) => check.required && check.status === "review").length;
   return <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
     <div className="grid gap-3">
-      {result.validation.findings.filter((finding) => finding.verdict !== "source_matched").map((finding) => <article key={finding.id} className={`prototype-review-item ${finding.verdict}`}>
-        <ShieldCheck aria-hidden="true" /><div><h3>{finding.itemId}: {finding.verdict === "blocked" ? "Source support not confirmed" : "Evidence needs review"}</h3><p>{finding.reason}</p><small>{finding.source.sourceName} · {finding.source.locator}</small></div><button type="button" className="button button-secondary button-small" onClick={() => onResolve(finding.id)}>Confirm after review</button>
+      {result.setupConflicts.map((conflict) => <article key={conflict.id} className="prototype-review-item blocked">
+        <AlertTriangle aria-hidden="true" /><div><ReviewLabel status="blocked" /><h3>{conflict.title}</h3><p>{conflict.detail}</p><small>{conflict.source.sourceName} · {conflict.source.locator}</small></div><button type="button" className="button button-primary button-small" onClick={onEditSetup}>Fix report setup</button>
+      </article>)}
+      {unresolvedFindings.map((finding) => <article key={finding.id} className={`prototype-review-item ${finding.verdict}`}>
+        {finding.verdict === "blocked" ? <AlertTriangle aria-hidden="true" /> : <ShieldCheck aria-hidden="true" />}
+        <div><ReviewLabel status={finding.verdict === "blocked" ? "blocked" : "review"} /><h3>{findingTitle(finding.itemId, finding.verdict)}</h3><p>{finding.reason}</p><small>{finding.source.sourceName} · {finding.source.locator}</small></div>
+        {finding.verdict === "review" ? <button type="button" className="button button-secondary button-small" onClick={() => onResolve(finding.id)}>Confirm after review</button> : <button type="button" className="button button-secondary button-small" onClick={onAddSources}>Correct source or setup</button>}
       </article>)}
       {result.qualityChecks.map((check) => <article key={check.id} className={`prototype-review-item ${check.status}`}>
-      {check.status === "passed" ? <CheckCircle2 aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
-      <div><h3>{check.label}</h3><p>{check.detail}</p></div>
-      {check.required && check.status !== "passed" && <button type="button" className="button button-secondary button-small" onClick={() => onResolve(check.id)}>Mark reviewed</button>}
+      {check.status === "passed" ? <CheckCircle2 aria-hidden="true" /> : check.status === "not_evaluated" ? <FileText aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
+      <div><ReviewLabel status={qualityState(check.status)} /><h3>{check.label}</h3><p>{check.detail}</p></div>
+      {check.required && check.status === "review" && <button type="button" className="button button-secondary button-small" onClick={() => onResolve(check.id)}>Confirm after review</button>}
+      {check.required && (check.status === "blocked" || check.status === "not_evaluated") && <button type="button" className="button button-secondary button-small" onClick={onAddSources}>{check.status === "not_evaluated" ? "Add information" : "Correct source data"}</button>}
     </article>)}</div>
-    <aside className="review-package-card"><ClipboardCheck aria-hidden="true" /><h3>{ready ? "Review package ready" : "Complete the review gate"}</h3><p>{ready ? "Required checks are marked as reviewed. Download the structured draft and citation log for professional review." : "Resolve every required item before generating the package."}</p><button type="button" className="button button-primary mt-5 w-full" disabled={!ready} onClick={onDownload}><Download aria-hidden="true" />Generate review package</button></aside>
+    <aside className="review-package-card"><ClipboardCheck aria-hidden="true" /><h3>{ready ? "Review package ready" : "Complete the review gate"}</h3><p>{ready ? "Required checks are complete. Generate the structured draft and citation log for final professional review." : reviewGateMessage(blockedCount, missingCount, reviewCount)}</p>{result.setupConflicts.length > 0 && <button type="button" className="button button-secondary mt-4 w-full" onClick={onEditSetup}>Fix report setup</button>}{missingCount > 0 && <button type="button" className="button button-secondary mt-3 w-full" onClick={onAddSources}>Add missing information</button>}<button type="button" className="button button-primary mt-5 w-full" disabled={!ready} onClick={onDownload}><Download aria-hidden="true" />Generate review package</button></aside>
   </div>;
 }
 
@@ -340,12 +482,55 @@ function Source({ reference }: { reference: { sourceName: string; locator: strin
   return <div className="compiled-source"><FileText aria-hidden="true" /><div><strong>{reference.sourceName} · {reference.locator}</strong><blockquote>“{reference.excerpt}”</blockquote></div></div>;
 }
 
-function ReviewLabel({ status }: { status: "verified" | "review" | "blocked" }) {
-  return <span className={`status-badge ${status === "verified" ? "status-success" : status === "review" ? "status-review" : "status-blocked"}`}>{status}</span>;
+function ReviewLabel({ status }: { status: ReviewState }) {
+  const label = status === "verified" ? "Verified" : status === "review" ? "Needs review" : status === "blocked" ? "Action required" : "Not evaluated";
+  const className = status === "verified" ? "status-success" : status === "review" ? "status-review" : status === "blocked" ? "status-blocked" : "status-neutral";
+  return <span className={`status-badge ${className}`}>{label}</span>;
 }
 
 function ResultMetric({ label, value, detail, suffix = "" }: { label: string; value: number; detail: string; suffix?: string }) {
   return <article className="result-metric"><span>{label}</span><strong>{value}{suffix}</strong><p>{detail}</p></article>;
+}
+
+function TextResultMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return <article className="result-metric"><span>{label}</span><strong className="result-metric-text">{value}</strong><p>{detail}</p></article>;
+}
+
+function EmptyResultState({ title, detail, action, onAction, compact = false }: { title: string; detail: string; action: string; onAction(): void; compact?: boolean }) {
+  return <section className={`empty-result-state ${compact ? "is-compact" : ""}`}><FileText aria-hidden="true" /><div><h3>{title}</h3><p>{detail}</p></div><button type="button" className="button button-primary button-small" onClick={onAction}>{action}</button></section>;
+}
+
+function qualityState(status: "passed" | "review" | "blocked" | "not_evaluated"): ReviewState {
+  return status === "passed" ? "verified" : status;
+}
+
+function humanEvidenceType(value: string) {
+  const labels: Record<string, string> = {
+    source_fact: "Verified source fact",
+    calculation: "Calculated from source data",
+    program_response: "Confirmed program response",
+    needs_confirmation: "Needs confirmation",
+    unsupported: "Unsupported statement"
+  };
+  return labels[value] || "Source-linked draft";
+}
+
+function findingTitle(itemId: string, verdict: "source_matched" | "review" | "blocked") {
+  const value = itemId.toLowerCase();
+  if (value.includes("period")) return "Reporting period needs attention";
+  if (value.includes("grant") || value.includes("award")) return "Grant details need attention";
+  if (value.includes("ledger") || value.includes("mapping") || value.includes("transaction")) return "Financial source data needs attention";
+  if (value.includes("narrative")) return verdict === "blocked" ? "Draft statement is not supported" : "Draft statement needs review";
+  return verdict === "blocked" ? "Source support is missing" : "Source evidence needs review";
+}
+
+function reviewGateMessage(blocked: number, missing: number, review: number) {
+  const items = [
+    blocked ? `${blocked} ${blocked === 1 ? "blocker" : "blockers"}` : "",
+    missing ? `${missing} required ${missing === 1 ? "input" : "inputs"}` : "",
+    review ? `${review} ${review === 1 ? "review decision" : "review decisions"}` : ""
+  ].filter(Boolean);
+  return items.length ? `Complete ${items.join(", ")} before generating the review package.` : "Complete the remaining report actions before generating the review package.";
 }
 
 function Preflight({ label, passed, detail }: { label: string; passed: boolean; detail: string }) {
@@ -354,6 +539,36 @@ function Preflight({ label, passed, detail }: { label: string; passed: boolean; 
 
 function Field({ label, id, children }: { label: string; id: string; children: React.ReactNode }) {
   return <div><label className="field-label" htmlFor={id}>{label}</label>{children}</div>;
+}
+
+function synchronizeClientResult(result: CompilationResult): CompilationResult {
+  const findings = result.validation.findings;
+  const sourceMatchedItems = findings.filter((item) => item.verdict === "source_matched").length;
+  const itemsNeedingReview = findings.filter((item) => item.verdict === "review").length;
+  const blockedItems = findings.filter((item) => item.verdict === "blocked").length;
+  const blockedChecks = result.qualityChecks.filter((check) => check.required && check.status === "blocked").length;
+  const reviewChecks = result.qualityChecks.filter((check) => check.required && check.status === "review").length;
+  const missingRequiredSources = result.inputStatus.filter((item) => item.requiredForCompletion && !item.available).length;
+  const openMissingInputs = result.missingInputs.filter((item) => item.status === "open").length;
+  const actionRequiredCount = result.setupConflicts.length + blockedChecks + blockedItems;
+  const needsReviewCount = reviewChecks + itemsNeedingReview;
+  const missingInputCount = Math.max(missingRequiredSources, openMissingInputs);
+  return {
+    ...result,
+    validation: {
+      ...result.validation,
+      sourceMatchedItems,
+      itemsNeedingReview,
+      blockedItems,
+      evidenceCoveragePercent: findings.length ? Math.round((sourceMatchedItems / findings.length) * 100) : 0
+    },
+    workflow: {
+      actionRequiredCount,
+      needsReviewCount,
+      missingInputCount,
+      readiness: actionRequiredCount || missingInputCount ? "not_ready" : needsReviewCount ? "needs_review" : "ready_for_review"
+    }
+  };
 }
 
 const roleHints: Array<[SourceRole, RegExp]> = [

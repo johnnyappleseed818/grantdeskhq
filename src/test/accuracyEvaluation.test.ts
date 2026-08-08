@@ -40,6 +40,24 @@ function accurateResult(input: CompilationRequest): CompilationResult {
   const result: CompilationResult = {
     reportTitle: "Six-Month Progress Report",
     summary: "Source-grounded draft.",
+    grantProfile: {
+      funderName: profileField("Information required"),
+      grantName: profileField("Youth Access Initiative"),
+      grantId: profileField("Information required"),
+      grantStartDate: profileField("Information required"),
+      grantEndDate: profileField("Information required"),
+      grantType: profileField("Information required")
+    },
+    setupConflicts: [],
+    inputStatus: [
+      { role: "awardAgreement", label: "Award document", available: true, core: true, requiredForCompletion: true, detail: "Available for this report.", actionLabel: "Add award document" },
+      { role: "approvedBudget", label: "Approved budget", available: false, core: true, requiredForCompletion: true, detail: "Add the approved grant budget.", actionLabel: "Add approved budget" },
+      { role: "ledgerExport", label: "Accounting data", available: true, core: true, requiredForCompletion: true, detail: "Available for this report.", actionLabel: "Add accounting data" },
+      { role: "funderTemplate", label: "Funder report form", available: false, core: true, requiredForCompletion: false, detail: "Optional.", actionLabel: "Add funder form" },
+      { role: "programUpdate", label: "Program results", available: true, core: true, requiredForCompletion: true, detail: "Available for this report.", actionLabel: "Add program update" },
+      { role: "supportingEvidence", label: "Supporting evidence", available: true, core: false, requiredForCompletion: true, detail: "Available for this report.", actionLabel: "Add supporting evidence" }
+    ],
+    workflow: { readiness: "not_ready", actionRequiredCount: 0, needsReviewCount: 0, missingInputCount: 3 },
     requirements,
     mappings,
     missingInputs: [
@@ -78,4 +96,13 @@ describe("AI workflow accuracy scoring", () => {
 
 function file(role: CompilationRequest["files"][number]["role"], name: string, mimeType: string, buffer: Buffer) {
   return { role, name, mimeType, size: buffer.byteLength, data: `data:${mimeType};base64,${buffer.toString("base64")}` };
+}
+
+function profileField(value: string) {
+  return {
+    value,
+    confidence: value === "Information required" ? 0 : 1,
+    source: agreementSource,
+    status: value === "Information required" ? "not_evaluated" as const : "verified" as const
+  };
 }

@@ -1,10 +1,23 @@
 export const compilationSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["reportTitle", "summary", "requirements", "mappings", "missingInputs", "narrative", "qualityChecks", "warnings"],
+  required: ["reportTitle", "summary", "grantProfile", "requirements", "mappings", "missingInputs", "narrative", "qualityChecks", "warnings"],
   properties: {
     reportTitle: { type: "string" },
     summary: { type: "string" },
+    grantProfile: {
+      type: "object",
+      additionalProperties: false,
+      required: ["funderName", "grantName", "grantId", "grantStartDate", "grantEndDate", "grantType"],
+      properties: {
+        funderName: { $ref: "#/$defs/profileField" },
+        grantName: { $ref: "#/$defs/profileField" },
+        grantId: { $ref: "#/$defs/profileField" },
+        grantStartDate: { $ref: "#/$defs/profileField" },
+        grantEndDate: { $ref: "#/$defs/profileField" },
+        grantType: { $ref: "#/$defs/profileField" }
+      }
+    },
     requirements: {
       type: "array",
       items: {
@@ -66,14 +79,25 @@ export const compilationSchema = {
         required: ["id", "label", "detail", "required", "status"],
         properties: {
           id: { type: "string" }, label: { type: "string" }, detail: { type: "string" }, required: { type: "boolean" },
-          status: { type: "string", enum: ["passed", "review", "blocked"] }
+          status: { type: "string", enum: ["passed", "review", "blocked", "not_evaluated"] }
         }
       }
     },
     warnings: { type: "array", items: { type: "string" } }
   },
   $defs: {
-    reviewState: { type: "string", enum: ["verified", "review", "blocked"] },
+    reviewState: { type: "string", enum: ["verified", "review", "blocked", "not_evaluated"] },
+    profileField: {
+      type: "object",
+      additionalProperties: false,
+      required: ["value", "confidence", "source", "status"],
+      properties: {
+        value: { type: "string" },
+        confidence: { type: "number", minimum: 0, maximum: 1 },
+        source: { $ref: "#/$defs/source" },
+        status: { $ref: "#/$defs/reviewState" }
+      }
+    },
     source: {
       type: "object",
       additionalProperties: false,

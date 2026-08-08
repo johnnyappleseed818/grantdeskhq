@@ -3,6 +3,24 @@ import type { CompilationResult } from "../types/prototype";
 export const prototypeFixture: CompilationResult = {
   reportTitle: "Six-Month Progress Report",
   summary: "The source package supports a six-month funder-report draft. Travel is above the elapsed-period plan and requires explanation; one receipt and one transaction mapping require review.",
+  grantProfile: {
+    funderName: { value: "Pacific Youth Foundation", confidence: 0.99, source: { sourceName: "Synthetic_Grant_Agreement.pdf", locator: "Page 1", excerpt: "Pacific Youth Foundation" }, status: "verified" },
+    grantName: { value: "Youth Access Initiative", confidence: 0.99, source: { sourceName: "Synthetic_Grant_Agreement.pdf", locator: "Page 1", excerpt: "Youth Access Initiative" }, status: "verified" },
+    grantId: { value: "PYF-2026-018", confidence: 0.98, source: { sourceName: "Synthetic_Grant_Agreement.pdf", locator: "Page 1", excerpt: "Grant ID: PYF-2026-018" }, status: "verified" },
+    grantStartDate: { value: "January 1, 2026", confidence: 0.99, source: { sourceName: "Synthetic_Grant_Agreement.pdf", locator: "Page 1", excerpt: "Grant period: January 1, 2026 through December 31, 2026" }, status: "verified" },
+    grantEndDate: { value: "December 31, 2026", confidence: 0.99, source: { sourceName: "Synthetic_Grant_Agreement.pdf", locator: "Page 1", excerpt: "Grant period: January 1, 2026 through December 31, 2026" }, status: "verified" },
+    grantType: { value: "Restricted program grant", confidence: 0.96, source: { sourceName: "Synthetic_Grant_Agreement.pdf", locator: "Page 1", excerpt: "Restricted program grant" }, status: "verified" }
+  },
+  setupConflicts: [],
+  inputStatus: [
+    { role: "awardAgreement", label: "Award document", available: true, core: true, requiredForCompletion: true, detail: "Available for this report.", actionLabel: "Add award document" },
+    { role: "approvedBudget", label: "Approved budget", available: true, core: true, requiredForCompletion: true, detail: "Available for this report.", actionLabel: "Add approved budget" },
+    { role: "ledgerExport", label: "Accounting data", available: true, core: true, requiredForCompletion: true, detail: "Available for this report.", actionLabel: "Add accounting data" },
+    { role: "funderTemplate", label: "Funder report form", available: false, core: true, requiredForCompletion: false, detail: "Optional unless the funder provides a required form.", actionLabel: "Add funder form" },
+    { role: "programUpdate", label: "Program results", available: true, core: true, requiredForCompletion: true, detail: "Available for this report.", actionLabel: "Add program update" },
+    { role: "supportingEvidence", label: "Supporting evidence", available: true, core: false, requiredForCompletion: true, detail: "Available for this report.", actionLabel: "Add supporting evidence" }
+  ],
+  workflow: { readiness: "not_ready", actionRequiredCount: 2, needsReviewCount: 1, missingInputCount: 2 },
   requirements: [
     {
       id: "REQ-001",

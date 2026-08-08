@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { evaluateCompilationAccuracy } from "../../server/accuracyEvaluation";
 import { compileGrantReport } from "../../server/reportCompiler";
+import { evaluateComprehensiveRequirementCoverage } from "../../server/requirementCoverage";
 import type { CompilationRequest, CompilerFile, SourceRole } from "../types/prototype";
 
 const enabled = process.env.RUN_AI_EVAL === "1";
@@ -19,6 +20,26 @@ describe.skipIf(!enabled)("live AI accuracy release gate", () => {
     expect(evaluation.criticalFailures).toEqual([]);
     expect(evaluation.score).toBeGreaterThan(95);
     expect(evaluation.passed).toBe(true);
+  }, 180_000);
+
+  it("extracts more than 95% of a comprehensive post-award obligation set", async () => {
+    const result = await compileGrantReport({
+      organizationName: "Hope Community Services",
+      grantName: "Community Pathways Foundation — Youth Workforce Advancement Initiative",
+      reportingPeriod: "October 1–December 31, 2026",
+      files: [fromText(
+        "awardAgreement",
+        "Comprehensive_Grant_Agreement.txt",
+        fs.readFileSync(path.join(projectRoot, "src", "test", "fixtures", "Comprehensive_Grant_Agreement.txt"), "utf8")
+      )]
+    });
+    const coverage = evaluateComprehensiveRequirementCoverage(result);
+    console.log(JSON.stringify({ event: "requirement_coverage_evaluation", ...coverage }, null, 2));
+    expect(result.setupConflicts).toEqual([]);
+    expect(result.mappings).toEqual([]);
+    expect(result.narrative.every((item) => !/served|completed|spent|achieved/i.test(item.text) || /information required|not provided|still needed/i.test(item.text))).toBe(true);
+    expect(coverage.score).toBeGreaterThan(95);
+    expect(coverage.missing).toEqual([]);
   }, 180_000);
 });
 

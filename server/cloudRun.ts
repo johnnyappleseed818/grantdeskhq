@@ -2,9 +2,10 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { validateCompilationRequest, validateReadinessRequest } from "../src/lib/prototype.ts";
-import type { CompilationRequest, ReadinessRequest } from "../src/types/prototype.ts";
+import { validateCompilationPreflightRequest, validateCompilationRequest, validateReadinessRequest } from "../src/lib/prototype.ts";
+import type { CompilationPreflightRequest, CompilationRequest, ReadinessRequest } from "../src/types/prototype.ts";
 import { compileGrantReport } from "./reportCompiler.ts";
+import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
 import { readGtmDailyScan, listReports, saveCompilation, saveGtmDailyScan, saveReview } from "./persistence.ts";
@@ -34,6 +35,7 @@ createServer(async (request, response) => {
       return json(response, 200, { status: "ok", service: "grantdeskhq-prototype" });
     }
     if (url.pathname === "/api/config") return handleConfig(request, response);
+    if (url.pathname === "/api/reports/preflight") return await handlePreflight(request, response);
     if (url.pathname === "/api/compile-report" || url.pathname === "/api/reports/compile") return await handleCompiler(request, response);
     if (url.pathname === "/api/readiness-assessment") return await handleReadiness(request, response);
     if (url.pathname === "/api/gtm/access") return await handleGtmAccess(request, response);
@@ -67,6 +69,24 @@ async function handleCompiler(request: IncomingMessage, response: ServerResponse
   } catch (error) {
     console.error("GrantDeskHQ compiler error:", error instanceof Error ? error.message : "Unknown error");
     return json(response, 502, { error: "The AI compiler could not complete this package. Try the synthetic package again." });
+  }
+}
+
+async function handlePreflight(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") {
+    response.setHeader("Allow", "POST");
+    return json(response, 405, { error: "Method not allowed." });
+  }
+  await requireUser(request);
+  const input = await readJson(request) as CompilationPreflightRequest;
+  if (!input?.file) return json(response, 400, { error: "An award agreement or Notice of Award is required." });
+  const errors = validateCompilationPreflightRequest(input);
+  if (errors.length) return json(response, 400, { error: errors.join(" ") });
+  try {
+    return json(response, 200, await preflightGrantSetup(input));
+  } catch (error) {
+    console.error("GrantDeskHQ setup preflight error:", error instanceof Error ? error.message : "Unknown error");
+    return json(response, 502, { error: "GrantDeskHQ could not verify the award details. Check the document and try again." });
   }
 }
 

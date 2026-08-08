@@ -50,6 +50,9 @@ describe("evidence and export gate", () => {
   it("enables export only after required checks and verifier findings are reviewed", () => {
     const resolved: CompilationResult = {
       ...prototypeFixture,
+      inputStatus: prototypeFixture.inputStatus.map((item) => ({ ...item, available: true })),
+      missingInputs: prototypeFixture.missingInputs.map((item) => ({ ...item, status: "answered" as const })),
+      workflow: { readiness: "ready_for_review", actionRequiredCount: 0, needsReviewCount: 0, missingInputCount: 0 },
       qualityChecks: prototypeFixture.qualityChecks.map((check) => ({ ...check, status: "passed" as const })),
       validation: {
         ...prototypeFixture.validation,
@@ -57,6 +60,28 @@ describe("evidence and export gate", () => {
       }
     };
     expect(canGenerateReviewPackage(resolved)).toBe(true);
+  });
+
+  it("does not allow an objective setup conflict to be confirmed away", () => {
+    const otherwiseResolved: CompilationResult = {
+      ...prototypeFixture,
+      setupConflicts: [{
+        id: "setup-grant-identity",
+        type: "grant_identity",
+        title: "Grant details do not match",
+        detail: "The uploaded agreement identifies a different grant.",
+        enteredValue: "Youth Access Initiative",
+        sourceValue: "Workforce Advancement Initiative",
+        source: prototypeFixture.grantProfile.grantName.source,
+        status: "action_required"
+      }],
+      inputStatus: prototypeFixture.inputStatus.map((item) => ({ ...item, available: true })),
+      missingInputs: prototypeFixture.missingInputs.map((item) => ({ ...item, status: "answered" as const })),
+      workflow: { readiness: "not_ready", actionRequiredCount: 1, needsReviewCount: 0, missingInputCount: 0 },
+      qualityChecks: prototypeFixture.qualityChecks.map((check) => ({ ...check, status: "passed" as const })),
+      validation: { ...prototypeFixture.validation, findings: prototypeFixture.validation.findings.map((finding) => ({ ...finding, verdict: "source_matched" as const })) }
+    };
+    expect(canGenerateReviewPackage(otherwiseResolved)).toBe(false);
   });
 
   it("calculates fixture evidence coverage from independently verified items", () => {

@@ -61,6 +61,14 @@ describe("deterministic accuracy controls", () => {
     expect(checked.validation.findings.some((item) => item.itemId === `ledger:${prototypeFixture.mappings[0].transactionId}` && item.verdict === "blocked")).toBe(true);
   });
 
+  it("marks financial and current-period checks not evaluated when their inputs are missing", () => {
+    const input = request();
+    input.files = input.files.filter((file) => file.role !== "ledgerExport");
+    const checked = applyDeterministicAccuracyChecks(input, { ...prototypeFixture, mappings: [] });
+    expect(checked.qualityChecks.find((item) => item.id === "deterministic-ledger")).toMatchObject({ status: "not_evaluated", detail: "Not evaluated — no accounting export has been added yet." });
+    expect(checked.qualityChecks.find((item) => item.id === "deterministic-workflow-facts")?.status).toBe("not_evaluated");
+  });
+
   it("blocks a narrative that reports the KPI target as the current-period result", () => {
     const contradicted = { ...prototypeFixture, narrative: prototypeFixture.narrative.map((item, index) => index === 0 ? { ...item, text: "Hope Community Services served 120 youth during the first six months." } : item) };
     const checked = applyDeterministicAccuracyChecks(requestWithConfirmedKpi(), contradicted);

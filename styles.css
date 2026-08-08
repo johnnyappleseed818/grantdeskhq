@@ -1497,6 +1497,66 @@
     @apply absolute right-3 top-3 h-4 w-4 text-emeraldMuted-600;
   }
 
+  .setup-checking,
+  .setup-match {
+    @apply grid grid-cols-[24px_1fr] gap-3 border p-4;
+    border-radius: .75rem;
+  }
+
+  .setup-checking {
+    @apply border-slate-200 bg-slate-50;
+  }
+
+  .setup-match {
+    @apply border-emerald-200 bg-emerald-50;
+  }
+
+  .setup-checking > svg,
+  .setup-match > svg {
+    @apply mt-0.5 h-5 w-5 text-emeraldMuted-700;
+  }
+
+  .setup-checking strong,
+  .setup-match strong {
+    @apply text-sm text-navy-900;
+  }
+
+  .setup-checking p,
+  .setup-match p {
+    @apply mt-1 text-xs leading-5 text-slate-600;
+  }
+
+  .setup-conflict-panel {
+    @apply grid gap-3 border border-redBlocked-200 bg-redBlocked-50 p-4;
+    border-radius: .85rem;
+  }
+
+  .setup-conflict-panel h3 {
+    @apply mt-1 text-lg font-semibold text-navy-950;
+  }
+
+  .setup-conflict-card {
+    @apply grid gap-3 border border-redBlocked-200 bg-white p-4 sm:grid-cols-[24px_1fr] lg:grid-cols-[24px_1fr_auto];
+    border-radius: .75rem;
+  }
+
+  .setup-conflict-card > svg {
+    @apply mt-0.5 h-5 w-5 text-redBlocked-700;
+  }
+
+  .setup-conflict-card h4 {
+    @apply text-sm font-semibold text-navy-900;
+  }
+
+  .setup-conflict-card p,
+  .setup-conflict-card small {
+    @apply mt-1 block text-xs leading-5 text-slate-600;
+  }
+
+  .setup-conflict-actions {
+    @apply col-start-1 flex flex-wrap gap-2 sm:col-start-2 lg:col-start-3;
+  }
+
   .acknowledgement {
     @apply flex cursor-pointer items-start gap-3 border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700;
     border-radius: .75rem;
@@ -1634,6 +1694,10 @@
     @apply mt-2 block text-3xl font-semibold text-navy-900;
   }
 
+  .result-metric .result-metric-text {
+    @apply text-2xl;
+  }
+
   .result-metric p {
     @apply mt-2 text-xs text-slate-500;
   }
@@ -1653,6 +1717,90 @@
 
   .validation-method p {
     @apply mt-1 text-xs leading-5 text-slate-600;
+  }
+
+  .setup-conflict-summary {
+    @apply grid items-center gap-4 border border-redBlocked-200 bg-redBlocked-50 p-5 sm:grid-cols-[28px_1fr_auto];
+    border-radius: .75rem;
+  }
+
+  .setup-conflict-summary > svg {
+    @apply h-6 w-6 text-redBlocked-700;
+  }
+
+  .setup-conflict-summary strong {
+    @apply text-sm text-navy-900;
+  }
+
+  .setup-conflict-summary p {
+    @apply mt-1 text-xs leading-5 text-slate-600;
+  }
+
+  .input-status-list {
+    @apply grid gap-3;
+  }
+
+  .input-request-card {
+    @apply grid items-center gap-4 border border-emeraldMuted-100 bg-emeraldMuted-50 p-5 sm:grid-cols-[1fr_auto];
+    border-radius: .75rem;
+  }
+
+  .input-request-card h3,
+  .empty-result-state h3 {
+    @apply mt-1 text-lg font-semibold text-navy-900;
+  }
+
+  .input-request-card p,
+  .empty-result-state p {
+    @apply mt-2 text-sm leading-6 text-slate-600;
+  }
+
+  .input-status-card {
+    @apply grid items-start gap-3 border border-slate-200 p-4 sm:grid-cols-[24px_1fr_auto];
+    border-radius: .75rem;
+  }
+
+  .input-status-card.is-available {
+    @apply border-emerald-200 bg-emerald-50/50;
+  }
+
+  .input-status-card > svg {
+    @apply mt-0.5 h-5 w-5 text-emeraldMuted-700;
+  }
+
+  .input-status-card.is-missing > svg {
+    @apply text-slate-400;
+  }
+
+  .input-status-heading {
+    @apply flex flex-wrap items-center justify-between gap-2;
+  }
+
+  .input-status-card h3 {
+    @apply text-sm font-semibold text-navy-900;
+  }
+
+  .input-status-card p,
+  .input-status-card small {
+    @apply mt-1 block text-xs leading-5 text-slate-600;
+  }
+
+  .empty-result-state {
+    @apply grid items-start gap-4 border border-slate-200 bg-slate-50 p-6 sm:grid-cols-[36px_1fr_auto];
+    border-radius: .85rem;
+  }
+
+  .empty-result-state > svg {
+    @apply h-9 w-9 border border-slate-200 bg-white p-2 text-slate-500;
+  }
+
+  .empty-result-state.is-compact {
+    @apply p-5;
+  }
+
+  .empty-copy {
+    @apply border border-slate-200 bg-slate-50 p-5 text-sm leading-6 text-slate-600;
+    border-radius: .75rem;
   }
 
   .prototype-warning {
@@ -1723,12 +1871,16 @@
     @apply border-amberReview-200 bg-amberReview-50;
   }
 
+  .prototype-review-item.not_evaluated {
+    @apply border-slate-200 bg-slate-50;
+  }
+
   .prototype-review-item.blocked > svg {
     @apply text-redBlocked-700;
   }
 
   .prototype-review-item h3 {
-    @apply text-sm font-semibold text-navy-900;
+    @apply mt-2 text-sm font-semibold text-navy-900;
   }
 
   .prototype-review-item p,

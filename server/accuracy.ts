@@ -9,10 +9,11 @@ interface WorkflowFacts {
 
 export function applyDeterministicAccuracyChecks(request: CompilationRequest, result: CompilationResult): CompilationResult {
   const ledger = parseLedger(request);
+  const hasLedgerFile = request.files.some((item) => item.role === "ledgerExport");
   const deterministicFindings: ValidationFinding[] = [];
   const seen = new Set<string>();
   const ledgerIds = new Set(ledger.map((row) => row.id));
-  let mappingIssue = ledger.length === 0 || ledgerIds.size !== ledger.length;
+  let mappingIssue = hasLedgerFile && (ledger.length === 0 || ledgerIds.size !== ledger.length);
   if (ledgerIds.size !== ledger.length) deterministicFindings.push(finding("ledger", "blocked", "The uploaded ledger contains duplicate transaction IDs."));
   const mappings = result.mappings.map((mapping) => {
     const row = ledger.find((candidate) => candidate.id === mapping.transactionId);
@@ -33,7 +34,7 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
       description: row.description,
       amount: row.amount,
       status: amountMatches ? mapping.status : "blocked" as const,
-      rationale: `${mapping.rationale} Ledger ID, date, description and amount were checked deterministically.`
+      rationale: `${mapping.rationale} Confirmed against the uploaded ledger by transaction ID, date, description and amount.`
     };
   });
   for (const row of ledger) {
@@ -51,6 +52,7 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
   }
 
   const workflowFacts = parseWorkflowFacts(request);
+  const hasWorkflowFacts = Boolean(workflowFacts.programMetrics?.length || workflowFacts.budgetVsActual?.length || workflowFacts.knownFinancialAmounts?.length);
   const sourceMatchedRequirementIds = new Set(result.validation.findings.filter((item) => item.verdict === "source_matched" && item.itemId.startsWith("requirement:")).map((item) => item.itemId.slice("requirement:".length)));
   const sourceMatchedRequirementAmounts = result.requirements
     .filter((item) => sourceMatchedRequirementIds.has(item.id))
@@ -65,22 +67,24 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
     return { ...item, status: "blocked" as const };
   });
 
-  const exactLedgerCoverage = ledger.length > 0 && ledger.length === seen.size && !mappingIssue;
+  const exactLedgerCoverage = hasLedgerFile && ledger.length > 0 && ledger.length === seen.size && !mappingIssue;
+  const ledgerStatus = !hasLedgerFile ? "not_evaluated" as const : exactLedgerCoverage ? "passed" as const : "blocked" as const;
+  const workflowFactStatus = !hasWorkflowFacts ? "not_evaluated" as const : workflowFactIssue ? "blocked" as const : "passed" as const;
   const qualityChecks = [
     ...result.qualityChecks.filter((check) => !["deterministic-ledger", "deterministic-workflow-facts"].includes(check.id)),
     {
       id: "deterministic-ledger",
-      label: "Every AI transaction matches the uploaded ledger",
-      detail: exactLedgerCoverage ? `${ledger.length} ledger rows matched by ID and amount.` : `${ledger.length} ledger rows were parsed; ${seen.size} unique mappings matched. Review blocked or missing rows.`,
+      label: "Ledger reconciliation",
+      detail: !hasLedgerFile ? "Not evaluated — no accounting export has been added yet." : exactLedgerCoverage ? `${ledger.length} accounting rows match by transaction ID and amount.` : `${ledger.length} accounting rows were read; ${seen.size} unique mappings matched. Correct the missing or conflicting rows.`,
       required: true,
-      status: exactLedgerCoverage ? "passed" as const : "blocked" as const
+      status: ledgerStatus
     },
     {
       id: "deterministic-workflow-facts",
-      label: "Narrative figures agree with confirmed workflow data",
-      detail: workflowFactIssue ? "At least one narrative figure contradicts or is not present in the confirmed current-period data." : "Narrative figures were checked against confirmed current-period KPI and financial values.",
+      label: "Current-period results check",
+      detail: !hasWorkflowFacts ? "Not evaluated — no confirmed current-period program or financial figures have been supplied." : workflowFactIssue ? "At least one draft figure conflicts with the confirmed current-period information." : "Draft figures agree with the confirmed current-period information.",
       required: true,
-      status: workflowFactIssue ? "blocked" as const : "passed" as const
+      status: workflowFactStatus
     }
   ];
   const findings = dedupeFindings([...result.validation.findings, ...deterministicFindings]);
@@ -99,9 +103,12 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
       itemsNeedingReview,
       blockedItems,
       evidenceCoveragePercent: findings.length ? Math.round((sourceMatchedItems / findings.length) * 100) : 0,
-      method: `${result.validation.method} Deterministic code separately checks ledger IDs, dates, descriptions, amounts, duplicates, mapping coverage, citation completeness, and current-period narrative figures.`
+      method: `${result.validation.method} Financial values are compared with uploaded accounting rows, and narrative figures are compared with confirmed current-period information when those inputs are available.`
     },
-    warnings: [...new Set([...result.warnings, "Ledger amounts shown in the draft come from deterministic source matching, not model-generated arithmetic."])]
+    warnings: [...new Set([
+      ...result.warnings,
+      ...(hasLedgerFile ? ["Financial totals come directly from your uploaded accounting data. AI does not calculate or invent transaction amounts."] : [])
+    ])]
   };
 }
 
@@ -176,7 +183,7 @@ function csvRow(line: string) {
 }
 
 function finding(itemId: string, verdict: "review" | "blocked", reason: string): ValidationFinding {
-  return { id: `det-${itemId}-${verdict}`, itemId, verdict, reason, source: { sourceName: "Deterministic source check", locator: itemId, excerpt: reason } };
+  return { id: `det-${itemId}-${verdict}`, itemId, verdict, reason, source: { sourceName: "Source data check", locator: itemId.replace(/^ledger:/, "Transaction "), excerpt: reason } };
 }
 
 function dedupeFindings(findings: ValidationFinding[]) {

@@ -40,12 +40,68 @@ export interface PersistedCompilationResponse {
   result: CompilationResult;
 }
 
-export type ReviewState = "verified" | "review" | "blocked";
+export type ReviewState = "verified" | "review" | "blocked" | "not_evaluated";
 
 export interface SourceReference {
   sourceName: string;
   locator: string;
   excerpt: string;
+}
+
+export interface GrantProfileField {
+  value: string;
+  confidence: number;
+  source: SourceReference;
+  status: ReviewState;
+}
+
+export interface GrantProfile {
+  funderName: GrantProfileField;
+  grantName: GrantProfileField;
+  grantId: GrantProfileField;
+  grantStartDate: GrantProfileField;
+  grantEndDate: GrantProfileField;
+  grantType: GrantProfileField;
+}
+
+export interface SetupConflict {
+  id: string;
+  type: "grant_identity" | "reporting_period";
+  title: string;
+  detail: string;
+  enteredValue: string;
+  sourceValue: string;
+  source: SourceReference;
+  status: "action_required";
+}
+
+export interface ReportInputStatus {
+  role: SourceRole;
+  label: string;
+  available: boolean;
+  core: boolean;
+  requiredForCompletion: boolean;
+  detail: string;
+  actionLabel: string;
+}
+
+export interface WorkflowSummary {
+  readiness: "not_ready" | "needs_review" | "ready_for_review";
+  actionRequiredCount: number;
+  needsReviewCount: number;
+  missingInputCount: number;
+}
+
+export interface CompilationPreflightRequest {
+  organizationName: string;
+  grantName: string;
+  reportingPeriod: string;
+  file: CompilerFile;
+}
+
+export interface CompilationPreflightResult {
+  grantProfile: GrantProfile;
+  setupConflicts: SetupConflict[];
 }
 
 export interface CompiledRequirement {
@@ -88,7 +144,7 @@ export interface QualityCheck {
   label: string;
   detail: string;
   required: boolean;
-  status: "passed" | "review" | "blocked";
+  status: "passed" | "review" | "blocked" | "not_evaluated";
 }
 
 export interface ValidationFinding {
@@ -111,6 +167,10 @@ export interface ValidationSummary {
 export interface CompilationResult {
   reportTitle: string;
   summary: string;
+  grantProfile: GrantProfile;
+  setupConflicts: SetupConflict[];
+  inputStatus: ReportInputStatus[];
+  workflow: WorkflowSummary;
   requirements: CompiledRequirement[];
   mappings: CompiledMapping[];
   missingInputs: MissingInput[];

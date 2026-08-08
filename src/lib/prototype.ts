@@ -1,4 +1,4 @@
-import type { CompilationRequest, CompilationResult, ReadinessRequest, SourceRole } from "../types/prototype";
+import type { CompilationPreflightRequest, CompilationRequest, CompilationResult, ReadinessRequest, SourceRole } from "../types/prototype";
 
 export const REQUIRED_SOURCE_ROLES: SourceRole[] = [
   "awardAgreement"
@@ -21,6 +21,17 @@ export function validateCompilationRequest(input: CompilationRequest): string[] 
   if (totalSize > MAX_TOTAL_BYTES) errors.push("Combined file size must be 2.5 MB or less.");
   if (input.files.some((file) => file.size > MAX_FILE_BYTES)) errors.push("Each file must be 1 MB or less.");
   if (input.files.some((file) => !file.data.startsWith("data:"))) errors.push("Every source file must contain valid encoded file data.");
+  return errors;
+}
+
+export function validateCompilationPreflightRequest(input: CompilationPreflightRequest): string[] {
+  const errors: string[] = [];
+  if (!input.organizationName.trim()) errors.push("Organization name is required.");
+  if (!input.grantName.trim()) errors.push("Grant name is required.");
+  if (!input.reportingPeriod.trim()) errors.push("Reporting period is required.");
+  if (input.file.role !== "awardAgreement") errors.push("An award agreement or Notice of Award is required.");
+  if (input.file.size > MAX_FILE_BYTES) errors.push("The award document must be 1 MB or less.");
+  if (!input.file.data.startsWith("data:")) errors.push("The award document must contain valid encoded file data.");
   return errors;
 }
 
@@ -50,7 +61,10 @@ export interface QualityCheckSummary {
 }
 
 export function canGenerateReviewPackage(result: CompilationResult): boolean {
-  return unresolvedRequiredChecks(result).unresolved === 0
+  return result.setupConflicts.length === 0
+    && result.workflow.readiness !== "not_ready"
+    && result.inputStatus.every((item) => !item.requiredForCompletion || item.available)
+    && unresolvedRequiredChecks(result).unresolved === 0
     && result.validation.findings.every((finding) => finding.verdict === "source_matched");
 }
 
