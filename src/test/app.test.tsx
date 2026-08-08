@@ -108,6 +108,9 @@ describe("important routes", () => {
   it("walks users through the report compiler one step at a time", async () => {
     const user = userEvent.setup();
     renderRoute("/compile");
+    expect(screen.getByText(/AI-assisted report preparation/i)).toBeInTheDocument();
+    expect(screen.getByText(/You control which files GrantDeskHQ analyzes/i)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/private beta/i);
     expect(screen.getByText("Choose the report")).toBeVisible();
     await user.click(screen.getByRole("button", { name: /Continue/i }));
     expect(screen.getByText("Add the files your team already has")).toBeVisible();

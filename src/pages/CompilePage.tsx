@@ -155,7 +155,7 @@ export function CompilePage() {
       <section className="compile-hero">
         <div className="site-shell grid items-start gap-10 py-12 lg:grid-cols-[1fr_.78fr] lg:py-16">
           <div>
-            <div className="prototype-pill"><span aria-hidden="true" /> Private beta · professional review required</div>
+            <div className="prototype-pill"><span aria-hidden="true" /> AI-assisted report preparation · professional review required</div>
             <p className="eyebrow mt-7">AI Report Compiler</p>
             <h1 className="page-title">Let AI do the first pass on your grant report.</h1>
             <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">Add the grant agreement, approved budget, accounting export, funder form, and program update. GrantDeskHQ organizes the funder's requirements, suggests financial mappings, prepares a source-linked draft, and flags anything your team still needs to confirm.</p>
@@ -163,7 +163,7 @@ export function CompilePage() {
           </div>
           <div className="compile-boundary">
             <LockKeyhole aria-hidden="true" />
-            <div><strong>Use synthetic or appropriately redacted files during private beta.</strong><p>GrantDeskHQ sends only the files you select to the configured AI service to prepare the draft and evidence review. It does not connect to your accounting system or submit reports on your behalf.</p></div>
+            <div><strong>You control which files GrantDeskHQ analyzes.</strong><p>GrantDeskHQ uses only the files you select to prepare the draft and evidence review. No accounting integration is required, and every result is clearly marked for professional review.</p></div>
           </div>
         </div>
       </section>
