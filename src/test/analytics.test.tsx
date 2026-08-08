@@ -37,6 +37,19 @@ describe("consent-aware visitor analytics", () => {
     expect(document.getElementById("grantdeskhq-microsoft-clarity")).toHaveAttribute("src", expect.stringContaining("clarity123"));
   });
 
+  it("loads the GrantDeskHQ Clarity project when the API has not supplied an override", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ googleAnalyticsMeasurementId: "G-TEST12345" })
+    }));
+    render(<MemoryRouter><AnalyticsManager /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Allow analytics" }));
+    await waitFor(() => expect(document.getElementById("grantdeskhq-microsoft-clarity")).toHaveAttribute(
+      "src",
+      "https://www.clarity.ms/tag/xzcynx2076"
+    ));
+  });
+
   it("keeps private product routes out of Google Analytics page views", () => {
     expect(isPrivateAnalyticsRoute("/workspace")).toBe(true);
     expect(isPrivateAnalyticsRoute("/compile/report-123")).toBe(true);

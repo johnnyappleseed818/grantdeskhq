@@ -6,6 +6,7 @@ import { apiUrl } from "./api";
 const CONSENT_KEY = "grantdeskhq:analytics-consent:v1";
 const OPEN_PREFERENCES_EVENT = "grantdeskhq:open-analytics-preferences";
 const PRIVATE_ROUTE_PREFIXES = ["/compile", "/gtm", "/login", "/readiness", "/workspace"];
+const DEFAULT_CLARITY_PROJECT_ID = "xzcynx2076";
 
 type AnalyticsConsent = "granted" | "denied";
 type ClarityFunction = ((...args: unknown[]) => void) & { q?: unknown[][] };
@@ -36,7 +37,7 @@ export function AnalyticsManager() {
       .then(async (response) => response.ok ? response.json() as Promise<AnalyticsConfig> : {})
       .then((nextConfig) => setConfig(sanitizeConfig(nextConfig)))
       .catch((error: unknown) => {
-        if (!(error instanceof DOMException && error.name === "AbortError")) setConfig({});
+        if (!(error instanceof DOMException && error.name === "AbortError")) setConfig(sanitizeConfig({}));
       });
     return () => controller.abort();
   }, []);
@@ -113,7 +114,7 @@ function readStoredConsent(): AnalyticsConsent | null {
 
 function sanitizeConfig(config: AnalyticsConfig): AnalyticsConfig {
   const measurementId = String(config.googleAnalyticsMeasurementId || "").trim();
-  const clarityProjectId = String(config.clarityProjectId || "").trim();
+  const clarityProjectId = String(config.clarityProjectId || DEFAULT_CLARITY_PROJECT_ID).trim();
   return {
     googleAnalyticsMeasurementId: /^G-[A-Z0-9]+$/i.test(measurementId) ? measurementId : undefined,
     clarityProjectId: /^[a-z0-9]+$/i.test(clarityProjectId) ? clarityProjectId : undefined
