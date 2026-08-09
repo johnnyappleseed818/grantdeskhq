@@ -12,17 +12,25 @@ import {
   type BillingInterval,
   type PlanId
 } from "../content/pricing";
-import { apiRequest } from "../lib/api";
+import { apiRequest, apiUrl } from "../lib/api";
 import { useAuth } from "../lib/auth";
 
 export function PricingPage() {
   const [interval, setInterval] = useState<BillingInterval>("month");
   const [startingPlan, setStartingPlan] = useState<PlanId | "">("");
   const [checkoutError, setCheckoutError] = useState("");
+  const [billingConfigured, setBillingConfigured] = useState<boolean | null>(null);
   const { user, token } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const resumedCheckout = useRef(false);
+
+  useEffect(() => {
+    fetch(apiUrl("/api/config"))
+      .then(async (response) => response.ok ? response.json() as Promise<{ billingConfigured?: boolean }> : { billingConfigured: false })
+      .then((config) => setBillingConfigured(Boolean(config.billingConfigured)))
+      .catch(() => setBillingConfigured(false));
+  }, []);
 
   const beginCheckout = useCallback(async (plan: PlanId, billingInterval: BillingInterval = interval) => {
     setCheckoutError("");
@@ -45,13 +53,13 @@ export function PricingPage() {
   }, [interval, navigate, token, user]);
 
   useEffect(() => {
-    if (!user || resumedCheckout.current) return;
+    if (!user || !billingConfigured || resumedCheckout.current) return;
     const checkout = new URLSearchParams(location.search).get("checkout") || "";
     const match = checkout.match(/^(essentials|growth|portfolio)-(month|year)$/);
     if (!match) return;
     resumedCheckout.current = true;
     void beginCheckout(match[1] as PlanId, match[2] as BillingInterval);
-  }, [user, location.search, beginCheckout]);
+  }, [user, billingConfigured, location.search, beginCheckout]);
 
   return (
     <div className="pricing-page">
@@ -98,10 +106,15 @@ export function PricingPage() {
                 <Feature>Unlimited archived grants</Feature>
                 <Feature>{plan.support}</Feature>
               </ul>
-              <button type="button" className={`button mt-8 w-full ${plan.featured ? "button-primary" : "button-secondary"}`} disabled={Boolean(startingPlan)} onClick={() => void beginCheckout(plan.id)}>
-                {startingPlan === plan.id ? <><LoaderCircle className="animate-spin" aria-hidden="true" />Opening secure checkout…</> : <>Choose {plan.name} <ArrowRight aria-hidden="true" /></>}
-              </button>
-              <Link className="pricing-free-link" to="/assessment#contact">Or analyze your first report free</Link>
+              {billingConfigured === true ? <>
+                <button type="button" className={`button mt-8 w-full ${plan.featured ? "button-primary" : "button-secondary"}`} disabled={Boolean(startingPlan)} onClick={() => void beginCheckout(plan.id)}>
+                  {startingPlan === plan.id ? <><LoaderCircle className="animate-spin" aria-hidden="true" />Opening secure checkout…</> : <>Choose {plan.name} <ArrowRight aria-hidden="true" /></>}
+                </button>
+                <Link className="pricing-free-link" to="/assessment#contact">Or analyze your first report free</Link>
+              </> : billingConfigured === false ? <>
+                <Link className={`button mt-8 w-full ${plan.featured ? "button-primary" : "button-secondary"}`} to="/assessment#contact">Analyze your first report free <ArrowRight aria-hidden="true" /></Link>
+                <span className="pricing-free-link no-underline">Choose a paid plan after your free report</span>
+              </> : <button type="button" className="button button-secondary mt-8 w-full" disabled><LoaderCircle className="animate-spin" aria-hidden="true" />Checking secure checkout…</button>}
             </article>
           ))}
         </div>
