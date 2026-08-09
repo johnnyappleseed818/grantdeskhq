@@ -30,12 +30,12 @@ export function WorkspacePage() {
   return <section className="workspace-page">
     <div className="site-shell py-10 lg:py-14">
       <header className="workspace-header">
-        <div><p className="eyebrow">Post-award reporting workspace</p><h1>{user.displayName ? `${user.displayName}’s reports` : "Your reports"}</h1><p>Continue a review or let AI prepare the first draft for another funder report.</p></div>
+        <div><p className="eyebrow">Post-award reporting workspace</p><h1>{user.displayName ? `${user.displayName}’s reports` : "Your reports"}</h1><p>Continue a review or let our AI-powered solution prepare the first draft for another funder report.</p></div>
         <div className="workspace-actions"><button type="button" className="button button-secondary" onClick={() => signOut()}><LogOut aria-hidden="true" />Sign out</button><Link className="button button-primary" to="/compile"><FilePlus2 aria-hidden="true" />New report</Link></div>
       </header>
       {new URLSearchParams(location.search).get("billing") === "success" && <div className="account-notice" role="status"><strong>Checkout completed.</strong> Your subscription is being confirmed securely with Stripe.</div>}
       {billing?.plan && <div className="workspace-plan"><span>Current plan</span><strong>{billing.plan.charAt(0).toUpperCase() + billing.plan.slice(1)}</strong><small>{billing.interval === "year" ? "Annual billing" : "Monthly billing"}</small></div>}
-      <div className="workspace-trust"><ShieldCheck aria-hidden="true" /><div><strong>Review the work that needs judgment, not every source from scratch.</strong><p>AI output stays connected to its evidence, and your reports, validation findings, and review decisions stay together in your workspace.</p></div></div>
+      <div className="workspace-trust"><ShieldCheck aria-hidden="true" /><div><strong>Review the work that needs judgment, not every source from scratch.</strong><p>Output from our AI-powered solution stays connected to its evidence, and your reports, validation findings, and review decisions stay together in your workspace.</p></div></div>
       {error && <div className="compiler-error" role="alert"><AlertTriangle aria-hidden="true" />{error}</div>}
       {fetching ? <div className="workspace-loading"><LoaderCircle className="animate-spin" aria-hidden="true" />Loading saved reports…</div> : reports.length === 0 ?
         <div className="workspace-empty"><FolderCheck aria-hidden="true" /><h2>No saved reports yet</h2><p>Upload an appropriately redacted grant agreement, budget, accounting export, funder form, and program update to prepare your first draft.</p><Link className="button button-primary" to="/compile">Prepare your first report <ArrowRight aria-hidden="true" /></Link></div> :

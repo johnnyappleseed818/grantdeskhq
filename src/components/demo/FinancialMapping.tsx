@@ -23,7 +23,7 @@ export function FinancialMapping({ decisions, onSetMapping, onApprove, onEvidenc
     <div className="workspace-stack">
       <WorkspaceHeading
         eyebrow="Financial mapping"
-        title="Review AI suggestions instead of mapping from scratch"
+        title="Review suggestions from our AI-powered solution instead of mapping from scratch"
         description="GrantDeskHQ suggests a grant category and shows why. Your controller approves it, changes it, or leaves the transaction unresolved—nothing is approved on the team’s behalf."
       />
 
@@ -85,7 +85,7 @@ export function FinancialMapping({ decisions, onSetMapping, onApprove, onEvidenc
 
       <section className="panel variance-panel">
         <div className="panel-heading">
-          <div><p className="eyebrow">AI-assisted variance review</p><h2>Local Travel needs an explanation</h2></div>
+          <div><p className="eyebrow">AI-powered variance review</p><h2>Local Travel needs an explanation</h2></div>
           <StatusBadge tone="review">30.67% above elapsed plan</StatusBadge>
         </div>
         <div className="grid gap-6 lg:grid-cols-[.8fr_1.2fr]">

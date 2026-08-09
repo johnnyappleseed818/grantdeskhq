@@ -52,7 +52,7 @@ export const PRICING_PLANS: PricingPlan[] = [
 ];
 
 export const INCLUDED_IN_EVERY_PLAN = [
-  "AI-assisted award and reporting-requirement extraction",
+  "AI-powered award and reporting-requirement extraction",
   "Budget, accounting-data, and program-update workflow",
   "Suggested transaction mappings and budget-versus-actual schedules",
   "Source-linked narrative drafts and missing-input checks",

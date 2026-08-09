@@ -63,6 +63,7 @@ export interface GrantProfile {
   grantStartDate: GrantProfileField;
   grantEndDate: GrantProfileField;
   grantType: GrantProfileField;
+  awardAmount?: GrantProfileField;
 }
 
 export interface SetupConflict {
@@ -75,6 +76,7 @@ export interface SetupConflict {
   source: SourceReference;
   status: "action_required";
   suggestedValue?: string;
+  suggestedPeriodId?: string;
   suggestedLabel?: string;
   suggestedDueDate?: string;
 }
@@ -90,11 +92,29 @@ export interface GrantReportingPeriod {
   status: ReviewState;
 }
 
+export type WorkflowOwner = "Finance" | "Program" | "Grants" | "Approver";
+export type ObligationApplicability = "required_now" | "conditional" | "future" | "not_applicable";
+
+export interface GrantWorkflowObligation {
+  id: string;
+  title: string;
+  detail: string;
+  owner: WorkflowOwner;
+  applicability: ObligationApplicability;
+  trigger: string;
+  source: SourceReference;
+  confidence: number;
+  status: ReviewState;
+}
+
 export interface SetupDecision {
   at: string;
-  action: "agreement_details_applied" | "reporting_period_applied";
+  action: "agreement_details_applied" | "reporting_period_applied" | "agreement_workflow_applied";
   detail: string;
   sourceName: string;
+  previousGrantName?: string;
+  previousReportingPeriod?: string;
+  selectedObligationId?: string;
 }
 
 export interface ReportInputStatus {
@@ -124,6 +144,8 @@ export interface CompilationPreflightRequest {
 export interface CompilationPreflightResult {
   grantProfile: GrantProfile;
   reportingPeriods: GrantReportingPeriod[];
+  referencePeriodId: string;
+  workflowObligations: GrantWorkflowObligation[];
   setupConflicts: SetupConflict[];
 }
 

@@ -30,13 +30,13 @@ export async function saveCompilation(user: AuthenticatedUser, request: Compilat
     ownerUid: user.uid,
     resultJson: JSON.stringify(result),
     sourcesJson: JSON.stringify(sources),
-    auditJson: JSON.stringify([...setupAudit, { at: now, actorUid: user.uid, action: "compiled", detail: "AI draft compiled, independently verified and deterministically checked." }])
+    auditJson: JSON.stringify([...setupAudit, { at: now, actorUid: user.uid, action: "compiled", detail: "Our AI-powered solution prepared the draft, then completed an independent source check and deterministic validation." }])
   });
   return { reportId, report: summary, result };
 }
 
-function sanitizeSetupDecisions(request: CompilationRequest, actorUid: string) {
-  const allowed = new Set(["agreement_details_applied", "reporting_period_applied"]);
+export function sanitizeSetupDecisions(request: CompilationRequest, actorUid: string) {
+  const allowed = new Set(["agreement_details_applied", "reporting_period_applied", "agreement_workflow_applied"]);
   return (request.setupDecisions || []).slice(-10).flatMap((decision) => {
     if (!allowed.has(decision.action)) return [];
     const timestamp = Number.isFinite(Date.parse(decision.at)) ? decision.at : new Date().toISOString();
@@ -45,7 +45,10 @@ function sanitizeSetupDecisions(request: CompilationRequest, actorUid: string) {
       actorUid,
       action: decision.action,
       detail: String(decision.detail || "").trim().slice(0, 500),
-      sourceName: safeName(String(decision.sourceName || "Award agreement"))
+      sourceName: safeName(String(decision.sourceName || "Award agreement")),
+      ...(decision.previousGrantName ? { previousGrantName: String(decision.previousGrantName).trim().slice(0, 240) } : {}),
+      ...(decision.previousReportingPeriod ? { previousReportingPeriod: String(decision.previousReportingPeriod).trim().slice(0, 160) } : {}),
+      ...(decision.selectedObligationId ? { selectedObligationId: String(decision.selectedObligationId).trim().slice(0, 120) } : {})
     }];
   });
 }
@@ -103,8 +106,8 @@ export async function saveBillingEvent(snapshot: BillingEventSnapshot) {
   const accessToken = await gcpToken();
   const organizationId = `org_${snapshot.uid}`;
   const eventId = safeDocumentId(snapshot.eventId);
-  await writeDocument(accessToken, `organizations/${organizationId}/billingEvents/${eventId}`, snapshot);
-  await writeDocument(accessToken, `organizations/${organizationId}/billing/current`, snapshot);
+  await writeDocument(accessToken, `organizations/${organizationId}/billingEvents/${eventId}`, { ...snapshot });
+  await writeDocument(accessToken, `organizations/${organizationId}/billing/current`, { ...snapshot });
 }
 
 export async function readBillingStatus(user: AuthenticatedUser) {

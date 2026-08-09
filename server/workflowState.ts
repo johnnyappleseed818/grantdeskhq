@@ -105,6 +105,7 @@ export function detectSetupConflicts(
       status: "action_required",
       ...(recommended ? {
         suggestedValue: formatDateRange(recommended.start, recommended.end),
+        suggestedPeriodId: recommended.period.id,
         suggestedLabel: recommended.period.title,
         suggestedDueDate: recommended.due ? formatDate(recommended.due) : undefined
       } : {})
@@ -133,7 +134,8 @@ function formatDate(value: Date) {
   return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(value);
 }
 
-function usable(field: GrantProfile[keyof GrantProfile]) {
+function usable(field: GrantProfile[keyof GrantProfile] | undefined) {
+  if (!field) return "";
   if (field.confidence < 0.85 || field.status === "blocked" || field.status === "not_evaluated" || /^information required|unknown|not (found|stated)/i.test(field.value.trim())) return "";
   return field.value.trim();
 }

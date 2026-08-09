@@ -120,7 +120,7 @@ export function PricingPage() {
         </div>
 
         <div className="pricing-comparison" aria-labelledby="plan-comparison-heading">
-          <div className="pricing-comparison-heading"><p className="eyebrow">Compare plans</p><h2 id="plan-comparison-heading">The same reporting workflow, sized for your portfolio</h2><p>Every plan includes the core AI-assisted reporting workflow. Choose based on the number of active grants and report packages your team needs.</p></div>
+          <div className="pricing-comparison-heading"><p className="eyebrow">Compare plans</p><h2 id="plan-comparison-heading">The same reporting workflow, sized for your portfolio</h2><p>Every plan includes our core AI-powered reporting workflow. Choose based on the number of active grants and report packages your team needs.</p></div>
           <div className="pricing-table-wrap" tabIndex={0} aria-label="Scrollable plan comparison">
             <table>
               <thead><tr><th scope="col">Included</th>{PRICING_PLANS.map((plan) => <th scope="col" key={plan.id}>{plan.name}</th>)}</tr></thead>

@@ -10,7 +10,7 @@ export function Requirements() {
 
   return (
     <div className="workspace-stack">
-      <WorkspaceHeading eyebrow="Funder-template compiler" title="Know what the funder expects before drafting" description="GrantDeskHQ uses AI to read the award and funder form together, then turns the requirements into a clear checklist your team can review before work begins." />
+      <WorkspaceHeading eyebrow="Funder-template compiler" title="Know what the funder expects before drafting" description="Our AI-powered solution reads the award and funder form together, then turns the requirements into a clear checklist your team can review before work begins." />
 
       <div className="compiler-message"><ScanSearch aria-hidden="true" /><strong>Your draft follows the funder’s exact questions and format, saving your team from rebuilding the form by hand.</strong></div>
 

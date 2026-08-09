@@ -42,7 +42,7 @@ export const initialOpportunities: GtmOpportunity[] = [
       note: "Perkins does not publish Maureen Lister's direct email. Use the verified organization inbox and address the message to her."
     },
     emailSubject: "Free reporting analysis for Perkins' new federal award",
-    draftMessage: "Hi Maureen,\n\nI saw the Department of Education award for the New England Consortium on Deafblindness. New awards often create manual work as finance and program teams translate the agreement, approved budget, program updates, and supporting documentation into the funder's reporting format.\n\nGrantDeskHQ uses AI to prepare a source-linked report draft, flag missing information, and check material claims against the uploaded evidence. We are offering to analyze a first report at no cost so your team can compare the output with its current process.\n\nWould it be useful if I sent a short overview?\n\nBest,\nEli\nGrantDeskHQ"
+    draftMessage: "Hi Maureen,\n\nI saw the Department of Education award for the New England Consortium on Deafblindness. New awards often create manual work as finance and program teams translate the agreement, approved budget, program updates, and supporting documentation into the funder's reporting format.\n\nGrantDeskHQ's AI-powered solution prepares a source-linked report draft, flags missing information, and checks material claims against the uploaded evidence. We are offering to analyze a first report at no cost so your team can compare the output with its current process.\n\nWould it be useful if I sent a short overview?\n\nBest,\nEli\nGrantDeskHQ"
   },
   {
     id: "award-project-oceanology-2026",
@@ -85,7 +85,7 @@ export const initialOpportunities: GtmOpportunity[] = [
       note: "Direct email and current role are published together on Project Oceanology's official team page."
     },
     emailSubject: "Free reporting analysis for Project Oceanology's new NOAA award",
-    draftMessage: "Hi Lisa,\n\nI noticed the new NOAA award supporting Project Oceanology's vessel, education, and environmental-monitoring work. Bringing the financial activity, program results, supporting evidence, and funder questions into one report can create substantial manual preparation.\n\nGrantDeskHQ uses AI to organize those sources into a funder-specific draft, highlight missing information, and show the evidence behind each material statement. We are offering to analyze a first report at no cost so you can judge whether it reduces work for your team.\n\nWould a short overview be useful?\n\nBest,\nEli\nGrantDeskHQ"
+    draftMessage: "Hi Lisa,\n\nI noticed the new NOAA award supporting Project Oceanology's vessel, education, and environmental-monitoring work. Bringing the financial activity, program results, supporting evidence, and funder questions into one report can create substantial manual preparation.\n\nGrantDeskHQ's AI-powered solution organizes those sources into a funder-specific draft, highlights missing information, and shows the evidence behind each material statement. We are offering to analyze a first report at no cost so you can judge whether it reduces work for your team.\n\nWould a short overview be useful?\n\nBest,\nEli\nGrantDeskHQ"
   },
   {
     id: "job-ja-south-florida-2026",
@@ -134,7 +134,7 @@ export const initialOpportunities: GtmOpportunity[] = [
       note: "Direct email is published in the CFO entry on Junior Achievement of South Florida's official staff page."
     },
     emailSubject: "A faster post-award workflow for your grant accounting team",
-    draftMessage: "Hi Allie,\n\nYour Grant Accountant posting describes the exact handoff GrantDeskHQ is designed to simplify: approved grant budgets and accounting data flowing into funder-specific financial, narrative, and program reports.\n\nGrantDeskHQ uses AI to assemble the first draft, connect material statements to source evidence, and surface missing support before review. It supports the finance team rather than replacing its judgment. We are offering to analyze a first report at no cost so you can compare the result with your current workflow.\n\nWould you be open to a brief look?\n\nBest,\nEli\nGrantDeskHQ"
+    draftMessage: "Hi Allie,\n\nYour Grant Accountant posting describes the exact handoff GrantDeskHQ is designed to simplify: approved grant budgets and accounting data flowing into funder-specific financial, narrative, and program reports.\n\nGrantDeskHQ's AI-powered solution assembles the first draft, connects material statements to source evidence, and surfaces missing support before review. It supports the finance team rather than replacing its judgment. We are offering to analyze a first report at no cost so you can compare the result with your current workflow.\n\nWould you be open to a brief look?\n\nBest,\nEli\nGrantDeskHQ"
   },
   {
     id: "job-sustainable-food-center-2026",
@@ -183,7 +183,7 @@ export const initialOpportunities: GtmOpportunity[] = [
       note: "Sustainable Food Center publishes Nicole Thompson's role and its administration inbox, but not a direct email. Address the message to Nicole."
     },
     emailSubject: "Free analysis of one Sustainable Food Center grant report",
-    draftMessage: "Hi Nicole,\n\nI saw Sustainable Food Center's focus on coordinating grant reporting across program, finance, and data teams. That handoff often means rebuilding the same information across spreadsheets, funder templates, and narrative documents.\n\nGrantDeskHQ uses AI to turn the agreement, approved budget, GL export, program update, and supporting evidence into a source-linked report draft. It also identifies missing information and blocks unsupported claims before export. We are offering to analyze a first report at no cost so your team can evaluate the workflow on familiar work.\n\nWould a short overview be helpful?\n\nBest,\nEli\nGrantDeskHQ"
+    draftMessage: "Hi Nicole,\n\nI saw Sustainable Food Center's focus on coordinating grant reporting across program, finance, and data teams. That handoff often means rebuilding the same information across spreadsheets, funder templates, and narrative documents.\n\nGrantDeskHQ's AI-powered solution turns the agreement, approved budget, GL export, program update, and supporting evidence into a source-linked report draft. It also identifies missing information and blocks unsupported claims before export. We are offering to analyze a first report at no cost so your team can evaluate the workflow on familiar work.\n\nWould a short overview be helpful?\n\nBest,\nEli\nGrantDeskHQ"
   },
   {
     id: "job-rodale-2026",
@@ -223,7 +223,7 @@ export const initialOpportunities: GtmOpportunity[] = [
       note: "Current finance leadership role and the direct email are published by Rodale Institute on its staff page and grant materials."
     },
     emailSubject: "Reduce manual grant-report preparation at Rodale Institute",
-    draftMessage: "Hi Elaine,\n\nI saw Rodale Institute's Grants Accountant posting and its emphasis on reporting, deliverables, timesheets, and supporting-document schedules. Those requirements can leave finance teams repeatedly assembling the same evidence into different funder formats.\n\nGrantDeskHQ uses AI to prepare a source-linked report draft, suggest financial mappings, identify missing support, and check narrative claims against the evidence. We are offering to analyze a first report at no cost so your team can decide whether the workflow meaningfully reduces manual preparation.\n\nWould you be open to a brief look?\n\nBest,\nEli\nGrantDeskHQ"
+    draftMessage: "Hi Elaine,\n\nI saw Rodale Institute's Grants Accountant posting and its emphasis on reporting, deliverables, timesheets, and supporting-document schedules. Those requirements can leave finance teams repeatedly assembling the same evidence into different funder formats.\n\nGrantDeskHQ's AI-powered solution prepares a source-linked report draft, suggests financial mappings, identifies missing support, and checks narrative claims against the evidence. We are offering to analyze a first report at no cost so your team can decide whether the workflow meaningfully reduces manual preparation.\n\nWould you be open to a brief look?\n\nBest,\nEli\nGrantDeskHQ"
   }
 ];
 

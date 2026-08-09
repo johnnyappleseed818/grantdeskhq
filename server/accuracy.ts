@@ -107,7 +107,7 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
     },
     warnings: [...new Set([
       ...result.warnings,
-      ...(hasLedgerFile ? ["Financial totals come directly from your uploaded accounting data. AI does not calculate or invent transaction amounts."] : [])
+      ...(hasLedgerFile ? ["Financial totals come directly from your uploaded accounting data. Our AI-powered solution does not calculate or invent transaction amounts."] : [])
     ])]
   };
 }

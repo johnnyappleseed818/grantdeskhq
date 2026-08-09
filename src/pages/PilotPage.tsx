@@ -37,8 +37,8 @@ export function PilotPage() {
           <div className="mt-8 grid items-start gap-12 lg:grid-cols-[1.05fr_.95fr]">
             <div>
               <p className="eyebrow">Free first report</p>
-              <h1 className="page-title">Let AI prepare your first report draft at no cost.</h1>
-              <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">Use one completed, appropriately redacted historical report to compare GrantDeskHQ with the process your team uses today. See whether AI can reduce spreadsheet rebuilding, identify missing evidence sooner, and give your reviewers a stronger starting point.</p>
+              <h1 className="page-title">Let our AI-powered solution prepare your first report draft at no cost.</h1>
+              <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">Use one completed, appropriately redacted historical report to compare GrantDeskHQ with the process your team uses today. See whether our AI-powered workflow can reduce spreadsheet rebuilding, identify missing evidence sooner, and give your reviewers a stronger starting point.</p>
               <div className="mt-7 flex flex-wrap gap-3">
                 <a className="button button-secondary button-large" href={QUESTIONNAIRE_URL} target="_blank" rel="noreferrer">Tell us about your workflow <ArrowRight aria-hidden="true" /></a>
               </div>
@@ -57,7 +57,7 @@ export function PilotPage() {
         <div className="assessment-process">
           {[
             [MessagesSquare, "Show us where the work gets stuck", "Tell us which reporting steps require the most spreadsheet work, checking, and follow-up."],
-            [FileSearch, "See what AI can prepare", "Use synthetic or appropriately redacted historical files to compare GrantDeskHQ's draft, evidence links, and review controls with work your team already knows."],
+            [FileSearch, "See what our AI-powered solution can prepare", "Use synthetic or appropriately redacted historical files to compare GrantDeskHQ's draft, evidence links, and review controls with work your team already knows."],
             [Presentation, "Decide from the actual output", "Continue only if the result reduces meaningful manual work for your team. There is no setup fee or subscription commitment for the first report."]
           ].map(([Icon, title, copy], index) => {
             const ProcessIcon = Icon as typeof MessagesSquare;

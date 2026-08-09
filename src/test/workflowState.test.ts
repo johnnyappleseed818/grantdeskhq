@@ -34,6 +34,7 @@ describe("early report setup checks", () => {
     expect(conflicts[1]).toMatchObject({
       detail: "The report period January 1 – June 30, 2026 falls outside the grant period October 1, 2026 – September 30, 2027.",
       suggestedValue: "October 1 – December 31, 2026",
+      suggestedPeriodId: "RP1",
       suggestedLabel: "Quarterly Report 1",
       suggestedDueDate: "January 31, 2027"
     });

@@ -78,6 +78,11 @@
     @apply px-1 py-2 hover:text-navy-900;
   }
 
+  .admin-nav-link {
+    @apply border border-emeraldMuted-100 bg-emeraldMuted-50 px-3 font-semibold text-emeraldMuted-700 hover:bg-emeraldMuted-100;
+    border-radius: 999px;
+  }
+
   .footer-heading {
     @apply text-xs font-bold uppercase tracking-[.14em] text-slate-500;
   }
@@ -1447,6 +1452,10 @@
     @apply min-h-screen bg-slate-50;
   }
 
+  .compile-layout {
+    @apply grid gap-7 py-10 lg:py-14;
+  }
+
   .compile-hero {
     @apply border-b border-slate-200 bg-[linear-gradient(180deg,#f3f8f5_0%,#fbfaf6_100%)];
   }
@@ -1469,8 +1478,24 @@
   }
 
   .compile-guide {
-    @apply border border-slate-200 bg-navy-950 p-6 text-white shadow-panel lg:sticky lg:top-24;
+    @apply border border-slate-200 bg-navy-950 p-5 text-white shadow-panel lg:sticky lg:top-24;
     border-radius: 1.25rem;
+  }
+
+  .compile-guide.is-collapsed {
+    @apply p-3;
+  }
+
+  .compile-guide-toggle {
+    @apply mb-5 flex w-full items-center justify-center gap-2 border-b border-white/15 pb-3 text-xs font-semibold text-slate-300 hover:text-white;
+  }
+
+  .compile-guide.is-collapsed .compile-guide-toggle {
+    @apply mb-0 border-0 pb-0;
+  }
+
+  .compile-guide-toggle svg {
+    @apply h-4 w-4;
   }
 
   .compile-guide .eyebrow {
@@ -1593,8 +1618,7 @@
 
   .setup-checking,
   .setup-match,
-  .setup-notice,
-  .setup-schedule {
+  .setup-notice {
     @apply grid grid-cols-[24px_1fr] gap-3 border p-4;
     border-radius: .75rem;
   }
@@ -1604,30 +1628,191 @@
   }
 
   .setup-match,
-  .setup-notice,
-  .setup-schedule {
+  .setup-notice {
     @apply border-emerald-200 bg-emerald-50;
   }
 
   .setup-checking > svg,
   .setup-match > svg,
-  .setup-notice > svg,
-  .setup-schedule > svg {
+  .setup-notice > svg {
     @apply mt-0.5 h-5 w-5 text-emeraldMuted-700;
   }
 
   .setup-checking strong,
   .setup-match strong,
-  .setup-notice strong,
-  .setup-schedule strong {
+  .setup-notice strong {
     @apply text-sm text-navy-900;
   }
 
   .setup-checking p,
   .setup-match p,
-  .setup-notice p,
-  .setup-schedule p {
+  .setup-notice p {
     @apply mt-1 text-xs leading-5 text-slate-600;
+  }
+
+  .agreement-setup-card {
+    @apply border border-emerald-200 bg-emerald-50 p-5 shadow-panel;
+    border-radius: 1rem;
+  }
+
+  .agreement-setup-heading {
+    @apply flex items-start justify-between gap-5;
+  }
+
+  .agreement-setup-heading h3,
+  .report-workflow-heading h3 {
+    @apply mt-1 text-xl font-semibold text-navy-950;
+  }
+
+  .agreement-setup-heading p:last-child,
+  .report-workflow-heading p:last-child {
+    @apply mt-2 text-sm leading-6 text-slate-600;
+  }
+
+  .agreement-setup-heading > svg,
+  .report-workflow-heading > svg {
+    @apply h-10 w-10 shrink-0 bg-white p-2.5 text-emeraldMuted-700 shadow-sm;
+    border-radius: .75rem;
+  }
+
+  .agreement-setup-card dl {
+    @apply my-5 grid gap-px overflow-hidden border border-emerald-200 bg-emerald-200 sm:grid-cols-2;
+    border-radius: .75rem;
+  }
+
+  .agreement-setup-card dl > div {
+    @apply bg-white p-3;
+  }
+
+  .agreement-setup-card dt {
+    @apply text-[.68rem] font-bold uppercase tracking-wide text-slate-500;
+  }
+
+  .agreement-setup-card dd {
+    @apply mt-1 text-sm font-semibold text-navy-900;
+  }
+
+  .agreement-setup-card > small {
+    @apply mt-3 block text-xs leading-5 text-slate-600;
+  }
+
+  .setup-schedule,
+  .report-workflow {
+    @apply border border-slate-200 bg-white p-5 shadow-panel;
+    border-radius: 1rem;
+  }
+
+  .setup-schedule-heading,
+  .report-workflow-heading {
+    @apply flex items-start gap-3;
+  }
+
+  .setup-schedule-heading > svg {
+    @apply mt-0.5 h-6 w-6 shrink-0 text-emeraldMuted-700;
+  }
+
+  .setup-schedule-heading strong {
+    @apply text-base text-navy-950;
+  }
+
+  .setup-schedule-heading p {
+    @apply mt-1 text-sm leading-6 text-slate-600;
+  }
+
+  .setup-schedule-list {
+    @apply mt-4 grid gap-2;
+  }
+
+  .setup-schedule-list button {
+    @apply grid w-full grid-cols-[20px_1fr_18px] items-center gap-3 border border-slate-200 bg-slate-50 p-3 text-left transition-colors hover:border-emeraldMuted-500 hover:bg-emeraldMuted-50;
+    border-radius: .7rem;
+  }
+
+  .setup-schedule-list button.is-selected {
+    @apply border-emeraldMuted-500 bg-emeraldMuted-50;
+  }
+
+  .setup-schedule-list button > svg:first-child {
+    @apply h-5 w-5 text-emeraldMuted-600;
+  }
+
+  .setup-schedule-list button > svg:last-child {
+    @apply h-4 w-4 text-slate-400;
+  }
+
+  .setup-schedule-list span,
+  .setup-schedule-list strong,
+  .setup-schedule-list small {
+    @apply block min-w-0;
+  }
+
+  .setup-schedule-list strong {
+    @apply text-sm text-navy-900;
+  }
+
+  .setup-schedule-list small {
+    @apply mt-1 text-xs leading-5 text-slate-600;
+  }
+
+  .report-workflow-heading {
+    @apply justify-between;
+  }
+
+  .report-workflow-groups {
+    @apply mt-5 grid gap-4;
+  }
+
+  .workflow-group {
+    @apply border-l-4 border-slate-300 bg-slate-50 p-4;
+    border-radius: .75rem;
+  }
+
+  .workflow-group.required_now {
+    @apply border-emeraldMuted-600 bg-emeraldMuted-50;
+  }
+
+  .workflow-group.conditional {
+    @apply border-amberReview-700 bg-amberReview-50;
+  }
+
+  .workflow-group.future,
+  .workflow-group.not_applicable {
+    @apply border-slate-400 bg-slate-50;
+  }
+
+  .workflow-group > div:first-child h4 {
+    @apply text-sm font-semibold text-navy-950;
+  }
+
+  .workflow-group > div:first-child p {
+    @apply mt-1 text-xs leading-5 text-slate-600;
+  }
+
+  .workflow-obligation-list {
+    @apply mt-3 grid gap-2 md:grid-cols-2;
+  }
+
+  .workflow-obligation-list article {
+    @apply border border-slate-200 bg-white p-3;
+    border-radius: .65rem;
+  }
+
+  .workflow-obligation-top {
+    @apply mb-2 flex flex-wrap items-center justify-between gap-2;
+  }
+
+  .workflow-owner {
+    @apply inline-flex bg-slate-100 px-2 py-1 text-[.65rem] font-bold uppercase tracking-wide text-navy-700;
+    border-radius: 999px;
+  }
+
+  .workflow-obligation-list article > strong {
+    @apply text-sm text-navy-900;
+  }
+
+  .workflow-obligation-list article > p,
+  .workflow-obligation-list article > small {
+    @apply mt-1 block text-xs leading-5 text-slate-600;
   }
 
   .setup-conflict-panel {
@@ -1640,7 +1825,7 @@
   }
 
   .setup-conflict-card {
-    @apply grid gap-3 border border-redBlocked-200 bg-white p-4 sm:grid-cols-[24px_1fr] lg:grid-cols-[24px_1fr_auto];
+    @apply grid gap-3 border border-redBlocked-200 bg-white p-4 sm:grid-cols-[24px_1fr];
     border-radius: .75rem;
   }
 
@@ -1658,7 +1843,7 @@
   }
 
   .setup-conflict-actions {
-    @apply col-start-1 flex flex-wrap gap-2 sm:col-start-2 lg:col-start-3;
+    @apply col-start-1 flex flex-wrap gap-2 border-t border-slate-100 pt-3 sm:col-start-2;
   }
 
   .setup-source-label {
@@ -2114,6 +2299,17 @@
 
   footer a {
     @apply transition-colors hover:text-white;
+  }
+}
+
+@media (min-width: 1024px) {
+  .compile-layout {
+    grid-template-columns: minmax(220px, 270px) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .compile-layout.guide-collapsed {
+    grid-template-columns: 132px minmax(0, 1fr);
   }
 }
 

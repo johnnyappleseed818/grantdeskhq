@@ -23,7 +23,7 @@ import { CORE_VALUE_PROPOSITION, POST_AWARD_FOCUS } from "../content/positioning
 import { formatCurrency } from "../lib/calculations";
 
 const capabilities = [
-  [FileSearch, "Structure each funder report automatically", "AI turns the funder’s form and award rules into a clear reporting checklist for your team."],
+  [FileSearch, "Structure each funder report automatically", "Our AI-powered solution turns the funder’s form and award rules into a clear reporting checklist for your team."],
   [MessageSquareText, "Draft with the evidence attached", "Give reviewers a useful starting point instead of a blank page, with the supporting source visible sentence by sentence."],
   [ClipboardCheck, "Cut down follow-up emails", "Ask program staff only for the answers or documents that are genuinely still missing."],
   [Calculator, "Explain variances faster", "See the transactions behind a material variance and draft an explanation from confirmed facts."],
@@ -39,7 +39,7 @@ const customerValue = [
 const teamPriorities = [
   ["Grant accountant", "Spend less time rebuilding the same report", "Bring the funder form, approved budget, ledger export, and program update together so the first draft does not start from a blank page."],
   ["Nonprofit controller", "Find missing support before review gets delayed", "See open receipts, unexplained variances, conflicting figures, and unsupported statements in one focused review list."],
-  ["Finance director", "Create more capacity without adding repetitive work", "Use AI for report preparation so the team has more time for forecasting, program support, and higher-value financial work."],
+  ["Finance director", "Create more capacity without adding repetitive work", "Use our AI-powered workflow for report preparation so the team has more time for forecasting, program support, and higher-value financial work."],
   ["Fractional CFO", "Give every client a consistent review process", "Standardize how the team prepares reporting packages while keeping the source evidence and final decisions visible."]
 ];
 
@@ -54,13 +54,13 @@ export function LandingPage() {
             <div className="prototype-pill"><span aria-hidden="true" /> AI-powered reporting after the award</div>
             <h1 className="hero-title">Finish grant reports faster, <span className="hero-highlight">without messy spreadsheets.</span></h1>
             <p className="hero-copy">
-              {CORE_VALUE_PROPOSITION} Built for nonprofit finance teams, the AI organizes the funder's requirements, prepares the financial schedules and narrative, and flags missing or conflicting information before final review.
+              {CORE_VALUE_PROPOSITION} Built for nonprofit finance teams, our AI-powered solution organizes the funder's requirements, prepares the financial schedules and narrative, and flags missing or conflicting information before final review.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link className="button button-primary button-large" to="/compile">Prepare a report with AI <ArrowRight aria-hidden="true" /></Link>
+              <Link className="button button-primary button-large" to="/compile">Prepare a report <ArrowRight aria-hidden="true" /></Link>
               <Link className="button button-secondary button-large" to="/readiness">Get a free readiness audit</Link>
             </div>
-            <p className="trust-line"><CheckCircle2 aria-hidden="true" /> Source-linked AI output · Built-in evidence checks · Professional review required</p>
+            <p className="trust-line"><CheckCircle2 aria-hidden="true" /> Source-linked output · Built-in evidence checks · Professional review required</p>
           </div>
 
           <ProductPreview />
@@ -87,14 +87,14 @@ export function LandingPage() {
         <div className="site-shell">
           <div className="section-heading">
             <p className="eyebrow">From award to final review</p>
-            <h2>Let AI prepare the report. Keep your team focused on the decisions.</h2>
+            <h2>Let our AI-powered solution prepare the report. Keep your team focused on the decisions.</h2>
             <p>{POST_AWARD_FOCUS}</p>
           </div>
           <div className="workflow-grid">
             {[
-              [FileText, "Start with the awarded grant", "Upload the grant agreement and funder form. AI identifies the deadlines, questions, financial schedules, program measures, and supporting documents the funder expects."],
+              [FileText, "Start with the awarded grant", "Upload the grant agreement and funder form. Our AI-powered solution identifies the deadlines, questions, financial schedules, program measures, and supporting documents the funder expects."],
               [Database, "Bring finance and program updates together", "Add the approved budget, accounting export, and program results in one place instead of coordinating the report through spreadsheets and email chains."],
-              [BookOpenCheck, "Get a funder-specific first draft", "AI suggests transaction mappings, calculates budget versus actuals, drafts source-supported answers, and asks only for information that is still missing."],
+              [BookOpenCheck, "Get a funder-specific first draft", "Our AI-powered workflow suggests transaction mappings and drafts source-supported answers. GrantDeskHQ calculates budget versus actuals from the uploaded financial data and asks only for information that is still missing."],
               [ClipboardCheck, "Review the exceptions and finish confidently", "Your team sees conflicting figures, missing evidence, and unsupported statements in one review list before downloading the report package."]
             ].map(([Icon, title, copy], index) => {
               const StepIcon = Icon as typeof FileText;
@@ -148,7 +148,7 @@ export function LandingPage() {
           <div className="validation-value-grid">
             {[
               [FileSearch, "Source-linked output", "Open the excerpt behind a requirement, mapping, calculation, or narrative statement."],
-              [ShieldCheck, "Separate verification pass", "A second AI pass challenges each material output against the uploaded source package."],
+              [ShieldCheck, "Separate verification pass", "A separate verification pass challenges each material output against the uploaded source package."],
               [ClipboardCheck, "Review gate before export", "Unsupported, contradictory, or incomplete items stay blocked until a professional reviews them."]
             ].map(([Icon, title, copy]) => {
               const ValidationIcon = Icon as typeof FileSearch;
@@ -173,7 +173,7 @@ export function LandingPage() {
               [Database, "Accounting systems", "Your accounting system remains the book of record. GrantDeskHQ works from an approved export and turns those transactions into the funder's budget and reporting format."],
               [Link2, "Grant-management systems", "Keep award records, deadlines, and funder access where they are. GrantDeskHQ brings the documents and updates together when it is time to prepare the report."],
               [FileText, "Program-data systems", "Use program results your team has already reviewed. GrantDeskHQ connects those results to the funder's questions without asking staff to re-enter the same information."],
-              [TriangleAlert, "Professional judgment", "AI prepares and checks the draft. Finance and program professionals still approve mappings, explanations, evidence, and the final report."]
+              [TriangleAlert, "Professional judgment", "Our AI-powered solution prepares and checks the draft. Finance and program professionals still approve mappings, explanations, evidence, and the final report."]
             ].map(([Icon, title, copy]) => {
               const BoundaryIcon = Icon as typeof Database;
               return (
@@ -194,7 +194,7 @@ export function LandingPage() {
         <div className="site-shell flex flex-col items-start justify-between gap-8 md:flex-row md:items-center">
           <div>
             <p className="eyebrow">See it for yourself</p>
-            <h2 className="text-3xl font-semibold text-navy-900">See how much of your next report AI can prepare.</h2>
+            <h2 className="text-3xl font-semibold text-navy-900">See how much of your next report our AI-powered solution can prepare.</h2>
             <p className="mt-3 text-slate-600">Follow the workflow from grant agreement to source-linked draft, or let us analyze one report at no cost.</p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -214,7 +214,7 @@ function SecurityFaq() {
         <div>
           <p className="eyebrow">Security and product FAQ</p>
           <h2 id="security-faq-title" className="mt-3 text-3xl font-semibold tracking-tight text-navy-950 md:text-4xl">Straight answers about your data and how GrantDeskHQ fits into your workflow.</h2>
-          <p className="mt-5 leading-7 text-slate-600">Grant reporting involves sensitive financial and program information. These answers explain what the product does today, what AI receives, and where professional review still matters.</p>
+          <p className="mt-5 leading-7 text-slate-600">Grant reporting involves sensitive financial and program information. These answers explain what the product does today, how our AI-powered workflow processes selected information, and where professional review still matters.</p>
           <Link className="button button-secondary mt-7" to="/privacy">Read the full data-handling policy <ArrowRight aria-hidden="true" /></Link>
         </div>
         <div className="border-t border-slate-300">
@@ -230,11 +230,11 @@ function SecurityFaq() {
           <FaqItem question="How are uploaded documents and workspace data stored?">
             Source and evidence files are kept in private cloud object storage. Workspace records are stored separately from the public website. A file download is served only after the application verifies the signed-in user’s organization membership and role. GrantDeskHQ does not claim security certifications or independent audits that have not been completed.
           </FaqItem>
-          <FaqItem question="What information is sent to AI, and is it used to train public models?">
-            When you run an AI workflow, GrantDeskHQ sends the selected source files and the authorized facts needed for that report to the OpenAI API. Requests use <code>store: false</code>. OpenAI states that API data is not used to train its models unless the customer explicitly opts in; standard abuse-monitoring logs may retain content for up to 30 days. <a className="font-semibold text-emerald-800 underline" href="https://developers.openai.com/api/docs/guides/your-data" target="_blank" rel="noreferrer">Read OpenAI’s API data controls</a>.
+          <FaqItem question="What information does the AI-powered workflow process, and is it used to train public models?">
+            When you use our AI-powered workflow, GrantDeskHQ sends the selected source files and the authorized facts needed for that report to the OpenAI API. Requests use <code>store: false</code>. OpenAI states that API data is not used to train its models unless the customer explicitly opts in; standard abuse-monitoring logs may retain content for up to 30 days. <a className="font-semibold text-emerald-800 underline" href="https://developers.openai.com/api/docs/guides/your-data" target="_blank" rel="noreferrer">Read OpenAI’s API data controls</a>.
           </FaqItem>
-          <FaqItem question="How does GrantDeskHQ reduce unsupported AI answers?">
-            Important figures are calculated by application code rather than by the language model. A separate verification pass checks material AI output against the selected sources. Each important statement carries a source and review status, while contradictions, missing support, and uncertain items remain blocked or marked for review.
+          <FaqItem question="How does GrantDeskHQ reduce unsupported answers?">
+            Important figures are calculated by application code rather than by the language model. A separate verification pass checks material output from our AI-powered solution against the selected sources. Each important statement carries a source and review status, while contradictions, missing support, and uncertain items remain blocked or marked for review.
           </FaqItem>
           <FaqItem question="Does GrantDeskHQ approve or submit reports automatically?">
             No. GrantDeskHQ prepares drafts, suggestions, calculations, and review controls. An authorized professional must review the work, resolve required items, and approve the package. The product does not submit anything to a funder or replace accounting, legal, audit, or compliance judgment.

@@ -17,7 +17,7 @@ describe("important routes", () => {
     ["/sample-report", /See the complete review package/i],
     ["/privacy", /Understand where your data goes and who can access it/i],
     ["/pricing", /Start with one report\. Keep going only if the workflow saves your team time/i],
-    ["/assessment", /Let AI prepare your first report draft at no cost/i],
+    ["/assessment", /Let our AI-powered solution prepare your first report draft at no cost/i],
     ["/compile", /Bring what you have\. We’ll help with the rest/i],
     ["/readiness", /Find every reporting requirement before the deadline gets close/i],
     ["/login", /Spend less time building grant reports from scattered files/i]
@@ -37,14 +37,14 @@ describe("important routes", () => {
   it("navigates from the landing page into the AI report compiler", async () => {
     const user = userEvent.setup();
     renderRoute("/");
-    await user.click(screen.getByRole("link", { name: /Prepare a report with AI/i }));
+    await user.click(screen.getAllByRole("link", { name: /^Prepare a report$/i })[0]);
     expect(await screen.findByRole("heading", { name: /Bring what you have\. We’ll help with the rest/i })).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Getting started steps" })).toBeInTheDocument();
   });
 
   it("explains AI benefits in clear customer language", () => {
     renderRoute("/");
-    expect(screen.getByRole("heading", { name: /Let AI prepare the report\. Keep your team focused on the decisions\./i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Let our AI-powered solution prepare the report\. Keep your team focused on the decisions\./i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Start with the awarded grant" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Bring finance and program updates together" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Get a funder-specific first draft" })).toBeInTheDocument();
@@ -122,7 +122,7 @@ describe("important routes", () => {
   it("walks users through the report compiler one step at a time", async () => {
     const user = userEvent.setup();
     renderRoute("/compile");
-    expect(screen.getByText(/AI-assisted report preparation/i)).toBeInTheDocument();
+    expect(screen.getByText(/AI-powered report preparation/i)).toBeInTheDocument();
     expect(screen.getByText(/You control which files GrantDeskHQ analyzes/i)).toBeInTheDocument();
     expect(screen.getByText("How GrantDeskHQ saves you time")).toBeInTheDocument();
     expect(screen.getByText(/You don’t need every document upfront/i)).toBeInTheDocument();
@@ -148,7 +148,7 @@ describe("important routes", () => {
       new File(["award"], "Notice_of_Award.pdf", { type: "application/pdf" })
     );
     await user.click(screen.getByRole("button", { name: /Continue/i }));
-    expect(screen.getByText("Review what the AI will use")).toBeVisible();
+    expect(screen.getByText("Review the information used for your draft")).toBeVisible();
     expect(screen.getByText("1 of 1 required to start")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });

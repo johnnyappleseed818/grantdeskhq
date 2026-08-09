@@ -3,6 +3,7 @@ import { Menu, X } from "lucide-react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { Logo } from "./Logo";
 import { CORE_VALUE_PROPOSITION, REVIEW_PROMISE } from "../content/positioning";
+import { apiRequest } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { openAnalyticsPreferences } from "../lib/analytics";
 
@@ -16,8 +17,9 @@ const marketingLinks = [
 
 export function SiteLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [gtmAllowed, setGtmAllowed] = useState(false);
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
 
   useEffect(() => setMenuOpen(false), [location.pathname, location.hash]);
 
@@ -28,6 +30,19 @@ export function SiteLayout() {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!user) {
+      setGtmAllowed(false);
+      return () => { active = false; };
+    }
+    token()
+      .then((idToken) => apiRequest<{ allowed: boolean }>("/api/gtm/access", idToken))
+      .then((body) => { if (active) setGtmAllowed(body.allowed); })
+      .catch(() => { if (active) setGtmAllowed(false); });
+    return () => { active = false; };
+  }, [user, token]);
 
   return (
     <div className="min-h-screen bg-canvas text-slate-800">
@@ -53,6 +68,7 @@ export function SiteLayout() {
             {marketingLinks.map(([label, href]) => (
               <NavLink key={label} to={href} className="nav-link">{label}</NavLink>
             ))}
+            {gtmAllowed && <Link className="nav-link admin-nav-link" to="/gtm">GTM Command Center</Link>}
             <Link className="nav-link account-nav-link" to={user ? "/workspace" : "/login"}>{user ? "My workspace" : "Sign in"}</Link>
             <Link className="button button-primary whitespace-nowrap" to={user ? "/compile" : "/login?next=/compile"}>{user ? "New report" : "Create account"}</Link>
           </nav>
@@ -78,6 +94,7 @@ export function SiteLayout() {
               <Link to="/sample-report">Synthetic sample report</Link>
               <Link to="/pricing">Pricing</Link>
               <Link to={user ? "/workspace" : "/login"}>{user ? "My workspace" : "Account sign in"}</Link>
+              {gtmAllowed && <Link to="/gtm">GTM Command Center</Link>}
               <Link to="/assessment">Free first report</Link>
             </div>
           </div>
