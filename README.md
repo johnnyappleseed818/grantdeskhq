@@ -607,10 +607,9 @@ See `gtm/COMPLIANCE.md` for the current provider and legal boundaries.
 - Managed accounts, persistent reports, private source objects and reviewer
   audit events are implemented. The beta currently creates one owner workspace
   per account; team invitations and granular reviewer roles are not yet built.
-- Pricing does not add per-user fees. The published unlimited-contributor
-  entitlement is the commercial policy, but self-service invitations and role
-  management must be completed before multiple contributors can collaborate
-  directly inside one customer workspace.
+- Pricing does not add per-user fees. Self-service invitations and role
+  management must still be completed before multiple contributors can
+  collaborate directly inside one customer workspace.
 - Stripe Checkout and signed subscription webhooks are implemented, but paid
   plan enforcement and self-service billing-portal access must be completed
   before a general-availability launch.

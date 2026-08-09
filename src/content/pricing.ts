@@ -57,7 +57,7 @@ export const INCLUDED_IN_EVERY_PLAN = [
   "Suggested transaction mappings and budget-versus-actual schedules",
   "Source-linked narrative drafts and missing-input checks",
   "Quality review controls and report history",
-  "Unlimited contributors and archived grants"
+  "No per-user pricing"
 ];
 
 export const EARLY_ACCESS_DISCOUNT_PERCENT = 50;

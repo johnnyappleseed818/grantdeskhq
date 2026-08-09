@@ -103,7 +103,7 @@ describe("important routes", () => {
     expect(screen.getByText("Up to 20 active grants")).toBeInTheDocument();
     expect(screen.getByText("Up to 50 active grants")).toBeInTheDocument();
     expect(screen.getAllByText("Unlimited archived grants")).toHaveLength(3);
-    expect(screen.getAllByText("Unlimited contributors").length).toBeGreaterThanOrEqual(3);
+    expect(screen.getAllByText("No per-user fees").length).toBeGreaterThanOrEqual(3);
     expect(screen.getByRole("heading", { name: "50% off your first year" })).toBeInTheDocument();
     expect(screen.getByText("$75/month")).toBeInTheDocument();
     expect(screen.getByText("$25")).toBeInTheDocument();

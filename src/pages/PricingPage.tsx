@@ -71,7 +71,7 @@ export function PricingPage() {
           <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-600">
             Your first report is free. See how GrantDeskHQ turns the agreement, accounting export, and program updates into a source-linked draft before choosing a plan.
           </p>
-          <div className="pricing-promises"><span>First report free</span><span>No credit card to start</span><span>Unlimited contributors</span><span>Cancel anytime</span></div>
+          <div className="pricing-promises"><span>First report free</span><span>No credit card to start</span><span>No per-user pricing</span><span>Cancel anytime</span></div>
         </div>
       </section>
 
@@ -102,7 +102,7 @@ export function PricingPage() {
               <ul className="mt-7 grid gap-3 text-sm text-slate-700">
                 <Feature>Up to {plan.activeGrants} active grants</Feature>
                 <Feature>{plan.reportsPerYear} report packages per year</Feature>
-                <Feature>Unlimited contributors</Feature>
+                <Feature>No per-user fees</Feature>
                 <Feature>Unlimited archived grants</Feature>
                 <Feature>{plan.support}</Feature>
               </ul>
@@ -127,7 +127,7 @@ export function PricingPage() {
               <tbody>
                 <ComparisonRow label="Active grants" values={PRICING_PLANS.map((plan) => `Up to ${plan.activeGrants}`)} />
                 <ComparisonRow label="Report packages per year" values={PRICING_PLANS.map((plan) => String(plan.reportsPerYear))} />
-                <ComparisonRow label="Contributors" values={PRICING_PLANS.map(() => "Unlimited")} />
+                <ComparisonRow label="User pricing" values={PRICING_PLANS.map(() => "No per-user fees")} />
                 <ComparisonRow label="Archived grants" values={PRICING_PLANS.map(() => "Unlimited")} />
                 <ComparisonRow label="Support" values={PRICING_PLANS.map((plan) => plan.support)} />
                 {INCLUDED_IN_EVERY_PLAN.map((feature) => <ComparisonRow key={feature} label={feature} values={PRICING_PLANS.map(() => "Included")} checkmarks />)}
