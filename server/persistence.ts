@@ -3,6 +3,7 @@ import { canGenerateReviewPackage } from "../src/lib/prototype.ts";
 import type { CompilationRequest, CompilationResult, SavedReportSummary } from "../src/types/prototype.ts";
 import type { DailySocialScan } from "../src/lib/gtm.ts";
 import type { AuthenticatedUser } from "./auth.ts";
+import type { BillingEventSnapshot } from "./billing.ts";
 
 const projectId = process.env.GOOGLE_CLOUD_PROJECT || "grantdeskhq-proto-ek-2026";
 const bucket = process.env.REPORT_FILES_BUCKET || "grantdeskhq-proto-ek-2026-report-files";
@@ -82,6 +83,28 @@ export async function readGtmDailyScan(): Promise<DailySocialScan | null> {
   return JSON.parse(String(record.scanJson)) as DailySocialScan;
 }
 
+export async function saveBillingEvent(snapshot: BillingEventSnapshot) {
+  const accessToken = await gcpToken();
+  const organizationId = `org_${snapshot.uid}`;
+  const eventId = safeDocumentId(snapshot.eventId);
+  await writeDocument(accessToken, `organizations/${organizationId}/billingEvents/${eventId}`, snapshot);
+  await writeDocument(accessToken, `organizations/${organizationId}/billing/current`, snapshot);
+}
+
+export async function readBillingStatus(user: AuthenticatedUser) {
+  const response = await authorizedFetch(`${firestoreBase}/organizations/org_${user.uid}/billing/current`, await gcpToken());
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Billing status could not be loaded (${response.status}).`);
+  const document = await response.json() as { fields?: Record<string, FirestoreValue> };
+  const record = decodeFields(document.fields || {});
+  return {
+    plan: String(record.plan || ""),
+    interval: String(record.interval || ""),
+    status: String(record.status || ""),
+    updatedAt: String(record.updatedAt || "")
+  };
+}
+
 function summarize(id: string, request: CompilationRequest, result: CompilationResult, createdAt: string, updatedAt: string, sourceCount = request.files.length): SavedReportSummary {
   const unresolvedItems = result.qualityChecks.filter((item) => item.required && item.status !== "passed").length
     + result.validation.findings.filter((item) => item.verdict !== "source_matched").length;
@@ -123,3 +146,8 @@ function decodeFields(fields: Record<string, FirestoreValue>) {
   return Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, value.stringValue ?? (value.integerValue !== undefined ? Number(value.integerValue) : value.doubleValue ?? value.booleanValue ?? "")]));
 }
 function safeName(name: string) { return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120); }
+function safeDocumentId(value: string) {
+  const safe = value.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 140);
+  if (!safe) throw new Error("Invalid billing event identifier.");
+  return safe;
+}

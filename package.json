@@ -20,7 +20,8 @@
     "gtm:build": "node scripts/gtm/build-engine.mjs",
     "gtm:test": "node scripts/gtm/gtm.test.mjs",
     "gtm:reddit": "node scripts/gtm/scan-reddit-api.mjs",
-    "gtm:awards": "node scripts/gtm/scan-usaspending-awards.mjs"
+    "gtm:awards": "node scripts/gtm/scan-usaspending-awards.mjs",
+    "stripe:configure": "node --experimental-strip-types scripts/configure-stripe-pricing.mjs"
   },
   "dependencies": {
     "firebase": "12.17.1",

@@ -8,9 +8,10 @@ import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { readGtmDailyScan, listReports, saveCompilation, saveGtmDailyScan, saveReview } from "./persistence.ts";
+import { readBillingStatus, readGtmDailyScan, listReports, saveBillingEvent, saveCompilation, saveGtmDailyScan, saveReview } from "./persistence.ts";
 import { runDailySocialScan } from "./gtmDailyScanner.ts";
 import { requireGtmScheduler } from "./schedulerAuth.ts";
+import { BillingError, billingSnapshotFromEvent, createCheckoutSession, isBillingConfigured, validateBillingSelection, verifyStripeSignature, type StripeWebhookEvent } from "./billing.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
@@ -35,6 +36,9 @@ createServer(async (request, response) => {
       return json(response, 200, { status: "ok", service: "grantdeskhq-prototype" });
     }
     if (url.pathname === "/api/config") return handleConfig(request, response);
+    if (url.pathname === "/api/billing/checkout") return await handleBillingCheckout(request, response);
+    if (url.pathname === "/api/billing/status") return await handleBillingStatus(request, response);
+    if (url.pathname === "/api/billing/webhook") return await handleBillingWebhook(request, response);
     if (url.pathname === "/api/reports/preflight") return await handlePreflight(request, response);
     if (url.pathname === "/api/compile-report" || url.pathname === "/api/reports/compile") return await handleCompiler(request, response);
     if (url.pathname === "/api/readiness-assessment") return await handleReadiness(request, response);
@@ -49,6 +53,7 @@ createServer(async (request, response) => {
   } catch (error) {
     console.error("GrantDeskHQ server error:", error instanceof Error ? error.message : "Unknown error");
     if (error instanceof HttpError) return json(response, error.statusCode, { error: error.message });
+    if (error instanceof BillingError) return json(response, error.statusCode, { error: error.message });
     return json(response, 500, { error: "GrantDeskHQ could not complete this request." });
   }
 }).listen(port, "0.0.0.0", () => console.log(`GrantDeskHQ prototype listening on ${port}`));
@@ -70,6 +75,31 @@ async function handleCompiler(request: IncomingMessage, response: ServerResponse
     console.error("GrantDeskHQ compiler error:", error instanceof Error ? error.message : "Unknown error");
     return json(response, 502, { error: "The AI compiler could not complete this package. Try the synthetic package again." });
   }
+}
+
+async function handleBillingCheckout(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  const user = await requireUser(request);
+  const selection = validateBillingSelection(await readJson(request));
+  return json(response, 200, await createCheckoutSession(user, selection, requestOrigin(request)));
+}
+
+async function handleBillingStatus(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  return json(response, 200, { billing: await readBillingStatus(await requireUser(request)) });
+}
+
+async function handleBillingWebhook(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  const secret = process.env.STRIPE_WEBHOOK_SECRET || "";
+  const payload = await readBody(request);
+  verifyStripeSignature(payload, request.headers["stripe-signature"] as string | undefined, secret);
+  let event: StripeWebhookEvent;
+  try { event = JSON.parse(payload.toString("utf8")) as StripeWebhookEvent; }
+  catch { throw new BillingError(400, "Stripe webhook body is invalid."); }
+  const snapshot = billingSnapshotFromEvent(event);
+  if (snapshot) await saveBillingEvent(snapshot);
+  return json(response, 200, { received: true });
 }
 
 async function handlePreflight(request: IncomingMessage, response: ServerResponse) {
@@ -148,12 +178,17 @@ function handleConfig(request: IncomingMessage, response: ServerResponse) {
     apiKey,
     authDomain: "grantdeskhq-proto-ek-2026.firebaseapp.com",
     projectId: "grantdeskhq-proto-ek-2026",
+    billingConfigured: isBillingConfigured(),
     googleAnalyticsMeasurementId: process.env.GOOGLE_ANALYTICS_MEASUREMENT_ID || undefined,
     clarityProjectId: process.env.CLARITY_PROJECT_ID || undefined
   });
 }
 
 async function readJson(request: IncomingMessage) {
+  return JSON.parse((await readBody(request)).toString("utf8"));
+}
+
+async function readBody(request: IncomingMessage) {
   const chunks: Buffer[] = [];
   let received = 0;
   for await (const chunk of request) {
@@ -162,7 +197,15 @@ async function readJson(request: IncomingMessage) {
     if (received > maxBodyBytes) throw new Error("Request body exceeds the current file limit.");
     chunks.push(buffer);
   }
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  return Buffer.concat(chunks);
+}
+
+function requestOrigin(request: IncomingMessage) {
+  const origin = request.headers.origin;
+  if (origin && allowedOrigins.has(origin)) return origin;
+  const forwardedHost = String(request.headers["x-forwarded-host"] || request.headers.host || "").split(",", 1)[0].trim();
+  if (/^[a-z0-9-]+-[a-z0-9-]+-[a-z0-9]+\.a\.run\.app$/i.test(forwardedHost)) return `https://${forwardedHost}`;
+  return "https://grantdeskhq.com";
 }
 
 async function serveStatic(urlPath: string, headOnly: boolean, response: ServerResponse) {

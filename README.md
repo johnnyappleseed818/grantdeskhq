@@ -36,8 +36,8 @@ Cloud Run application: [grantdeskhq-prototype-me423s5k5a-uc.a.run.app](https://g
 | `/gtm` | Administrator-only GTM command center, alert queue, source registry, and progress monitor |
 | `/sample-report` | Print-ready funder-report review package |
 | `/privacy` | Private-beta and test-file data-handling boundaries |
-| `/pricing` | Founding Nonprofit and Founding Agency pricing |
-| `/assessment` | Free-first-report founding access and contact enquiry |
+| `/pricing` | Essentials, Growth, and Portfolio pricing with secure subscription checkout |
+| `/assessment` | Free-first-report assessment and contact enquiry |
 | `/pilot` | Compatibility redirect to `/assessment` |
 | `*` | Accessible not-found page |
 
@@ -78,6 +78,7 @@ when those are available.
 - Daily Google Cloud Scheduler trigger for bounded OpenAI web-search discovery across indexed Reddit and LinkedIn results
 - System font stack and no external images or fonts
 - Consent-aware Google Analytics and Microsoft Clarity on public marketing pages, with private application content masked or excluded
+- Stripe-hosted Checkout for subscriptions; Stripe secret keys and webhook signing secrets remain server-side
 
 The private beta stores report records and audit events in Firestore and source
 objects in a private, public-access-blocked Cloud Storage bucket. OpenAI and
@@ -239,6 +240,15 @@ OPENAI_GTM_MODEL=gpt-5.5
 GTM_ADMIN_EMAILS=owner@example.com
 GOOGLE_ANALYTICS_MEASUREMENT_ID=G-XXXXXXXXXX
 CLARITY_PROJECT_ID=your_clarity_project_id
+STRIPE_SECRET_KEY=your_server_side_stripe_key
+STRIPE_WEBHOOK_SECRET=your_stripe_webhook_signing_secret
+STRIPE_PRICE_ESSENTIALS_MONTHLY=price_...
+STRIPE_PRICE_ESSENTIALS_ANNUAL=price_...
+STRIPE_PRICE_GROWTH_MONTHLY=price_...
+STRIPE_PRICE_GROWTH_ANNUAL=price_...
+STRIPE_PRICE_PORTFOLIO_MONTHLY=price_...
+STRIPE_PRICE_PORTFOLIO_ANNUAL=price_...
+STRIPE_EARLY_ACCESS_COUPON_ID=grantdeskhq_early_access_50_first_year
 GTM_SCHEDULER_SERVICE_ACCOUNT=grantdeskhq-gtm-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com
 GTM_SCHEDULER_AUDIENCE=https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app
 ```
@@ -256,6 +266,40 @@ Before activating GA4, open the web data stream's **Enhanced measurement**
 settings and disable **Page changes based on browser history events**. GA4 can
 otherwise emit its own SPA history-change page views in addition to the
 application's filtered manual events.
+
+## Pricing and Stripe billing
+
+| Plan | Monthly | Annual | Active grants | Report packages/year |
+| --- | ---: | ---: | ---: | ---: |
+| Essentials | $199 | $2,388 | 5 | 24 |
+| Growth | $399 | $4,788 | 20 | 72 |
+| Portfolio | $699 | $8,388 | 50 | 200 |
+
+The first report remains free without a card. A separate early-access coupon
+applies 50% off for the first 12 months; it does not change the published list
+price. Plan selection is validated on the server, and the browser never sends
+a price amount. Stripe creates the subscription through hosted Checkout. Signed
+webhook events are verified within a five-minute tolerance and written
+idempotently to the authenticated account's Firestore organization path.
+
+To create or reconcile only the GrantDeskHQ products and immutable recurring
+prices in a Stripe account, review `scripts/configure-stripe-pricing.mjs`, then
+run:
+
+```bash
+STRIPE_SECRET_KEY=sk_... \
+STRIPE_SETUP_CONFIRM=CREATE_GRANTDESKHQ_PRICING \
+npm run stripe:configure
+```
+
+The script identifies its products with `application=grantdeskhq` metadata and
+stable lookup keys. It refuses to overwrite a conflicting price or coupon. Add
+the six returned price IDs and coupon ID to the Cloud Run configuration. Create
+a Stripe webhook for `https://grantdeskhq.com/api/billing/webhook` (or the
+Cloud Run service URL until the domain routes to Cloud Run), subscribe to
+`checkout.session.completed`, `customer.subscription.updated`, and
+`customer.subscription.deleted`, and store the returned `whsec_...` value only
+in Secret Manager.
 
 Vite by itself serves the frontend and synthetic demo. Use `vercel dev` or
 `netlify dev` when testing the `/api/compile-report` serverless endpoint
@@ -427,8 +471,8 @@ gcloud run deploy grantdeskhq-prototype \
   --region=us-central1 \
   --allow-unauthenticated \
   --service-account=grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com \
-  --set-secrets=OPENAI_API_KEY=grantdeskhq-openai-key:latest,FIREBASE_WEB_API_KEY=grantdeskhq-firebase-web-key:latest \
-  --set-env-vars=OPENAI_MODEL=gpt-5.6-terra,OPENAI_VERIFIER_MODEL=gpt-5.6-luna,OPENAI_GTM_MODEL=gpt-5.5,REPORT_FILES_BUCKET=grantdeskhq-proto-ek-2026-report-files,GTM_ADMIN_EMAILS=owner@example.com,GTM_SCHEDULER_SERVICE_ACCOUNT=grantdeskhq-gtm-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com,GTM_SCHEDULER_AUDIENCE=https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app \
+  --set-secrets=OPENAI_API_KEY=grantdeskhq-openai-key:latest,FIREBASE_WEB_API_KEY=grantdeskhq-firebase-web-key:latest,STRIPE_SECRET_KEY=grantdeskhq-stripe-secret-key:latest,STRIPE_WEBHOOK_SECRET=grantdeskhq-stripe-webhook-secret:latest \
+  --set-env-vars=OPENAI_MODEL=gpt-5.6-terra,OPENAI_VERIFIER_MODEL=gpt-5.6-luna,OPENAI_GTM_MODEL=gpt-5.5,REPORT_FILES_BUCKET=grantdeskhq-proto-ek-2026-report-files,GTM_ADMIN_EMAILS=owner@example.com,GTM_SCHEDULER_SERVICE_ACCOUNT=grantdeskhq-gtm-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com,GTM_SCHEDULER_AUDIENCE=https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app,STRIPE_PRICE_ESSENTIALS_MONTHLY=price_...,STRIPE_PRICE_ESSENTIALS_ANNUAL=price_...,STRIPE_PRICE_GROWTH_MONTHLY=price_...,STRIPE_PRICE_GROWTH_ANNUAL=price_...,STRIPE_PRICE_PORTFOLIO_MONTHLY=price_...,STRIPE_PRICE_PORTFOLIO_ANNUAL=price_...,STRIPE_EARLY_ACCESS_COUPON_ID=grantdeskhq_early_access_50_first_year \
   --memory=1Gi \
   --cpu=1 \
   --timeout=180 \
@@ -563,6 +607,13 @@ See `gtm/COMPLIANCE.md` for the current provider and legal boundaries.
 - Managed accounts, persistent reports, private source objects and reviewer
   audit events are implemented. The beta currently creates one owner workspace
   per account; team invitations and granular reviewer roles are not yet built.
+- Pricing does not add per-user fees. The published unlimited-contributor
+  entitlement is the commercial policy, but self-service invitations and role
+  management must be completed before multiple contributors can collaborate
+  directly inside one customer workspace.
+- Stripe Checkout and signed subscription webhooks are implemented, but paid
+  plan enforcement and self-service billing-portal access must be completed
+  before a general-availability launch.
 - Email verification is not yet mandatory, and there is not yet a self-service
   source-download, retention, or account-deletion workflow. Those controls are
   required before accepting unredacted production client data.

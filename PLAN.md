@@ -49,3 +49,11 @@
 4. [x] Add new-signal alerts, last-run status, source links, limitations, and manual-review states to the GTM dashboard.
 5. [x] Create an authenticated Google Cloud Scheduler job in `grantdeskhq-proto-ek-2026` and verify one live scan.
 6. [x] Run tests, lint, production build, route/API checks, deletion audit, commit, push, and deploy.
+
+## Pricing and Stripe billing release
+
+1. [x] Replace the validation-era prices with Essentials $199, Growth $399, and Portfolio $699 plans and a clear feature/capacity comparison.
+2. [x] Keep the first report free without a credit card and present the first-year launch discount separately from list pricing.
+3. [x] Add authenticated Stripe Checkout with server-controlled price selection, a signed idempotent webhook, and account-isolated billing status.
+4. [ ] Create or reconcile GrantDeskHQ-only Stripe products, monthly and annual prices, and a 50%-off first-year coupon without modifying unrelated Stripe products.
+5. [ ] Test pricing, checkout validation, webhook security, responsive layout, and production build; deploy only to the explicitly selected GrantDeskHQ GCP project.

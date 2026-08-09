@@ -93,16 +93,29 @@ describe("important routes", () => {
 
   it("shows the exact subscription pricing and capacity", () => {
     renderRoute("/pricing");
-    for (const plan of ["Essentials", "Growth"]) {
-      expect(screen.getByText(plan)).toBeInTheDocument();
+    for (const plan of ["Essentials", "Growth", "Portfolio"]) {
+      expect(screen.getAllByText(plan).length).toBeGreaterThanOrEqual(2);
     }
-    for (const amount of ["$49", "$149", "or $490/year", "or $1,490/year"]) {
+    for (const amount of ["$199", "$399", "$699"]) {
       expect(screen.getByText(amount)).toBeInTheDocument();
     }
-    expect(screen.getByText("Up to 10 active grants")).toBeInTheDocument();
-    expect(screen.getByText("Up to 30 active grants")).toBeInTheDocument();
-    expect(screen.getAllByText("Unlimited archived grants")).toHaveLength(2);
-    expect(screen.getByText("$15")).toBeInTheDocument();
+    expect(screen.getByText("Up to 5 active grants")).toBeInTheDocument();
+    expect(screen.getByText("Up to 20 active grants")).toBeInTheDocument();
+    expect(screen.getByText("Up to 50 active grants")).toBeInTheDocument();
+    expect(screen.getAllByText("Unlimited archived grants")).toHaveLength(3);
+    expect(screen.getAllByText("Unlimited contributors").length).toBeGreaterThanOrEqual(3);
+    expect(screen.getByRole("heading", { name: "50% off your first year" })).toBeInTheDocument();
+    expect(screen.getByText("$75/month")).toBeInTheDocument();
+    expect(screen.getByText("$25")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Annual" })).toBeInTheDocument();
+  });
+
+  it("switches every plan to the exact annual billing amount", async () => {
+    const user = userEvent.setup();
+    renderRoute("/pricing");
+    await user.click(screen.getByRole("button", { name: "Annual" }));
+    for (const amount of ["$2,388", "$4,788", "$8,388"]) expect(screen.getByText(amount)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Annual" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("walks users through the report compiler one step at a time", async () => {

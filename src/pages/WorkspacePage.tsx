@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, ArrowRight, FilePlus2, FolderCheck, LoaderCircle, LogOut, ShieldCheck } from "lucide-react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 import { apiRequest } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import type { SavedReportSummary } from "../types/prototype";
@@ -8,13 +8,18 @@ import type { SavedReportSummary } from "../types/prototype";
 export function WorkspacePage() {
   const { user, loading, token, signOut } = useAuth();
   const [reports, setReports] = useState<SavedReportSummary[]>([]);
+  const [billing, setBilling] = useState<{ plan: string; interval: string; status: string } | null>(null);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState("");
+  const location = useLocation();
 
   useEffect(() => {
     if (!user) return;
-    token().then((idToken) => apiRequest<{ reports: SavedReportSummary[] }>("/api/reports", idToken))
-      .then((body) => setReports(body.reports))
+    token().then(async (idToken) => Promise.all([
+      apiRequest<{ reports: SavedReportSummary[] }>("/api/reports", idToken),
+      apiRequest<{ billing: { plan: string; interval: string; status: string } | null }>("/api/billing/status", idToken)
+    ]))
+      .then(([reportBody, billingBody]) => { setReports(reportBody.reports); setBilling(billingBody.billing); })
       .catch((requestError) => setError(requestError instanceof Error ? requestError.message : "Reports could not be loaded."))
       .finally(() => setFetching(false));
   }, [user, token]);
@@ -28,6 +33,8 @@ export function WorkspacePage() {
         <div><p className="eyebrow">Post-award reporting workspace</p><h1>{user.displayName ? `${user.displayName}’s reports` : "Your reports"}</h1><p>Continue a review or let AI prepare the first draft for another funder report.</p></div>
         <div className="workspace-actions"><button type="button" className="button button-secondary" onClick={() => signOut()}><LogOut aria-hidden="true" />Sign out</button><Link className="button button-primary" to="/compile"><FilePlus2 aria-hidden="true" />New report</Link></div>
       </header>
+      {new URLSearchParams(location.search).get("billing") === "success" && <div className="account-notice" role="status"><strong>Checkout completed.</strong> Your subscription is being confirmed securely with Stripe.</div>}
+      {billing?.plan && <div className="workspace-plan"><span>Current plan</span><strong>{billing.plan.charAt(0).toUpperCase() + billing.plan.slice(1)}</strong><small>{billing.interval === "year" ? "Annual billing" : "Monthly billing"}</small></div>}
       <div className="workspace-trust"><ShieldCheck aria-hidden="true" /><div><strong>Review the work that needs judgment, not every source from scratch.</strong><p>AI output stays connected to its evidence, and your reports, validation findings, and review decisions stay together in your workspace.</p></div></div>
       {error && <div className="compiler-error" role="alert"><AlertTriangle aria-hidden="true" />{error}</div>}
       {fetching ? <div className="workspace-loading"><LoaderCircle className="animate-spin" aria-hidden="true" />Loading saved reports…</div> : reports.length === 0 ?
