@@ -24,14 +24,30 @@ export async function saveCompilation(user: AuthenticatedUser, request: Compilat
   await writeDocument(accessToken, `organizations/${organizationId}`, {
     id: organizationId, ownerUid: user.uid, ownerEmail: user.email, name: request.organizationName, createdAt: now, updatedAt: now
   });
+  const setupAudit = sanitizeSetupDecisions(request, user.uid);
   await writeDocument(accessToken, `organizations/${organizationId}/reports/${reportId}`, {
     ...summary,
     ownerUid: user.uid,
     resultJson: JSON.stringify(result),
     sourcesJson: JSON.stringify(sources),
-    auditJson: JSON.stringify([{ at: now, actorUid: user.uid, action: "compiled", detail: "AI draft compiled, independently verified and deterministically checked." }])
+    auditJson: JSON.stringify([...setupAudit, { at: now, actorUid: user.uid, action: "compiled", detail: "AI draft compiled, independently verified and deterministically checked." }])
   });
   return { reportId, report: summary, result };
+}
+
+function sanitizeSetupDecisions(request: CompilationRequest, actorUid: string) {
+  const allowed = new Set(["agreement_details_applied", "reporting_period_applied"]);
+  return (request.setupDecisions || []).slice(-10).flatMap((decision) => {
+    if (!allowed.has(decision.action)) return [];
+    const timestamp = Number.isFinite(Date.parse(decision.at)) ? decision.at : new Date().toISOString();
+    return [{
+      at: timestamp,
+      actorUid,
+      action: decision.action,
+      detail: String(decision.detail || "").trim().slice(0, 500),
+      sourceName: safeName(String(decision.sourceName || "Award agreement"))
+    }];
+  });
 }
 
 export async function listReports(user: AuthenticatedUser): Promise<SavedReportSummary[]> {

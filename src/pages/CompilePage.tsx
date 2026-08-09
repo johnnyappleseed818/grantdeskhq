@@ -16,7 +16,7 @@ import {
 import { MAX_FILE_BYTES, MAX_TOTAL_BYTES, canGenerateReviewPackage, resultToDownload, validateCompilationRequest } from "../lib/prototype";
 import { apiRequest } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import type { CompilationPreflightResult, CompilationRequest, CompilationResult, CompilerFile, PersistedCompilationResponse, ReviewState, SourceRole } from "../types/prototype";
+import type { CompilationPreflightResult, CompilationRequest, CompilationResult, CompilerFile, PersistedCompilationResponse, ReviewState, SetupConflict, SetupDecision, SourceRole } from "../types/prototype";
 
 const sourceFields: Array<{ role: SourceRole; label: string; help: string; accept: string; required: boolean }> = [
   { role: "awardAgreement", label: "Award agreement or Notice of Award", help: "PDF, DOCX, or TXT", accept: ".pdf,.docx,.txt", required: true },
@@ -48,6 +48,8 @@ export function CompilePage() {
   const [preflighting, setPreflighting] = useState(false);
   const [preflight, setPreflight] = useState<CompilationPreflightResult | null>(null);
   const [preflightKey, setPreflightKey] = useState("");
+  const [setupDecisions, setSetupDecisions] = useState<SetupDecision[]>([]);
+  const [setupNotice, setSetupNotice] = useState("");
 
   const totalBytes = useMemo(() => Object.values(files).reduce((sum, file) => sum + (file?.size || 0), 0), [files]);
   const requiredFilesComplete = sourceFields.filter((field) => field.required).every((field) => files[field.role]);
@@ -60,6 +62,8 @@ export function CompilePage() {
     if (role === "awardAgreement") {
       setPreflight(null);
       setPreflightKey("");
+      setSetupDecisions([]);
+      setSetupNotice("");
     }
     setError("");
   };
@@ -68,6 +72,8 @@ export function CompilePage() {
     setMeta(next);
     setPreflight(null);
     setPreflightKey("");
+    setSetupDecisions([]);
+    setSetupNotice("");
   };
 
   const uploadPackage = (event: ChangeEvent<HTMLInputElement>) => {
@@ -79,6 +85,8 @@ export function CompilePage() {
     if (assigned.awardAgreement) {
       setPreflight(null);
       setPreflightKey("");
+      setSetupDecisions([]);
+      setSetupNotice("");
     }
     setWizardStep(2);
     setError(unmatched.length ? `${unmatched.map((file) => file.name).join(", ")} could not be assigned automatically. Add each file to the appropriate source box below.` : "");
@@ -109,10 +117,11 @@ export function CompilePage() {
       if (!checked) {
         setPreflighting(true);
         try {
-          checked = await apiRequest<CompilationPreflightResult>("/api/reports/preflight", await token(), {
+          const response = await apiRequest<CompilationPreflightResult>("/api/reports/preflight", await token(), {
             method: "POST",
             body: JSON.stringify({ ...meta, file: await fileToCompilerFile("awardAgreement", files.awardAgreement) })
           });
+          checked = { ...response, reportingPeriods: response.reportingPeriods || [] };
           setPreflight(checked);
           setPreflightKey(key);
         } catch (preflightError) {
@@ -123,7 +132,7 @@ export function CompilePage() {
         }
       }
       if (checked.setupConflicts.length) {
-        setError("Correct the report setup conflicts below before continuing.");
+        setError("");
         return;
       }
     }
@@ -140,7 +149,7 @@ export function CompilePage() {
     setResult(null);
     const selected = Object.entries(files) as Array<[SourceRole, File]>;
     const payloadFiles = await Promise.all(selected.map(([role, file]) => fileToCompilerFile(role, file)));
-    const payload: CompilationRequest = { ...meta, files: payloadFiles };
+    const payload: CompilationRequest = { ...meta, files: payloadFiles, setupDecisions };
     const errors = validateCompilationRequest(payload);
     if (!acknowledged) errors.push("Confirm that the files are synthetic or redacted test files.");
     if (errors.length) {
@@ -196,8 +205,35 @@ export function CompilePage() {
     if (!preflight) return;
     const values = [preflight.grantProfile.funderName.value, preflight.grantProfile.grantName.value]
       .filter((value) => value && !/^information required|unknown|not (found|stated)/i.test(value));
-    if (values.length) setMeta({ ...meta, grantName: values.join(" — ") });
+    const grantName = values.join(" — ");
+    if (grantName) {
+      setMeta((current) => ({ ...current, grantName }));
+      setSetupNotice(`Grant updated to ${grantName}.`);
+      setSetupDecisions((current) => [...current, {
+        at: new Date().toISOString(),
+        action: "agreement_details_applied",
+        detail: `Grant updated to ${grantName}.`,
+        sourceName: files.awardAgreement?.name || "Award agreement"
+      }]);
+    }
     setPreflight({ ...preflight, setupConflicts: preflight.setupConflicts.filter((conflict) => conflict.type !== "grant_identity") });
+    setPreflightKey("");
+    setError("");
+  };
+
+  const applySuggestedReportingPeriod = (conflict: SetupConflict) => {
+    if (!preflight || !conflict.suggestedValue) return;
+    setMeta((current) => ({ ...current, reportingPeriod: conflict.suggestedValue! }));
+    const due = conflict.suggestedDueDate ? ` Report due ${conflict.suggestedDueDate}.` : "";
+    const detail = `${conflict.suggestedLabel || "Reporting period"}: ${conflict.suggestedValue}.${due}`.replace("..", ".");
+    setSetupNotice(`Reporting period updated. ${detail}`);
+    setSetupDecisions((current) => [...current, {
+      at: new Date().toISOString(),
+      action: "reporting_period_applied",
+      detail,
+      sourceName: files.awardAgreement?.name || "Award agreement"
+    }]);
+    setPreflight({ ...preflight, setupConflicts: preflight.setupConflicts.filter((item) => item.id !== conflict.id) });
     setPreflightKey("");
     setError("");
   };
@@ -210,6 +246,8 @@ export function CompilePage() {
     });
     setPreflight(null);
     setPreflightKey("");
+    setSetupDecisions([]);
+    setSetupNotice("");
     setError("");
     setWizardStep(2);
   };
@@ -292,23 +330,38 @@ export function CompilePage() {
               })}
             </div>
             {preflighting && <div className="setup-checking" role="status"><LoaderCircle className="animate-spin" aria-hidden="true" /><div><strong>Checking the award details</strong><p>GrantDeskHQ is comparing the funder, grant, and reporting period before drafting begins.</p></div></div>}
+            {setupNotice && <div className="setup-notice" role="status"><CheckCircle2 aria-hidden="true" /><div><strong>Report setup updated</strong><p>{setupNotice}</p></div></div>}
             {preflight && preflight.setupConflicts.length > 0 && (
               <section className="setup-conflict-panel" aria-labelledby="setup-conflict-title">
                 <div><p className="eyebrow">Action required</p><h3 id="setup-conflict-title">We found {preflight.setupConflicts.length} {preflight.setupConflicts.length === 1 ? "conflict" : "conflicts"} with your report setup</h3></div>
                 {preflight.setupConflicts.map((conflict) => (
                   <article key={conflict.id} className="setup-conflict-card">
                     <AlertTriangle aria-hidden="true" />
-                    <div><h4>{conflict.title}</h4><p>{conflict.detail}</p><small>{conflict.source.sourceName} · {conflict.source.locator}</small></div>
+                    <div>
+                      <ReviewLabel status="blocked" />
+                      <h4>{conflict.title}</h4>
+                      <p>{conflict.detail}</p>
+                      <small className="setup-source-label">Source: Award agreement · {cleanSourceLocator(conflict.source.locator)}</small>
+                      {conflict.type === "reporting_period" && conflict.suggestedValue && (
+                        <div className="setup-period-suggestion">
+                          <span>Recommended from the award agreement</span>
+                          <strong>{conflict.suggestedLabel || "First reporting period"}</strong>
+                          <p>{conflict.suggestedValue}{conflict.suggestedDueDate ? ` · Report due ${conflict.suggestedDueDate}` : ""}</p>
+                        </div>
+                      )}
+                    </div>
                     <div className="setup-conflict-actions">
-                      {conflict.type === "grant_identity" && <button type="button" className="button button-secondary button-small" onClick={acceptAgreementDetails}>Use agreement details</button>}
+                      {conflict.type === "grant_identity" && <button type="button" className="button button-primary button-small" onClick={acceptAgreementDetails}>Use agreement details</button>}
                       {conflict.type === "grant_identity" && <button type="button" className="button button-secondary button-small" onClick={replaceAwardAgreement}>Replace agreement</button>}
-                      <button type="button" className="button button-primary button-small" onClick={() => returnToSetup(conflict.type === "reporting_period" ? "compiler-period" : "compiler-grant")}>{conflict.type === "reporting_period" ? "Change reporting period" : "Edit report setup"}</button>
+                      {conflict.type === "reporting_period" && conflict.suggestedValue && <button type="button" className="button button-primary button-small" onClick={() => applySuggestedReportingPeriod(conflict)}>Use first reporting period</button>}
+                      <button type="button" className="button button-secondary button-small" onClick={() => returnToSetup(conflict.type === "reporting_period" ? "compiler-period" : "compiler-grant")}>{conflict.type === "reporting_period" ? "Choose another period" : "Edit report setup"}</button>
                     </div>
                   </article>
                 ))}
               </section>
             )}
             {preflight && preflight.setupConflicts.length === 0 && <div className="setup-match"><CheckCircle2 aria-hidden="true" /><div><strong>Award details match this report setup</strong><p>GrantDeskHQ checked the grant identity and reporting period before moving forward.</p></div></div>}
+            {preflight && preflight.reportingPeriods.some((period) => period.status === "verified") && <ReportingSchedule periods={preflight.reportingPeriods} />}
           </fieldset>
 
           <fieldset className="wizard-step" hidden={wizardStep !== 3}>
@@ -345,7 +398,8 @@ export function CompilePage() {
           {error && <div className="compiler-error" role="alert"><AlertTriangle aria-hidden="true" /><span>{error}</span></div>}
           <div className="wizard-actions">
             <button type="button" className="button button-secondary" onClick={() => moveWizard(-1)} disabled={wizardStep === 1 || compiling}>Back</button>
-            {wizardStep < 4 && <button type="button" className="button button-primary" onClick={() => moveWizard(1)} disabled={preflighting}>{preflighting ? "Checking award…" : "Continue"} {!preflighting && <ArrowRight aria-hidden="true" />}</button>}
+            {wizardStep === 2 && preflight && preflight.setupConflicts.length > 0 && <p className="wizard-blocker-note">Resolve the {preflight.setupConflicts.length} setup {preflight.setupConflicts.length === 1 ? "conflict" : "conflicts"} to continue.</p>}
+            {wizardStep < 4 && <button type="button" className="button button-primary" onClick={() => moveWizard(1)} disabled={preflighting || (wizardStep === 2 && Boolean(preflight?.setupConflicts.length))}>{preflighting ? "Checking award…" : "Continue"} {!preflighting && <ArrowRight aria-hidden="true" />}</button>}
           </div>
         </form>
       </section>
@@ -488,6 +542,19 @@ function ReviewLabel({ status }: { status: ReviewState }) {
   return <span className={`status-badge ${className}`}>{label}</span>;
 }
 
+function ReportingSchedule({ periods }: { periods: CompilationPreflightResult["reportingPeriods"] }) {
+  const verified = periods.filter((period) => period.status === "verified");
+  const first = [...verified].sort((left, right) => Date.parse(left.startDate) - Date.parse(right.startDate))[0];
+  if (!first) return null;
+  return <section className="setup-schedule" aria-label="Reporting schedule found in award agreement">
+    <ClipboardCheck aria-hidden="true" />
+    <div>
+      <strong>{verified.length} required {verified.length === 1 ? "report" : "reports"} found in the award agreement</strong>
+      <p>First report: {first.title} · {humanDateRange(first.startDate, first.endDate)}{isUsableDate(first.dueDate) ? ` · Due ${humanDate(first.dueDate)}` : ""}</p>
+    </div>
+  </section>;
+}
+
 function ResultMetric({ label, value, detail, suffix = "" }: { label: string; value: number; detail: string; suffix?: string }) {
   return <article className="result-metric"><span>{label}</span><strong>{value}{suffix}</strong><p>{detail}</p></article>;
 }
@@ -624,4 +691,26 @@ function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function cleanSourceLocator(locator: string) {
+  return locator.trim().replace(/^information required\s*·\s*/i, "") || "Location shown in source";
+}
+
+function isUsableDate(value: string) {
+  return Boolean(value && !/^information required|unknown|not (found|stated)/i.test(value) && Number.isFinite(Date.parse(value)));
+}
+
+function humanDate(value: string) {
+  const date = new Date(value);
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(date);
+}
+
+function humanDateRange(start: string, end: string) {
+  if (!isUsableDate(start) || !isUsableDate(end)) return `${start} – ${end}`;
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  const monthDay = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  if (startDate.getUTCFullYear() === endDate.getUTCFullYear()) return `${monthDay.format(startDate)} – ${monthDay.format(endDate)}, ${endDate.getUTCFullYear()}`;
+  return `${humanDate(start)} – ${humanDate(end)}`;
 }

@@ -1592,7 +1592,9 @@
   }
 
   .setup-checking,
-  .setup-match {
+  .setup-match,
+  .setup-notice,
+  .setup-schedule {
     @apply grid grid-cols-[24px_1fr] gap-3 border p-4;
     border-radius: .75rem;
   }
@@ -1601,22 +1603,30 @@
     @apply border-slate-200 bg-slate-50;
   }
 
-  .setup-match {
+  .setup-match,
+  .setup-notice,
+  .setup-schedule {
     @apply border-emerald-200 bg-emerald-50;
   }
 
   .setup-checking > svg,
-  .setup-match > svg {
+  .setup-match > svg,
+  .setup-notice > svg,
+  .setup-schedule > svg {
     @apply mt-0.5 h-5 w-5 text-emeraldMuted-700;
   }
 
   .setup-checking strong,
-  .setup-match strong {
+  .setup-match strong,
+  .setup-notice strong,
+  .setup-schedule strong {
     @apply text-sm text-navy-900;
   }
 
   .setup-checking p,
-  .setup-match p {
+  .setup-match p,
+  .setup-notice p,
+  .setup-schedule p {
     @apply mt-1 text-xs leading-5 text-slate-600;
   }
 
@@ -1639,7 +1649,7 @@
   }
 
   .setup-conflict-card h4 {
-    @apply text-sm font-semibold text-navy-900;
+    @apply mt-2 text-sm font-semibold text-navy-900;
   }
 
   .setup-conflict-card p,
@@ -1649,6 +1659,32 @@
 
   .setup-conflict-actions {
     @apply col-start-1 flex flex-wrap gap-2 sm:col-start-2 lg:col-start-3;
+  }
+
+  .setup-source-label {
+    @apply font-semibold text-slate-700;
+  }
+
+  .setup-period-suggestion {
+    @apply mt-3 border border-emerald-200 bg-emerald-50 p-3;
+    border-radius: .65rem;
+  }
+
+  .setup-period-suggestion span,
+  .setup-period-suggestion strong {
+    @apply block;
+  }
+
+  .setup-period-suggestion span {
+    @apply text-[.68rem] font-semibold uppercase tracking-wide text-emerald-800;
+  }
+
+  .setup-period-suggestion strong {
+    @apply mt-1 text-sm text-navy-900;
+  }
+
+  .setup-period-suggestion p {
+    @apply mt-1 text-xs leading-5 text-slate-700;
   }
 
   .acknowledgement {
@@ -1707,6 +1743,10 @@
 
   .wizard-actions {
     @apply mt-6 flex items-center justify-between border-t border-slate-200 pt-5;
+  }
+
+  .wizard-blocker-note {
+    @apply mx-3 text-center text-xs font-semibold leading-5 text-redBlocked-700;
   }
 
   .compiler-error {

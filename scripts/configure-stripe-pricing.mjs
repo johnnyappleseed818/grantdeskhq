@@ -21,15 +21,16 @@ for (const plan of PRICING_PLANS) {
     });
   }
   for (const [interval, amount] of [["month", plan.monthly], ["year", plan.annual]]) {
-    const lookupKey = `grantdeskhq_${plan.id}_${interval}_2026`;
+    const lookupKey = `grantdeskhq_${plan.id}_${interval}_20260809_annual10`;
     const listed = await stripeGet(`/prices?active=true&limit=1&lookup_keys[0]=${encodeURIComponent(lookupKey)}`);
     let price = listed.data[0];
-    if (price) validateExistingPrice(price, product.id, amount * 100, interval, lookupKey);
+    const amountInCents = Math.round(amount * 100);
+    if (price) validateExistingPrice(price, product.id, amountInCents, interval, lookupKey);
     else {
       price = await stripePost("/prices", {
         product: product.id,
         currency: "usd",
-        unit_amount: String(amount * 100),
+        unit_amount: String(amountInCents),
         "recurring[interval]": interval,
         lookup_key: lookupKey,
         nickname: `${plan.name} ${interval === "month" ? "monthly" : "annual"} 2026 list price`,

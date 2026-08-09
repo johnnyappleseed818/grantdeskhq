@@ -107,15 +107,16 @@ describe("important routes", () => {
     expect(screen.getByRole("heading", { name: "50% off your first year" })).toBeInTheDocument();
     expect(screen.getByText("$75/month")).toBeInTheDocument();
     expect(screen.getByText("$25")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Annual" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Annual · Save 10%" })).toBeInTheDocument();
   });
 
   it("switches every plan to the exact annual billing amount", async () => {
     const user = userEvent.setup();
     renderRoute("/pricing");
-    await user.click(screen.getByRole("button", { name: "Annual" }));
-    for (const amount of ["$2,388", "$4,788", "$8,388"]) expect(screen.getByText(amount)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Annual" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: "Annual · Save 10%" }));
+    for (const amount of ["$2,149.20", "$4,309.20", "$7,549.20"]) expect(screen.getByText(amount)).toBeInTheDocument();
+    for (const monthlyEquivalent of ["$179.10 per month, billed annually", "$359.10 per month, billed annually", "$629.10 per month, billed annually"]) expect(screen.getByText(monthlyEquivalent)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Annual · Save 10%" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("walks users through the report compiler one step at a time", async () => {

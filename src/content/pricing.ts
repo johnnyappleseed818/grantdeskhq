@@ -19,7 +19,7 @@ export const PRICING_PLANS: PricingPlan[] = [
     id: "essentials",
     name: "Essentials",
     monthly: 199,
-    annual: 2_388,
+    annual: 2_149.20,
     activeGrants: 5,
     reportsPerYear: 24,
     bestFor: "Smaller nonprofit grant teams",
@@ -30,7 +30,7 @@ export const PRICING_PLANS: PricingPlan[] = [
     id: "growth",
     name: "Growth",
     monthly: 399,
-    annual: 4_788,
+    annual: 4_309.20,
     activeGrants: 20,
     reportsPerYear: 72,
     bestFor: "Growing nonprofit grant portfolios",
@@ -42,7 +42,7 @@ export const PRICING_PLANS: PricingPlan[] = [
     id: "portfolio",
     name: "Portfolio",
     monthly: 699,
-    annual: 8_388,
+    annual: 7_549.20,
     activeGrants: 50,
     reportsPerYear: 200,
     bestFor: "Larger and more complex portfolios",
@@ -67,5 +67,11 @@ export const ADDITIONAL_GRANTS_QUANTITY = 5;
 export const ADDITIONAL_REPORT_PRICE = 25;
 
 export function formatUsd(value: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
+  const hasCents = !Number.isInteger(value);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: hasCents ? 2 : 0,
+    maximumFractionDigits: hasCents ? 2 : 0
+  }).format(value);
 }

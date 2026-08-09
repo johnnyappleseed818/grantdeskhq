@@ -19,6 +19,7 @@ export interface CompilationRequest {
   grantName: string;
   reportingPeriod: string;
   files: CompilerFile[];
+  setupDecisions?: SetupDecision[];
 }
 
 export interface SavedReportSummary {
@@ -73,6 +74,27 @@ export interface SetupConflict {
   sourceValue: string;
   source: SourceReference;
   status: "action_required";
+  suggestedValue?: string;
+  suggestedLabel?: string;
+  suggestedDueDate?: string;
+}
+
+export interface GrantReportingPeriod {
+  id: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+  dueDate: string;
+  source: SourceReference;
+  confidence: number;
+  status: ReviewState;
+}
+
+export interface SetupDecision {
+  at: string;
+  action: "agreement_details_applied" | "reporting_period_applied";
+  detail: string;
+  sourceName: string;
 }
 
 export interface ReportInputStatus {
@@ -101,6 +123,7 @@ export interface CompilationPreflightRequest {
 
 export interface CompilationPreflightResult {
   grantProfile: GrantProfile;
+  reportingPeriods: GrantReportingPeriod[];
   setupConflicts: SetupConflict[];
 }
 

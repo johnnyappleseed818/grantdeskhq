@@ -271,11 +271,12 @@ application's filtered manual events.
 
 | Plan | Monthly | Annual | Active grants | Report packages/year |
 | --- | ---: | ---: | ---: | ---: |
-| Essentials | $199 | $2,388 | 5 | 24 |
-| Growth | $399 | $4,788 | 20 | 72 |
-| Portfolio | $699 | $8,388 | 50 | 200 |
+| Essentials | $199 | $2,149.20 | 5 | 24 |
+| Growth | $399 | $4,309.20 | 20 | 72 |
+| Portfolio | $699 | $7,549.20 | 50 | 200 |
 
-The first report remains free without a card. A separate early-access coupon
+Annual billing is exactly 10% below twelve monthly payments. The first report
+remains free without a card. A separate early-access coupon
 applies 50% off for the first 12 months; it does not change the published list
 price. Plan selection is validated on the server, and the browser never sends
 a price amount. Stripe creates the subscription through hosted Checkout. Signed

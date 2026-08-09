@@ -2,6 +2,7 @@ import type {
   CompilationRequest,
   CompilationResult,
   GrantProfile,
+  GrantReportingPeriod,
   ReportInputStatus,
   SetupConflict,
   SourceRole
@@ -70,7 +71,8 @@ export function buildInputStatus(request: CompilationRequest, result?: Pick<Resu
 
 export function detectSetupConflicts(
   request: Pick<CompilationRequest, "grantName" | "reportingPeriod">,
-  profile: GrantProfile
+  profile: GrantProfile,
+  reportingPeriods: GrantReportingPeriod[] = []
 ): SetupConflict[] {
   const conflicts: SetupConflict[] = [];
   const extractedIdentity = [usable(profile.funderName), usable(profile.grantName)].filter(Boolean).join(" — ");
@@ -91,18 +93,44 @@ export function detectSetupConflicts(
   const grantStart = parseDate(usable(profile.grantStartDate));
   const grantEnd = parseDate(usable(profile.grantEndDate));
   if (requested && grantStart && grantEnd && (requested.start < grantStart || requested.end > grantEnd)) {
+    const recommended = firstVerifiedReportingPeriod(reportingPeriods);
     conflicts.push({
       id: "setup-reporting-period",
       type: "reporting_period",
       title: "Reporting period is outside the grant period",
-      detail: `The report period ${request.reportingPeriod} falls outside the grant period ${profile.grantStartDate.value} through ${profile.grantEndDate.value}.`,
+      detail: `The report period ${formatDateRange(requested.start, requested.end)} falls outside the grant period ${formatDateRange(grantStart, grantEnd)}.`,
       enteredValue: request.reportingPeriod,
       sourceValue: `${profile.grantStartDate.value} through ${profile.grantEndDate.value}`,
       source: requested.start < grantStart ? profile.grantStartDate.source : profile.grantEndDate.source,
-      status: "action_required"
+      status: "action_required",
+      ...(recommended ? {
+        suggestedValue: formatDateRange(recommended.start, recommended.end),
+        suggestedLabel: recommended.period.title,
+        suggestedDueDate: recommended.due ? formatDate(recommended.due) : undefined
+      } : {})
     });
   }
   return conflicts;
+}
+
+function firstVerifiedReportingPeriod(reportingPeriods: GrantReportingPeriod[]) {
+  return reportingPeriods
+    .filter((period) => period.status === "verified" && period.confidence >= 0.85)
+    .map((period) => ({ period, start: parseDate(period.startDate), end: parseDate(period.endDate), due: parseDate(period.dueDate) }))
+    .filter((item): item is { period: GrantReportingPeriod; start: Date; end: Date; due: Date | null } => Boolean(item.start && item.end))
+    .sort((left, right) => left.start.getTime() - right.start.getTime())[0];
+}
+
+function formatDateRange(start: Date, end: Date) {
+  const startYear = start.getUTCFullYear();
+  const endYear = end.getUTCFullYear();
+  const monthDay = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
+  if (startYear === endYear) return `${monthDay.format(start)} – ${monthDay.format(end)}, ${endYear}`;
+  return `${formatDate(start)} – ${formatDate(end)}`;
+}
+
+function formatDate(value: Date) {
+  return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(value);
 }
 
 function usable(field: GrantProfile[keyof GrantProfile]) {

@@ -172,7 +172,7 @@ async function handleReview(request: IncomingMessage, response: ServerResponse, 
 
 function handleConfig(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
-  const apiKey = process.env.FIREBASE_WEB_API_KEY;
+  const apiKey = process.env.FIREBASE_WEB_API_KEY?.trim();
   if (!apiKey) return json(response, 503, { error: "Account service is not configured." });
   return json(response, 200, {
     apiKey,

@@ -82,7 +82,7 @@ export function PricingPage() {
         </div>
         <div className="billing-toggle" role="group" aria-label="Billing schedule">
           <button type="button" className={interval === "month" ? "is-active" : ""} aria-pressed={interval === "month"} onClick={() => setInterval("month")}>Monthly</button>
-          <button type="button" className={interval === "year" ? "is-active" : ""} aria-pressed={interval === "year"} onClick={() => setInterval("year")}>Annual</button>
+          <button type="button" className={interval === "year" ? "is-active" : ""} aria-pressed={interval === "year"} onClick={() => setInterval("year")}>Annual · Save 10%</button>
         </div>
         {new URLSearchParams(location.search).get("billing") === "cancelled" && <div className="pricing-notice" role="status">Checkout was cancelled. Nothing was charged.</div>}
         {checkoutError && <div className="compiler-error pricing-error" role="alert">{checkoutError}</div>}
@@ -95,7 +95,7 @@ export function PricingPage() {
                 <strong className="text-4xl font-semibold tracking-tight text-navy-950">{formatUsd(interval === "month" ? plan.monthly : plan.annual)}</strong>
                 <span className="pb-1 text-sm text-slate-500">/{interval}</span>
               </div>
-              <p className="mt-2 text-sm font-medium text-slate-600">{interval === "month" ? `${formatUsd(plan.annual)} per year at the monthly rate` : `${formatUsd(plan.monthly)} per month, billed annually`}</p>
+              <p className="mt-2 text-sm font-medium text-slate-600">{interval === "month" ? `Save 10% annually: ${formatUsd(plan.annual)}/year` : `${formatUsd(plan.monthly * 0.9)} per month, billed annually`}</p>
               <p className="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">Best for</p>
               <p className="mt-1 text-sm font-semibold text-navy-900">{plan.bestFor}</p>
               <p className="mt-5 min-h-[72px] text-sm leading-6 text-slate-600">{plan.description}</p>
