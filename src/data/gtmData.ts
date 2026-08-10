@@ -224,6 +224,78 @@ export const initialOpportunities: GtmOpportunity[] = [
     },
     emailSubject: "Reduce manual grant-report preparation at Rodale Institute",
     draftMessage: "Hi Elaine,\n\nI saw Rodale Institute's Grants Accountant posting and its emphasis on reporting, deliverables, timesheets, and supporting-document schedules. Those requirements can leave finance teams repeatedly assembling the same evidence into different funder formats.\n\nGrantDeskHQ's AI-powered solution prepares a source-linked report draft, suggests financial mappings, identifies missing support, and checks narrative claims against the evidence. We are offering to analyze a first report at no cost so your team can decide whether the workflow meaningfully reduces manual preparation.\n\nWould you be open to a brief look?\n\nBest,\nEli\nGrantDeskHQ"
+  },
+  {
+    id: "award-uno-ne3d-2026",
+    organization: "University of Nebraska at Omaha",
+    organizationUrl: "https://www.unomaha.edu/",
+    signalKind: "grant_award",
+    headline: "$8 million NSF E-RISE award announced for a statewide 3D-healthcare innovation center",
+    observedAt: "2026-08-10",
+    amount: 8_000_000,
+    funder: "U.S. National Science Foundation",
+    location: "Nebraska",
+    assistanceListing: "EPSCoR Research Incubators for STEM Excellence (E-RISE)",
+    targetTier: "adjacent",
+    fitSignals: [
+      "large federal award",
+      "multi-institution delivery network",
+      "research, workforce, and partnership outcomes",
+      "annual progress reporting",
+      "adjacent public-university segment"
+    ],
+    evidence: [
+      {
+        id: "3dpi-uno-ne3d-2026",
+        title: "Nebraska Center for 3D Innovation Launches with $8M NSF Grant to UNO",
+        url: "https://3dprintingindustry.com/news/nebraska-center-for-3d-innovation-launches-with-8m-nsf-grant-to-uno-253599/",
+        observedAt: "2026-08-10",
+        authority: "professional",
+        excerpt: "The report identifies UNO as recipient of an $8 million NSF E-RISE award for a statewide 3D-printed healthcare technology network.",
+        supports: ["recipient", "award amount", "funder", "program", "multi-institution scope", "announcement timing"]
+      },
+      {
+        id: "nsf-erise-program-2026",
+        title: "NSF E-RISE funding opportunity",
+        url: "https://www.nsf.gov/funding/opportunities/e-rise-epscor-research-infrastructure-improvement-program-epscor",
+        observedAt: "2026-08-10",
+        authority: "official",
+        excerpt: "NSF describes E-RISE as four-year capacity-building awards with annual reporting and continued funding tied to satisfactory progress.",
+        supports: ["funder program", "four-year structure", "annual reporting", "progress condition", "award ceiling"]
+      },
+      {
+        id: "uno-sara-myers-profile-2026",
+        title: "Sara Myers — Associate Vice Chancellor for Research and Creative Activity",
+        url: "https://www.unomaha.edu/academic-affairs/about-us/profiles/myers.php",
+        observedAt: "2026-08-10",
+        authority: "official",
+        excerpt: "UNO states that Sara Myers oversees Sponsored Programs, Grants Accounting, Research Compliance, and the university's research mission.",
+        supports: ["organization identity", "recipient role", "buyer path", "verified email"]
+      }
+    ],
+    score: { pain: 21, timing: 25, fit: 14, value: 20 },
+    entityVerified: true,
+    nonprofitVerified: true,
+    conflicts: [],
+    unknowns: [
+      "UNO is a public university and therefore an adjacent target, not GrantDeskHQ's core mid-sized nonprofit ICP.",
+      "The primary NSF award record or an official UNO award announcement was not yet discoverable; verify the specific award terms before outreach."
+    ],
+    recommendedRoles: ["Associate Vice Chancellor for Research", "Director of Sponsored Programs", "Vice Chancellor for Business and Finance", "Grants Accounting leader"],
+    whyNow: "The award was announced today and combines a large federal budget with statewide partners, research outputs, workforce development, and progress reporting that will require coordinated post-award inputs.",
+    recommendedAngle: "Offer a free award-readiness analysis focused on translating the final NSF agreement into reporting obligations, owners, evidence requirements, and a cross-institution workflow. Do not claim that UNO currently has a reporting problem.",
+    primaryContact: {
+      name: "Sara Myers",
+      title: "Associate Vice Chancellor for Research and Creative Activity",
+      email: "samyers@unomaha.edu",
+      emailKind: "direct",
+      roleSourceUrl: "https://www.unomaha.edu/academic-affairs/about-us/profiles/myers.php",
+      emailSourceUrl: "https://www.unomaha.edu/academic-affairs/about-us/profiles/myers.php",
+      verifiedAt: "2026-08-10",
+      note: "UNO publishes Sara Myers's role and email together and states that she oversees Sponsored Programs and Grants Accounting."
+    },
+    emailSubject: "Reporting readiness for UNO's new NSF E-RISE award",
+    draftMessage: "Hi Sara,\n\nI saw today's announcement of UNO's $8 million NSF E-RISE award for the Nebraska Center for 3D Innovation. A statewide program spanning research, workforce development, and multiple institutional partners can create a substantial post-award coordination and reporting workload.\n\nGrantDeskHQ's AI-powered solution turns the award agreement, accounting data, program updates, and supporting evidence into a source-linked funder-report draft, while keeping unsupported claims and unresolved inputs visible for review. We can prepare a free reporting-readiness analysis of the award so your team can see the obligations, owners, evidence needs, and reporting workflow in one place.\n\nWould that be useful as the center moves into implementation?\n\nBest,\nEli\nGrantDeskHQ"
   }
 ];
 

@@ -37,6 +37,8 @@ describe("program intelligence", () => {
     const retention = buildProgramInsights(result).find((item) => item.id === "housing-retention");
     expect(retention).toMatchObject({ value: "81.6% · target 80%", status: "Target achieved", tone: "success" });
     expect(retention?.detail).toContain("40 of 49");
+    expect(retention?.detail).toContain("eligible cohort");
+    expect(retention?.detail).toContain("more recent placements are not treated as having failed");
   });
 
   it("keeps the unconfirmed satisfaction result out of report-ready facts", () => {

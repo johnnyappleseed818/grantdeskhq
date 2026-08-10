@@ -1,5 +1,5 @@
 import type { CompilationRequest, CompilationResult, ValidationFinding } from "../src/types/prototype.ts";
-import { buildFinancialAnalysis, findExactBudgetCategory, type FinancialLedgerRow } from "./financialControls.ts";
+import { buildFinancialAnalysis, findBudgetCategoryFromLedgerSignals, findExactBudgetCategory, type FinancialLedgerRow } from "./financialControls.ts";
 
 interface WorkflowFacts {
   programMetrics?: Array<{ label: string; target: number; actual: number }>;
@@ -38,9 +38,11 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
     if (periodIssue) deterministicFindings.push(finding(`mapping:${mapping.transactionId}`, "source_matched", periodIssue.detail));
     const exactCategory = findExactBudgetCategory(row.account, result.requirements);
     const suggestedBudgetCategory = findExactBudgetCategory(mapping.suggestedCategory, result.requirements);
-    const category = exactCategory || suggestedBudgetCategory || mapping.suggestedCategory;
-    const ambiguous = /^unmapped$/i.test(category) || /insufficient detail|cannot determine|unable to determine/i.test(mapping.rationale);
-    const highConfidenceMapping = amountMatches && Boolean(exactCategory || suggestedBudgetCategory) && !ambiguous;
+    const signalCategory = findBudgetCategoryFromLedgerSignals(row, result.requirements);
+    const deterministicCategory = exactCategory || suggestedBudgetCategory || signalCategory;
+    const category = deterministicCategory || mapping.suggestedCategory;
+    const ambiguous = !deterministicCategory && (/^unmapped$/i.test(category) || /insufficient detail|cannot determine|unable to determine/i.test(mapping.rationale));
+    const highConfidenceMapping = amountMatches && Boolean(deterministicCategory) && !ambiguous;
     const complianceStatus = mappingCompliance(mapping.rationale);
     const complianceDetail = complianceStatus === "clear" ? "No additional transaction-level exception was detected." : mapping.rationale;
     const reportTreatment = periodIssue
@@ -66,7 +68,7 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
       rationale: periodIssue
         ? `${periodIssue.detail} Excluded from current-period mapped totals.`
         : highConfidenceMapping
-          ? `${exactCategory ? `The ledger account “${row.account}”` : `The suggested category “${category}”`} matches a source-verified budget category. ${mapping.rationale} The transaction amount comes directly from the uploaded ledger.`
+          ? `${exactCategory ? `The ledger account “${row.account}”` : signalCategory ? `The transaction description and vendor` : `The suggested category “${category}”`} match${signalCategory ? "" : "es"} a source-verified budget category. ${mapping.rationale} The transaction amount comes directly from the uploaded ledger.`
           : `${mapping.rationale} The transaction amount was confirmed against the uploaded ledger.`
     };
   });

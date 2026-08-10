@@ -7,7 +7,7 @@ import type {
   SetupConflict,
   SourceRole
 } from "../src/types/prototype.ts";
-import { buildProgramInsights, satisfiedProgramCheckIds } from "../src/lib/programInsights.ts";
+import { buildProgramInsights, buildRetentionInsight, satisfiedProgramCheckIds } from "../src/lib/programInsights.ts";
 
 type ResultBeforeWorkflow = Omit<CompilationResult, "setupConflicts" | "inputStatus" | "workflow">;
 
@@ -60,7 +60,10 @@ function normalizeProgramWorkflow(result: ResultBeforeWorkflow): ResultBeforeWor
   const superseded = new Map<string, string>();
   const hasFinancialAnalysis = Boolean(result.financialAnalysis?.ledgerTransactionCount);
   const controls = new Set(result.financialAnalysis?.controls.map((control) => control.id) || []);
+  const controlById = new Map(result.financialAnalysis?.controls.map((control) => [control.id, control]) || []);
   const hasDateExclusions = result.mappings.some((mapping) => ["excluded_outside_period", "excluded_grant_period"].includes(mapping.reportTreatment || ""));
+  const hasUnmappedTransaction = result.mappings.some((mapping) => mapping.reportTreatment === "needs_category_review" || mapping.mappingConfidence === "unmapped");
+  const retention = buildRetentionInsight(result);
 
   for (const check of result.programChecks) {
     const text = `${check.title} ${check.detail} ${check.action}`.toLowerCase();
@@ -68,6 +71,12 @@ function normalizeProgramWorkflow(result: ResultBeforeWorkflow): ResultBeforeWor
       superseded.set(check.id, "Future milestone — no action is required until the report has been submitted and reviewed by the funder.");
     } else if (hasFinancialAnalysis && /budget[- ]to[- ]actual|budget versus actual|variance explanation/.test(text)) {
       superseded.set(check.id, "GrantDeskHQ generated the budget-to-actual schedule from the verified award budget and uploaded ledger. Any required explanation is tracked with the financial exception.");
+    } else if (controlById.get("indirect-cost-limit")?.status === "passed" && /indirect/.test(text) && /cap|limit|reconcil|direct[- ]cost base|calculate/.test(text)) {
+      superseded.set(check.id, controlById.get("indirect-cost-limit")!.detail);
+    } else if (hasUnmappedTransaction && /new (?:grant )?budget category|creation of a new (?:grant )?budget category|program services budget category/.test(text)) {
+      superseded.set(check.id, "The ledger account label is not an approved grant-budget category. GrantDeskHQ will ask the reviewer to classify the transaction first and will evaluate the prior-approval rule only if a new budget category is deliberately selected.");
+    } else if (retention?.tone === "success" && /\bp4\b|120[- ]day|housing retention/.test(text) && /denominator|cohort|eligible|follow[- ]up/.test(text)) {
+      superseded.set(check.id, `${retention.value}. ${retention.detail} Underlying follow-up records remain required as supporting evidence.`);
     } else if (controls.has("duplicate-transactions") && /duplicate/.test(text) && /ledger|transaction|general[- ]ledger/.test(text)) {
       superseded.set(check.id, "The duplicate is already excluded from provisional totals and tracked as one financial decision.");
     } else if (hasDateExclusions && /out[- ]of[- ]period|outside.*period|pre[- ]grant|financial population/.test(text)) {

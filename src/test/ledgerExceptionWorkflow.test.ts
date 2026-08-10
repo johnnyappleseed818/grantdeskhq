@@ -79,7 +79,16 @@ const rawResult: CompilationResult = {
     grantStartDate: field("February 1, 2027"), grantEndDate: field("July 31, 2028"), grantType: field("Restricted grant"), awardAmount: field("$325,000")
   },
   setupConflicts: [], inputStatus: [], workflow: { readiness: "not_ready", actionRequiredCount: 0, needsReviewCount: 0, missingInputCount: 0 }, requirements,
-  mappings: rows.map(([transactionId, date, , description, amount, suggestedCategory, rationale]) => ({ transactionId, date, description, amount, suggestedCategory, confidence: 0, rationale, status: "blocked" as const })),
+  mappings: rows.map(([transactionId, date, , description, amount, suggestedCategory, rationale]) => ({
+    transactionId,
+    date,
+    description,
+    amount,
+    suggestedCategory: transactionId.startsWith("BW-EVAL-") ? "Unmapped" : suggestedCategory,
+    confidence: 0,
+    rationale: transactionId.startsWith("BW-EVAL-") ? "Insufficient account detail to determine a category." : rationale,
+    status: "blocked" as const
+  })),
   missingInputs: [], narrative: [], qualityChecks: [],
   validation: {
     evidenceCoveragePercent: 0, sourceMatchedItems: 0, itemsNeedingReview: 0, blockedItems: rows.length, method: "Source check.",
@@ -117,6 +126,18 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
     expect(checked.mappings.find((item) => item.transactionId === "BW-AMB-001")).toMatchObject({ mappingConfidence: "unmapped", reportTreatment: "needs_category_review", status: "blocked" });
   });
 
+  it("uses description signals to map both Evaluation rows despite a malformed account and unhelpful model suggestion", () => {
+    for (const id of ["BW-EVAL-001", "BW-EVAL-002"]) {
+      expect(checked.mappings.find((item) => item.transactionId === id)).toMatchObject({
+        suggestedCategory: "Evaluation",
+        mappingConfidence: "high",
+        reportTreatment: "included",
+        requiresHumanAction: false,
+        status: "verified"
+      });
+    }
+  });
+
   it("excludes one duplicate and both date exceptions without turning date rules into user actions", () => {
     expect(checked.mappings.filter((item) => item.reportTreatment === "excluded_duplicate")).toHaveLength(1);
     expect(checked.mappings.find((item) => item.transactionId === "BW-OOP-001")).toMatchObject({ reportTreatment: "excluded_outside_period", requiresHumanAction: false });
@@ -129,6 +150,12 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
     expect(checked.financialAnalysis?.controls.find((item) => item.id === "budget-reallocation-approval")).toMatchObject({ title: "Confirm whether the budget was formally modified", status: "review", requiresAction: true });
     expect(checked.financialAnalysis?.controls.find((item) => item.id === "budget-reallocation-approval")?.detail).toContain("This overage is a variance, not evidence that a formal budget modification occurred.");
     expect(checked.financialAnalysis?.controls.find((item) => item.id === "assistance-approvals")?.transactionIds).toEqual(["BW-EA-003", "BW-EA-006", "BW-EA-011"]);
+    const assistanceDocumentation = checked.financialAnalysis?.controls.find((item) => item.id === "assistance-documentation");
+    expect(assistanceDocumentation?.transactionIds).toHaveLength(12);
+    expect(assistanceDocumentation?.transactionIds).not.toContain("BW-EA-013");
+    expect(assistanceDocumentation?.detail).toContain("12 report-period assistance disbursements");
+    expect(assistanceDocumentation?.detail).toContain("1 refund or credit is reconciled separately");
+    expect(checked.financialAnalysis?.controls.find((item) => item.id === "assistance-credits")).toMatchObject({ status: "passed", requiresAction: false, transactionIds: ["BW-EA-013"] });
     expect(checked.financialAnalysis?.controls.find((item) => item.id === "eligibility-review")?.transactionIds).toEqual(["BW-TECH-004"]);
     const indirect = checked.financialAnalysis?.controls.find((item) => item.id === "indirect-cost-limit");
     expect(indirect).toMatchObject({ status: "passed", requiresAction: false });
@@ -190,10 +217,21 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
       programCheck("DATES", "data_conflict", "Interim-period financial population and out-of-period transactions", "The ledger contains an out-of-period and a pre-grant transaction."),
       programCheck("BVA", "award_trigger", "Interim Report 1 budget-to-actual and variance explanation", "A budget-to-actual presentation and variance explanation are required."),
       programCheck("AID", "award_trigger", "Emergency-assistance approval threshold review", "Emergency-assistance approvals and support remain unresolved."),
-      programCheck("PAYMENT", "award_trigger", "Interim Report 1 acceptance and second-installment condition", "The second installment follows funder acceptance of this report.")
+      programCheck("PAYMENT", "award_trigger", "Interim Report 1 acceptance and second-installment condition", "The second installment follows funder acceptance of this report."),
+      programCheck("INDIRECT", "award_trigger", "Indirect-cost cap and budget reconciliation", "The report does not calculate the cap or document the direct-cost base used."),
+      programCheck("NEW-CATEGORY", "award_trigger", "New Program Services budget category requires prior written approval", "The $875 ledger account is not listed in the approved budget."),
+      programCheck("P4-COHORT", "kpi_result", "P4 — Housing stability at 120 days: denominator and cohort validation", "The denominator is an eligible cohort rather than all placed households and should be reviewed.")
     ];
     const withPrograms: CompilationResult = {
       ...checked,
+      requirements: [...checked.requirements, requirement("KPI-P4", "At least 80% of eligible placed households remain stably housed at 120 days.")],
+      narrative: [{
+        id: "N-P4",
+        text: "Among 49 eligible placed households, 40 remained stably housed at 120 days (81.6%).",
+        evidenceType: "program_response",
+        source: programSource,
+        status: "verified"
+      }],
       programChecks,
       qualityChecks: [
         ...checked.qualityChecks,
@@ -215,6 +253,10 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
     ]);
     expect(workflow.programChecks?.find((check) => check.id === "PAYMENT")).toMatchObject({ severity: "info", resolution: "resolved" });
     expect(workflow.programChecks?.find((check) => check.id === "P2-KPI")).toMatchObject({ severity: "info", resolution: "resolved" });
+    expect(workflow.programChecks?.find((check) => check.id === "INDIRECT")).toMatchObject({ severity: "info", resolution: "resolved" });
+    expect(workflow.programChecks?.find((check) => check.id === "NEW-CATEGORY")).toMatchObject({ severity: "info", resolution: "resolved" });
+    expect(workflow.programChecks?.find((check) => check.id === "P4-COHORT")).toMatchObject({ severity: "info", resolution: "resolved" });
+    expect(workflow.programChecks?.find((check) => check.id === "P4-COHORT")?.detail).toContain("81.6% · target 80%");
   });
 });
 

@@ -144,18 +144,30 @@ export function buildFinancialAnalysis(
   const assistanceThreshold = assistanceRule ? firstMoney(assistanceRule) : null;
   const assistanceDocumentationRule = matchingRequirement(requirements, /assistance/i, /payment record|housing.{0,30}purpose|supporting documentation|documentation/i);
   const assistanceRows = usable.filter((row) => /assistance/i.test(`${row.account} ${row.category} ${row.description}`));
-  if (assistanceDocumentationRule && assistanceRows.length) {
+  const assistanceDisbursements = assistanceRows.filter((row) => row.amount > 0);
+  const assistanceCredits = assistanceRows.filter((row) => row.amount < 0);
+  if (assistanceDocumentationRule && assistanceDisbursements.length) {
     controls.push({
       id: "assistance-documentation",
       title: "Emergency assistance documentation",
-      detail: `Payment and housing-purpose documentation must be confirmed for ${assistanceRows.length} report-period assistance transactions.`,
+      detail: `Payment and housing-purpose documentation must be confirmed for ${assistanceDisbursements.length} report-period assistance disbursements.${assistanceCredits.length ? ` ${assistanceCredits.length} refund or credit ${assistanceCredits.length === 1 ? "is" : "are"} reconciled separately and does not create a new participant-evidence request.` : ""}`,
       status: "review",
       requiresAction: true,
-      transactionIds: assistanceRows.map((row) => row.id)
+      transactionIds: assistanceDisbursements.map((row) => row.id)
+    });
+  }
+  if (assistanceCredits.length) {
+    controls.push({
+      id: "assistance-credits",
+      title: `${assistanceCredits.length} assistance ${assistanceCredits.length === 1 ? "refund or credit reconciled" : "refunds or credits reconciled"}`,
+      detail: `${assistanceCredits.map((row) => `${row.id} (${preciseMoney(row.amount)})`).join(", ")} ${assistanceCredits.length === 1 ? "reduces" : "reduce"} assistance spending and ${assistanceCredits.length === 1 ? "does" : "do"} not represent a new participant disbursement.`,
+      status: "passed",
+      requiresAction: false,
+      transactionIds: assistanceCredits.map((row) => row.id)
     });
   }
   if (assistanceThreshold !== null) {
-    const aboveThreshold = assistanceRows.filter((row) => Math.abs(row.amount) > assistanceThreshold);
+    const aboveThreshold = assistanceDisbursements.filter((row) => row.amount > assistanceThreshold);
     controls.push(aboveThreshold.length ? {
       id: "assistance-approvals",
       title: `${aboveThreshold.length} assistance ${aboveThreshold.length === 1 ? "transaction requires" : "transactions require"} approval support`,
@@ -215,6 +227,13 @@ export function findExactBudgetCategory(account: string, requirements: CompiledR
     return /\$\s*[\d,]+/.test(text) && accountTokens.every((token) => normalized.includes(token));
   });
   return match ? cleanAccount : "";
+}
+
+export function findBudgetCategoryFromLedgerSignals(row: Pick<FinancialLedgerRow, "description" | "vendor">, requirements: CompiledRequirement[]) {
+  const signals = normalize(`${row.description} ${row.vendor}`);
+  const evaluation = findExactBudgetCategory("Evaluation", requirements);
+  if (evaluation && /\bevaluation\b|\bbaseline (?:design|review|assessment)\b|\bdata quality\b|\bimpact metrics?\b|\boutcome measurement\b/.test(signals)) return evaluation;
+  return "";
 }
 
 function findApprovedAmount(category: string, requirements: CompiledRequirement[]) {

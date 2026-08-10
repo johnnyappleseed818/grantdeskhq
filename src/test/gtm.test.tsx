@@ -70,7 +70,7 @@ describe("GTM opportunity accuracy", () => {
   });
 
   it("keeps every contactable lead tied to a named recipient and verified email source", () => {
-    expect(initialOpportunities).toHaveLength(5);
+    expect(initialOpportunities).toHaveLength(6);
     for (const opportunity of initialOpportunities) {
       expect(opportunity.primaryContact?.name).toBeTruthy();
       expect(opportunity.primaryContact?.email).toMatch(/^[^@\s]+@[^@\s]+\.[^@\s]+$/);
@@ -78,6 +78,19 @@ describe("GTM opportunity accuracy", () => {
       expect(opportunity.emailSubject).toBeTruthy();
       expect(opportunity.draftMessage).toMatch(/^Hi /);
     }
+  });
+
+  it("keeps the UNO E-RISE award visible as an adjacent, source-backed opportunity", () => {
+    const opportunity = initialOpportunities.find((item) => item.id === "award-uno-ne3d-2026");
+    expect(opportunity).toMatchObject({
+      organization: "University of Nebraska at Omaha",
+      amount: 8_000_000,
+      funder: "U.S. National Science Foundation",
+      targetTier: "adjacent",
+      primaryContact: { name: "Sara Myers", email: "samyers@unomaha.edu" }
+    });
+    expect(opportunity?.evidence).toHaveLength(3);
+    expect(assessOpportunityAccuracy(opportunity!, "2026-08-10")).toMatchObject({ score: 80, label: "high", confidence: "high", readyForAction: true });
   });
 });
 
