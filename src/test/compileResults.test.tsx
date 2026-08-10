@@ -63,7 +63,7 @@ describe("report review trust states", () => {
     expect(screen.getByRole("heading", { name: "Six-Month Progress Report" })).toBeInTheDocument();
   });
 
-  it("prioritizes verified program obligations and keeps source context informational", () => {
+  it("shows only unresolved program decisions in the inputs workflow", () => {
     const source = prototypeFixture.grantProfile.grantName.source;
     const result = {
       ...prototypeFixture,
@@ -75,10 +75,35 @@ describe("report review trust states", () => {
       ]
     };
     render(<CompilerResults result={result} activeTab="inputs" {...actions} />);
-    expect(screen.getByText("Results available for 1 of 2 required program metrics.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Review only the unresolved results" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Confirm whether funder notification is required" })).toBeInTheDocument();
-    expect(screen.getByText("Program update recognized as an internal source")).toBeInTheDocument();
+    expect(screen.queryByText("Program update recognized as an internal source")).not.toBeInTheDocument();
+    expect(screen.queryByText("Current-period result is available.")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Not applicable" }));
     expect(actions.onResolve).toHaveBeenCalledWith("program-STAFF-1", "not_applicable");
+  });
+
+  it("distinguishes supplied inputs from fully verified inputs", () => {
+    const source = prototypeFixture.grantProfile.grantName.source;
+    const result = {
+      ...prototypeFixture,
+      mappings: [{
+        transactionId: "AMB-001", date: "2027-06-18", description: "Client services", amount: 875,
+        suggestedCategory: "Unmapped", confidence: 0, rationale: "Insufficient detail.", status: "blocked" as const,
+        mappingConfidence: "unmapped" as const, reportTreatment: "needs_category_review" as const, requiresHumanAction: true
+      }],
+      programChecks: [{
+        id: "KPI-SAT", type: "kpi_result" as const, title: "Satisfaction result needs confirmation",
+        detail: "The survey dataset remains under validation.", action: "Confirm the final result.", owner: "Program" as const,
+        severity: "review" as const, sources: [source], resolution: "open" as const, status: "verified" as const
+      }]
+    };
+    render(<CompilerResults result={result} activeTab="inputs" {...actions} />);
+    const accounting = screen.getByRole("heading", { name: "Accounting data" }).closest("article");
+    const program = screen.getByRole("heading", { name: "Program results" }).closest("article");
+    const award = screen.getByRole("heading", { name: "Award document" }).closest("article");
+    expect(within(accounting!).getByText("Available · 1 exception")).toBeInTheDocument();
+    expect(within(program!).getByText("Available · 1 item needs review")).toBeInTheDocument();
+    expect(within(award!).getByText("Verified")).toBeInTheDocument();
   });
 });

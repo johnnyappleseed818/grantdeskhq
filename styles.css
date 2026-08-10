@@ -1988,7 +1988,7 @@
   }
 
   .review-count {
-    @apply flex min-w-44 items-center gap-3 border p-4;
+    @apply grid min-w-48 grid-cols-[auto_1fr] items-center gap-x-3 gap-y-0.5 border p-4;
     border-radius: .75rem;
   }
 
@@ -1997,7 +1997,11 @@
   }
 
   .review-count span {
-    @apply max-w-24 text-xs leading-5;
+    @apply max-w-24 text-xs font-semibold leading-5;
+  }
+
+  .review-count small {
+    @apply col-span-2 border-t border-slate-200 pt-2 text-xs leading-5;
   }
 
   .review-count.needs-review {
@@ -2374,6 +2378,14 @@
     @apply border-emerald-200 bg-emerald-50/50;
   }
 
+  .input-status-card.has-review {
+    @apply border-amberReview-200 bg-amberReview-50/50;
+  }
+
+  .input-status-card.has-review > svg {
+    @apply text-amberReview-700;
+  }
+
   .input-status-card > svg {
     @apply mt-0.5 h-5 w-5 text-emeraldMuted-700;
   }
@@ -2411,6 +2423,100 @@
   .empty-copy {
     @apply border border-slate-200 bg-slate-50 p-5 text-sm leading-6 text-slate-600;
     border-radius: .75rem;
+  }
+
+  .program-intelligence {
+    @apply grid gap-4 border border-emeraldMuted-100 bg-[#f5f9f6] p-5;
+    border-radius: .9rem;
+  }
+
+  .program-intelligence-heading {
+    @apply flex flex-col justify-between gap-3 border-b border-emeraldMuted-100 pb-4 sm:flex-row sm:items-end;
+  }
+
+  .program-intelligence-heading h3,
+  .draft-section-heading h3,
+  .financial-draft-readiness h3 {
+    @apply mt-1 text-xl font-semibold text-navy-950;
+  }
+
+  .program-intelligence-heading > span {
+    @apply w-fit text-xs font-semibold text-emeraldMuted-700;
+  }
+
+  .program-intelligence-grid {
+    @apply grid gap-3 md:grid-cols-2;
+  }
+
+  .program-insight {
+    @apply border border-slate-200 bg-white p-4;
+    border-radius: .75rem;
+  }
+
+  .program-insight.success {
+    @apply border-emerald-200;
+  }
+
+  .program-insight.review {
+    @apply border-amberReview-200 bg-amberReview-50/50;
+  }
+
+  .program-insight-top {
+    @apply flex flex-col items-start justify-between gap-2 sm:flex-row;
+  }
+
+  .program-insight-top small {
+    @apply text-right text-[11px] leading-4 text-slate-500;
+  }
+
+  .program-insight h4 {
+    @apply mt-4 text-sm font-semibold text-navy-900;
+  }
+
+  .program-insight-value {
+    @apply mt-1 block text-2xl font-semibold tracking-tight text-navy-950;
+  }
+
+  .program-insight p {
+    @apply mt-2 text-xs leading-5 text-slate-600;
+  }
+
+  .financial-draft-readiness {
+    @apply grid items-start gap-5 border border-amberReview-200 bg-amberReview-50 p-5 lg:grid-cols-[1fr_auto];
+    border-radius: .85rem;
+  }
+
+  .financial-draft-readiness ul {
+    @apply mt-4 grid gap-2 sm:grid-cols-2;
+  }
+
+  .financial-draft-readiness li {
+    @apply grid grid-cols-[18px_1fr] gap-2 border border-amberReview-200 bg-white p-3 text-xs leading-5 text-slate-600;
+    border-radius: .6rem;
+  }
+
+  .financial-draft-readiness li > svg {
+    @apply mt-0.5 h-4 w-4 text-amberReview-700;
+  }
+
+  .financial-draft-readiness li strong {
+    @apply mb-1 block text-navy-900;
+  }
+
+  .source-linked-draft {
+    @apply grid gap-4;
+  }
+
+  .draft-section-heading {
+    @apply border-b border-slate-200 pb-4;
+  }
+
+  .draft-section-heading > p:last-child {
+    @apply mt-2 text-sm leading-6 text-slate-600;
+  }
+
+  .draft-evidence-label {
+    @apply mb-2 text-emeraldMuted-700;
   }
 
   .prototype-warning {

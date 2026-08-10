@@ -7,6 +7,7 @@ import type {
   SetupConflict,
   SourceRole
 } from "../src/types/prototype.ts";
+import { buildProgramInsights, satisfiedProgramCheckIds } from "../src/lib/programInsights.ts";
 
 type ResultBeforeWorkflow = Omit<CompilationResult, "setupConflicts" | "inputStatus" | "workflow">;
 
@@ -27,14 +28,15 @@ const inputDefinitions: Array<{
 ];
 
 export function applyWorkflowState(request: CompilationRequest, result: ResultBeforeWorkflow): CompilationResult {
-  const setupConflicts = detectSetupConflicts(request, result.grantProfile);
-  const inputStatus = buildInputStatus(request, result);
-  const blockedChecks = result.qualityChecks.filter((check) => check.required && check.status === "blocked").length;
-  const reviewChecks = result.qualityChecks.filter((check) => check.required && check.status === "review").length;
-  const blockedFindings = result.validation.findings.filter((finding) => finding.verdict === "blocked").length;
-  const reviewFindings = result.validation.findings.filter((finding) => finding.verdict === "review").length;
+  const normalized = applyVerifiedProgramConclusions(result);
+  const setupConflicts = detectSetupConflicts(request, normalized.grantProfile);
+  const inputStatus = buildInputStatus(request, normalized);
+  const blockedChecks = normalized.qualityChecks.filter((check) => check.required && check.status === "blocked").length;
+  const reviewChecks = normalized.qualityChecks.filter((check) => check.required && check.status === "review").length;
+  const blockedFindings = normalized.validation.findings.filter((finding) => finding.verdict === "blocked").length;
+  const reviewFindings = normalized.validation.findings.filter((finding) => finding.verdict === "review").length;
   const missingRequiredSources = inputStatus.filter((item) => item.requiredForCompletion && !item.available).length;
-  const openMissingInputs = result.missingInputs.filter((item) => item.status === "open").length;
+  const openMissingInputs = normalized.missingInputs.filter((item) => item.status === "open").length;
   const actionRequiredCount = setupConflicts.length + blockedChecks + blockedFindings;
   const needsReviewCount = reviewChecks + reviewFindings;
   const missingInputCount = Math.max(openMissingInputs, missingRequiredSources);
@@ -44,12 +46,35 @@ export function applyWorkflowState(request: CompilationRequest, result: ResultBe
       ? "needs_review" as const
       : "ready_for_review" as const;
   return {
-    ...result,
-    summary: humanizeSourceSummary(result.summary, inputStatus),
-    warnings: customerWarnings(result.warnings, Boolean(result.financialAnalysis)),
+    ...normalized,
+    summary: humanizeSourceSummary(normalized.summary, inputStatus),
+    warnings: customerWarnings(normalized.warnings, Boolean(normalized.financialAnalysis)),
     setupConflicts,
     inputStatus,
     workflow: { readiness, actionRequiredCount, needsReviewCount, missingInputCount }
+  };
+}
+
+function applyVerifiedProgramConclusions(result: ResultBeforeWorkflow): ResultBeforeWorkflow {
+  const leadership = buildProgramInsights(result).find((item) => item.id === "leadership-notification" && item.tone === "success");
+  if (!leadership || !result.programChecks?.length) return result;
+  const satisfiedIds = satisfiedProgramCheckIds(result);
+  if (!satisfiedIds.size) return result;
+  return {
+    ...result,
+    programChecks: result.programChecks.map((check) => satisfiedIds.has(check.id) ? {
+      ...check,
+      title: leadership.title,
+      detail: `${leadership.value}. ${leadership.detail}`,
+      action: "No action needed.",
+      severity: "info" as const,
+      sources: leadership.sources,
+      status: "verified" as const
+    } : check),
+    qualityChecks: result.qualityChecks.map((check) => {
+      const programId = check.id.startsWith("program-") ? check.id.slice("program-".length) : "";
+      return satisfiedIds.has(programId) ? { ...check, label: leadership.title, detail: leadership.detail, required: false, status: "passed" as const } : check;
+    })
   };
 }
 

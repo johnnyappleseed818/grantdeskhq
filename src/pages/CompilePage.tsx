@@ -17,7 +17,8 @@ import {
   UploadCloud
 } from "lucide-react";
 import { MAX_FILE_BYTES, MAX_TOTAL_BYTES, canGenerateReviewPackage, resultToDownload, validateCompilationRequest } from "../lib/prototype";
-import { buildReportAttention, machineCheckCount } from "../lib/reportAttention";
+import { buildFinancialExceptionSummary, buildReportAttention, machineCheckCount } from "../lib/reportAttention";
+import { buildProgramInsights, satisfiedProgramCheckIds } from "../lib/programInsights";
 import { apiRequest } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import type { CompilationPreflightResult, CompilationRequest, CompilationResult, CompilerFile, GrantReportingPeriod, GrantWorkflowObligation, ObligationApplicability, PersistedCompilationResponse, ReviewState, SetupConflict, SetupDecision, SourceRole } from "../types/prototype";
@@ -501,6 +502,7 @@ export function CompilePage() {
 
 export function CompilerResults({ result, activeTab, setActiveTab, onResolve, onDownload, onEditSetup, onAddSources }: { result: CompilationResult; activeTab: ResultTab; setActiveTab(tab: ResultTab): void; onResolve(id: string, resolution?: "resolved" | "not_applicable"): void; onDownload(): void; onEditSetup(): void; onAddSources(): void }) {
   const actions = buildReportAttention(result).length;
+  const checks = machineCheckCount(result);
   const hasLedger = result.inputStatus.some((item) => item.role === "ledgerExport" && item.available);
   const tabs: Array<[ResultTab, string]> = [
     ["overview", "Overview"],
@@ -508,14 +510,14 @@ export function CompilerResults({ result, activeTab, setActiveTab, onResolve, on
     ["inputs", "Inputs"],
     ["mapping", hasLedger ? "Financial mapping" : "Financial mapping · add data"],
     ["narrative", "Draft & evidence"],
-    ["review", `Review & approval · ${actions}`]
+    ["review", `Review · ${actions} ${actions === 1 ? "item" : "items"}`]
   ];
   return (
     <section id="compiler-results" tabIndex={-1} className="compiler-results">
       <div className="site-shell py-12 lg:py-16">
         <div className="compiler-result-heading">
-          <div><p className="eyebrow">{result.workflow.readiness === "ready_for_review" ? "Draft ready for review" : "Preparing report"}</p><h2>{displayReportTitle(result)}</h2><p>{result.summary}</p></div>
-          <div className={`review-count ${actions ? "needs-review" : "ready"}`}><strong>{actions}</strong><span>{actions === 1 ? "thing needs" : "things need"} your attention</span></div>
+          <div><p className="eyebrow">{result.workflow.readiness === "ready_for_review" ? "Draft ready for review" : "Preparing report"}</p><h2>{displayReportTitle(result)}</h2><p><strong>Working draft — human review required.</strong> {actions ? "Some inputs and financial exceptions still need attention before this report can be approved." : "The source checks are complete and the report is ready for professional review."}</p></div>
+          <div className={`review-count ${actions ? "needs-review" : "ready"}`}><strong>{checks}</strong><span>checks completed</span><small>{actions} {actions === 1 ? "item needs" : "items need"} your attention</small></div>
         </div>
         <div className="result-tabs" role="tablist" aria-label="Compiled report sections">
           {tabs.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={activeTab === id} className={activeTab === id ? "is-active" : ""} onClick={() => setActiveTab(id)}>{label}</button>)}
@@ -525,7 +527,7 @@ export function CompilerResults({ result, activeTab, setActiveTab, onResolve, on
           {activeTab === "requirements" && <Requirements result={result} />}
           {activeTab === "inputs" && <Inputs result={result} onAddSources={onAddSources} onResolve={onResolve} />}
           {activeTab === "mapping" && <Mappings result={result} onAddSources={onAddSources} />}
-          {activeTab === "narrative" && <Narrative result={result} onAddSources={onAddSources} />}
+          {activeTab === "narrative" && <Narrative result={result} onAddSources={onAddSources} onReviewFinancial={() => setActiveTab("mapping")} />}
           {activeTab === "review" && <Review result={result} onResolve={onResolve} onDownload={onDownload} onEditSetup={onEditSetup} onAddSources={onAddSources} />}
         </div>
       </div>
@@ -561,27 +563,66 @@ function Requirements({ result }: { result: CompilationResult }) {
 }
 
 function Inputs({ result, onAddSources, onResolve }: { result: CompilationResult; onAddSources(): void; onResolve(id: string, resolution?: "resolved" | "not_applicable"): void }) {
+  const satisfiedChecks = satisfiedProgramCheckIds(result);
+  const programChecks = (result.programChecks || []).filter((check) => !satisfiedChecks.has(check.id));
   return <div className="input-status-list">
     <div className="input-request-card">
       <div><p className="eyebrow">Start with what you have</p><h3>GrantDeskHQ shows exactly what is still needed</h3><p>Add the remaining information as it becomes available. Missing inputs stay visible and cannot be mistaken for completed work.</p></div>
       <button type="button" className="button button-primary button-small" onClick={onAddSources}>Add report inputs</button>
     </div>
-    <ProgramChecks checks={result.programChecks || []} onAddSources={onAddSources} onResolve={onResolve} />
-    {result.inputStatus.map((item) => <article key={item.role} className={`input-status-card ${item.available ? "is-available" : "is-missing"}`}>
-      {item.available ? <CheckCircle2 aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
-      <div><div className="input-status-heading"><h3>{item.label}</h3><ReviewLabel status={item.available ? "verified" : "not_evaluated"} /></div><p>{item.detail}</p>{!item.available && item.requiredForCompletion && <small>Needed before the report can be prepared for approval.</small>}</div>
+    {result.inputStatus.map((item) => {
+      const presentation = inputPresentation(result, item.role, item.available);
+      return <article key={item.role} className={`input-status-card ${item.available ? "is-available" : "is-missing"} ${presentation.tone === "review" ? "has-review" : ""}`}>
+      {presentation.tone === "success" ? <CheckCircle2 aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
+      <div><div className="input-status-heading"><h3>{item.label}</h3><MappingStateBadge label={presentation.label} tone={presentation.tone} /></div><p>{presentation.detail || item.detail}</p>{!item.available && item.requiredForCompletion && <small>Needed before the report can be prepared for approval.</small>}</div>
       {!item.available && <button type="button" className="button button-secondary button-small" onClick={onAddSources}>{item.actionLabel}</button>}
-    </article>)}
+    </article>;})}
+    <ProgramChecks checks={programChecks} onAddSources={onAddSources} onResolve={onResolve} />
   </div>;
 }
 
+function inputPresentation(result: CompilationResult, role: SourceRole, available: boolean): { label: string; tone: "success" | "review" | "blocked" | "neutral"; detail?: string } {
+  if (!available) return { label: "Not provided", tone: "neutral" };
+  if (role === "awardAgreement") {
+    const conflicts = result.setupConflicts.length;
+    const verified = result.requirements.some((item) => item.status === "verified") && Object.values(result.grantProfile).some((item) => item?.status === "verified");
+    return conflicts
+      ? { label: `Available · ${conflicts} setup ${conflicts === 1 ? "issue" : "issues"}`, tone: "review", detail: "The award document is available, but the report setup must be corrected before its details can be treated as confirmed." }
+      : verified
+        ? { label: "Verified", tone: "success", detail: "Award details and reporting requirements were checked against the uploaded document." }
+        : { label: "Available", tone: "success", detail: "The award document is available and its extracted requirements still need validation." };
+  }
+  if (role === "approvedBudget") {
+    const verified = result.requirements.some((item) => item.status === "verified" && /approved budget|budget(?:ed)?|allocation|personnel|travel|indirect|technology|assistance/i.test(`${item.requirement} ${item.source.excerpt}`) && /\$\s*[\d,]+/.test(`${item.requirement} ${item.source.excerpt}`));
+    return verified
+      ? { label: "Verified", tone: "success", detail: result.inputStatus.find((item) => item.role === role)?.detail }
+      : { label: "Available", tone: "success", detail: "Budget information is available and still needs validation against the award." };
+  }
+  if (role === "ledgerExport") {
+    const count = buildFinancialExceptionSummary(result).length;
+    return count
+      ? { label: `Available · ${count} ${count === 1 ? "exception" : "exceptions"}`, tone: "review", detail: `Accounting data was analyzed. ${count} grouped ${count === 1 ? "exception needs" : "exceptions need"} review; routine transactions do not require approval.` }
+      : result.financialAnalysis
+        ? { label: "Verified", tone: "success", detail: "Accounting data was analyzed and no unresolved financial exceptions remain." }
+        : { label: "Available", tone: "success", detail: "Accounting data is available and has not completed financial validation yet." };
+  }
+  if (role === "programUpdate") {
+    const satisfiedChecks = satisfiedProgramCheckIds(result);
+    const open = (result.programChecks || []).filter((item) => item.severity !== "info" && item.resolution === "open" && !satisfiedChecks.has(item.id)).length;
+    return open
+      ? { label: `Available · ${open} ${open === 1 ? "item needs" : "items need"} review`, tone: "review", detail: `Program results are available. ${open} ${open === 1 ? "item still needs" : "items still need"} confirmation before the draft can be approved.` }
+      : (result.programChecks?.length || result.narrative.some((item) => item.status === "verified" && item.evidenceType === "program_response"))
+        ? { label: "Verified", tone: "success", detail: "Program results were checked against the award requirements." }
+        : { label: "Available", tone: "success", detail: "Program results are available and still need validation against the award requirements." };
+  }
+  return { label: "Available", tone: "success" };
+}
+
 function ProgramChecks({ checks, onAddSources, onResolve }: { checks: NonNullable<CompilationResult["programChecks"]>; onAddSources(): void; onResolve(id: string, resolution?: "resolved" | "not_applicable"): void }) {
-  if (!checks.length) return null;
-  const kpis = checks.filter((item) => item.type === "kpi_result");
-  const availableKpis = kpis.filter((item) => item.severity === "info" && item.status === "verified").length;
-  const ordered = [...checks].sort((left, right) => programPriority(left.severity) - programPriority(right.severity));
+  const ordered = checks.filter((item) => item.resolution === "open" && item.severity !== "info").sort((left, right) => programPriority(left.severity) - programPriority(right.severity));
+  if (!ordered.length) return null;
   return <section className="program-checks" aria-labelledby="program-checks-title">
-    <div className="program-checks-heading"><div><p className="eyebrow">Award + program update checks</p><h3 id="program-checks-title">Program results and triggered obligations</h3><p>{kpis.length ? `Results available for ${availableKpis} of ${kpis.length} required program metrics.` : "GrantDeskHQ compared the program update with the award's reporting rules."}</p></div><span>{checks.filter((item) => item.resolution === "open" && item.severity !== "info").length} open</span></div>
+    <div className="program-checks-heading"><div><p className="eyebrow">Program items needing attention</p><h3 id="program-checks-title">Review only the unresolved results</h3><p>Completed source checks stay in the background. These are the program decisions or missing facts that still need your team.</p></div><span>{ordered.length} open</span></div>
     <div className="program-check-list">{ordered.map((check) => <article key={check.id} className={`program-check ${check.severity} ${check.resolution !== "open" ? "is-resolved" : ""}`}>
       {check.severity === "info" || check.resolution !== "open" ? <CheckCircle2 aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
       <div><div className="program-check-label"><MappingStateBadge label={programSeverityLabel(check)} tone={check.resolution !== "open" || check.severity === "info" ? "success" : check.severity === "action_required" ? "blocked" : "review"} /><span>Owner: {check.owner}</span></div><h4>{check.title}</h4><p>{check.detail}</p>{check.severity !== "info" && <p className="program-next-step"><strong>Next step:</strong> {check.action}</p>}<small>{check.sources.map((source) => `${source.sourceName} · ${source.locator}`).join(" · ")}</small></div>
@@ -610,7 +651,7 @@ function Mappings({ result, onAddSources }: { result: CompilationResult; onAddSo
   const duplicates = result.mappings.filter((item) => item.reportTreatment === "excluded_duplicate").length;
   const dateExclusions = result.mappings.filter((item) => ["excluded_outside_period", "excluded_grant_period"].includes(item.reportTreatment || "")).length;
   const approvalEvidence = analysis?.controls.find((control) => control.id === "assistance-approvals" && control.requiresAction)?.transactionIds.length || 0;
-  const groupedExceptions = categoryReviews + (duplicates ? 1 : 0) + (analysis?.controls.filter((control) => control.requiresAction).length || 0);
+  const groupedExceptions = buildFinancialExceptionSummary(result).length;
   return <div className="grid gap-5">
     <section className="financial-ingestion-summary" aria-labelledby="financial-ingestion-title">
       <div className="financial-ingestion-heading"><div><p className="eyebrow">Ledger review completed</p><h3 id="financial-ingestion-title">{analysis?.ledgerTransactionCount || result.mappings.length} ledger rows analyzed</h3><p>GrantDeskHQ mapped the routine rows automatically and brought forward only the exceptions that need judgment.</p></div><span>{groupedExceptions} grouped {groupedExceptions === 1 ? "exception" : "exceptions"} to review</span></div>
@@ -680,15 +721,20 @@ function FinancialControls({ result }: { result: CompilationResult }) {
   return <section className="financial-analysis" aria-labelledby="financial-analysis-title"><div className="financial-analysis-heading"><div><p className="eyebrow">Agreement + ledger checks</p><h3 id="financial-analysis-title">Financial controls for this reporting period</h3></div><span>{analysis.mappedTransactionCount} mapped · {analysis.excludedTransactionCount} excluded</span></div><div className="financial-control-grid">{analysis.controls.map((control) => <article key={control.id} className={control.status}><ReviewLabel status={qualityState(control.status)} /><h4>{control.title}</h4><p>{control.detail}</p>{control.transactionIds.length > 0 && <small>Transactions: {control.transactionIds.join(", ")}</small>}</article>)}</div>{analysis.budgetVariances.length > 0 && <div className="table-scroll"><table className="data-table"><thead><tr><th>Budget category</th><th>Approved</th><th>Current-period actual</th><th>Variance</th><th>Variance %</th><th>Result</th></tr></thead><tbody>{analysis.budgetVariances.map((item) => <tr key={item.category}><th>{item.category}</th><td>{formatCurrency(item.approvedAmount)}</td><td>{formatCurrency(item.actualAmount)}</td><td>{signedCurrency(item.varianceAmount)}</td><td>{item.variancePercent >= 0 ? "+" : ""}{item.variancePercent.toFixed(1)}%</td><td>{item.explanationRequired ? "Explanation required" : "Within threshold"}</td></tr>)}</tbody></table></div>}</section>;
 }
 
-function Narrative({ result, onAddSources }: { result: CompilationResult; onAddSources(): void }) {
+function Narrative({ result, onAddSources, onReviewFinancial }: { result: CompilationResult; onAddSources(): void; onReviewFinancial(): void }) {
   const programMissing = result.inputStatus.some((item) => item.role === "programUpdate" && !item.available);
   const financialMissing = result.inputStatus.some((item) => item.role === "ledgerExport" && !item.available);
+  const programInsights = buildProgramInsights(result);
+  const financialExceptions = buildFinancialExceptionSummary(result);
+  const narrative = result.narrative.filter((item) => !(financialExceptions.length && /financial narrative|budget-to-actual.*finalized|resolving the duplicate|blocked transactions/i.test(item.text)));
   return <div className="grid gap-4">
     {(programMissing || financialMissing) && <EmptyResultState title="Program and financial results are still needed" detail="You haven’t provided all current-period program results or financial activity, so GrantDeskHQ will not generate those parts of the report yet." action="Add report inputs" onAction={onAddSources} compact />}
-    {result.narrative.length ? <div className="compiled-list">{result.narrative.map((item) => <article key={item.id}>
-      <div className="compiled-list-main"><ReviewLabel status={item.status} /><div><p className="eyebrow">{humanEvidenceType(item.evidenceType)}</p><h3 className={item.status === "blocked" ? "text-redBlocked-700 line-through" : ""}>{item.text}</h3></div></div>
-      <Source reference={item.source} />
-    </article>)}</div> : <p className="empty-copy">No source-supported narrative can be drafted from the current inputs.</p>}
+    {programInsights.length > 0 && <section className="program-intelligence" aria-labelledby="program-intelligence-title"><div className="program-intelligence-heading"><div><p className="eyebrow">Confirmed data + award rules</p><h3 id="program-intelligence-title">Program results at a glance</h3></div><span>{programInsights.length} cross-source checks</span></div><div className="program-intelligence-grid">{programInsights.map((insight) => <article key={insight.id} className={`program-insight ${insight.tone}`}><div className="program-insight-top"><MappingStateBadge label={insight.status} tone={insight.tone} /><small>{insight.sources.map((source) => `${source.sourceName} · ${source.locator}`).join(" + ")}</small></div><h4>{insight.title}</h4><strong className="program-insight-value">{insight.value}</strong><p>{insight.detail}</p></article>)}</div></section>}
+    {financialExceptions.length > 0 && <section className="financial-draft-readiness" aria-labelledby="financial-draft-readiness-title"><div><p className="eyebrow">Financial section not ready</p><h3 id="financial-draft-readiness-title">{financialExceptions.length} {financialExceptions.length === 1 ? "issue remains" : "issues remain"}</h3><ul>{financialExceptions.map((item) => <li key={item.id}><AlertTriangle aria-hidden="true" /><span><strong>{item.title}</strong>{item.detail}</span></li>)}</ul></div><button type="button" className="button button-secondary" onClick={onReviewFinancial}>Review financial exceptions <ArrowRight aria-hidden="true" /></button></section>}
+    {narrative.length ? <section className="source-linked-draft" aria-labelledby="source-linked-draft-title"><div className="draft-section-heading"><p className="eyebrow">Data → interpretation → draft</p><h3 id="source-linked-draft-title">Source-linked draft language</h3><p>Each paragraph stays separate from the evidence used to support it.</p></div><div className="compiled-list">{narrative.map((item) => <article key={item.id}>
+      <div className="compiled-list-main"><ReviewLabel status={item.status} /><div><p className="eyebrow">Draft language · {humanEvidenceType(item.evidenceType)}</p><h3 className={item.status === "blocked" ? "text-redBlocked-700 line-through" : ""}>{item.text}</h3></div></div>
+      <div><p className="eyebrow draft-evidence-label">Supporting evidence</p><Source reference={item.source} /></div>
+    </article>)}</div></section> : <p className="empty-copy">No source-supported narrative can be drafted from the current inputs.</p>}
   </div>;
 }
 

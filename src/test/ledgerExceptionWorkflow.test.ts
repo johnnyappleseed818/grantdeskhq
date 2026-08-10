@@ -132,13 +132,11 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
     expect(indirect?.detail).toContain("$918.40 remaining capacity");
   });
 
-  it("surfaces six grouped human decisions rather than 56 row approvals", () => {
+  it("surfaces four grouped financial decisions rather than 56 row approvals", () => {
     expect(buildReportAttention(checked).map((item) => item.title)).toEqual([
       "1 transaction needs a category decision",
       "1 potential duplicate needs review",
-      "1 budget variance requires explanation",
-      "Budget approval may be required",
-      "1 transaction needs an eligibility review",
+      "Review Technology & Data Systems allowability and variance",
       "3 assistance transactions require approval support"
     ]);
   });
