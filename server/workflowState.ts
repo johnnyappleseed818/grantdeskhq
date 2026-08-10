@@ -45,6 +45,8 @@ export function applyWorkflowState(request: CompilationRequest, result: ResultBe
       : "ready_for_review" as const;
   return {
     ...result,
+    summary: humanizeSourceSummary(result.summary, inputStatus),
+    warnings: result.warnings.filter((warning) => !/source roles? (?:were|was) (?:not )?supplied|(?:approved-budget|program-update|funder-template|supporting-evidence).*source roles?/i.test(warning)),
     setupConflicts,
     inputStatus,
     workflow: { readiness, actionRequiredCount, needsReviewCount, missingInputCount }
@@ -54,7 +56,7 @@ export function applyWorkflowState(request: CompilationRequest, result: ResultBe
 export function buildInputStatus(request: CompilationRequest, result?: Pick<ResultBeforeWorkflow, "missingInputs" | "requirements">): ReportInputStatus[] {
   const available = new Set(request.files.map((file) => file.role));
   const evidenceRequired = Boolean(result?.missingInputs.some((item) => /receipt|attachment|supporting evidence|documentation/i.test(`${item.question} ${item.reason}`)));
-  const budgetFoundInAward = Boolean(result?.requirements.some((item) => /approved budget|budget (?:line|category)|(?:personnel|travel|supplies|indirect).{0,80}\$\s*[\d,]+/i.test(`${item.requirement} ${item.source.excerpt}`)));
+  const budgetFoundInAward = Boolean(result?.requirements.some((item) => item.status === "verified" && /\$\s*[\d,]+/.test(`${item.requirement} ${item.source.excerpt}`) && /approved budget|budget(?:ed)?|allocation|(?:personnel|travel|supplies|indirect|technology|assistance|occupancy|training|equipment)/i.test(`${item.requirement} ${item.source.excerpt}`)));
   return inputDefinitions.map((definition) => {
     const isAvailable = available.has(definition.role) || (definition.role === "approvedBudget" && budgetFoundInAward);
     return {
@@ -67,6 +69,19 @@ export function buildInputStatus(request: CompilationRequest, result?: Pick<Resu
       actionLabel: definition.actionLabel
     };
   });
+}
+
+function humanizeSourceSummary(summary: string, inputStatus: ReportInputStatus[]) {
+  const sentences = summary.split(/(?<=[.!?])\s+/).filter((sentence) => !/source roles? (?:were|was) (?:not )?supplied|(?:approved-budget|program-update|funder-template|supporting-evidence).*source roles?/i.test(sentence));
+  const missingRequired = inputStatus.filter((item) => item.requiredForCompletion && !item.available).map((item) => item.label.toLowerCase());
+  const missingSentence = missingRequired.length ? `Still needed: ${humanList(missingRequired)}.` : "";
+  return [...sentences, missingSentence].filter(Boolean).join(" ").trim();
+}
+
+function humanList(items: string[]) {
+  if (items.length < 2) return items[0] || "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
 }
 
 export function detectSetupConflicts(

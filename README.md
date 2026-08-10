@@ -101,12 +101,18 @@ combines:
 - deterministic CSV ledger parsing and transaction-ID matching;
 - deterministic replacement of model dates, descriptions, and amounts with
   uploaded-ledger values;
+- exact ledger-account to source-verified budget-category suggestions that stay
+  reviewable rather than being silently approved;
+- deterministic budget-variance, transaction-level approval-threshold, and
+  indirect-cost-limit checks derived from verified award rules;
 - duplicate, fabricated, omitted, and amount-mismatch blocking;
 - separate report-readiness, source-verification, missing-input, and
   unresolved-action indicators;
 - explicit Verified, Needs review, Action required, and Not evaluated states;
 - no successful status for a check that could not run because its source data
   was not supplied; and
+- a grouped review queue that distinguishes the checks GrantDeskHQ ran from the
+  smaller number of decisions a person must make; and
 - a saved audit event whenever a signed-in reviewer confirms an item.
 
 The system must abstain or block when evidence is insufficient. AI verification

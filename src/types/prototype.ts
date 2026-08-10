@@ -166,6 +166,37 @@ export interface CompiledMapping {
   confidence: number;
   rationale: string;
   status: ReviewState;
+  reviewReason?: "exact_budget_match" | "ambiguous" | "duplicate" | "outside_grant_period" | "outside_report_period";
+  requiresHumanAction?: boolean;
+}
+
+export interface BudgetVarianceResult {
+  category: string;
+  approvedAmount: number;
+  actualAmount: number;
+  varianceAmount: number;
+  explanationThreshold: number | null;
+  explanationRequired: boolean;
+  status: "within_budget" | "explanation_required";
+  transactionIds: string[];
+}
+
+export interface FinancialControlResult {
+  id: string;
+  title: string;
+  detail: string;
+  status: "passed" | "review" | "blocked" | "not_evaluated";
+  requiresAction: boolean;
+  transactionIds: string[];
+}
+
+export interface FinancialAnalysis {
+  ledgerTransactionCount: number;
+  mappedTransactionCount: number;
+  excludedTransactionCount: number;
+  mappedActualTotal: number;
+  budgetVariances: BudgetVarianceResult[];
+  controls: FinancialControlResult[];
 }
 
 export interface MissingInput {
@@ -223,6 +254,7 @@ export interface CompilationResult {
   qualityChecks: QualityCheck[];
   validation: ValidationSummary;
   warnings: string[];
+  financialAnalysis?: FinancialAnalysis;
   generatedAt: string;
   model: string;
 }

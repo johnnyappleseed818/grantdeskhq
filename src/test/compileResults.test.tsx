@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { prototypeFixture } from "../data/prototypeFixture";
 import { CompilerResults } from "../pages/CompilePage";
@@ -46,10 +46,20 @@ describe("report review trust states", () => {
       }]
     };
     render(<CompilerResults result={result} activeTab="review" {...actions} />);
+    fireEvent.click(screen.getByText("View detailed source and quality checks"));
     const ledgerCheck = screen.getByRole("heading", { name: "Ledger reconciliation" }).closest("article");
     expect(ledgerCheck).not.toBeNull();
     expect(within(ledgerCheck!).getByText("Not evaluated")).toBeInTheDocument();
     expect(within(ledgerCheck!).getByRole("button", { name: "Add information" })).toBeInTheDocument();
     expect(within(ledgerCheck!).queryByRole("button", { name: /confirm|reviewed/i })).not.toBeInTheDocument();
+  });
+
+  it("shows grouped human decisions instead of exposing internal check counts as actions", () => {
+    const result = { ...prototypeFixture, workflow: { ...prototypeFixture.workflow, actionRequiredCount: 58, needsReviewCount: 19, missingInputCount: 5 } };
+    render(<CompilerResults result={result} activeTab="overview" {...actions} />);
+    expect(screen.getByText(/GrantDeskHQ ran \d+ checks\. You only need to review \d+ things?\./)).toBeInTheDocument();
+    expect(screen.getByText("Your actions")).toBeInTheDocument();
+    expect(screen.queryByText("58")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Six-Month Progress Report" })).toBeInTheDocument();
   });
 });

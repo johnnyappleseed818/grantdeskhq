@@ -2066,6 +2066,111 @@
     @apply mt-1 text-xs leading-5 text-slate-600;
   }
 
+  .attention-summary {
+    @apply grid gap-5 border border-emeraldMuted-100 bg-[#f3f8f5] p-5 lg:grid-cols-[minmax(220px,.7fr)_1.3fr];
+    border-radius: .85rem;
+  }
+
+  .attention-summary h3,
+  .attention-review-heading h3,
+  .financial-analysis-heading h3 {
+    @apply mt-1 text-xl font-semibold leading-7 text-navy-950;
+  }
+
+  .attention-summary-list {
+    @apply grid gap-2;
+  }
+
+  .attention-summary-list article {
+    @apply grid grid-cols-[20px_1fr] gap-3 border border-slate-200 bg-white p-3;
+    border-radius: .65rem;
+  }
+
+  .attention-summary-list article > svg {
+    @apply mt-0.5 h-5 w-5 text-emeraldMuted-700;
+  }
+
+  .attention-summary-list strong {
+    @apply text-sm font-semibold text-navy-900;
+  }
+
+  .attention-summary-list p {
+    @apply mt-1 text-xs leading-5 text-slate-600;
+  }
+
+  .attention-review-heading {
+    @apply border border-emeraldMuted-100 bg-emeraldMuted-50 p-5;
+    border-radius: .75rem;
+  }
+
+  .attention-review-heading > p:last-child {
+    @apply mt-2 text-sm leading-6 text-slate-600;
+  }
+
+  .machine-check-details {
+    @apply border-t border-slate-200 pt-4;
+  }
+
+  .machine-check-details summary {
+    @apply cursor-pointer text-sm font-semibold text-emeraldMuted-700;
+  }
+
+  .financial-trust-note {
+    @apply grid grid-cols-[28px_1fr] items-start gap-3 border border-emeraldMuted-100 bg-emeraldMuted-50 p-4 text-sm leading-6 text-slate-600;
+    border-radius: .75rem;
+  }
+
+  .financial-trust-note > svg {
+    @apply h-6 w-6 text-emeraldMuted-700;
+  }
+
+  .financial-trust-note strong {
+    @apply text-navy-900;
+  }
+
+  .financial-analysis {
+    @apply grid gap-4 border border-slate-200 bg-white p-5;
+    border-radius: .85rem;
+  }
+
+  .financial-analysis-heading {
+    @apply flex flex-col justify-between gap-3 sm:flex-row sm:items-end;
+  }
+
+  .financial-analysis-heading > span {
+    @apply text-xs font-semibold text-slate-500;
+  }
+
+  .financial-control-grid {
+    @apply grid gap-3 lg:grid-cols-3;
+  }
+
+  .financial-control-grid article {
+    @apply border border-slate-200 bg-slate-50 p-4;
+    border-radius: .7rem;
+  }
+
+  .financial-control-grid article.review {
+    @apply border-amberReview-200 bg-amberReview-50;
+  }
+
+  .financial-control-grid article.blocked {
+    @apply border-redBlocked-200 bg-redBlocked-50;
+  }
+
+  .financial-control-grid article.passed {
+    @apply border-emerald-200 bg-emerald-50;
+  }
+
+  .financial-control-grid h4 {
+    @apply mt-3 text-sm font-semibold leading-5 text-navy-900;
+  }
+
+  .financial-control-grid p,
+  .financial-control-grid small {
+    @apply mt-2 block text-xs leading-5 text-slate-600;
+  }
+
   .setup-conflict-summary {
     @apply grid items-center gap-4 border border-redBlocked-200 bg-redBlocked-50 p-5 sm:grid-cols-[28px_1fr_auto];
     border-radius: .75rem;

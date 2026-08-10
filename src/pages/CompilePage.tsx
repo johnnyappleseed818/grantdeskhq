@@ -17,6 +17,7 @@ import {
   UploadCloud
 } from "lucide-react";
 import { MAX_FILE_BYTES, MAX_TOTAL_BYTES, canGenerateReviewPackage, resultToDownload, validateCompilationRequest } from "../lib/prototype";
+import { buildReportAttention, machineCheckCount } from "../lib/reportAttention";
 import { apiRequest } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import type { CompilationPreflightResult, CompilationRequest, CompilationResult, CompilerFile, GrantReportingPeriod, GrantWorkflowObligation, ObligationApplicability, PersistedCompilationResponse, ReviewState, SetupConflict, SetupDecision, SourceRole } from "../types/prototype";
@@ -494,7 +495,7 @@ export function CompilePage() {
 }
 
 export function CompilerResults({ result, activeTab, setActiveTab, onResolve, onDownload, onEditSetup, onAddSources }: { result: CompilationResult; activeTab: ResultTab; setActiveTab(tab: ResultTab): void; onResolve(id: string): void; onDownload(): void; onEditSetup(): void; onAddSources(): void }) {
-  const actions = result.workflow.actionRequiredCount + result.workflow.needsReviewCount + result.workflow.missingInputCount;
+  const actions = buildReportAttention(result).length;
   const hasLedger = result.inputStatus.some((item) => item.role === "ledgerExport" && item.available);
   const tabs: Array<[ResultTab, string]> = [
     ["overview", "Overview"],
@@ -502,14 +503,14 @@ export function CompilerResults({ result, activeTab, setActiveTab, onResolve, on
     ["inputs", "Inputs"],
     ["mapping", hasLedger ? "Financial mapping" : "Financial mapping · add data"],
     ["narrative", "Draft & evidence"],
-    ["review", `Review & approval · ${actions} ${actions === 1 ? "action" : "actions"}`]
+    ["review", `Review & approval · ${actions}`]
   ];
   return (
     <section id="compiler-results" tabIndex={-1} className="compiler-results">
       <div className="site-shell py-12 lg:py-16">
         <div className="compiler-result-heading">
-          <div><p className="eyebrow">Compiled draft</p><h2>{result.reportTitle}</h2><p>{result.summary}</p></div>
-          <div className={`review-count ${actions ? "needs-review" : "ready"}`}><strong>{actions}</strong><span>{actions === 1 ? "action" : "actions"} remaining</span></div>
+          <div><p className="eyebrow">{result.workflow.readiness === "ready_for_review" ? "Draft ready for review" : "Preparing report"}</p><h2>{displayReportTitle(result)}</h2><p>{result.summary}</p></div>
+          <div className={`review-count ${actions ? "needs-review" : "ready"}`}><strong>{actions}</strong><span>{actions === 1 ? "thing needs" : "things need"} your attention</span></div>
         </div>
         <div className="result-tabs" role="tablist" aria-label="Compiled report sections">
           {tabs.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={activeTab === id} className={activeTab === id ? "is-active" : ""} onClick={() => setActiveTab(id)}>{label}</button>)}
@@ -528,18 +529,19 @@ export function CompilerResults({ result, activeTab, setActiveTab, onResolve, on
 }
 
 function Overview({ result, onEditSetup }: { result: CompilationResult; onEditSetup(): void }) {
-  const coreInputs = result.inputStatus.filter((item) => item.core);
-  const availableInputs = coreInputs.filter((item) => item.available).length;
+  const requiredInputs = result.inputStatus.filter((item) => item.requiredForCompletion);
+  const availableInputs = requiredInputs.filter((item) => item.available).length;
+  const verifiedRequirements = result.requirements.filter((item) => item.status === "verified").length;
+  const attention = buildReportAttention(result);
   const readinessLabel = result.workflow.readiness === "not_ready" ? "Not ready" : result.workflow.readiness === "needs_review" ? "Needs review" : "Ready for review";
   return <div className="result-metric-grid">
-    <TextResultMetric label="Report readiness" value={readinessLabel} detail={result.workflow.readiness === "not_ready" ? "Resolve setup conflicts and missing inputs before export." : "Professional review and approval are still required."} />
-    <ResultMetric label="Source verification" value={result.validation.evidenceCoveragePercent} suffix="%" detail="Share of checked claims matched to a source—not overall report readiness" />
-    <TextResultMetric label="Inputs available" value={`${availableInputs} of ${coreInputs.length}`} detail="Core report inputs currently available" />
-    <ResultMetric label="Actions required" value={result.workflow.actionRequiredCount} detail="Objective conflicts or blocked checks that must be corrected" />
-    <ResultMetric label="Funder requirements" value={result.requirements.length} detail={`${result.requirements.filter((item) => item.status === "verified").length} source-verified`} />
-    <ResultMetric label="Missing inputs" value={result.workflow.missingInputCount} detail="Information still needed from Finance, Program, or Grants" />
+    <TextResultMetric label="Report readiness" value={readinessLabel} detail={result.workflow.readiness === "not_ready" ? "Complete the items below before export." : "Professional review and approval are still required."} />
+    <TextResultMetric label="Award requirements" value={`${verifiedRequirements} of ${result.requirements.length}`} detail="Verified against the uploaded award documents" />
+    <TextResultMetric label="Required inputs" value={`${availableInputs} of ${requiredInputs.length}`} detail="Available for this reporting period" />
+    <ResultMetric label="Your actions" value={attention.length} detail="Grouped decisions—not every check the system performed" />
+    <div className="attention-summary col-span-full"><div><p className="eyebrow">Less work for your team</p><h3>GrantDeskHQ ran {machineCheckCount(result)} checks. You only need to review {attention.length} {attention.length === 1 ? "thing" : "things"}.</h3></div><div className="attention-summary-list">{attention.map((item) => <article key={item.id}><CheckCircle2 aria-hidden="true" /><div><strong>{item.title}</strong><p>{item.detail}</p></div></article>)}</div></div>
     {result.setupConflicts.length > 0 && <div className="setup-conflict-summary col-span-full"><AlertTriangle aria-hidden="true" /><div><strong>{result.setupConflicts.length} setup {result.setupConflicts.length === 1 ? "conflict" : "conflicts"} must be corrected</strong><p>{result.setupConflicts.map((item) => item.title).join(" · ")}</p></div><button type="button" className="button button-primary button-small" onClick={onEditSetup}>Fix report setup</button></div>}
-    <div className="validation-method col-span-full"><ShieldCheck aria-hidden="true" /><div><strong>Source verification</strong><p>{result.validation.method}</p></div></div>
+    <div className="validation-method col-span-full"><ShieldCheck aria-hidden="true" /><div><strong>Source verification: {result.validation.evidenceCoveragePercent}% of checked claims matched</strong><p>{result.validation.method}</p></div></div>
     <div className="col-span-full mt-3 grid gap-3">
       {result.warnings.map((warning) => <div className="prototype-warning" key={warning}><ShieldCheck aria-hidden="true" />{warning}</div>)}
     </div>
@@ -571,7 +573,13 @@ function Mappings({ result, onAddSources }: { result: CompilationResult; onAddSo
   const hasLedger = result.inputStatus.some((item) => item.role === "ledgerExport" && item.available);
   if (!hasLedger) return <EmptyResultState title="Accounting data is still needed" detail="Add a general-ledger export when it is available. GrantDeskHQ will then suggest grant-budget mappings and calculate the financial schedule from those source rows." action="Add accounting data" onAction={onAddSources} />;
   if (!result.mappings.length) return <EmptyResultState title="No transaction mappings are available yet" detail="GrantDeskHQ could not produce usable mapping suggestions from the current accounting file. Review the file format or add a different export." action="Review accounting data" onAction={onAddSources} />;
-  return <div className="table-scroll"><table className="data-table prototype-mapping-table"><thead><tr><th>ID</th><th>Date</th><th>Description</th><th>Amount</th><th>Suggested category</th><th>Confidence</th><th>Evidence / rule</th><th>Status</th></tr></thead><tbody>{result.mappings.map((item) => <tr key={item.transactionId} className={item.status === "blocked" ? "row-unresolved" : ""}><th>{item.transactionId}</th><td>{item.date}</td><td>{item.description}</td><td>{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(item.amount)}</td><td>{item.suggestedCategory}</td><td>{Math.round(item.confidence * 100)}%</td><td>{item.rationale}</td><td><ReviewLabel status={item.status} /></td></tr>)}</tbody></table></div>;
+  return <div className="grid gap-5"><div className="financial-trust-note"><ShieldCheck aria-hidden="true" /><p><strong>Financial totals are calculated directly from your uploaded ledger.</strong> Our AI-powered solution may suggest transaction mappings and explanations, but it never invents transaction amounts.</p></div><FinancialControls result={result} /><div className="table-scroll"><table className="data-table prototype-mapping-table"><thead><tr><th>ID</th><th>Date</th><th>Description</th><th>Amount</th><th>Suggested category</th><th>Confidence</th><th>Evidence / rule</th><th>Status</th></tr></thead><tbody>{result.mappings.map((item, index) => <tr key={`${item.transactionId}-${index}`} className={item.status === "blocked" ? "row-unresolved" : ""}><th>{item.transactionId}</th><td>{item.date}</td><td>{item.description}</td><td>{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(item.amount)}</td><td>{item.suggestedCategory}</td><td>{Math.round(item.confidence * 100)}%</td><td>{item.rationale}</td><td><ReviewLabel status={item.status} /></td></tr>)}</tbody></table></div></div>;
+}
+
+function FinancialControls({ result }: { result: CompilationResult }) {
+  const analysis = result.financialAnalysis;
+  if (!analysis) return null;
+  return <section className="financial-analysis" aria-labelledby="financial-analysis-title"><div className="financial-analysis-heading"><div><p className="eyebrow">Agreement + ledger checks</p><h3 id="financial-analysis-title">Financial controls for this reporting period</h3></div><span>{analysis.mappedTransactionCount} mapped · {analysis.excludedTransactionCount} excluded</span></div><div className="financial-control-grid">{analysis.controls.map((control) => <article key={control.id} className={control.status}><ReviewLabel status={qualityState(control.status)} /><h4>{control.title}</h4><p>{control.detail}</p>{control.transactionIds.length > 0 && <small>Transactions: {control.transactionIds.join(", ")}</small>}</article>)}</div>{analysis.budgetVariances.length > 0 && <div className="table-scroll"><table className="data-table"><thead><tr><th>Budget category</th><th>Approved</th><th>Current-period actual</th><th>Variance</th><th>Result</th></tr></thead><tbody>{analysis.budgetVariances.map((item) => <tr key={item.category}><th>{item.category}</th><td>{formatCurrency(item.approvedAmount)}</td><td>{formatCurrency(item.actualAmount)}</td><td>{signedCurrency(item.varianceAmount)}</td><td>{item.explanationRequired ? "Explanation required" : "Within threshold"}</td></tr>)}</tbody></table></div>}</section>;
 }
 
 function Narrative({ result, onAddSources }: { result: CompilationResult; onAddSources(): void }) {
@@ -595,11 +603,15 @@ function Review({ result, onResolve, onDownload, onEditSetup, onAddSources }: { 
   const missingCount = result.inputStatus.filter((item) => item.requiredForCompletion && !item.available).length;
   const reviewCount = unresolvedFindings.filter((finding) => finding.verdict === "review").length
     + result.qualityChecks.filter((check) => check.required && check.status === "review").length;
+  const attention = buildReportAttention(result);
   return <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
     <div className="grid gap-3">
+      <div className="attention-review-heading"><p className="eyebrow">Your review queue</p><h3>{attention.length} grouped {attention.length === 1 ? "decision" : "decisions"}</h3><p>GrantDeskHQ completed {machineCheckCount(result)} checks in the background. The items below group related checks so your team can focus on the decisions that need judgment.</p></div>
+      <div className="attention-summary-list">{attention.map((item) => <article key={item.id}><AlertTriangle aria-hidden="true" /><div><strong>{item.title}</strong><p>{item.detail}</p></div></article>)}</div>
       {result.setupConflicts.map((conflict) => <article key={conflict.id} className="prototype-review-item blocked">
         <AlertTriangle aria-hidden="true" /><div><ReviewLabel status="blocked" /><h3>{conflict.title}</h3><p>{conflict.detail}</p><small>{conflict.source.sourceName} · {conflict.source.locator}</small></div><button type="button" className="button button-primary button-small" onClick={onEditSetup}>Fix report setup</button>
       </article>)}
+      <details className="machine-check-details"><summary>View detailed source and quality checks</summary><div className="grid gap-3 pt-3">
       {unresolvedFindings.map((finding) => <article key={finding.id} className={`prototype-review-item ${finding.verdict}`}>
         {finding.verdict === "blocked" ? <AlertTriangle aria-hidden="true" /> : <ShieldCheck aria-hidden="true" />}
         <div><ReviewLabel status={finding.verdict === "blocked" ? "blocked" : "review"} /><h3>{findingTitle(finding.itemId, finding.verdict)}</h3><p>{finding.reason}</p><small>{finding.source.sourceName} · {finding.source.locator}</small></div>
@@ -610,7 +622,7 @@ function Review({ result, onResolve, onDownload, onEditSetup, onAddSources }: { 
       <div><ReviewLabel status={qualityState(check.status)} /><h3>{check.label}</h3><p>{check.detail}</p></div>
       {check.required && check.status === "review" && <button type="button" className="button button-secondary button-small" onClick={() => onResolve(check.id)}>Confirm after review</button>}
       {check.required && (check.status === "blocked" || check.status === "not_evaluated") && <button type="button" className="button button-secondary button-small" onClick={onAddSources}>{check.status === "not_evaluated" ? "Add information" : "Correct source data"}</button>}
-    </article>)}</div>
+    </article>)}</div></details></div>
     <aside className="review-package-card"><ClipboardCheck aria-hidden="true" /><h3>{ready ? "Review package ready" : "Complete the review gate"}</h3><p>{ready ? "Required checks are complete. Generate the structured draft and citation log for final professional review." : reviewGateMessage(blockedCount, missingCount, reviewCount)}</p>{result.setupConflicts.length > 0 && <button type="button" className="button button-secondary mt-4 w-full" onClick={onEditSetup}>Fix report setup</button>}{missingCount > 0 && <button type="button" className="button button-secondary mt-3 w-full" onClick={onAddSources}>Add missing information</button>}<button type="button" className="button button-primary mt-5 w-full" disabled={!ready} onClick={onDownload}><Download aria-hidden="true" />Generate review package</button></aside>
   </div>;
 }
@@ -705,6 +717,18 @@ function ResultMetric({ label, value, detail, suffix = "" }: { label: string; va
 
 function TextResultMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
   return <article className="result-metric"><span>{label}</span><strong className="result-metric-text">{value}</strong><p>{detail}</p></article>;
+}
+
+function displayReportTitle(result: CompilationResult) {
+  return result.workflow.readiness === "ready_for_review" ? result.reportTitle : result.reportTitle.replace(/^Draft\s+/i, "");
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
+}
+
+function signedCurrency(value: number) {
+  return `${value >= 0 ? "+" : "-"}${formatCurrency(Math.abs(value))}`;
 }
 
 function EmptyResultState({ title, detail, action, onAction, compact = false }: { title: string; detail: string; action: string; onAction(): void; compact?: boolean }) {
