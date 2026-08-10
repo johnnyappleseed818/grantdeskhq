@@ -58,6 +58,7 @@ export function applyWorkflowState(request: CompilationRequest, result: ResultBe
 function normalizeProgramWorkflow(result: ResultBeforeWorkflow): ResultBeforeWorkflow {
   if (!result.programChecks?.length) return result;
   const superseded = new Map<string, string>();
+  const preferredProgramUpdates = new Map<string, Pick<NonNullable<ResultBeforeWorkflow["programChecks"]>[number], "title" | "detail" | "action" | "sources">>();
   const hasFinancialAnalysis = Boolean(result.financialAnalysis?.ledgerTransactionCount);
   const controls = new Set(result.financialAnalysis?.controls.map((control) => control.id) || []);
   const controlById = new Map(result.financialAnalysis?.controls.map((control) => [control.id, control]) || []);
@@ -93,34 +94,59 @@ function normalizeProgramWorkflow(result: ResultBeforeWorkflow): ResultBeforeWor
     if (!family) continue;
     families.set(family, [...(families.get(family) || []), check]);
   }
-  for (const checks of families.values()) {
+  for (const [family, checks] of families) {
     if (checks.length < 2) continue;
     const preferred = [...checks].sort((left, right) => programCheckPriority(left.type) - programCheckPriority(right.type))[0];
+    if (family === "kpi-p2-assessment") preferredProgramUpdates.set(preferred.id, combinedP2Decision(checks));
     for (const check of checks) if (check.id !== preferred.id) superseded.set(check.id, `Combined with “${preferred.title}” so your team has one decision for this issue.`);
   }
-  if (!superseded.size) return result;
+  if (!superseded.size && !preferredProgramUpdates.size) return result;
   return {
     ...result,
-    programChecks: result.programChecks.map((check) => superseded.has(check.id) ? {
-      ...check,
-      detail: superseded.get(check.id)!,
-      action: "No separate action needed.",
-      severity: "info" as const,
-      resolution: "resolved" as const,
-      status: "verified" as const
-    } : check),
+    programChecks: result.programChecks.map((check) => {
+      if (superseded.has(check.id)) return {
+        ...check,
+        detail: superseded.get(check.id)!,
+        action: "No separate action needed.",
+        severity: "info" as const,
+        resolution: "resolved" as const,
+        status: "verified" as const
+      };
+      return preferredProgramUpdates.has(check.id) ? { ...check, ...preferredProgramUpdates.get(check.id)! } : check;
+    }),
     qualityChecks: result.qualityChecks.map((check) => {
       const programId = check.id.startsWith("program-") ? check.id.slice("program-".length) : "";
-      return superseded.has(programId) ? { ...check, detail: superseded.get(programId)!, required: false, status: "passed" as const } : check;
+      if (superseded.has(programId)) return { ...check, detail: superseded.get(programId)!, required: false, status: "passed" as const };
+      const update = preferredProgramUpdates.get(programId);
+      return update ? { ...check, label: update.title, detail: update.detail } : check;
     })
   };
 }
 
 function programIssueFamily(check: NonNullable<ResultBeforeWorkflow["programChecks"]>[number]) {
   const text = `${check.title} ${check.detail}`.toLowerCase();
-  if (/\bp2\b|housing stability assessment/.test(text) && /assessment/.test(text)) return "kpi-p2-assessment";
+  if (/assessment/.test(text) && (/\bp2\b|housing stability assessment|assessment[- ]count conflict|kpi[- ]table.{0,80}activities/.test(text))) return "kpi-p2-assessment";
   if (/\bp6\b|client satisfaction/.test(text) && /satisfaction|survey/.test(text)) return "kpi-p6-satisfaction";
   return "";
+}
+
+function combinedP2Decision(checks: NonNullable<ResultBeforeWorkflow["programChecks"]>) {
+  const combined = checks.map((check) => `${check.title}. ${check.detail}`).join(" ");
+  const target = combined.match(/(?:cumulative\s+)?target(?:\s+of)?\s*(\d[\d,]*)/i)?.[1];
+  const kpiTable = combined.match(/kpi[- ]table(?:\s+result)?\s*(?:is|reports?)\s*(\d[\d,]*)/i)?.[1];
+  const activities = combined.match(/activities\s+(?:section|narrative)\s*(?:states?\s+that|reports?)\s*(\d[\d,]*)/i)?.[1];
+  const facts = [
+    target ? `Cumulative target: ${target}.` : "",
+    kpiTable ? `KPI table: ${kpiTable}.` : "",
+    activities ? `Activities narrative: ${activities}.` : ""
+  ].filter(Boolean).join(" ");
+  const sources = [...new Map(checks.flatMap((check) => check.sources).map((source) => [`${source.sourceName}|${source.locator}|${source.excerpt}`, source])).values()];
+  return {
+    title: "P2 — Assessment count needs confirmation",
+    detail: `${facts || "The supplied P2 assessment counts conflict."} Confirm the correct value using the underlying completed-assessment records.`,
+    action: "Confirm the correct P2 assessment count.",
+    sources
+  };
 }
 
 function programCheckPriority(type: NonNullable<ResultBeforeWorkflow["programChecks"]>[number]["type"]) {

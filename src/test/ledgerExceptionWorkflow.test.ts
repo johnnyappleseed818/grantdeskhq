@@ -11,14 +11,7 @@ type LedgerRow = readonly [id: string, date: string, account: string, descriptio
 const agreementSource = { sourceName: "BridgeWorks_Award.docx", locator: "Page 3", excerpt: "Synthetic demonstration data — approved budget and financial conditions." };
 
 const requirements: CompiledRequirement[] = [
-  budget("BUD-PER", "Personnel", 120_000),
-  budget("BUD-FR", "Fringe Benefits", 30_000),
-  budget("BUD-EA", "Emergency Client Assistance", 60_000),
-  budget("BUD-LGL", "Legal & Benefits Navigation", 25_000),
-  budget("BUD-TECH", "Technology & Data Systems", 18_000),
-  budget("BUD-TRV", "Local Travel", 15_000),
-  budget("BUD-EVAL", "Evaluation", 37_000),
-  budget("BUD-IND", "Indirect Costs", 20_000),
+  requirement("BUDGET-ALL", "Use the approved budget categories and amounts: Personnel $152,000; Fringe Benefits $38,000; Emergency Client Assistance $52,000; Legal & Benefits Navigation $22,000; Technology & Data Systems $18,000; Local Travel $8,500; Evaluation $14,500; Indirect Costs $20,000."),
   requirement("RULE-VAR", "Explain any budget category variance of $7,500 or more."),
   requirement("RULE-REALLOC", "Budget reallocations of 15% or more require prior written approval."),
   requirement("RULE-AID-DOC", "Emergency Client Assistance requires a payment record and documentation of the housing-related purpose."),
@@ -146,7 +139,7 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
 
   it("raises the technology variance, three approval checks, equipment eligibility, and indirect-cap result", () => {
     expect(checked.financialAnalysis?.budgetVariances.find((item) => item.category === "Technology & Data Systems")).toMatchObject({ approvedAmount: 18_000, actualAmount: 26_200, varianceAmount: 8_200, variancePercent: 45.6, explanationRequired: true });
-    expect(checked.financialAnalysis?.controls.find((item) => item.id === "material-variance")?.detail).toContain("$8,200 above the approved budget (+45.6%)");
+    expect(checked.financialAnalysis?.controls.find((item) => item.id === "material-variance")?.detail).toContain("$26,200 actual vs $18,000 approved; $8,200 above budget (+45.6%)");
     expect(checked.financialAnalysis?.controls.find((item) => item.id === "budget-reallocation-approval")).toMatchObject({ title: "Confirm whether the budget was formally modified", status: "review", requiresAction: true });
     expect(checked.financialAnalysis?.controls.find((item) => item.id === "budget-reallocation-approval")?.detail).toContain("This overage is a variance, not evidence that a formal budget modification occurred.");
     expect(checked.financialAnalysis?.controls.find((item) => item.id === "assistance-approvals")?.transactionIds).toEqual(["BW-EA-003", "BW-EA-006", "BW-EA-011"]);
@@ -164,11 +157,12 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
     expect(indirect?.detail).toContain("$918.40 remaining capacity");
   });
 
-  it("surfaces four grouped financial decisions rather than 56 row approvals", () => {
+  it("keeps eligibility and the deterministic variance as separate grouped decisions", () => {
     expect(buildReportAttention(checked).map((item) => item.title)).toEqual([
       "1 transaction needs a category decision",
       "1 potential duplicate needs review",
-      "Review Technology & Data Systems allowability and variance",
+      "1 transaction needs an eligibility review",
+      "1 budget variance requires explanation",
       "Emergency assistance documentation"
     ]);
   });
@@ -246,13 +240,18 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
     expect(buildReportAttention(workflow).map((item) => item.title)).toEqual([
       "1 transaction needs a category decision",
       "1 potential duplicate needs review",
-      "Review Technology & Data Systems allowability and variance",
+      "1 transaction needs an eligibility review",
+      "1 budget variance requires explanation",
       "Emergency assistance documentation",
-      "P2 assessment-count conflict",
+      "P2 — Assessment count needs confirmation",
       "P6 — Client satisfaction"
     ]);
     expect(workflow.programChecks?.find((check) => check.id === "PAYMENT")).toMatchObject({ severity: "info", resolution: "resolved" });
     expect(workflow.programChecks?.find((check) => check.id === "P2-KPI")).toMatchObject({ severity: "info", resolution: "resolved" });
+    expect(workflow.programChecks?.find((check) => check.id === "P2-CONFLICT")).toMatchObject({
+      title: "P2 — Assessment count needs confirmation",
+      detail: expect.stringContaining("KPI table: 158. Activities narrative: 160.")
+    });
     expect(workflow.programChecks?.find((check) => check.id === "INDIRECT")).toMatchObject({ severity: "info", resolution: "resolved" });
     expect(workflow.programChecks?.find((check) => check.id === "NEW-CATEGORY")).toMatchObject({ severity: "info", resolution: "resolved" });
     expect(workflow.programChecks?.find((check) => check.id === "P4-COHORT")).toMatchObject({ severity: "info", resolution: "resolved" });
@@ -260,7 +259,6 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
   });
 });
 
-function budget(id: string, category: string, amount: number) { return requirement(id, `${category} — $${amount.toLocaleString("en-US")}`); }
 function requirement(id: string, text: string): CompiledRequirement { return { id, requirement: text, source: { ...agreementSource, excerpt: text }, confidence: 0.99, status: "verified" }; }
 function field(value: string) { return { value, confidence: 0.99, source: agreementSource, status: "verified" as const }; }
 function csvData(values: LedgerRow[]) {

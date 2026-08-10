@@ -80,15 +80,11 @@ export function buildFinancialExceptionSummary(result: CompilationResult): Finan
   const controlGroups = connectedControlGroups(openControls);
   for (const group of controlGroups) {
     const transactionIds = [...new Set(group.flatMap((control) => control.transactionIds))];
-    const variance = result.financialAnalysis?.budgetVariances.find((item) => item.transactionIds.some((id) => transactionIds.includes(id)) && item.explanationRequired);
-    const combinesEligibilityAndVariance = group.length > 1 && variance && group.some((control) => /eligib|allowab/i.test(`${control.id} ${control.title} ${control.detail}`));
     items.push({
       id: group.map((control) => control.id).sort().join("+"),
       kind: "financial",
-      title: combinesEligibilityAndVariance ? `Review ${variance.category} allowability and variance` : group[0].title,
-      detail: combinesEligibilityAndVariance
-        ? `${variance.category} is ${currency(Math.abs(variance.varianceAmount))} above its approved budget. Confirm allowability, add the variance explanation, and attach approval if the overage reflects a budget reallocation.`
-        : group.map((control) => control.detail).filter((value, index, values) => values.indexOf(value) === index).join(" "),
+      title: group[0].title,
+      detail: group.map((control) => control.detail).filter((value, index, values) => values.indexOf(value) === index).join(" "),
       transactionIds
     });
   }
@@ -122,9 +118,10 @@ export function machineCheckCount(result: CompilationResult) {
   return result.validation.findings.length + result.qualityChecks.length;
 }
 
-function connectedControlGroups<T extends { transactionIds: string[] }>(controls: T[]) {
-  const remaining = [...controls];
-  const groups: T[][] = [];
+function connectedControlGroups<T extends { id?: string; title?: string; detail?: string; transactionIds: string[] }>(controls: T[]) {
+  const standalone = controls.filter((control) => /eligib|allowab/i.test(`${control.id || ""} ${control.title || ""} ${control.detail || ""}`));
+  const remaining = controls.filter((control) => !standalone.includes(control));
+  const groups: T[][] = standalone.map((control) => [control]);
   while (remaining.length) {
     const group = [remaining.shift()!];
     let expanded = true;

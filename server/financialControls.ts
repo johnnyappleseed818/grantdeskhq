@@ -96,7 +96,7 @@ export function buildFinancialAnalysis(
     controls.push(materialVariances.length ? {
       id: "material-variance",
       title: `${materialVariances.length} budget ${materialVariances.length === 1 ? "variance requires" : "variances require"} explanation`,
-      detail: materialVariances.map((item) => `${item.category} is ${money(item.varianceAmount)} above the approved budget (${signedPercent(item.variancePercent)}). This exceeds the award's ${money(varianceThreshold)} reporting threshold.`).join(" "),
+      detail: materialVariances.map((item) => `${item.category}: ${money(item.actualAmount)} actual vs ${money(item.approvedAmount)} approved; ${money(item.varianceAmount)} above budget (${signedPercent(item.variancePercent)}). This exceeds the award's ${money(varianceThreshold)} reporting threshold.`).join(" "),
       status: "review",
       requiresAction: true,
       transactionIds: materialVariances.flatMap((item) => item.transactionIds)
@@ -141,7 +141,7 @@ export function buildFinancialAnalysis(
   }
 
   const assistanceRule = matchingRequirement(requirements, /assistance/i, /approval|written/i);
-  const assistanceThreshold = assistanceRule ? firstMoney(assistanceRule) : null;
+  const assistanceThreshold = assistanceRule ? thresholdAfterComparator(assistanceRule) ?? firstMoney(assistanceRule) : null;
   const assistanceDocumentationRule = matchingRequirement(requirements, /assistance/i, /payment record|housing.{0,30}purpose|supporting documentation|documentation/i);
   const assistanceRows = usable.filter((row) => /assistance/i.test(`${row.account} ${row.category} ${row.description}`));
   const assistanceDisbursements = assistanceRows.filter((row) => row.amount > 0);
@@ -185,7 +185,7 @@ export function buildFinancialAnalysis(
     });
   }
 
-  const indirectRule = matchingRequirement(requirements, /indirect/i, /%/i);
+  const indirectRule = matchingRequirement(requirements, /indirect/i, /lesser|actual (?:eligible )?direct costs|direct-cost base|indirect-cost cap/i, /%/i);
   const indirectPercent = indirectRule ? firstPercent(indirectRule) : null;
   const indirectCap = indirectRule ? largestMoney(indirectRule) : null;
   if (indirectPercent !== null) {
@@ -231,7 +231,8 @@ export function findExactBudgetCategory(account: string, requirements: CompiledR
 
 export function findBudgetCategoryFromLedgerSignals(row: Pick<FinancialLedgerRow, "description" | "vendor">, requirements: CompiledRequirement[]) {
   const signals = normalize(`${row.description} ${row.vendor}`);
-  const evaluation = findExactBudgetCategory("Evaluation", requirements);
+  const evaluation = findExactBudgetCategory("Evaluation", requirements)
+    || (Number.isFinite(findApprovedAmount("Evaluation", requirements)) ? "Evaluation" : "");
   if (evaluation && /\bevaluation\b|\bbaseline (?:design|review|assessment)\b|\bdata quality\b|\bimpact metrics?\b|\boutcome measurement\b/.test(signals)) return evaluation;
   return "";
 }
@@ -242,15 +243,22 @@ function findApprovedAmount(category: string, requirements: CompiledRequirement[
     const text = `${requirement.requirement} ${requirement.source.excerpt}`;
     const normalized = normalize(text);
     if (!tokens.every((token) => normalized.includes(token))) continue;
+    const adjacentAmount = amountAdjacentToCategory(text, category);
+    if (adjacentAmount !== null) return adjacentAmount;
     const amounts = moneyValues(text);
-    if (amounts.length) return amounts[0];
+    if (amounts.length === 1) return amounts[0];
   }
   return Number.NaN;
 }
 
 function findMoneyThreshold(requirements: CompiledRequirement[], pattern: RegExp) {
-  const requirement = matchingRequirement(requirements, pattern, /explain|explanation|required|threshold|variance/i);
-  return requirement ? firstMoney(requirement) : null;
+  for (const requirement of verifiedRequirements(requirements)) {
+    const text = `${requirement.requirement} ${requirement.source.excerpt}`;
+    if (!pattern.test(text) || !/explain|explanation|required|threshold/i.test(text)) continue;
+    const amounts = moneyValues(text);
+    if (amounts.length) return amounts[0];
+  }
+  return null;
 }
 
 function matchingRequirement(requirements: CompiledRequirement[], ...patterns: RegExp[]) {
@@ -268,6 +276,18 @@ function verifiedRequirements(requirements: CompiledRequirement[]) {
 function firstMoney(value: string) { return moneyValues(value)[0] ?? null; }
 function largestMoney(value: string) { const values = moneyValues(value); return values.length ? Math.max(...values) : null; }
 function moneyValues(value: string) { return [...value.matchAll(/\$\s*([\d,]+(?:\.\d+)?)/g)].map((match) => Number(match[1].replaceAll(",", ""))).filter(Number.isFinite); }
+function amountAdjacentToCategory(value: string, category: string) {
+  const categoryPattern = category.trim().split(/\s+/).map(escapeRegExp).join("\\s+");
+  const after = value.match(new RegExp(`${categoryPattern}\\s*(?:[:—–-]|is|of)?\\s*\\$\\s*([\\d,]+(?:\\.\\d+)?)`, "i"));
+  if (after) return Number(after[1].replaceAll(",", ""));
+  const before = value.match(new RegExp(`\\$\\s*([\\d,]+(?:\\.\\d+)?)\\s*(?:[:—–-]|for)?\\s*${categoryPattern}`, "i"));
+  return before ? Number(before[1].replaceAll(",", "")) : null;
+}
+function thresholdAfterComparator(value: string) {
+  const match = value.match(/(?:above|over|exceed(?:s|ed|ing)?|greater than|more than)\s*\$\s*([\d,]+(?:\.\d+)?)/i);
+  return match ? Number(match[1].replaceAll(",", "")) : null;
+}
+function escapeRegExp(value: string) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 function firstPercent(value: string) { const match = value.match(/(\d+(?:\.\d+)?)\s*%/); return match ? Number(match[1]) : null; }
 function meaningfulTokens(value: string) { return normalize(value).split(" ").filter((token) => token.length >= 3 && !["and", "the", "for", "systems", "costs"].includes(token)); }
 function normalize(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }

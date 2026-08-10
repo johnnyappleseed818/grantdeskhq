@@ -63,6 +63,22 @@ describe("report review trust states", () => {
     expect(screen.getByRole("heading", { name: "Six-Month Progress Report" })).toBeInTheDocument();
   });
 
+  it("separates award-source verification, grouped actions, and raw evidence checks", () => {
+    const result = {
+      ...prototypeFixture,
+      requirements: [
+        ...prototypeFixture.requirements,
+        { ...prototypeFixture.requirements[0], id: "REQ-REVIEW", requirement: "Client satisfaction target", status: "review" as const }
+      ],
+      validation: { ...prototypeFixture.validation, sourceMatchedItems: 111, itemsNeedingReview: 8, blockedItems: 17 }
+    };
+    render(<CompilerResults result={result} activeTab="overview" {...actions} />);
+    expect(screen.getByText("2 verified")).toBeInTheDocument();
+    expect(screen.getByText(/1 need source review\. Workflow applicability is tracked separately\./)).toBeInTheDocument();
+    expect(screen.getByText(/8 source checks need review/)).toBeInTheDocument();
+    expect(screen.getByText(/grouped actions cover the related checks shown above/)).toBeInTheDocument();
+  });
+
   it("shows only unresolved program decisions in the inputs workflow", () => {
     const source = prototypeFixture.grantProfile.grantName.source;
     const result = {

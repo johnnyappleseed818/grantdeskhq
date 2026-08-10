@@ -518,16 +518,18 @@ function Overview({ result, onEditSetup }: { result: CompilationResult; onEditSe
   const requiredInputs = result.inputStatus.filter((item) => item.requiredForCompletion);
   const availableInputs = requiredInputs.filter((item) => item.available).length;
   const verifiedRequirements = result.requirements.filter((item) => item.status === "verified").length;
+  const reviewRequirements = result.requirements.filter((item) => item.status === "review").length;
+  const blockedRequirements = result.requirements.filter((item) => ["blocked", "not_evaluated"].includes(item.status)).length;
   const attention = buildReportAttention(result);
   const readinessLabel = result.workflow.readiness === "not_ready" ? "Not ready" : result.workflow.readiness === "needs_review" ? "Needs review" : "Ready for review";
   return <div className="result-metric-grid">
     <TextResultMetric label="Report readiness" value={readinessLabel} detail={result.workflow.readiness === "not_ready" ? "Complete the items below before export." : "Professional review and approval are still required."} />
-    <TextResultMetric label="Award requirements" value={`${verifiedRequirements} of ${result.requirements.length}`} detail="Verified against the uploaded award documents" />
+    <TextResultMetric label="Award requirements" value={verifiedRequirements === result.requirements.length ? `${verifiedRequirements} of ${result.requirements.length}` : `${verifiedRequirements} verified`} detail={verifiedRequirements === result.requirements.length ? "All identified requirements are verified against the award documents" : `${reviewRequirements} need source review${blockedRequirements ? ` · ${blockedRequirements} awaiting support` : ""}. Workflow applicability is tracked separately.`} />
     <TextResultMetric label="Required inputs" value={`${availableInputs} of ${requiredInputs.length}`} detail="Available for this reporting period" />
     <ResultMetric label="Your actions" value={attention.length} detail="Grouped decisions—not every check the system performed" />
     <div className="attention-summary col-span-full"><div><p className="eyebrow">Less work for your team</p><h3>GrantDeskHQ ran {machineCheckCount(result)} checks. You only need to review {attention.length} {attention.length === 1 ? "thing" : "things"}.</h3></div><div className="attention-summary-list">{attention.map((item) => <article key={item.id}><CheckCircle2 aria-hidden="true" /><div><strong>{item.title}</strong><p>{item.detail}</p></div></article>)}</div></div>
     {result.setupConflicts.length > 0 && <div className="setup-conflict-summary col-span-full"><AlertTriangle aria-hidden="true" /><div><strong>{result.setupConflicts.length} setup {result.setupConflicts.length === 1 ? "conflict" : "conflicts"} must be corrected</strong><p>{result.setupConflicts.map((item) => item.title).join(" · ")}</p></div><button type="button" className="button button-primary button-small" onClick={onEditSetup}>Fix report setup</button></div>}
-    <div className="validation-method col-span-full"><ShieldCheck aria-hidden="true" /><div><strong>Evidence status</strong><p><b>{result.validation.sourceMatchedItems} verified</b> · {result.validation.itemsNeedingReview} need your attention · {result.validation.blockedItems} awaiting inputs or not yet verified</p><p>{result.validation.method}</p></div></div>
+    <div className="validation-method col-span-full"><ShieldCheck aria-hidden="true" /><div><strong>Evidence status</strong><p><b>{result.validation.sourceMatchedItems} verified</b> · {result.validation.itemsNeedingReview} source checks need review · {result.validation.blockedItems} awaiting inputs or not yet verified</p><p>{attention.length} grouped {attention.length === 1 ? "action covers" : "actions cover"} the related checks shown above. {result.validation.method}</p></div></div>
     <div className="col-span-full mt-3 grid gap-3">
       {result.warnings.map((warning) => <div className="prototype-warning" key={warning}><ShieldCheck aria-hidden="true" />{warning}</div>)}
     </div>

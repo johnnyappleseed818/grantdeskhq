@@ -57,9 +57,37 @@ describe("report compiler verification resilience", () => {
     expect(result.validation.sourceMatchedItems).toBe(73);
     expect(result.validation.blockedItems).toBe(0);
   });
+
+  it("keeps an award requirement source-verified when only its current-period result needs review", async () => {
+    let downgradedOneRequirement = false;
+    installCompilerFetchMock((candidates) => {
+      const findings: ValidationFinding[] = candidates.map((candidate, index) => {
+        if (!downgradedOneRequirement && candidate.kind === "requirement") {
+          downgradedOneRequirement = true;
+          return {
+            id: `finding-${index}-${candidate.id}`,
+            itemId: candidate.id,
+            verdict: "review",
+            reason: "The requirement is directly supported, but the current-period result conflicts and is not finalized.",
+            source
+          };
+        }
+        return matchedFinding(candidate.id, index);
+      });
+      return response({ status: "completed", model: "test-verifier", output: output({ findings }) });
+    });
+
+    const result = await compileGrantReport(request(), []);
+
+    expect(downgradedOneRequirement).toBe(true);
+    expect(result.requirements.every((item) => item.status === "verified")).toBe(true);
+    expect(result.validation.findings.find((item) => item.itemId === "requirement:R1")).toMatchObject({ verdict: "source_matched" });
+  });
 });
 
-function installCompilerFetchMock(verify: (candidates: Array<{ id: string }>) => Response) {
+type TestCandidate = { id: string; kind?: string };
+
+function installCompilerFetchMock(verify: (candidates: TestCandidate[]) => Response) {
   vi.stubEnv("OPENAI_API_KEY", "test-key");
   vi.stubGlobal("fetch", vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
     const payload = JSON.parse(String(init?.body)) as {
@@ -79,18 +107,16 @@ function verificationCandidates(payload: {
 }) {
   const text = payload.input.find((item) => item.role === "user")?.content.find((item) => item.type === "input_text")?.text || "";
   const start = text.indexOf(": ");
-  return JSON.parse(text.slice(start + 2)) as Array<{ id: string }>;
+  return JSON.parse(text.slice(start + 2)) as TestCandidate[];
 }
 
-function verificationResponse(candidates: Array<{ id: string }>) {
-  const findings: ValidationFinding[] = candidates.map((candidate, index) => ({
-    id: `finding-${index}-${candidate.id}`,
-    itemId: candidate.id,
-    verdict: "source_matched",
-    reason: "The source directly supports the candidate.",
-    source
-  }));
+function verificationResponse(candidates: TestCandidate[]) {
+  const findings = candidates.map((candidate, index) => matchedFinding(candidate.id, index));
   return response({ status: "completed", model: "test-verifier", output: output({ findings }) });
+}
+
+function matchedFinding(itemId: string, index: number): ValidationFinding {
+  return { id: `finding-${index}-${itemId}`, itemId, verdict: "source_matched", reason: "The source directly supports the candidate.", source };
 }
 
 function response(body: unknown) {
