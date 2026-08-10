@@ -186,7 +186,7 @@ export function CompilePage() {
     }
   };
 
-  const resolveCheck = (id: string) => setResult((current) => {
+  const resolveCheck = (id: string, resolution: "resolved" | "not_applicable" = "resolved") => setResult((current) => {
     if (!current) return current;
     const updated = {
       ...current,
@@ -194,7 +194,8 @@ export function CompilePage() {
       validation: {
         ...current.validation,
         findings: current.validation.findings.map((finding) => finding.id === id && finding.verdict === "review" ? { ...finding, verdict: "source_matched" as const, reason: `${finding.reason} A professional reviewer confirmed this item.` } : finding)
-      }
+      },
+      programChecks: current.programChecks?.map((check) => `program-${check.id}` === id ? { ...check, resolution } : check)
     };
     const next = synchronizeClientResult(updated);
     if (reportId && user) token().then((idToken) => apiRequest(`/api/reports/${reportId}/review`, idToken, { method: "PATCH", body: JSON.stringify({ itemId: id, result: next }) })).catch(() => setError("The review changed locally but could not be saved. Try again before leaving this page."));
@@ -213,22 +214,24 @@ export function CompilePage() {
 
   const acceptAgreementDetails = () => {
     if (!preflight) return;
+    const organizationName = usableProfileValue(preflight.grantProfile.granteeName);
     const values = [preflight.grantProfile.funderName.value, preflight.grantProfile.grantName.value]
       .filter((value) => value && !/^information required|unknown|not (found|stated)/i.test(value));
     const grantName = values.join(" — ");
-    if (grantName) {
-      setMeta((current) => ({ ...current, grantName }));
-      setSetupNotice(`Grant updated to ${grantName}.`);
+    if (grantName || organizationName) {
+      setMeta((current) => ({ ...current, ...(grantName ? { grantName } : {}), ...(organizationName ? { organizationName } : {}) }));
+      setSetupNotice([organizationName ? `Organization updated to ${organizationName}.` : "", grantName ? `Grant updated to ${grantName}.` : ""].filter(Boolean).join(" "));
       setSetupDecisions((current) => [...current, {
         at: new Date().toISOString(),
         action: "agreement_details_applied",
-        detail: `Grant updated to ${grantName}.`,
+        detail: [organizationName ? `Organization updated to ${organizationName}.` : "", grantName ? `Grant updated to ${grantName}.` : ""].filter(Boolean).join(" "),
         sourceName: files.awardAgreement?.name || "Award agreement",
+        previousOrganizationName: meta.organizationName,
         previousGrantName: meta.grantName,
         previousReportingPeriod: meta.reportingPeriod
       }]);
     }
-    setPreflight({ ...preflight, setupConflicts: preflight.setupConflicts.filter((conflict) => conflict.type !== "grant_identity") });
+    setPreflight({ ...preflight, setupConflicts: preflight.setupConflicts.filter((conflict) => !["organization_identity", "grant_identity"].includes(conflict.type)) });
     setPreflightKey("");
     setError("");
   };
@@ -287,20 +290,22 @@ export function CompilePage() {
     const setup = agreementSetup(preflight);
     if (!setup.grantName) return;
     const nextPeriod = setup.period ? humanDateRange(setup.period.startDate, setup.period.endDate) : meta.reportingPeriod;
+    const previousOrganizationName = meta.organizationName;
     const previousGrantName = meta.grantName;
     const previousReportingPeriod = meta.reportingPeriod;
-    setMeta((current) => ({ ...current, grantName: setup.grantName, reportingPeriod: nextPeriod }));
+    setMeta((current) => ({ ...current, organizationName: setup.organizationName || current.organizationName, grantName: setup.grantName, reportingPeriod: nextPeriod }));
     const reportDetail = setup.period
       ? `${setup.period.title}, ${nextPeriod}${isUsableDate(setup.period.dueDate) ? `, due ${humanDate(setup.period.dueDate)}` : ""}`
       : nextPeriod;
     setSetupNotice(setup.period
-      ? `Grant and report configured from the agreement: ${setup.grantName} · ${reportDetail}.`
-      : `Grant details updated from the agreement: ${setup.grantName}. Choose a reporting period to finish the setup.`);
+      ? `Organization, grant, and report configured from the agreement: ${setup.organizationName || meta.organizationName} · ${setup.grantName} · ${reportDetail}.`
+      : `Organization and grant details updated from the agreement: ${setup.organizationName || meta.organizationName} · ${setup.grantName}. Choose a reporting period to finish the setup.`);
     setSetupDecisions((current) => [...current, {
       at: new Date().toISOString(),
       action: "agreement_workflow_applied",
-      detail: `Changed grant from “${previousGrantName}” to “${setup.grantName}” and reporting period from “${previousReportingPeriod}” to “${reportDetail}”.`,
+      detail: `Changed organization from “${previousOrganizationName}” to “${setup.organizationName || previousOrganizationName}”, grant from “${previousGrantName}” to “${setup.grantName}”, and reporting period from “${previousReportingPeriod}” to “${reportDetail}”.`,
       sourceName: files.awardAgreement?.name || "Award agreement",
+      previousOrganizationName,
       previousGrantName,
       previousReportingPeriod,
       selectedObligationId: setup.period?.id
@@ -434,10 +439,10 @@ export function CompilePage() {
                       )}
                     </div>
                     <div className="setup-conflict-actions">
-                      {conflict.type === "grant_identity" && <button type="button" className="button button-primary button-small" onClick={acceptAgreementDetails}>Use agreement details</button>}
-                      {conflict.type === "grant_identity" && <button type="button" className="button button-secondary button-small" onClick={replaceAwardAgreement}>Replace agreement</button>}
+                      {["organization_identity", "grant_identity"].includes(conflict.type) && <button type="button" className="button button-primary button-small" onClick={acceptAgreementDetails}>Use agreement details</button>}
+                      {["organization_identity", "grant_identity"].includes(conflict.type) && <button type="button" className="button button-secondary button-small" onClick={replaceAwardAgreement}>Replace agreement</button>}
                       {conflict.type === "reporting_period" && conflict.suggestedValue && <button type="button" className="button button-primary button-small" onClick={() => applySuggestedReportingPeriod(conflict)}>Use first reporting period</button>}
-                      <button type="button" className="button button-secondary button-small" onClick={() => returnToSetup(conflict.type === "reporting_period" ? "compiler-period" : "compiler-grant")}>{conflict.type === "reporting_period" ? "Choose another period" : "Edit report setup"}</button>
+                      <button type="button" className="button button-secondary button-small" onClick={() => returnToSetup(conflict.type === "reporting_period" ? "compiler-period" : conflict.type === "organization_identity" ? "compiler-org" : "compiler-grant")}>{conflict.type === "reporting_period" ? "Choose another period" : "Edit report setup"}</button>
                     </div>
                   </article>
                 ))}
@@ -494,7 +499,7 @@ export function CompilePage() {
   );
 }
 
-export function CompilerResults({ result, activeTab, setActiveTab, onResolve, onDownload, onEditSetup, onAddSources }: { result: CompilationResult; activeTab: ResultTab; setActiveTab(tab: ResultTab): void; onResolve(id: string): void; onDownload(): void; onEditSetup(): void; onAddSources(): void }) {
+export function CompilerResults({ result, activeTab, setActiveTab, onResolve, onDownload, onEditSetup, onAddSources }: { result: CompilationResult; activeTab: ResultTab; setActiveTab(tab: ResultTab): void; onResolve(id: string, resolution?: "resolved" | "not_applicable"): void; onDownload(): void; onEditSetup(): void; onAddSources(): void }) {
   const actions = buildReportAttention(result).length;
   const hasLedger = result.inputStatus.some((item) => item.role === "ledgerExport" && item.available);
   const tabs: Array<[ResultTab, string]> = [
@@ -518,7 +523,7 @@ export function CompilerResults({ result, activeTab, setActiveTab, onResolve, on
         <div className="result-panel">
           {activeTab === "overview" && <Overview result={result} onEditSetup={onEditSetup} />}
           {activeTab === "requirements" && <Requirements result={result} />}
-          {activeTab === "inputs" && <Inputs result={result} onAddSources={onAddSources} />}
+          {activeTab === "inputs" && <Inputs result={result} onAddSources={onAddSources} onResolve={onResolve} />}
           {activeTab === "mapping" && <Mappings result={result} onAddSources={onAddSources} />}
           {activeTab === "narrative" && <Narrative result={result} onAddSources={onAddSources} />}
           {activeTab === "review" && <Review result={result} onResolve={onResolve} onDownload={onDownload} onEditSetup={onEditSetup} onAddSources={onAddSources} />}
@@ -555,18 +560,44 @@ function Requirements({ result }: { result: CompilationResult }) {
   </article>)}</div>;
 }
 
-function Inputs({ result, onAddSources }: { result: CompilationResult; onAddSources(): void }) {
+function Inputs({ result, onAddSources, onResolve }: { result: CompilationResult; onAddSources(): void; onResolve(id: string, resolution?: "resolved" | "not_applicable"): void }) {
   return <div className="input-status-list">
     <div className="input-request-card">
       <div><p className="eyebrow">Start with what you have</p><h3>GrantDeskHQ shows exactly what is still needed</h3><p>Add the remaining information as it becomes available. Missing inputs stay visible and cannot be mistaken for completed work.</p></div>
       <button type="button" className="button button-primary button-small" onClick={onAddSources}>Add report inputs</button>
     </div>
+    <ProgramChecks checks={result.programChecks || []} onAddSources={onAddSources} onResolve={onResolve} />
     {result.inputStatus.map((item) => <article key={item.role} className={`input-status-card ${item.available ? "is-available" : "is-missing"}`}>
       {item.available ? <CheckCircle2 aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
       <div><div className="input-status-heading"><h3>{item.label}</h3><ReviewLabel status={item.available ? "verified" : "not_evaluated"} /></div><p>{item.detail}</p>{!item.available && item.requiredForCompletion && <small>Needed before the report can be prepared for approval.</small>}</div>
       {!item.available && <button type="button" className="button button-secondary button-small" onClick={onAddSources}>{item.actionLabel}</button>}
     </article>)}
   </div>;
+}
+
+function ProgramChecks({ checks, onAddSources, onResolve }: { checks: NonNullable<CompilationResult["programChecks"]>; onAddSources(): void; onResolve(id: string, resolution?: "resolved" | "not_applicable"): void }) {
+  if (!checks.length) return null;
+  const kpis = checks.filter((item) => item.type === "kpi_result");
+  const availableKpis = kpis.filter((item) => item.severity === "info" && item.status === "verified").length;
+  const ordered = [...checks].sort((left, right) => programPriority(left.severity) - programPriority(right.severity));
+  return <section className="program-checks" aria-labelledby="program-checks-title">
+    <div className="program-checks-heading"><div><p className="eyebrow">Award + program update checks</p><h3 id="program-checks-title">Program results and triggered obligations</h3><p>{kpis.length ? `Results available for ${availableKpis} of ${kpis.length} required program metrics.` : "GrantDeskHQ compared the program update with the award's reporting rules."}</p></div><span>{checks.filter((item) => item.resolution === "open" && item.severity !== "info").length} open</span></div>
+    <div className="program-check-list">{ordered.map((check) => <article key={check.id} className={`program-check ${check.severity} ${check.resolution !== "open" ? "is-resolved" : ""}`}>
+      {check.severity === "info" || check.resolution !== "open" ? <CheckCircle2 aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
+      <div><div className="program-check-label"><MappingStateBadge label={programSeverityLabel(check)} tone={check.resolution !== "open" || check.severity === "info" ? "success" : check.severity === "action_required" ? "blocked" : "review"} /><span>Owner: {check.owner}</span></div><h4>{check.title}</h4><p>{check.detail}</p>{check.severity !== "info" && <p className="program-next-step"><strong>Next step:</strong> {check.action}</p>}<small>{check.sources.map((source) => `${source.sourceName} · ${source.locator}`).join(" · ")}</small></div>
+      {check.resolution === "open" && check.severity !== "info" && <div className="program-check-actions">
+        {check.type === "kpi_result" ? <button type="button" className="button button-primary button-small" onClick={onAddSources}>Add information</button> : <button type="button" className="button button-primary button-small" onClick={() => onResolve(`program-${check.id}`)}>Mark addressed</button>}
+        {check.type === "award_trigger" && <button type="button" className="button button-secondary button-small" onClick={() => onResolve(`program-${check.id}`, "not_applicable")}>Not applicable</button>}
+      </div>}
+    </article>)}</div>
+  </section>;
+}
+
+function programPriority(value: NonNullable<CompilationResult["programChecks"]>[number]["severity"]) { return value === "action_required" ? 0 : value === "review" ? 1 : 2; }
+function programSeverityLabel(check: NonNullable<CompilationResult["programChecks"]>[number]) {
+  if (check.resolution === "resolved") return "Addressed";
+  if (check.resolution === "not_applicable") return "Not applicable";
+  return check.severity === "action_required" ? "Action required" : check.severity === "review" ? "Needs review" : "Information";
 }
 
 function Mappings({ result, onAddSources }: { result: CompilationResult; onAddSources(): void }) {
@@ -646,7 +677,7 @@ function treatmentTone(value: CompilationResult["mappings"][number]["reportTreat
 function FinancialControls({ result }: { result: CompilationResult }) {
   const analysis = result.financialAnalysis;
   if (!analysis) return null;
-  return <section className="financial-analysis" aria-labelledby="financial-analysis-title"><div className="financial-analysis-heading"><div><p className="eyebrow">Agreement + ledger checks</p><h3 id="financial-analysis-title">Financial controls for this reporting period</h3></div><span>{analysis.mappedTransactionCount} mapped · {analysis.excludedTransactionCount} excluded</span></div><div className="financial-control-grid">{analysis.controls.map((control) => <article key={control.id} className={control.status}><ReviewLabel status={qualityState(control.status)} /><h4>{control.title}</h4><p>{control.detail}</p>{control.transactionIds.length > 0 && <small>Transactions: {control.transactionIds.join(", ")}</small>}</article>)}</div>{analysis.budgetVariances.length > 0 && <div className="table-scroll"><table className="data-table"><thead><tr><th>Budget category</th><th>Approved</th><th>Current-period actual</th><th>Variance</th><th>Result</th></tr></thead><tbody>{analysis.budgetVariances.map((item) => <tr key={item.category}><th>{item.category}</th><td>{formatCurrency(item.approvedAmount)}</td><td>{formatCurrency(item.actualAmount)}</td><td>{signedCurrency(item.varianceAmount)}</td><td>{item.explanationRequired ? "Explanation required" : "Within threshold"}</td></tr>)}</tbody></table></div>}</section>;
+  return <section className="financial-analysis" aria-labelledby="financial-analysis-title"><div className="financial-analysis-heading"><div><p className="eyebrow">Agreement + ledger checks</p><h3 id="financial-analysis-title">Financial controls for this reporting period</h3></div><span>{analysis.mappedTransactionCount} mapped · {analysis.excludedTransactionCount} excluded</span></div><div className="financial-control-grid">{analysis.controls.map((control) => <article key={control.id} className={control.status}><ReviewLabel status={qualityState(control.status)} /><h4>{control.title}</h4><p>{control.detail}</p>{control.transactionIds.length > 0 && <small>Transactions: {control.transactionIds.join(", ")}</small>}</article>)}</div>{analysis.budgetVariances.length > 0 && <div className="table-scroll"><table className="data-table"><thead><tr><th>Budget category</th><th>Approved</th><th>Current-period actual</th><th>Variance</th><th>Variance %</th><th>Result</th></tr></thead><tbody>{analysis.budgetVariances.map((item) => <tr key={item.category}><th>{item.category}</th><td>{formatCurrency(item.approvedAmount)}</td><td>{formatCurrency(item.actualAmount)}</td><td>{signedCurrency(item.varianceAmount)}</td><td>{item.variancePercent >= 0 ? "+" : ""}{item.variancePercent.toFixed(1)}%</td><td>{item.explanationRequired ? "Explanation required" : "Within threshold"}</td></tr>)}</tbody></table></div>}</section>;
 }
 
 function Narrative({ result, onAddSources }: { result: CompilationResult; onAddSources(): void }) {
@@ -661,7 +692,7 @@ function Narrative({ result, onAddSources }: { result: CompilationResult; onAddS
   </div>;
 }
 
-function Review({ result, onResolve, onDownload, onEditSetup, onAddSources }: { result: CompilationResult; onResolve(id: string): void; onDownload(): void; onEditSetup(): void; onAddSources(): void }) {
+function Review({ result, onResolve, onDownload, onEditSetup, onAddSources }: { result: CompilationResult; onResolve(id: string, resolution?: "resolved" | "not_applicable"): void; onDownload(): void; onEditSetup(): void; onAddSources(): void }) {
   const ready = canGenerateReviewPackage(result);
   const unresolvedFindings = result.validation.findings.filter((finding) => finding.verdict !== "source_matched");
   const blockedCount = result.setupConflicts.length
@@ -713,6 +744,7 @@ export function AgreementSetupCard({ preflight, onApply }: { preflight: Compilat
       <ShieldCheck aria-hidden="true" />
     </div>
     <dl>
+      {setup.organizationName && <div><dt>Organization</dt><dd>{setup.organizationName}</dd></div>}
       <div><dt>Grant</dt><dd>{setup.grantName}</dd></div>
       {setup.awardAmount && <div><dt>Award</dt><dd>{setup.awardAmount}</dd></div>}
       {setup.period && <>
@@ -951,6 +983,7 @@ function humanDateRange(start: string, end: string) {
 }
 
 function agreementSetup(preflight: CompilationPreflightResult) {
+  const organizationName = usableProfileValue(preflight.grantProfile.granteeName);
   const funder = usableProfileValue(preflight.grantProfile.funderName);
   const grant = usableProfileValue(preflight.grantProfile.grantName);
   const verifiedPeriods = preflight.reportingPeriods
@@ -958,6 +991,7 @@ function agreementSetup(preflight: CompilationPreflightResult) {
     .sort((left, right) => Date.parse(left.startDate) - Date.parse(right.startDate));
   const period = verifiedPeriods.find((item) => item.id === preflight.referencePeriodId) || verifiedPeriods[0];
   return {
+    organizationName,
     grantName: [funder, grant].filter(Boolean).join(" — "),
     awardAmount: usableProfileValue(preflight.grantProfile.awardAmount),
     period

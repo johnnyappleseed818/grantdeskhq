@@ -29,8 +29,9 @@ export const preflightSchema = {
     grantProfile: {
       type: "object",
       additionalProperties: false,
-      required: ["funderName", "grantName", "grantId", "grantStartDate", "grantEndDate", "grantType", "awardAmount"],
+      required: ["granteeName", "funderName", "grantName", "grantId", "grantStartDate", "grantEndDate", "grantType", "awardAmount"],
       properties: {
+        granteeName: profileField,
         funderName: profileField,
         grantName: profileField,
         grantId: profileField,

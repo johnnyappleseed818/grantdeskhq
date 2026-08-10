@@ -62,4 +62,23 @@ describe("report review trust states", () => {
     expect(screen.queryByText("58")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Six-Month Progress Report" })).toBeInTheDocument();
   });
+
+  it("prioritizes verified program obligations and keeps source context informational", () => {
+    const source = prototypeFixture.grantProfile.grantName.source;
+    const result = {
+      ...prototypeFixture,
+      programChecks: [
+        { id: "KPI-1", type: "kpi_result" as const, title: "Households receiving navigation", detail: "Current-period result is available.", action: "No action needed.", owner: "Program" as const, severity: "info" as const, sources: [source], resolution: "open" as const, status: "verified" as const },
+        { id: "KPI-2", type: "kpi_result" as const, title: "Housing retention result is missing", detail: "Add the current-period result before drafting this section.", action: "Add information", owner: "Program" as const, severity: "review" as const, sources: [source], resolution: "open" as const, status: "verified" as const },
+        { id: "STAFF-1", type: "award_trigger" as const, title: "Confirm whether funder notification is required", detail: "The program update reports a staffing change and the award requires notice within five business days.", action: "Confirm notification", owner: "Grants" as const, severity: "action_required" as const, sources: [source, source], resolution: "open" as const, status: "verified" as const },
+        { id: "CTX-1", type: "source_context" as const, title: "Program update recognized as an internal source", detail: "It will be used as supporting information, not as a previously submitted report.", action: "No action needed.", owner: "Grants" as const, severity: "info" as const, sources: [source], resolution: "open" as const, status: "verified" as const }
+      ]
+    };
+    render(<CompilerResults result={result} activeTab="inputs" {...actions} />);
+    expect(screen.getByText("Results available for 1 of 2 required program metrics.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Confirm whether funder notification is required" })).toBeInTheDocument();
+    expect(screen.getByText("Program update recognized as an internal source")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Not applicable" }));
+    expect(actions.onResolve).toHaveBeenCalledWith("program-STAFF-1", "not_applicable");
+  });
 });

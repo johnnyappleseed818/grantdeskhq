@@ -17,6 +17,7 @@ const requirements: CompiledRequirement[] = [
   budget("BUD-EVAL", "Evaluation", 37_000),
   budget("BUD-IND", "Indirect Costs", 20_000),
   requirement("RULE-VAR", "Explain any budget category variance of $7,500 or more."),
+  requirement("RULE-REALLOC", "Budget reallocations of 15% or more require prior written approval."),
   requirement("RULE-AID", "Written Program Director approval is required for assistance above $1,500 per household."),
   requirement("RULE-IND", "Indirect costs are limited to the lesser of $20,000 or 8% of actual eligible direct costs.")
 ];
@@ -119,7 +120,9 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
   });
 
   it("raises the technology variance, three approval checks, equipment eligibility, and indirect-cap result", () => {
-    expect(checked.financialAnalysis?.budgetVariances.find((item) => item.category === "Technology & Data Systems")).toMatchObject({ approvedAmount: 18_000, actualAmount: 26_200, varianceAmount: 8_200, explanationRequired: true });
+    expect(checked.financialAnalysis?.budgetVariances.find((item) => item.category === "Technology & Data Systems")).toMatchObject({ approvedAmount: 18_000, actualAmount: 26_200, varianceAmount: 8_200, variancePercent: 45.6, explanationRequired: true });
+    expect(checked.financialAnalysis?.controls.find((item) => item.id === "material-variance")?.detail).toContain("$8,200 above the approved budget (+45.6%)");
+    expect(checked.financialAnalysis?.controls.find((item) => item.id === "budget-reallocation-approval")).toMatchObject({ title: "Budget approval may be required", status: "review", requiresAction: true });
     expect(checked.financialAnalysis?.controls.find((item) => item.id === "assistance-approvals")?.transactionIds).toEqual(["BW-EA-003", "BW-EA-006", "BW-EA-011"]);
     expect(checked.financialAnalysis?.controls.find((item) => item.id === "eligibility-review")?.transactionIds).toEqual(["BW-TECH-004"]);
     const indirect = checked.financialAnalysis?.controls.find((item) => item.id === "indirect-cost-limit");
@@ -129,11 +132,12 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
     expect(indirect?.detail).toContain("$918.40 remaining capacity");
   });
 
-  it("surfaces five grouped human decisions rather than 56 row approvals", () => {
+  it("surfaces six grouped human decisions rather than 56 row approvals", () => {
     expect(buildReportAttention(checked).map((item) => item.title)).toEqual([
       "1 transaction needs a category decision",
       "1 potential duplicate needs review",
       "1 budget variance requires explanation",
+      "Budget approval may be required",
       "1 transaction needs an eligibility review",
       "3 assistance transactions require approval support"
     ]);

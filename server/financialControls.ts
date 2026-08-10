@@ -60,6 +60,7 @@ export function buildFinancialAnalysis(
     const rows = usable.filter((row) => sameCategory(row.category, budget.category));
     const actualAmount = roundMoney(rows.reduce((total, row) => total + row.amount, 0));
     const varianceAmount = roundMoney(actualAmount - budget.approvedAmount);
+    const variancePercent = budget.approvedAmount === 0 ? 0 : roundPercent((varianceAmount / budget.approvedAmount) * 100);
     // Without a period-specific spending plan, partial-period underspend is not a
     // reliable exception. A category that exceeds the approved amount can still
     // trigger the agreement's absolute-dollar explanation rule.
@@ -69,6 +70,7 @@ export function buildFinancialAnalysis(
       approvedAmount: budget.approvedAmount,
       actualAmount,
       varianceAmount,
+      variancePercent,
       explanationThreshold: varianceThreshold,
       explanationRequired,
       status: explanationRequired ? "explanation_required" : "within_budget",
@@ -82,7 +84,7 @@ export function buildFinancialAnalysis(
     controls.push(materialVariances.length ? {
       id: "material-variance",
       title: `${materialVariances.length} budget ${materialVariances.length === 1 ? "variance requires" : "variances require"} explanation`,
-      detail: materialVariances.map((item) => `${item.category}: ${money(item.actualAmount)} actual against ${money(item.approvedAmount)} approved (${signedMoney(item.varianceAmount)})`).join(" · "),
+      detail: materialVariances.map((item) => `${item.category} is ${money(item.varianceAmount)} above the approved budget (${signedPercent(item.variancePercent)}). This exceeds the award's ${money(varianceThreshold)} reporting threshold.`).join(" "),
       status: "review",
       requiresAction: true,
       transactionIds: materialVariances.flatMap((item) => item.transactionIds)
@@ -94,6 +96,22 @@ export function buildFinancialAnalysis(
       requiresAction: false,
       transactionIds: []
     });
+  }
+
+  const reallocationRule = matchingRequirement(requirements, /budget|reallocation|reallocate/i, /prior|written|approval/i, /%/i);
+  const reallocationThreshold = reallocationRule ? firstPercent(reallocationRule) : null;
+  if (reallocationThreshold !== null) {
+    const possibleReallocations = budgetVariances.filter((item) => item.variancePercent >= reallocationThreshold);
+    if (possibleReallocations.length) {
+      controls.push({
+        id: "budget-reallocation-approval",
+        title: "Budget approval may be required",
+        detail: `${possibleReallocations.map((item) => `${item.category} is ${signedPercent(item.variancePercent)} above its approved amount`).join(" · ")}. The award requires prior written approval for budget reallocations of ${reallocationThreshold}% or more. Add approval documentation if the overage resulted from a reallocation.`,
+        status: "review",
+        requiresAction: true,
+        transactionIds: possibleReallocations.flatMap((item) => item.transactionIds)
+      });
+    }
   }
 
   const eligibilityRows = mappings
@@ -220,6 +238,7 @@ function parsePeriod(value: string) {
   return start && end ? { start, end } : null;
 }
 function roundMoney(value: number) { return Math.round(value * 100) / 100; }
+function roundPercent(value: number) { return Math.round(value * 10) / 10; }
 function money(value: number) { return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value); }
 function preciseMoney(value: number) { return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value); }
-function signedMoney(value: number) { return `${value >= 0 ? "+" : "-"}${money(Math.abs(value))}`; }
+function signedPercent(value: number) { return `${value >= 0 ? "+" : "-"}${Math.abs(value).toFixed(1)}%`; }

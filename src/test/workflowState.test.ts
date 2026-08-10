@@ -1,10 +1,11 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { buildInputStatus, detectSetupConflicts } from "../../server/workflowState";
+import { buildInputStatus, customerWarnings, detectSetupConflicts } from "../../server/workflowState";
 import type { CompilationRequest, GrantProfile, GrantReportingPeriod } from "../types/prototype";
 
 const source = { sourceName: "Comprehensive_Grant_Agreement.txt", locator: "Page 1", excerpt: "Community Pathways Foundation — Youth Workforce Advancement Initiative; October 1, 2026 through September 30, 2027." };
 const profile: GrantProfile = {
+  granteeName: field("BridgeWorks Family Services"),
   funderName: field("Community Pathways Foundation"),
   grantName: field("Youth Workforce Advancement Initiative"),
   grantId: field("CPF-2026-0417"),
@@ -45,6 +46,22 @@ describe("early report setup checks", () => {
       grantName: "Community Pathways Foundation — Youth Workforce Advancement Initiative",
       reportingPeriod: "October 1–December 31, 2026"
     }, profile)).toEqual([]);
+  });
+
+  it("detects a grantee mismatch and clears it when the organization matches the verified award", () => {
+    expect(detectSetupConflicts({ organizationName: "Hope Community Services", grantName: "Community Pathways Foundation — Youth Workforce Advancement Initiative", reportingPeriod: "October 1–December 31, 2026" }, profile).map((item) => item.type)).toEqual(["organization_identity"]);
+    expect(detectSetupConflicts({ organizationName: "BridgeWorks Family Services", grantName: "Community Pathways Foundation — Youth Workforce Advancement Initiative", reportingPeriod: "October 1–December 31, 2026" }, profile)).toEqual([]);
+  });
+
+  it("keeps model metadata and internal role names out of customer warnings", () => {
+    expect(customerWarnings([
+      "The supplied program update is explicitly an internal document and says it has not been submitted to the funder.",
+      "No approvedBudget, funderTemplate, or supportingEvidence source role was supplied.",
+      "The award agreement and program update each state that the materials are synthetic test documents.",
+      "Financial totals come directly from your uploaded accounting data. Our AI-powered solution does not calculate or invent transaction amounts.",
+      "BW-TECH-004 brings mapped Technology & Data Systems spending to $26,200 against the annual category amount.",
+      "A verified source contains a material ambiguity that still needs review."
+    ], true)).toEqual(["A verified source contains a material ambiguity that still needs review."]);
   });
 
   it("marks missing completion inputs as unavailable instead of verified", () => {

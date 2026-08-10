@@ -46,7 +46,7 @@ export function applyWorkflowState(request: CompilationRequest, result: ResultBe
   return {
     ...result,
     summary: humanizeSourceSummary(result.summary, inputStatus),
-    warnings: result.warnings.filter((warning) => !/source roles? (?:were|was) (?:not )?supplied|(?:approved-budget|program-update|funder-template|supporting-evidence).*source roles?/i.test(warning)),
+    warnings: customerWarnings(result.warnings, Boolean(result.financialAnalysis)),
     setupConflicts,
     inputStatus,
     workflow: { readiness, actionRequiredCount, needsReviewCount, missingInputCount }
@@ -72,7 +72,7 @@ export function buildInputStatus(request: CompilationRequest, result?: Pick<Resu
 }
 
 function humanizeSourceSummary(summary: string, inputStatus: ReportInputStatus[]) {
-  const sentences = summary.split(/(?<=[.!?])\s+/).filter((sentence) => !/source roles? (?:were|was) (?:not )?supplied|(?:approved-budget|program-update|funder-template|supporting-evidence).*source roles?/i.test(sentence));
+  const sentences = summary.split(/(?<=[.!?])\s+/).filter((sentence) => !containsInternalSourceRole(sentence));
   const missingRequired = inputStatus.filter((item) => item.requiredForCompletion && !item.available).map((item) => item.label.toLowerCase());
   const missingSentence = missingRequired.length ? `Still needed: ${humanList(missingRequired)}.` : "";
   return [...sentences, missingSentence].filter(Boolean).join(" ").trim();
@@ -85,11 +85,24 @@ function humanList(items: string[]) {
 }
 
 export function detectSetupConflicts(
-  request: Pick<CompilationRequest, "grantName" | "reportingPeriod">,
+  request: Pick<CompilationRequest, "grantName" | "reportingPeriod"> & Partial<Pick<CompilationRequest, "organizationName">>,
   profile: GrantProfile,
   reportingPeriods: GrantReportingPeriod[] = []
 ): SetupConflict[] {
   const conflicts: SetupConflict[] = [];
+  const extractedGrantee = usable(profile.granteeName);
+  if (request.organizationName && extractedGrantee && clearlyDifferentIdentity(request.organizationName, extractedGrantee)) {
+    conflicts.push({
+      id: "setup-organization-identity",
+      type: "organization_identity",
+      title: "Organization details do not match",
+      detail: `This report is set up for “${request.organizationName},” but the uploaded award identifies “${extractedGrantee}” as the grantee.`,
+      enteredValue: request.organizationName,
+      sourceValue: extractedGrantee,
+      source: profile.granteeName!.source,
+      status: "action_required"
+    });
+  }
   const extractedIdentity = [usable(profile.funderName), usable(profile.grantName)].filter(Boolean).join(" — ");
   if (extractedIdentity && clearlyDifferentIdentity(request.grantName, extractedIdentity)) {
     conflicts.push({
@@ -127,6 +140,22 @@ export function detectSetupConflicts(
     });
   }
   return conflicts;
+}
+
+export function customerWarnings(warnings: string[], hasFinancialAnalysis = false) {
+  return warnings.filter((warning) => {
+    const value = warning.toLowerCase();
+    if (containsInternalSourceRole(value)) return false;
+    if (/internal document|not been submitted to the funder|synthetic (?:test )?document|test content detected/.test(value)) return false;
+    if (/source package identifies .* as grantee|request identifies|resolve before submission/.test(value)) return false;
+    if (/financial totals|transaction amounts/.test(value)) return false;
+    if (hasFinancialAnalysis && /mapped .*spending|annual category amount|budget variance|variance explanation/.test(value)) return false;
+    return true;
+  });
+}
+
+function containsInternalSourceRole(value: string) {
+  return /approvedbudget|fundertemplate|supportingevidence|programupdate|ledgerexport|approved-budget|program-update|funder-template|supporting-evidence|source roles?/i.test(value);
 }
 
 function firstVerifiedReportingPeriod(reportingPeriods: GrantReportingPeriod[]) {

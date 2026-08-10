@@ -57,6 +57,7 @@ export interface GrantProfileField {
 }
 
 export interface GrantProfile {
+  granteeName?: GrantProfileField;
   funderName: GrantProfileField;
   grantName: GrantProfileField;
   grantId: GrantProfileField;
@@ -68,7 +69,7 @@ export interface GrantProfile {
 
 export interface SetupConflict {
   id: string;
-  type: "grant_identity" | "reporting_period";
+  type: "organization_identity" | "grant_identity" | "reporting_period";
   title: string;
   detail: string;
   enteredValue: string;
@@ -113,6 +114,7 @@ export interface SetupDecision {
   detail: string;
   sourceName: string;
   previousGrantName?: string;
+  previousOrganizationName?: string;
   previousReportingPeriod?: string;
   selectedObligationId?: string;
 }
@@ -179,6 +181,7 @@ export interface BudgetVarianceResult {
   approvedAmount: number;
   actualAmount: number;
   varianceAmount: number;
+  variancePercent: number;
   explanationThreshold: number | null;
   explanationRequired: boolean;
   status: "within_budget" | "explanation_required";
@@ -201,6 +204,19 @@ export interface FinancialAnalysis {
   mappedActualTotal: number;
   budgetVariances: BudgetVarianceResult[];
   controls: FinancialControlResult[];
+}
+
+export interface ProgramCheck {
+  id: string;
+  type: "kpi_result" | "data_conflict" | "award_trigger" | "source_context";
+  title: string;
+  detail: string;
+  action: string;
+  owner: "Finance" | "Program" | "Grants" | "Approver";
+  severity: "action_required" | "review" | "info";
+  sources: SourceReference[];
+  resolution: "open" | "resolved" | "not_applicable";
+  status: ReviewState;
 }
 
 export interface MissingInput {
@@ -259,6 +275,7 @@ export interface CompilationResult {
   validation: ValidationSummary;
   warnings: string[];
   financialAnalysis?: FinancialAnalysis;
+  programChecks?: ProgramCheck[];
   generatedAt: string;
   model: string;
 }

@@ -1,21 +1,23 @@
 export const compilationSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["reportTitle", "summary", "grantProfile", "requirements", "mappings", "missingInputs", "narrative", "qualityChecks", "warnings"],
+  required: ["reportTitle", "summary", "grantProfile", "requirements", "mappings", "missingInputs", "narrative", "programChecks", "qualityChecks", "warnings"],
   properties: {
     reportTitle: { type: "string" },
     summary: { type: "string" },
     grantProfile: {
       type: "object",
       additionalProperties: false,
-      required: ["funderName", "grantName", "grantId", "grantStartDate", "grantEndDate", "grantType"],
+      required: ["granteeName", "funderName", "grantName", "grantId", "grantStartDate", "grantEndDate", "grantType", "awardAmount"],
       properties: {
+        granteeName: { $ref: "#/$defs/profileField" },
         funderName: { $ref: "#/$defs/profileField" },
         grantName: { $ref: "#/$defs/profileField" },
         grantId: { $ref: "#/$defs/profileField" },
         grantStartDate: { $ref: "#/$defs/profileField" },
         grantEndDate: { $ref: "#/$defs/profileField" },
-        grantType: { $ref: "#/$defs/profileField" }
+        grantType: { $ref: "#/$defs/profileField" },
+        awardAmount: { $ref: "#/$defs/profileField" }
       }
     },
     requirements: {
@@ -68,6 +70,25 @@ export const compilationSchema = {
           id: { type: "string" }, text: { type: "string" },
           evidenceType: { type: "string", enum: ["source_fact", "calculation", "program_response", "needs_confirmation", "unsupported"] },
           source: { $ref: "#/$defs/source" }, status: { $ref: "#/$defs/reviewState" }
+        }
+      }
+    },
+    programChecks: {
+      type: "array",
+      maxItems: 80,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "type", "title", "detail", "action", "owner", "severity", "sources", "resolution", "status"],
+        properties: {
+          id: { type: "string" },
+          type: { type: "string", enum: ["kpi_result", "data_conflict", "award_trigger", "source_context"] },
+          title: { type: "string" }, detail: { type: "string" }, action: { type: "string" },
+          owner: { type: "string", enum: ["Finance", "Program", "Grants", "Approver"] },
+          severity: { type: "string", enum: ["action_required", "review", "info"] },
+          sources: { type: "array", minItems: 1, maxItems: 3, items: { $ref: "#/$defs/source" } },
+          resolution: { type: "string", enum: ["open", "resolved", "not_applicable"] },
+          status: { $ref: "#/$defs/reviewState" }
         }
       }
     },

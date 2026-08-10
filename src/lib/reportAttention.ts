@@ -53,13 +53,22 @@ export function buildReportAttention(result: CompilationResult): ReportAttention
     items.push({ id: control.id, kind: "financial", title: control.title, detail: control.detail });
   }
 
+  for (const check of (result.programChecks || []).filter((item) => item.severity !== "info" && item.resolution === "open")) {
+    items.push({
+      id: `program-${check.id}`,
+      kind: check.severity === "action_required" ? "review" : "input",
+      title: check.title,
+      detail: check.detail
+    });
+  }
+
   const financialEvidenceAction = openFinancialControls.some((item) => /approval|support/i.test(`${item.title} ${item.detail}`));
   for (const input of result.inputStatus.filter((item) => item.requiredForCompletion && !item.available)) {
     if (input.role === "supportingEvidence" && financialEvidenceAction) continue;
     items.push({ id: `input-${input.role}`, kind: "input", title: `Add ${input.label.toLowerCase()}`, detail: input.detail });
   }
 
-  const remainingReview = result.qualityChecks.filter((check) => check.required && ["blocked", "review"].includes(check.status) && !check.id.startsWith("deterministic-financial-") && check.id !== "deterministic-ledger");
+  const remainingReview = result.qualityChecks.filter((check) => check.required && ["blocked", "review"].includes(check.status) && !check.id.startsWith("deterministic-financial-") && !check.id.startsWith("program-") && check.id !== "deterministic-ledger");
   if (remainingReview.length) {
     items.push({ id: "remaining-review", kind: "review", title: "Review the remaining report checks", detail: `${remainingReview.length} related checks are grouped here instead of being presented as separate tasks.` });
   }
