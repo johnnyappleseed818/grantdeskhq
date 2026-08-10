@@ -31,7 +31,7 @@ export function buildFinancialAnalysis(
 ): FinancialAnalysis {
   if (!ledger.length) return { ledgerTransactionCount: 0, mappedTransactionCount: 0, excludedTransactionCount: 0, mappedActualTotal: 0, budgetVariances: [], controls: [] };
 
-  const reportPeriod = parsePeriod(request.reportingPeriod);
+  const reportPeriod = parseReportingPeriod(request.reportingPeriod);
   const grantStart = safeDate(grantProfile.grantStartDate?.value);
   const grantEnd = safeDate(grantProfile.grantEndDate?.value);
   const seenIds = new Set<string>();
@@ -223,7 +223,12 @@ export function findExactBudgetCategory(account: string, requirements: CompiledR
   const match = verifiedRequirements(requirements).find((requirement) => {
     const text = `${requirement.requirement} ${requirement.source.excerpt}`;
     const normalized = normalize(text);
-    return /\$\s*[\d,]+/.test(text) && accountTokens.every((token) => normalized.includes(token));
+    if (!accountTokens.every((token) => normalized.includes(token))) return false;
+    // A ledger label is an approved grant category only when that exact label is
+    // tied to a budget amount. Merely appearing elsewhere in a requirement with
+    // a dollar value (for example "Program Director" near a $1,500 approval
+    // threshold) cannot create a new budget category.
+    return amountAdjacentToCategory(text, cleanAccount) !== null;
   });
   return match ? cleanAccount : "";
 }
@@ -309,11 +314,14 @@ function meaningfulTokens(value: string) { return normalize(value).split(" ").fi
 function normalize(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
 function sameCategory(left: string, right: string) { return normalize(left) === normalize(right); }
 function safeDate(value: string | undefined) { const timestamp = Date.parse(value || ""); return Number.isFinite(timestamp) ? new Date(timestamp) : null; }
-function parsePeriod(value: string) {
-  const matches = value.replace(/[–—]/g, "-").match(/(.+?)\s+(?:through|to|-)\s+(.+)/i);
-  if (!matches) return null;
-  const start = safeDate(matches[1]);
-  const end = safeDate(matches[2]);
+export function parseReportingPeriod(value: string) {
+  const separator = /\s+(?:through|to)\s+|[–—]|\s+-\s+|(?<=\d)-(?=[A-Za-z])/i.exec(value);
+  if (!separator || separator.index === undefined) return null;
+  const startText = value.slice(0, separator.index).trim();
+  const endText = value.slice(separator.index + separator[0].length).trim();
+  const end = safeDate(endText);
+  const startWithYear = end && !/\b\d{4}\b/.test(startText) ? `${startText}, ${end.getUTCFullYear()}` : startText;
+  const start = safeDate(startWithYear);
   return start && end ? { start, end } : null;
 }
 function roundMoney(value: number) { return Math.round(value * 100) / 100; }

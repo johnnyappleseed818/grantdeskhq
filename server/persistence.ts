@@ -8,7 +8,7 @@ import type { BillingEventSnapshot } from "./billing.ts";
 const projectId = process.env.GOOGLE_CLOUD_PROJECT || "grantdeskhq-proto-ek-2026";
 const bucket = process.env.REPORT_FILES_BUCKET || "grantdeskhq-proto-ek-2026-report-files";
 const firestoreBase = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
-const compilationVersion = "2026-08-10-financial-mapping-v4";
+const compilationVersion = "2026-08-10-financial-treatment-v5";
 let tokenCache: { token: string; expiresAt: number } | null = null;
 
 export async function saveCompilation(user: AuthenticatedUser, request: CompilationRequest, result: CompilationResult) {

@@ -1,5 +1,5 @@
 import type { CompilationRequest, CompilationResult, ValidationFinding } from "../src/types/prototype.ts";
-import { buildFinancialAnalysis, findBudgetCategoryFromLedgerSignals, findExactBudgetCategory, type FinancialLedgerRow } from "./financialControls.ts";
+import { buildFinancialAnalysis, findBudgetCategoryFromLedgerSignals, findExactBudgetCategory, parseReportingPeriod, type FinancialLedgerRow } from "./financialControls.ts";
 
 interface WorkflowFacts {
   programMetrics?: Array<{ label: string; target: number; actual: number }>;
@@ -44,11 +44,13 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
     const suggestedBudgetCategory = findExactBudgetCategory(mapping.suggestedCategory, result.requirements);
     const signalCategory = findBudgetCategoryFromLedgerSignals(row, result.requirements);
     const deterministicCategory = exactCategory || suggestedBudgetCategory || signalCategory;
-    const category = deterministicCategory || mapping.suggestedCategory;
-    const ambiguous = !deterministicCategory && (/^unmapped$/i.test(category) || /insufficient detail|cannot determine|unable to determine/i.test(mapping.rationale));
+    const category = deterministicCategory || "Unmapped";
+    const ambiguous = !deterministicCategory;
     const highConfidenceMapping = amountMatches && Boolean(deterministicCategory) && !ambiguous;
-    const complianceStatus = mappingCompliance(mapping.rationale);
-    const complianceDetail = complianceStatus === "clear" ? "No additional transaction-level exception was detected." : mapping.rationale;
+    const inferredComplianceStatus = mappingCompliance(mapping.rationale);
+    const categoryDetail = `The ledger label “${row.account || "Unspecified"}” does not match a source-verified approved budget category. Select a category before inclusion.`;
+    const complianceStatus = ambiguous ? "not_applicable" as const : inferredComplianceStatus;
+    const complianceDetail = ambiguous ? categoryDetail : complianceStatus === "clear" ? "No additional transaction-level exception was detected." : mapping.rationale;
     const reportTreatment = periodIssue
       ? periodIssue.reason === "outside_report_period" ? "excluded_outside_period" as const : "excluded_grant_period" as const
       : ambiguous ? "needs_category_review" as const
@@ -71,6 +73,8 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
       requiresHumanAction: !periodIssue && (!highConfidenceMapping || ambiguous),
       rationale: periodIssue
         ? `${periodIssue.detail} Excluded from current-period mapped totals.`
+        : ambiguous
+          ? `${categoryDetail} The transaction amount was confirmed against the uploaded ledger.`
         : highConfidenceMapping
           ? `${exactCategory ? `The ledger account “${row.account}”` : signalCategory ? `The transaction description and vendor` : `The suggested category “${category}”`} match${signalCategory ? "" : "es"} a source-verified budget category. ${mapping.rationale} The transaction amount comes directly from the uploaded ledger.`
           : `${mapping.rationale} The transaction amount was confirmed against the uploaded ledger.`
@@ -270,18 +274,9 @@ function dateExclusion(date: string, reportingPeriod: string, grantStartValue?: 
   const grantEnd = parseDate(grantEndValue || "");
   if (transactionDate && grantStart && transactionDate < grantStart) return { reason: "outside_grant_period" as const, detail: `Transaction ${date} predates the grant start date.` };
   if (transactionDate && grantEnd && transactionDate > grantEnd) return { reason: "outside_grant_period" as const, detail: `Transaction ${date} falls after the grant end date.` };
-  const period = parsePeriod(reportingPeriod);
+  const period = parseReportingPeriod(reportingPeriod);
   if (transactionDate && period && (transactionDate < period.start || transactionDate > period.end)) return { reason: "outside_report_period" as const, detail: `Transaction ${date} is outside the selected reporting period.` };
   return null;
-}
-
-function parsePeriod(value: string) {
-  const normalized = value.replace(/[–—]/g, "-");
-  const matches = normalized.match(/(.+?)\s+(?:through|to|-)\s+(.+)/i);
-  if (!matches) return null;
-  const start = parseDate(matches[1]);
-  const end = parseDate(matches[2]);
-  return start && end ? { start, end } : null;
 }
 
 function parseDate(value: string) {

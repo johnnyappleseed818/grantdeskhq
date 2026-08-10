@@ -633,7 +633,10 @@ function Mappings({ result, onAddSources }: { result: CompilationResult; onAddSo
   const duplicates = result.financialAnalysis?.controls.find((control) => control.id === "duplicate-transactions")?.transactionIds.length
     || result.mappings.filter((item) => item.reportTreatment === "excluded_duplicate").length;
   const dateExclusions = result.mappings.filter((item) => ["excluded_outside_period", "excluded_grant_period"].includes(item.reportTreatment || "")).length;
-  const approvalEvidence = analysis?.controls.find((control) => control.id === "assistance-approvals" && control.requiresAction)?.transactionIds.length || 0;
+  const approvalControl = analysis?.controls.find((control) => control.id === "assistance-approvals" && control.requiresAction);
+  const approvalEvidenceNeeded = approvalControl?.transactionIds.length || new Set(result.mappings
+    .filter((item) => item.complianceStatus === "evidence_required" && /approval/i.test(`${item.rationale} ${item.complianceDetail || ""}`))
+    .map((item) => item.transactionId)).size;
   const groupedExceptionItems = buildFinancialExceptionSummary(result);
   const groupedExceptions = groupedExceptionItems.length;
   return <div className="grid gap-5">
@@ -644,7 +647,7 @@ function Mappings({ result, onAddSources }: { result: CompilationResult; onAddSo
         <div><dt>Category decisions</dt><dd>{categoryReviews}</dd></div>
         <div><dt>Duplicate rows</dt><dd>{duplicates}</dd></div>
         <div><dt>Excluded by date</dt><dd>{dateExclusions}</dd></div>
-        <div><dt>Approval evidence</dt><dd>{approvalEvidence}</dd></div>
+        <div><dt>Approval evidence needed</dt><dd>{approvalEvidenceNeeded}</dd></div>
       </dl>
       {groupedExceptionItems.length > 0 && <div className="financial-exception-groups" aria-label="Grouped financial decisions">
         {groupedExceptionItems.map((item, index) => <article key={item.id}>

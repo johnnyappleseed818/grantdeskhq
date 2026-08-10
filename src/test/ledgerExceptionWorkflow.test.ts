@@ -49,7 +49,7 @@ const rows: LedgerRow[] = [
   ["BW-EVAL-001", "2027-04-15", "Malformed Account", "Evaluation design and baseline review", 2_250, "Evaluation", "Description and vendor align to Evaluation despite malformed account field."],
   ["BW-EVAL-002", "2027-07-20", "Malformed Account", "Interim data-quality review", 2_250, "Evaluation", "Description and vendor align to Evaluation despite malformed account field."],
   ...["2027-02-28", "2027-03-31", "2027-04-30", "2027-05-31", "2027-06-30", "2027-07-31"].map((date, index) => [`BW-IND-${String(index + 1).padStart(3, "0")}`, date, "Indirect Costs", `Monthly indirect cost allocation — month ${index + 1}`, 1_500, "Indirect Costs", "Account and description align; cap calculation requires validated direct charges."] as const),
-  ["BW-AMB-001", "2027-06-18", "Community Outreach", "Client services — June", 875, "Unmapped", "Insufficient detail to determine approved budget category."],
+  ["BW-AMB-001", "2027-06-18", "Program Services", "Client services — June", 875, "Unmapped", "Insufficient detail to determine approved budget category."],
   ["BW-OOP-001", "2027-08-05", "Technology & Data Systems", "August case-management software renewal", 800, "Technology & Data Systems", "Within overall grant period but outside Interim Report 1 reporting period; exclude from this report."],
   ["BW-OOG-001", "2027-01-25", "Technology & Data Systems", "Pre-grant implementation deposit", 1_200, "Technology & Data Systems", "Occurs before the February 1, 2027 grant start; written authorization is required to charge it."]
 ];
@@ -57,7 +57,7 @@ const rows: LedgerRow[] = [
 const request: CompilationRequest = {
   organizationName: "BridgeWorks Family Services",
   grantName: "Northstar Community Fund — Family Stability & Housing Navigation Program",
-  reportingPeriod: "February 1 – July 31, 2027",
+  reportingPeriod: "Feb 1–Jul 31, 2027",
   files: [
     { role: "awardAgreement", name: agreementSource.sourceName, mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size: 100, data: "data:application/octet-stream;base64,QQ==" },
     { role: "ledgerExport", name: "BridgeWorks_GL.csv", mimeType: "text/csv", size: 100, data: csvData(rows) }
@@ -116,7 +116,13 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
   it("keeps mapping, compliance, and report treatment independent", () => {
     expect(checked.mappings.find((item) => item.transactionId === "BW-TECH-004")).toMatchObject({ mappingConfidence: "high", complianceStatus: "eligibility_review", reportTreatment: "provisional", status: "verified" });
     expect(checked.mappings.find((item) => item.transactionId === "BW-EA-003")).toMatchObject({ mappingConfidence: "high", complianceStatus: "evidence_required", reportTreatment: "pending_evidence", status: "verified" });
-    expect(checked.mappings.find((item) => item.transactionId === "BW-AMB-001")).toMatchObject({ mappingConfidence: "unmapped", reportTreatment: "needs_category_review", status: "blocked" });
+    expect(checked.mappings.find((item) => item.transactionId === "BW-AMB-001")).toMatchObject({
+      suggestedCategory: "Unmapped",
+      mappingConfidence: "unmapped",
+      reportTreatment: "needs_category_review",
+      status: "blocked",
+      complianceDetail: expect.stringContaining("Program Services")
+    });
   });
 
   it("uses description signals to map both Evaluation rows despite a malformed account and unhelpful model suggestion", () => {
@@ -135,6 +141,22 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
     expect(checked.mappings.filter((item) => item.reportTreatment === "excluded_duplicate")).toHaveLength(1);
     expect(checked.mappings.find((item) => item.transactionId === "BW-OOP-001")).toMatchObject({ reportTreatment: "excluded_outside_period", requiresHumanAction: false });
     expect(checked.mappings.find((item) => item.transactionId === "BW-OOG-001")).toMatchObject({ reportTreatment: "excluded_grant_period", requiresHumanAction: false });
+  });
+
+  it("keeps outside-period rows out of BvA and indirect costs across supported date-range formats", () => {
+    for (const reportingPeriod of [
+      "Feb 1–Jul 31, 2027",
+      "Feb 1 – Jul 31, 2027",
+      "February 1, 2027 through July 31, 2027",
+      "2027-02-01 through 2027-07-31",
+      "2027-02-01—2027-07-31"
+    ]) {
+      const periodChecked = applyDeterministicAccuracyChecks({ ...request, reportingPeriod }, rawResult);
+      expect(periodChecked.mappings.find((item) => item.transactionId === "BW-OOP-001")).toMatchObject({ reportTreatment: "excluded_outside_period", requiresHumanAction: false });
+      expect(periodChecked.mappings.find((item) => item.transactionId === "BW-AMB-001")).toMatchObject({ suggestedCategory: "Unmapped", reportTreatment: "needs_category_review" });
+      expect(periodChecked.financialAnalysis?.budgetVariances.find((item) => item.category === "Technology & Data Systems")).toMatchObject({ actualAmount: 26_200, varianceAmount: 8_200, variancePercent: 45.6 });
+      expect(periodChecked.financialAnalysis?.controls.find((item) => item.id === "indirect-cost-limit")?.detail).toContain("$123,980.00 eligible direct costs");
+    }
   });
 
   it("raises the technology variance, three approval checks, equipment eligibility, and indirect-cap result", () => {
