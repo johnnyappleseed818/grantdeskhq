@@ -171,6 +171,29 @@ describe("important routes", () => {
     expect(screen.getByText(/Funder_Report_Template\.docx/)).toBeInTheDocument();
     expect(screen.getByText(/Program_Update\.txt/)).toBeInTheDocument();
   });
+
+  it("removes the old source slot when moving a misclassified ledger file", async () => {
+    const user = userEvent.setup();
+    renderRoute("/compile");
+    await user.click(screen.getByRole("button", { name: /Continue/i }));
+    await user.upload(
+      screen.getByLabelText(/Award agreement or Notice of Award/i),
+      new File(["award"], "Award_Agreement.pdf", { type: "application/pdf" })
+    );
+    await user.upload(
+      screen.getByLabelText(/Approved grant budget/i),
+      new File(["ledger"], "General_Ledger_Export.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
+    );
+    await user.upload(
+      screen.getByLabelText(/Program update/i),
+      new File(["update"], "Program_Update.txt", { type: "text/plain" })
+    );
+    await user.click(await screen.findByRole("button", { name: "Move to Accounting data" }));
+    await user.click(screen.getByRole("button", { name: /Continue/i }));
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: /Continue/i }));
+    expect(screen.getByText("3 files · 17 B")).toBeVisible();
+  });
 });
 
 describe("product messaging safeguards", () => {

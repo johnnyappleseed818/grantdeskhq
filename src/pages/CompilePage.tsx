@@ -63,7 +63,9 @@ export function CompilePage() {
   const [acceptedFileRoles, setAcceptedFileRoles] = useState<string[]>([]);
   const [compileAttempt, setCompileAttempt] = useState<{ fingerprint: string; requestId: string } | null>(null);
 
-  const totalBytes = useMemo(() => Object.values(files).reduce((sum, file) => sum + (file?.size || 0), 0), [files]);
+  const selectedFiles = useMemo(() => (Object.entries(files) as Array<[SourceRole, File | undefined]>)
+    .filter((entry): entry is [SourceRole, File] => Boolean(entry[1])), [files]);
+  const totalBytes = useMemo(() => selectedFiles.reduce((sum, [, file]) => sum + file.size, 0), [selectedFiles]);
   const requiredFilesComplete = sourceFields.filter((field) => field.required).every((field) => files[field.role]);
   const activeFileRoleSuggestions = useMemo(() => Object.values(fileRoleSuggestions).filter((suggestion): suggestion is FileRoleSuggestion => {
     if (!suggestion || acceptedFileRoles.includes(suggestion.key)) return false;
@@ -181,18 +183,9 @@ export function CompilePage() {
     event.preventDefault();
     setError("");
     setResult(null);
-    const selected = Object.entries(files) as Array<[SourceRole, File]>;
-    const payloadFiles = await Promise.all(selected.map(([role, file]) => fileToCompilerFile(role, file)));
-    const fingerprint = compilationFingerprint(meta, selected, setupDecisions);
+    const fingerprint = compilationFingerprint(meta, selectedFiles, setupDecisions);
     const requestId = compileAttempt?.fingerprint === fingerprint ? compileAttempt.requestId : crypto.randomUUID();
     setCompileAttempt({ fingerprint, requestId });
-    const payload: CompilationRequest = { ...meta, files: payloadFiles, setupDecisions, requestId };
-    const errors = validateCompilationRequest(payload);
-    if (!acknowledged) errors.push("Confirm that the files are synthetic or redacted test files.");
-    if (errors.length) {
-      setError(errors.join(" "));
-      return;
-    }
 
     if (!user) {
       navigate("/login?next=/compile");
@@ -201,6 +194,14 @@ export function CompilePage() {
 
     setCompiling(true);
     try {
+      const payloadFiles = await Promise.all(selectedFiles.map(([role, file]) => fileToCompilerFile(role, file)));
+      const payload: CompilationRequest = { ...meta, files: payloadFiles, setupDecisions, requestId };
+      const errors = validateCompilationRequest(payload);
+      if (!acknowledged) errors.push("Confirm that the files are synthetic or redacted test files.");
+      if (errors.length) {
+        setError(errors.join(" "));
+        return;
+      }
       const body = await apiRequest<PersistedCompilationResponse>("/api/reports/compile", await token(), { method: "POST", body: JSON.stringify(payload) });
       setResult(body.result);
       setReportId(body.reportId);
@@ -330,7 +331,13 @@ export function CompilePage() {
       setError(`${sourceLabel(suggestion.suggestedRole)} already contains a file. Remove or replace that file before moving ${suggestion.fileName}.`);
       return;
     }
-    setFiles((current) => ({ ...current, [suggestion.assignedRole]: undefined, [suggestion.suggestedRole]: current[suggestion.assignedRole] }));
+    setFiles((current) => {
+      const next = { ...current };
+      const file = next[suggestion.assignedRole];
+      delete next[suggestion.assignedRole];
+      if (file) next[suggestion.suggestedRole] = file;
+      return next;
+    });
     setFileRoleSuggestions((current) => ({ ...current, [suggestion.assignedRole]: undefined, [suggestion.suggestedRole]: undefined }));
     setAcceptedFileRoles((current) => current.filter((key) => key !== suggestion.key));
     setResult(null);
@@ -423,7 +430,7 @@ export function CompilePage() {
             {preflight && preflight.setupConflicts.length > 0 && <AgreementSetupCard preflight={preflight} onApply={applyAgreementWorkflow} onReplaceAgreement={replaceAwardAgreement} onEditSetup={() => returnToSetup("compiler-organization")} />}
             {preflight && preflight.setupConflicts.length === 0 && <div className="setup-match"><CheckCircle2 aria-hidden="true" /><div><strong>Award details match this report setup</strong><p>GrantDeskHQ checked the grant identity and reporting period before moving forward.</p></div></div>}
             {preflight && preflight.reportingPeriods.some((period) => period.status === "verified") && <ReportingSchedule periods={preflight.reportingPeriods} selectedPeriodId={preflight.referencePeriodId} onSelect={selectReportingPeriod} />}
-            {preflight && preflight.workflowObligations.length > 0 && <ReportWorkflow obligations={preflight.workflowObligations} referencePeriod={preflight.reportingPeriods.find((period) => period.id === preflight.referencePeriodId)} availableSources={Object.keys(files) as SourceRole[]} />}
+            {preflight && preflight.workflowObligations.length > 0 && <ReportWorkflow obligations={preflight.workflowObligations} referencePeriod={preflight.reportingPeriods.find((period) => period.id === preflight.referencePeriodId)} availableSources={selectedFiles.map(([role]) => role)} />}
           </fieldset>
 
           <fieldset className="wizard-step" hidden={wizardStep !== 3}>
@@ -448,7 +455,7 @@ export function CompilePage() {
               <div><span>Organization</span><strong>{meta.organizationName}</strong></div>
               <div><span>Grant</span><strong>{meta.grantName}</strong></div>
               <div><span>Reporting period</span><strong>{meta.reportingPeriod}</strong></div>
-              <div><span>Source package</span><strong>{Object.values(files).length} files · {formatBytes(totalBytes)}</strong></div>
+              <div><span>Source package</span><strong>{selectedFiles.length} files · {formatBytes(totalBytes)}</strong></div>
             </div>
             <button className="button button-primary button-large mt-6 w-full" type="submit" disabled={compiling}>
               {compiling ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <Sparkles aria-hidden="true" />}
