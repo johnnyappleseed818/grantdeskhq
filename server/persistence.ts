@@ -8,6 +8,7 @@ import type { BillingEventSnapshot } from "./billing.ts";
 const projectId = process.env.GOOGLE_CLOUD_PROJECT || "grantdeskhq-proto-ek-2026";
 const bucket = process.env.REPORT_FILES_BUCKET || "grantdeskhq-proto-ek-2026-report-files";
 const firestoreBase = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
+const compilationVersion = "2026-08-10-evidence-v2";
 let tokenCache: { token: string; expiresAt: number } | null = null;
 
 export async function saveCompilation(user: AuthenticatedUser, request: CompilationRequest, result: CompilationResult) {
@@ -29,6 +30,7 @@ export async function saveCompilation(user: AuthenticatedUser, request: Compilat
     ...summary,
     ownerUid: user.uid,
     requestId: request.requestId || "",
+    compilationVersion,
     resultJson: JSON.stringify(result),
     sourcesJson: JSON.stringify(sources),
     auditJson: JSON.stringify([...setupAudit, { at: now, actorUid: user.uid, action: "compiled", detail: "Our AI-powered solution prepared the draft, then completed an independent source check and deterministic validation." }])
@@ -43,7 +45,7 @@ export async function readCompilationByRequest(user: AuthenticatedUser, requestI
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`Saved report could not be checked (${response.status}).`);
   const record = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
-  if (record.ownerUid !== user.uid || record.requestId !== requestId || !record.resultJson) return null;
+  if (record.ownerUid !== user.uid || record.requestId !== requestId || record.compilationVersion !== compilationVersion || !record.resultJson) return null;
   const result = JSON.parse(String(record.resultJson)) as CompilationResult;
   const report: SavedReportSummary = {
     id: reportId,

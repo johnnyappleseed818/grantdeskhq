@@ -13,27 +13,56 @@ export interface ProgramInsight {
 interface CountMetricDefinition {
   id: string;
   title: string;
-  actual: RegExp;
+  actual: RegExp[];
   requirement: RegExp;
+  issue: RegExp;
 }
 
 const countMetrics: CountMetricDefinition[] = [
-  { id: "households-served", title: "Households served", actual: /served\s+(\d[\d,]*)\s+(?:unduplicated\s+)?households?/i, requirement: /(?:unduplicated\s+)?households?.*(?:served|receive|navigation)|(?:served|receive|navigation).*households?/i },
-  { id: "housing-assessments", title: "Housing assessments", actual: /completed\s+(\d[\d,]*)\s+(?:housing(?:-related)?\s+)?assessments?/i, requirement: /housing(?:-related)?\s+assessments?|assessments?.*households?/i },
-  { id: "housing-placements", title: "Housing placements", actual: /placed\s+(\d[\d,]*)\s+households?/i, requirement: /households?.*(?:placed|stable housing)|(?:placed|stable housing).*households?/i },
-  { id: "benefits-screenings", title: "Benefits screenings", actual: /(?:benefits?\s+)?screening\s+for\s+(\d[\d,]*)\s+households?/i, requirement: /benefits?\s+screenings?|screenings?.*households?/i }
+  {
+    id: "households-served", title: "Households served",
+    actual: [/(?:served|serving)\s+(\d[\d,]*)\s+(?:unduplicated\s+)?households?/i, /(\d[\d,]*)\s+(?:unduplicated\s+)?households?\s+(?:were\s+)?served/i],
+    requirement: /(?:unduplicated\s+)?households?.*(?:served|receive|navigation)|(?:served|receive|navigation).*households?/i,
+    issue: /\bp1\b|households? served|unduplicated households?/i
+  },
+  {
+    id: "housing-assessments", title: "Housing assessments",
+    actual: [/(?:completed|reported)\s+(\d[\d,]*)\s+(?:housing(?:-related| stability)?\s+)?assessments?/i, /(\d[\d,]*)\s+(?:housing(?:-related| stability)?\s+)?assessments?\s+(?:were\s+)?completed/i],
+    requirement: /housing(?:-related| stability)?\s+assessments?|assessments?.*households?/i,
+    issue: /\bp2\b|housing(?:-related| stability)? assessments?/i
+  },
+  {
+    id: "housing-placements", title: "Housing placements",
+    actual: [/(?:placed|placing)\s+(\d[\d,]*)\s+households?/i, /(\d[\d,]*)\s+households?\s+(?:were\s+)?placed/i],
+    requirement: /households?.*(?:placed|stable housing)|(?:placed|stable housing).*households?/i,
+    issue: /\bp3\b|housing placements?|households? placed/i
+  },
+  {
+    id: "benefits-screenings", title: "Benefits screenings",
+    actual: [/(?:benefits?\s+)?screenings?\s+for\s+(\d[\d,]*)\s+households?/i, /(\d[\d,]*)\s+households?[^.]*benefits?\s+screenings?/i],
+    requirement: /benefits?\s+screenings?|screenings?.*households?/i,
+    issue: /\bp5\b|benefits? screenings?/i
+  }
 ];
 
+const kpiInsightIds = new Set([...countMetrics.map((item) => item.id), "housing-retention"]);
+
+export interface ProgramReadinessSummary {
+  ready: number;
+  conflicts: number;
+  awaitingConfirmation: number;
+}
+
 export function buildProgramInsights(result: Pick<CompilationResult, "narrative" | "requirements" | "programChecks">): ProgramInsight[] {
-  const statements = result.narrative.filter((item) => item.status === "verified");
+  const facts = programFacts(result);
   const requirements = result.requirements.filter((item) => item.status === "verified");
   const insights: ProgramInsight[] = [];
 
   for (const metric of countMetrics) {
-    const statement = statements.find((item) => metric.actual.test(item.text));
-    if (!statement) continue;
-    const actualMatch = statement.text.match(metric.actual);
-    const actual = parseNumber(actualMatch?.[1]);
+    if (hasOpenMetricConflict(result.programChecks, metric.issue)) continue;
+    const fact = findNumberFact(facts, metric.actual);
+    if (!fact) continue;
+    const actual = fact.value;
     if (actual === null) continue;
     const requirement = requirements.find((item) => metric.requirement.test(item.requirement));
     const target = requirement ? metricTarget(requirement.requirement, metric.requirement) : null;
@@ -48,15 +77,15 @@ export function buildProgramInsights(result: Pick<CompilationResult, "narrative"
       detail: target
         ? `${progress}% of the cumulative grant target. No interim target was specified, so this is shown as cumulative progress rather than a schedule assessment.`
         : "Current-period result confirmed from the program update.",
-      sources: compactSources([statement.source, requirement?.source])
+      sources: compactSources([...fact.sources, requirement?.source])
     });
   }
 
-  const retentionStatement = statements.find((item) => /remained.*(?:120\s*days|120-day)|retention/i.test(item.text) && /\d/.test(item.text));
-  if (retentionStatement) {
-    const ratio = retentionStatement.text.match(/Among\s+(\d[\d,]*)[^.]*?,\s*(\d[\d,]*)\s+(?:remained|were)[^.]*(?:120\s*days|120-day)/i);
-    const eligible = parseNumber(ratio?.[1]);
-    const retained = parseNumber(ratio?.[2]);
+  const retentionFact = facts.find((item) => retentionCounts(item.text));
+  if (retentionFact && !hasOpenMetricConflict(result.programChecks, /\bp4\b|120-day|retention/i)) {
+    const counts = retentionCounts(retentionFact.text);
+    const eligible = counts?.eligible ?? null;
+    const retained = counts?.retained ?? null;
     const retentionRequirement = requirements.find((item) => /retention|remain(?:ed)?\s+(?:stably\s+)?housed/i.test(item.requirement) && /%/.test(item.requirement));
     const target = retentionRequirement ? percentValue(retentionRequirement.requirement) : null;
     if (eligible && retained !== null) {
@@ -69,13 +98,13 @@ export function buildProgramInsights(result: Pick<CompilationResult, "narrative"
         title: "120-day housing retention",
         value: `${actual}%${target !== null ? ` · target ${target}%` : ""}`,
         detail: `${retained} of ${eligible} eligible households remained housed at 120 days. The percentage is calculated from the confirmed counts, not generated by AI.`,
-        sources: compactSources([retentionStatement.source, retentionRequirement?.source])
+        sources: compactSources([...retentionFact.sources, retentionRequirement?.source])
       });
     }
   }
 
-  const satisfactionStatement = result.narrative.find((item) => /satisfaction/i.test(item.text) && /not confirmed|under validation|needs confirmation|information required/i.test(item.text));
-  if (satisfactionStatement) {
+  const satisfactionFact = facts.find((item) => /satisfaction/i.test(item.text) && /not confirmed|not finalized|under validation|needs confirmation|information required/i.test(item.text));
+  if (satisfactionFact) {
     insights.push({
       id: "satisfaction-unconfirmed",
       tone: "review",
@@ -83,7 +112,7 @@ export function buildProgramInsights(result: Pick<CompilationResult, "narrative"
       title: "Client satisfaction",
       value: "Confirmation needed",
       detail: "The survey result is still being validated, so GrantDeskHQ keeps this KPI out of the report until the final value is confirmed.",
-      sources: [satisfactionStatement.source]
+      sources: satisfactionFact.sources
     });
   }
 
@@ -91,11 +120,28 @@ export function buildProgramInsights(result: Pick<CompilationResult, "narrative"
   if (leadership) insights.push(leadership);
 
   for (const check of (result.programChecks || []).filter((item) => item.type === "kpi_result" && item.severity !== "info" && item.resolution === "open")) {
+    if (/budget[- ]to[- ]actual|financial report|variance explanation/i.test(`${check.title} ${check.detail}`)) continue;
     if (insights.some((item) => similar(item.title, check.title))) continue;
     insights.push({ id: `check-${check.id}`, tone: "review", status: "Needs review", title: check.title, value: "Information required", detail: check.detail, sources: check.sources });
   }
 
   return insights;
+}
+
+export function buildProgramReadiness(result: Pick<CompilationResult, "narrative" | "requirements" | "programChecks">): ProgramReadinessSummary {
+  const insights = buildProgramInsights(result);
+  const ready = insights.filter((item) => kpiInsightIds.has(item.id) && item.tone !== "review").length;
+  const openChecks = (result.programChecks || []).filter((item) => item.resolution === "open" && item.severity !== "info");
+  const conflictFamilies = new Set(openChecks
+    .filter((item) => item.type === "data_conflict" || /conflict|inconsistent|does not match/i.test(`${item.title} ${item.detail}`))
+    .map((item) => metricIssueFamily(`${item.title} ${item.detail}`))
+    .filter(Boolean));
+  const awaitingFamilies = new Set(openChecks
+    .filter((item) => item.type === "kpi_result" && !/budget[- ]to[- ]actual|financial report|variance explanation/i.test(`${item.title} ${item.detail}`))
+    .map((item) => metricIssueFamily(`${item.title} ${item.detail}`))
+    .filter((family) => family && !conflictFamilies.has(family)));
+  if (insights.some((item) => item.id === "satisfaction-unconfirmed")) awaitingFamilies.add("p6-satisfaction");
+  return { ready, conflicts: conflictFamilies.size, awaitingConfirmation: awaitingFamilies.size };
 }
 
 export function satisfiedProgramCheckIds(result: Pick<CompilationResult, "narrative" | "requirements" | "programChecks">) {
@@ -111,7 +157,7 @@ function leadershipNotificationInsight(result: Pick<CompilationResult, "narrativ
   const requirement = result.requirements.find((item) => /program director|leadership|key personnel/i.test(item.requirement) && /business days?|notification|notify/i.test(item.requirement));
   if (!statement || !requirement || statement.status !== "verified" || requirement.status !== "verified") return null;
   const eventMatch = statement.text.match(/(?:resigned|change(?:d)?|occurred)(?:\s+(?:effective|on|as of))?\s+([A-Z][a-z]+\s+\d{1,2}(?:,\s*\d{4})?)/i);
-  const noticeMatch = statement.text.match(/notified(?:\s+(?:the\s+)?funder)?(?:\s+on)?\s+([A-Z][a-z]+\s+\d{1,2}(?:,\s*\d{4})?)/i);
+  const noticeMatch = statement.text.match(/(?:notified(?:\s+(?:the\s+)?(?:fund|funder))?|(?:the\s+)?(?:fund|funder)\s+was\s+notified)(?:\s+on)?\s+([A-Z][a-z]+\s+\d{1,2}(?:,\s*\d{4})?)/i);
   const deadlineMatch = requirement.requirement.match(/within\s+(\d+)\s+business days?/i);
   const eventDate = parseHumanDate(eventMatch?.[1], statement.text);
   const noticeDate = parseHumanDate(noticeMatch?.[1], statement.text);
@@ -123,7 +169,7 @@ function leadershipNotificationInsight(result: Pick<CompilationResult, "narrativ
     id: "leadership-notification",
     tone: timely ? "success" : "review",
     status: timely ? "Requirement satisfied · Timely" : "Timing needs review",
-    title: "Leadership-change notification",
+    title: timely ? "Program Director change reported on time" : "Program Director notification timing",
     value: timely ? `Notified within ${elapsed} business ${elapsed === 1 ? "day" : "days"}` : `${elapsed} business days elapsed`,
     detail: `Program Director change: ${humanDate(eventDate)}. Funder notified: ${humanDate(noticeDate)}. Award requirement: notify within ${deadline} business days.`,
     sources: compactSources([statement.source, requirement.source])
@@ -131,9 +177,52 @@ function leadershipNotificationInsight(result: Pick<CompilationResult, "narrativ
 }
 
 function metricTarget(value: string, metricPattern: RegExp) {
-  const relevant = value.split(/[.;]/).find((part) => metricPattern.test(part)) || value;
+  const withoutKpiLabel = value.replace(/\bP\d+\b/gi, "");
+  const relevant = withoutKpiLabel.split(/[.;]/).find((part) => metricPattern.test(part)) || withoutKpiLabel;
   const values = [...relevant.matchAll(/\b(\d[\d,]*)\b/g)].map((match) => parseNumber(match[1])).filter((item): item is number => item !== null);
   return values.find((item) => item > 0 && item < 100_000) ?? null;
+}
+
+function programFacts(result: Pick<CompilationResult, "narrative" | "programChecks">) {
+  const narrativeFacts = result.narrative
+    .filter((item) => item.status === "verified")
+    .map((item) => ({ text: item.text, sources: [item.source] }));
+  const checkedFacts = (result.programChecks || [])
+    .filter((item) => item.type === "kpi_result" && item.severity === "info" && item.status === "verified")
+    .map((item) => ({ text: `${item.title}. ${item.detail}`, sources: item.sources }));
+  return [...narrativeFacts, ...checkedFacts];
+}
+
+function findNumberFact(facts: ReturnType<typeof programFacts>, patterns: RegExp[]) {
+  for (const fact of facts) {
+    for (const pattern of patterns) {
+      const match = fact.text.match(pattern);
+      const value = parseNumber(match?.[1]);
+      if (value !== null) return { ...fact, value };
+    }
+  }
+  return null;
+}
+
+function retentionCounts(value: string) {
+  const among = value.match(/Among\s+(\d[\d,]*)[^.]*?,\s*(\d[\d,]*)\s+(?:remained|were)[^.]*(?:120\s*days|120-day)/i);
+  if (among) return { eligible: parseNumber(among[1]), retained: parseNumber(among[2]) };
+  const of = value.match(/(\d[\d,]*)\s+of\s+(\d[\d,]*)\s+eligible[^.]*(?:housed|retention)[^.]*(?:120\s*days|120-day)/i);
+  return of ? { retained: parseNumber(of[1]), eligible: parseNumber(of[2]) } : null;
+}
+
+function hasOpenMetricConflict(checks: CompilationResult["programChecks"], issue: RegExp) {
+  return Boolean(checks?.some((item) => item.resolution === "open" && item.severity !== "info" && issue.test(`${item.title} ${item.detail}`)));
+}
+
+function metricIssueFamily(value: string) {
+  if (/\bp1\b|households? served|unduplicated households?/i.test(value)) return "p1-households";
+  if (/\bp2\b|housing(?:-related| stability)? assessments?/i.test(value)) return "p2-assessments";
+  if (/\bp3\b|housing placements?|households? placed/i.test(value)) return "p3-placements";
+  if (/\bp4\b|120-day|retention/i.test(value)) return "p4-retention";
+  if (/\bp5\b|benefits? screenings?/i.test(value)) return "p5-benefits";
+  if (/\bp6\b|client satisfaction|survey result/i.test(value)) return "p6-satisfaction";
+  return "";
 }
 
 function percentValue(value: string) {

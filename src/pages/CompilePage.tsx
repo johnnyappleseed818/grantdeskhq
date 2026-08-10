@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { MAX_FILE_BYTES, MAX_TOTAL_BYTES, canGenerateReviewPackage, resultToDownload, validateCompilationRequest } from "../lib/prototype";
 import { buildFinancialExceptionSummary, buildReportAttention, machineCheckCount } from "../lib/reportAttention";
-import { buildProgramInsights, satisfiedProgramCheckIds } from "../lib/programInsights";
+import { buildProgramInsights, buildProgramReadiness, satisfiedProgramCheckIds } from "../lib/programInsights";
 import { fileRoleSuggestionKey, inspectFileRole, type FileRoleSuggestion } from "../lib/fileRoleDetection";
 import { agreementSetup, remainingSetupConflicts } from "../lib/agreementSetup";
 import { apiRequest } from "../lib/api";
@@ -618,11 +618,12 @@ function Inputs({ result, onAddSources, onResolve }: { result: CompilationResult
       <button type="button" className="button button-primary button-small" onClick={onAddSources}>Add report inputs</button>
     </div>
     {result.inputStatus.map((item) => {
-      const presentation = inputPresentation(result, item.role, item.available);
-      return <article key={item.role} className={`input-status-card ${item.available ? "is-available" : "is-missing"} ${presentation.tone === "review" ? "has-review" : ""}`}>
+      const available = item.available || (item.role === "ledgerExport" && (result.mappings.length > 0 || Boolean(result.financialAnalysis?.ledgerTransactionCount)));
+      const presentation = inputPresentation(result, item.role, available);
+      return <article key={item.role} className={`input-status-card ${available ? "is-available" : "is-missing"} ${presentation.tone === "review" ? "has-review" : ""}`}>
       {presentation.tone === "success" ? <CheckCircle2 aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
-      <div><div className="input-status-heading"><h3>{item.label}</h3><MappingStateBadge label={presentation.label} tone={presentation.tone} /></div><p>{presentation.detail || item.detail}</p>{!item.available && item.requiredForCompletion && <small>Needed before the report can be prepared for approval.</small>}</div>
-      {!item.available && <button type="button" className="button button-secondary button-small" onClick={onAddSources}>{item.actionLabel}</button>}
+      <div><div className="input-status-heading"><h3>{item.label}</h3><MappingStateBadge label={presentation.label} tone={presentation.tone} /></div><p>{presentation.detail || item.detail}</p>{!available && item.requiredForCompletion && <small>Needed before the report can be prepared for approval.</small>}</div>
+      {!available && <button type="button" className="button button-secondary button-small" onClick={onAddSources}>{item.actionLabel}</button>}
     </article>;})}
     <ProgramChecks checks={programChecks} onAddSources={onAddSources} onResolve={onResolve} />
   </div>;
@@ -689,7 +690,7 @@ function programSeverityLabel(check: NonNullable<CompilationResult["programCheck
 }
 
 function Mappings({ result, onAddSources }: { result: CompilationResult; onAddSources(): void }) {
-  const hasLedger = result.inputStatus.some((item) => item.role === "ledgerExport" && item.available);
+  const hasLedger = result.inputStatus.some((item) => item.role === "ledgerExport" && item.available) || result.mappings.length > 0 || Boolean(result.financialAnalysis?.ledgerTransactionCount);
   if (!hasLedger) return <EmptyResultState title="Accounting data is still needed" detail="Add a general-ledger export when it is available. GrantDeskHQ will then suggest grant-budget mappings and calculate the financial schedule from those source rows." action="Add accounting data" onAction={onAddSources} />;
   if (!result.mappings.length) return <EmptyResultState title="No transaction mappings are available yet" detail="GrantDeskHQ could not produce usable mapping suggestions from the current accounting file. Review the file format or add a different export." action="Review accounting data" onAction={onAddSources} />;
   const analysis = result.financialAnalysis;
@@ -773,17 +774,64 @@ function Narrative({ result, onAddSources, onReviewFinancial }: { result: Compil
   const programMissing = result.inputStatus.some((item) => item.role === "programUpdate" && !item.available);
   const financialMissing = result.inputStatus.some((item) => item.role === "ledgerExport" && !item.available);
   const programInsights = buildProgramInsights(result);
+  const programReadiness = buildProgramReadiness(result);
   const financialExceptions = buildFinancialExceptionSummary(result);
-  const narrative = result.narrative.filter((item) => !(financialExceptions.length && /financial narrative|budget-to-actual.*finalized|resolving the duplicate|blocked transactions/i.test(item.text)));
+  const hasFinancialData = !financialMissing || result.mappings.length > 0 || Boolean(result.financialAnalysis?.ledgerTransactionCount);
+  const narrative = result.narrative.filter((item) => item.status === "verified"
+    && !["needs_confirmation", "unsupported"].includes(item.evidenceType)
+    && !/^information required/i.test(item.text)
+    && !(financialExceptions.length && /financial narrative|budget-to-actual.*finalized|resolving the duplicate|blocked transactions/i.test(item.text)));
+  const unresolvedProgramItems = programReadiness.conflicts + programReadiness.awaitingConfirmation;
+  const evidenceInput = result.inputStatus.find((item) => item.role === "supportingEvidence");
+  const evidenceRequirement = findUnderlyingEvidenceRequirement(result);
+  const evidenceMissingCount = result.missingInputs.filter((item) => item.status === "open" && /evidence|documentation|record|attachment|receipt|approval/i.test(`${item.question} ${item.reason}`)).length;
+  const narrativeSourceCount = new Set(narrative.map((item) => `${item.source.sourceName}:${item.source.locator}`)).size;
+  const readinessTitle = !programMissing && hasFinancialData
+    ? financialExceptions.length
+      ? "Most program information is ready. Financial review is still in progress."
+      : unresolvedProgramItems
+        ? "Most program information is ready. A few results still need confirmation."
+        : "Program and financial information are ready for review."
+    : programMissing
+      ? "Program results are still needed."
+      : "Program information is available. Accounting data is still needed.";
+  const readinessDetail = !programMissing && hasFinancialData
+    ? `GrantDeskHQ has enough confirmed program data to draft most of this report. ${unresolvedProgramItems || "No"} program ${unresolvedProgramItems === 1 ? "item remains" : "items remain"} unresolved, and ${financialExceptions.length || "no"} financial ${financialExceptions.length === 1 ? "decision requires" : "decisions require"} review before approval.`
+    : "Add the remaining report inputs when they are available. Confirmed information can be drafted now; missing information will never be invented.";
   return <div className="grid gap-4">
-    {(programMissing || financialMissing) && <EmptyResultState title="Program and financial results are still needed" detail="You haven’t provided all current-period program results or financial activity, so GrantDeskHQ will not generate those parts of the report yet." action="Add report inputs" onAction={onAddSources} compact />}
-    {programInsights.length > 0 && <section className="program-intelligence" aria-labelledby="program-intelligence-title"><div className="program-intelligence-heading"><div><p className="eyebrow">Confirmed data + award rules</p><h3 id="program-intelligence-title">Program results at a glance</h3></div><span>{programInsights.length} cross-source checks</span></div><div className="program-intelligence-grid">{programInsights.map((insight) => <article key={insight.id} className={`program-insight ${insight.tone}`}><div className="program-insight-top"><MappingStateBadge label={insight.status} tone={insight.tone} /><small>{insight.sources.map((source) => `${source.sourceName} · ${source.locator}`).join(" + ")}</small></div><h4>{insight.title}</h4><strong className="program-insight-value">{insight.value}</strong><p>{insight.detail}</p></article>)}</div></section>}
-    {financialExceptions.length > 0 && <section className="financial-draft-readiness" aria-labelledby="financial-draft-readiness-title"><div><p className="eyebrow">Financial section not ready</p><h3 id="financial-draft-readiness-title">{financialExceptions.length} {financialExceptions.length === 1 ? "issue remains" : "issues remain"}</h3><ul>{financialExceptions.map((item) => <li key={item.id}><AlertTriangle aria-hidden="true" /><span><strong>{item.title}</strong>{item.detail}</span></li>)}</ul></div><button type="button" className="button button-secondary" onClick={onReviewFinancial}>Review financial exceptions <ArrowRight aria-hidden="true" /></button></section>}
-    {narrative.length ? <section className="source-linked-draft" aria-labelledby="source-linked-draft-title"><div className="draft-section-heading"><p className="eyebrow">Data → interpretation → draft</p><h3 id="source-linked-draft-title">Source-linked draft language</h3><p>Each paragraph stays separate from the evidence used to support it.</p></div><div className="compiled-list">{narrative.map((item) => <article key={item.id}>
-      <div className="compiled-list-main"><ReviewLabel status={item.status} /><div><p className="eyebrow">Draft language · {humanEvidenceType(item.evidenceType)}</p><h3 className={item.status === "blocked" ? "text-redBlocked-700 line-through" : ""}>{item.text}</h3></div></div>
-      <div><p className="eyebrow draft-evidence-label">Supporting evidence</p><Source reference={item.source} /></div>
-    </article>)}</div></section> : <p className="empty-copy">No source-supported narrative can be drafted from the current inputs.</p>}
+    <section className="draft-readiness-overview" aria-labelledby="draft-readiness-title">
+      <div className="draft-readiness-heading"><div><p className="eyebrow">Report readiness</p><h3 id="draft-readiness-title">{readinessTitle}</h3><p>{readinessDetail}</p></div>{(programMissing || !hasFinancialData) && <button type="button" className="button button-secondary button-small" onClick={onAddSources}>Add report inputs</button>}</div>
+      <div className="draft-readiness-grid">
+        <article><span>Program readiness</span><strong>{programReadiness.ready} KPIs ready</strong><p>{programReadiness.conflicts} {programReadiness.conflicts === 1 ? "conflict" : "conflicts"} · {programReadiness.awaitingConfirmation} awaiting confirmation</p></article>
+        <article><span>Financial readiness</span><strong>{result.financialAnalysis ? "Budget-to-actual calculated" : hasFinancialData ? "Budget-to-actual pending review" : "Accounting data needed"}</strong><p>{financialExceptions.length} grouped {financialExceptions.length === 1 ? "decision" : "decisions"} remaining</p></article>
+        <article><span>Evidence readiness</span><strong>{narrativeSourceCount} narrative {narrativeSourceCount === 1 ? "source" : "sources"} linked</strong><p>{evidenceInput?.available ? "Supporting files available for review" : evidenceRequirement ? `${evidenceMissingCount || "Required"} underlying evidence ${evidenceMissingCount === 1 ? "item is" : "items are"} still needed` : "No separate evidence gap identified"}</p></article>
+      </div>
+    </section>
+    {programInsights.length > 0 && <section className="program-intelligence" aria-labelledby="program-intelligence-title"><div className="program-intelligence-heading"><div><p className="eyebrow">Confirmed data + award rules</p><h3 id="program-intelligence-title">Program results at a glance</h3></div><span>{programInsights.length} cross-source checks</span></div><div className="program-intelligence-grid">{programInsights.map((insight) => <article key={insight.id} className={`program-insight ${insight.tone}`}><div className="program-insight-top"><MappingStateBadge label={insight.status} tone={insight.tone} /><small>Sources: {insight.sources.map((source) => `${source.sourceName} · ${source.locator}`).join(" + ")}</small></div><h4>{insight.title}</h4><strong className="program-insight-value">{insight.value}</strong><p>{insight.detail}</p></article>)}</div></section>}
+    {hasFinancialData && financialExceptions.length > 0 && <section className="financial-draft-readiness" aria-labelledby="financial-draft-readiness-title"><div><p className="eyebrow">Financial readiness</p><h3 id="financial-draft-readiness-title">{result.financialAnalysis ? `Financial section needs ${financialExceptions.length} ${financialExceptions.length === 1 ? "decision" : "decisions"}` : "Budget-to-actual pending financial review"}</h3><p className="financial-readiness-copy">{result.financialAnalysis ? "GrantDeskHQ calculated the budget-to-actual schedule from the approved award budget and uploaded ledger. Routine transactions are already mapped; only these exceptions need attention." : "GrantDeskHQ will generate the required budget-to-actual schedule from the approved award budget and uploaded ledger once the remaining transaction exceptions are resolved."}</p><ul>{financialExceptions.map((item) => <li key={item.id}><AlertTriangle aria-hidden="true" /><span><strong>{item.title}</strong>{item.detail}</span></li>)}</ul></div><button type="button" className="button button-secondary" onClick={onReviewFinancial}>Review financial exceptions <ArrowRight aria-hidden="true" /></button></section>}
+    {narrative.length ? <section className="source-linked-draft" aria-labelledby="source-linked-draft-title"><div className="draft-section-heading"><p className="eyebrow">Data → interpretation → draft</p><h3 id="source-linked-draft-title">Source-linked draft language</h3><p>Confirmed facts, their narrative source, and any underlying evidence requirement remain visibly separate.</p></div><div className="compiled-list">{narrative.map((item) => {
+      const underlyingEvidence = narrativeEvidenceState(result, item, evidenceRequirement);
+      return <article key={item.id}>
+        <div className="compiled-list-main"><div><div className="draft-status-row"><MappingStateBadge label="Narrative source verified" tone="success" /><MappingStateBadge label="Draft ready for review" tone="neutral" /></div><p className="eyebrow">Draft language · {humanEvidenceType(item.evidenceType)}</p><h3>{item.text}</h3></div></div>
+        <div className="draft-source-column"><p className="eyebrow draft-evidence-label">Source for this draft</p><Source reference={item.source} /><div className={`underlying-evidence-state ${underlyingEvidence.tone}`}><p className="eyebrow">Required underlying evidence</p><strong>{underlyingEvidence.label}</strong><p>{underlyingEvidence.detail}</p></div></div>
+      </article>;
+    })}</div></section> : <p className="empty-copy">No source-supported narrative can be drafted from the current inputs.</p>}
   </div>;
+}
+
+function findUnderlyingEvidenceRequirement(result: CompilationResult) {
+  const verified = result.requirements.filter((item) => item.status === "verified");
+  return verified.find((item) => /KPI[^.]{0,100}(?:evidence|records?)|evidence index|reported (?:KPI|outcome|program)[^.]{0,100}(?:source|evidence|records?)/i.test(`${item.requirement} ${item.source.excerpt}`))
+    || verified.find((item) => /(?:program|participant|outcome|KPI)[^.]{0,120}(?:supporting evidence|underlying (?:source|evidence)|case-management records?|attendance records?)/i.test(`${item.requirement} ${item.source.excerpt}`));
+}
+
+function narrativeEvidenceState(result: CompilationResult, item: CompilationResult["narrative"][number], evidenceRequirement: CompilationResult["requirements"][number] | undefined) {
+  const isKpiClaim = /households?|participants?|KPI|retention|assessments?|screenings?|placed|served|outcomes?/i.test(item.text);
+  if (!isKpiClaim || !evidenceRequirement) return { tone: "neutral", label: "No separate requirement identified", detail: "The uploaded award did not identify a separate underlying-evidence requirement for this statement." };
+  const available = result.inputStatus.some((input) => input.role === "supportingEvidence" && input.available);
+  return available
+    ? { tone: "success", label: "Supporting files available", detail: "Confirm that the appropriate uploaded record supports this statement before approval." }
+    : { tone: "review", label: "Not yet uploaded", detail: `The narrative source supports this draft, but the award also requires underlying records: ${evidenceRequirement.requirement}` };
 }
 
 function Review({ result, onResolve, onDownload, onEditSetup, onAddSources }: { result: CompilationResult; onResolve(id: string, resolution?: "resolved" | "not_applicable"): void; onDownload(): void; onEditSetup(): void; onAddSources(): void }) {

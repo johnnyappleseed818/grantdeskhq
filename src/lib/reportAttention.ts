@@ -35,6 +35,7 @@ export function buildReportAttention(result: CompilationResult): ReportAttention
 
   const financialEvidenceAction = financialExceptions.some((item) => /approval|support|evidence/i.test(`${item.title} ${item.detail}`));
   for (const input of result.inputStatus.filter((item) => item.requiredForCompletion && !item.available)) {
+    if (input.role === "ledgerExport" && (result.mappings.length > 0 || Boolean(result.financialAnalysis?.ledgerTransactionCount))) continue;
     if (input.role === "supportingEvidence" && financialEvidenceAction) continue;
     items.push({ id: `input-${input.role}`, kind: "input", title: `Add ${input.label.toLowerCase()}`, detail: input.detail });
   }
@@ -49,7 +50,7 @@ export function buildReportAttention(result: CompilationResult): ReportAttention
 
 export function buildFinancialExceptionSummary(result: CompilationResult): FinancialExceptionItem[] {
   const items: FinancialExceptionItem[] = [];
-  const categoryExceptions = uniqueByTransaction(result.mappings.filter((mapping) => mapping.reportTreatment === "needs_category_review"));
+  const categoryExceptions = uniqueByTransaction(result.mappings.filter((mapping) => mapping.reportTreatment === "needs_category_review" && genuinelyNeedsCategory(mapping)));
   if (categoryExceptions.length) {
     items.push({
       id: "transaction-category-exceptions",
@@ -108,6 +109,13 @@ export function buildFinancialExceptionSummary(result: CompilationResult): Finan
     });
   }
   return items;
+}
+
+function genuinelyNeedsCategory(mapping: CompilationResult["mappings"][number]) {
+  const category = (mapping.suggestedCategory || "").trim();
+  const explanation = `${mapping.rationale} ${mapping.complianceDetail || ""}`;
+  if (!category || /^(?:unmapped|unknown|information required|no category)/i.test(category)) return true;
+  return mapping.reviewReason === "ambiguous" || /insufficient detail|cannot determine|unable to determine|ambiguous|no approved category|not listed in the approved budget/i.test(explanation);
 }
 
 export function machineCheckCount(result: CompilationResult) {

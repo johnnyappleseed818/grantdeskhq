@@ -106,4 +106,35 @@ describe("report review trust states", () => {
     expect(within(program!).getByText("Available · 1 item needs review")).toBeInTheDocument();
     expect(within(award!).getByText("Verified")).toBeInTheDocument();
   });
+
+  it("separates narrative sources from underlying evidence and keeps unconfirmed text out of the draft", () => {
+    const source = { sourceName: "BridgeWorks_Program_Update.docx", locator: "Section 2", excerpt: "172 households served; satisfaction survey under validation." };
+    const result = {
+      ...prototypeFixture,
+      inputStatus: prototypeFixture.inputStatus.map((item) => item.role === "supportingEvidence" ? { ...item, available: false } : item),
+      requirements: [...prototypeFixture.requirements, {
+        id: "KPI-EVIDENCE", requirement: "Maintain an evidence index linking every reported KPI to its underlying source records.",
+        source: { sourceName: "Northstar_Award.docx", locator: "Section 10", excerpt: "Maintain an evidence index linking each KPI to an underlying source." },
+        confidence: 0.99, status: "verified" as const
+      }],
+      narrative: [
+        { id: "READY", text: "BridgeWorks reported serving 172 unduplicated households during the reporting period.", evidenceType: "program_response" as const, source, status: "verified" as const },
+        { id: "P6", text: "Information required: Finalize the client-satisfaction result before submission.", evidenceType: "needs_confirmation" as const, source, status: "verified" as const }
+      ],
+      programChecks: [{
+        id: "P6", type: "kpi_result" as const, title: "P6 — Client satisfaction", detail: "The survey result remains under validation.",
+        action: "Confirm the final result.", owner: "Program" as const, severity: "review" as const, sources: [source], resolution: "open" as const, status: "verified" as const
+      }],
+      financialAnalysis: { ledgerTransactionCount: 1, mappedTransactionCount: 1, excludedTransactionCount: 0, mappedActualTotal: 100, budgetVariances: [], controls: [] }
+    };
+    render(<CompilerResults result={result} activeTab="narrative" {...actions} />);
+    expect(screen.getByRole("heading", { name: "Most program information is ready. Financial review is still in progress." })).toBeInTheDocument();
+    expect(screen.getByText("Source for this draft")).toBeInTheDocument();
+    expect(screen.getByText("Required underlying evidence")).toBeInTheDocument();
+    expect(screen.getByText("Narrative source verified")).toBeInTheDocument();
+    expect(screen.getByText("Not yet uploaded")).toBeInTheDocument();
+    const draft = screen.getByRole("heading", { name: "Source-linked draft language" }).closest("section");
+    expect(draft).not.toBeNull();
+    expect(within(draft!).queryByText(/Finalize the client-satisfaction result/)).not.toBeInTheDocument();
+  });
 });

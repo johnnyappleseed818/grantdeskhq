@@ -145,6 +145,19 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
     ]);
   });
 
+  it("does not turn legacy routine mapping states back into row-by-row category work", () => {
+    const legacyResult: CompilationResult = {
+      ...checked,
+      mappings: checked.mappings.map((mapping) => mapping.mappingConfidence === "high"
+        ? { ...mapping, status: "blocked" as const, reportTreatment: "needs_category_review" as const, requiresHumanAction: true }
+        : mapping)
+    };
+    const categoryAction = buildReportAttention(legacyResult).find((item) => item.id === "transaction-category-exceptions");
+    expect(categoryAction).toMatchObject({ title: "1 transaction needs a category decision" });
+    expect(categoryAction?.detail).toContain("BW-AMB-001");
+    expect(categoryAction?.detail).not.toContain("BW-PAY-001");
+  });
+
   it("recognizes and parses the uploaded GL workbook even when it was placed in the budget field", async () => {
     const buffer = await writeExcelFile([
       ["Transaction ID", "Date", "Account", "Description", "Amount"].map((value) => ({ value })),

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { prototypeFixture } from "../data/prototypeFixture";
-import { buildProgramInsights, satisfiedProgramCheckIds } from "../lib/programInsights";
+import { buildProgramInsights, buildProgramReadiness, satisfiedProgramCheckIds } from "../lib/programInsights";
 import type { CompilationResult, NarrativeStatement } from "../types/prototype";
 
 const programSource = { sourceName: "BridgeWorks_Program_Update.docx", locator: "Page 2", excerpt: "Synthetic demonstration data — current program results." };
@@ -49,7 +49,7 @@ describe("program intelligence", () => {
 
   it("cross-checks the leadership notification against the award deadline", () => {
     const notification = buildProgramInsights(result).find((item) => item.id === "leadership-notification");
-    expect(notification).toMatchObject({ status: "Requirement satisfied · Timely", value: "Notified within 2 business days", tone: "success" });
+    expect(notification).toMatchObject({ title: "Program Director change reported on time", status: "Requirement satisfied · Timely", value: "Notified within 2 business days", tone: "success" });
     expect(notification?.sources.map((source) => source.sourceName)).toEqual([programSource.sourceName, awardSource.sourceName]);
   });
 
@@ -63,6 +63,30 @@ describe("program intelligence", () => {
       }]
     };
     expect([...satisfiedProgramCheckIds(withOpenModelCheck)]).toEqual(["STAFF-1"]);
+  });
+
+  it("recognizes natural program-update wording and summarizes only reportable KPIs", () => {
+    const naturalResult: CompilationResult = {
+      ...result,
+      narrative: [
+        statement("N-10", "BridgeWorks reported serving 172 unduplicated households during the reporting period, with 98 households placed into stable housing and 40 of 49 eligible placed households stably housed at 120 days."),
+        statement("N-11", "The Program Director resigned effective June 10, 2027; the Fund was notified June 14, 2027, and an Interim Program Director was appointed June 15, 2027."),
+        { ...statement("N-12", "Information required: Finalize the client-satisfaction result; the satisfaction-survey dataset remains under validation."), evidenceType: "needs_confirmation" }
+      ],
+      programChecks: [
+        { id: "P2-CONFLICT", type: "data_conflict", title: "P2 — Housing stability assessments completed", detail: "The KPI table reports 158 while the activities section reports 160 assessments completed.", action: "Validate the result.", owner: "Program", severity: "review", sources: [programSource], resolution: "open", status: "verified" },
+        { id: "P5-READY", type: "kpi_result", title: "P5 — Benefits screenings", detail: "139 households completed benefits screenings during the reporting period.", action: "No action needed.", owner: "Program", severity: "info", sources: [programSource], resolution: "open", status: "verified" },
+        { id: "P6-WAIT", type: "kpi_result", title: "P6 — Client satisfaction", detail: "The survey result remains under validation.", action: "Confirm the final result.", owner: "Program", severity: "review", sources: [programSource], resolution: "open", status: "verified" }
+      ]
+    };
+    const insights = buildProgramInsights(naturalResult);
+    expect(insights.find((item) => item.id === "households-served")).toMatchObject({ value: "172 of 300" });
+    expect(insights.find((item) => item.id === "housing-placements")).toMatchObject({ value: "98 of 180" });
+    expect(insights.find((item) => item.id === "benefits-screenings")).toMatchObject({ value: "139 of 240" });
+    expect(insights.find((item) => item.id === "housing-retention")).toMatchObject({ value: "81.6% · target 80%", status: "Target achieved" });
+    expect(insights.find((item) => item.id === "housing-assessments")).toBeUndefined();
+    expect(insights.find((item) => item.id === "leadership-notification")).toMatchObject({ status: "Requirement satisfied · Timely", value: "Notified within 2 business days" });
+    expect(buildProgramReadiness(naturalResult)).toEqual({ ready: 4, conflicts: 1, awaitingConfirmation: 1 });
   });
 });
 

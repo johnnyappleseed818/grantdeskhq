@@ -2473,6 +2473,44 @@
     border-radius: .75rem;
   }
 
+  .draft-readiness-overview {
+    @apply grid gap-5 border border-slate-200 bg-white p-5 shadow-sm;
+    border-radius: .9rem;
+  }
+
+  .draft-readiness-heading {
+    @apply flex flex-col items-start justify-between gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-center;
+  }
+
+  .draft-readiness-heading h3 {
+    @apply mt-1 max-w-3xl text-xl font-semibold leading-7 text-navy-950;
+  }
+
+  .draft-readiness-heading p:last-child {
+    @apply mt-2 max-w-4xl text-sm leading-6 text-slate-600;
+  }
+
+  .draft-readiness-grid {
+    @apply grid gap-3 md:grid-cols-3;
+  }
+
+  .draft-readiness-grid article {
+    @apply border border-slate-200 bg-slate-50 p-4;
+    border-radius: .7rem;
+  }
+
+  .draft-readiness-grid article > span {
+    @apply text-[11px] font-semibold uppercase tracking-[.12em] text-slate-500;
+  }
+
+  .draft-readiness-grid article > strong {
+    @apply mt-2 block text-base font-semibold text-navy-950;
+  }
+
+  .draft-readiness-grid article > p {
+    @apply mt-1 text-xs leading-5 text-slate-600;
+  }
+
   .program-intelligence {
     @apply grid gap-4 border border-emeraldMuted-100 bg-[#f5f9f6] p-5;
     border-radius: .9rem;
@@ -2538,6 +2576,10 @@
     @apply mt-4 grid gap-2 sm:grid-cols-2;
   }
 
+  .financial-readiness-copy {
+    @apply mt-2 max-w-3xl text-sm leading-6 text-slate-600;
+  }
+
   .financial-draft-readiness li {
     @apply grid grid-cols-[18px_1fr] gap-2 border border-amberReview-200 bg-white p-3 text-xs leading-5 text-slate-600;
     border-radius: .6rem;
@@ -2565,6 +2607,35 @@
 
   .draft-evidence-label {
     @apply mb-2 text-emeraldMuted-700;
+  }
+
+  .draft-status-row {
+    @apply mb-3 flex flex-wrap gap-2;
+  }
+
+  .draft-source-column {
+    @apply grid content-start gap-3;
+  }
+
+  .underlying-evidence-state {
+    @apply border border-slate-200 bg-slate-50 p-4;
+    border-radius: .65rem;
+  }
+
+  .underlying-evidence-state.review {
+    @apply border-amberReview-200 bg-amberReview-50/60;
+  }
+
+  .underlying-evidence-state.success {
+    @apply border-emerald-200 bg-emerald-50/60;
+  }
+
+  .underlying-evidence-state > strong {
+    @apply mt-1 block text-sm font-semibold text-navy-900;
+  }
+
+  .underlying-evidence-state > p:last-child {
+    @apply mt-1 text-xs leading-5 text-slate-600;
   }
 
   .prototype-warning {
