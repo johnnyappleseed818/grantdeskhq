@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { canGenerateReviewPackage } from "../src/lib/prototype.ts";
 import type { CompilationRequest, CompilationResult, SavedReportSummary } from "../src/types/prototype.ts";
-import type { DailySocialScan } from "../src/lib/gtm.ts";
+import type { AwardDiscoveryScan, DailySocialScan } from "../src/lib/gtm.ts";
 import type { AuthenticatedUser } from "./auth.ts";
 import type { BillingEventSnapshot } from "./billing.ts";
 
@@ -100,6 +100,26 @@ export async function readGtmDailyScan(): Promise<DailySocialScan | null> {
   const record = decodeFields(document.fields || {});
   if (!record.scanJson) return null;
   return JSON.parse(String(record.scanJson)) as DailySocialScan;
+}
+
+export async function saveGtmAwardScan(scan: AwardDiscoveryScan) {
+  const accessToken = await gcpToken();
+  await writeDocument(accessToken, "gtm/daily-awards", {
+    generatedAt: scan.generatedAt,
+    itemCount: scan.opportunities.length,
+    scanJson: JSON.stringify(scan)
+  });
+  return scan;
+}
+
+export async function readGtmAwardScan(): Promise<AwardDiscoveryScan | null> {
+  const response = await authorizedFetch(`${firestoreBase}/gtm/daily-awards`, await gcpToken());
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Daily GTM award signals could not be loaded (${response.status}).`);
+  const document = await response.json() as { fields?: Record<string, FirestoreValue> };
+  const record = decodeFields(document.fields || {});
+  if (!record.scanJson) return null;
+  return JSON.parse(String(record.scanJson)) as AwardDiscoveryScan;
 }
 
 export async function saveBillingEvent(snapshot: BillingEventSnapshot) {

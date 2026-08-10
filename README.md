@@ -73,8 +73,8 @@ when those are available.
 - `pdf-lib` for synthetic PDF generation
 - `write-excel-file` for XLSX generation and `read-excel-file` for asset verification
 - ESLint 9 flat configuration
-- Official USAspending API scanner for bounded federal nonprofit-award alerts
-- Scheduled GitHub Actions refresh for the static GTM award feed
+- Official USAspending API scanner for a paginated 90-day federal nonprofit-award search starting at $25,000
+- Scheduled production refresh for the private GTM award feed, plus a static-feed command for local and Pages review
 - Daily Google Cloud Scheduler trigger for bounded OpenAI web-search discovery across indexed Reddit and LinkedIn results
 - System font stack and no external images or fonts
 - Consent-aware Google Analytics and Microsoft Clarity on public marketing pages, with private application content masked or excluded
@@ -338,7 +338,10 @@ npm audit
   for every public application route.
 - `npm run gtm:awards` replaces only the generated
   `public/gtm/award-signals.json` feed after a successful, non-empty official
-  USAspending response. It does not discover contacts or send messages.
+  USAspending response. By default it checks up to four 100-record pages across
+  a 90-day window, includes nonprofit awards from $25,000, and retains
+  emerging, core, and adjacent candidates for review. It does not discover
+  contacts or send messages.
 - `npm run preview -- --host 127.0.0.1 --port 4173` serves the production
   build for runtime route and download verification.
 - The current npm advisory database flags React Router's server/RSC action
@@ -483,20 +486,19 @@ gcloud run deploy grantdeskhq-prototype \
 ```
 
 The deployed service is `grantdeskhq-prototype` in
-`grantdeskhq-proto-ek-2026`; the current verified revision is
-`grantdeskhq-prototype-00012-987`. It scales to zero when idle and is capped at
-two instances. Its `/api/health`, `/gtm`, and `/readiness` routes returned HTTP
-200 in the final audit; an unauthenticated request to
-`/api/readiness-assessment` correctly returned HTTP 401. Domain mapping and DNS
-changes are deliberately separate release steps.
+`grantdeskhq-proto-ek-2026`. It scales to zero when idle and is capped at two
+instances. Record the verified revision after each deployment and test
+`/api/health`, `/gtm`, `/readiness`, and the private API authorization gates.
+Domain mapping and DNS changes are deliberately separate release steps.
 
 The `grantdeskhq-daily-social-scan` Cloud Scheduler job runs at 13:35 UTC.
 It invokes `/api/gtm/daily-scan` with the dedicated
-`grantdeskhq-gtm-scheduler` identity. The endpoint runs one bounded OpenAI
-Responses API web-search workflow, accepts only Reddit or LinkedIn post URLs
-present in the returned search-source list, deduplicates them, marks every item
-research-only, and saves the latest scan in Firestore. The first live run
-completed with HTTP 200 on August 6, 2026.
+`grantdeskhq-gtm-scheduler` identity. The endpoint runs the bounded Reddit and
+LinkedIn search and the official USAspending award scan independently, saves
+successful results to separate private Firestore records, and preserves the
+last good result if one source is delayed. Social results stay research-only;
+award candidates stay blocked until a named recipient and authoritative role
+and email sources are attached.
 
 ## Netlify deployment
 

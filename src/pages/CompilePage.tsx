@@ -311,6 +311,7 @@ export function CompilePage() {
     });
     setPreflightKey("");
     setError("");
+    window.requestAnimationFrame(() => document.getElementById("report-workflow-title")?.scrollIntoView({ block: "center", behavior: "smooth" }));
   };
 
   const replaceAwardAgreement = () => {
@@ -377,7 +378,7 @@ export function CompilePage() {
 
         <form className="compile-form" onSubmit={submit}>
           <ol className="wizard-progress" aria-label="Getting started steps">
-            {["Report", "Sources", "Check", "Draft"].map((label, index) => {
+            {["Report", "Sources", "Review", "Draft"].map((label, index) => {
               const number = index + 1;
               return <li key={label} className={wizardStep === number ? "is-current" : wizardStep > number ? "is-complete" : ""}><button type="button" onClick={() => number < wizardStep && setWizardStep(number)} disabled={number > wizardStep} aria-current={wizardStep === number ? "step" : undefined}><span>{wizardStep > number ? <CheckCircle2 aria-hidden="true" /> : number}</span>{label}</button></li>;
             })}
@@ -659,13 +660,16 @@ export function ReportingSchedule({ periods, selectedPeriodId, onSelect }: {
       <CalendarClock aria-hidden="true" />
       <div><strong>{ordered.length} reporting {ordered.length === 1 ? "obligation" : "obligations"} identified</strong><p>Select a report to configure its dates and required work.</p></div>
     </div>
-    <div className="setup-schedule-list">
-      {ordered.map((period) => <button key={period.id} type="button" className={period.id === selectedPeriodId ? "is-selected" : ""} aria-pressed={period.id === selectedPeriodId} onClick={() => onSelect(period)}>
-        <CheckCircle2 aria-hidden="true" />
-        <span><strong>{period.title}</strong><small>{humanDateRange(period.startDate, period.endDate)}{isUsableDate(period.dueDate) ? ` · Due ${humanDate(period.dueDate)}` : ""}</small></span>
-        <ArrowRight aria-hidden="true" />
-      </button>)}
-    </div>
+    <details className="setup-schedule-details">
+      <summary>View reporting schedule <ArrowRight aria-hidden="true" /></summary>
+      <div className="setup-schedule-list">
+        {ordered.map((period) => <button key={period.id} type="button" className={period.id === selectedPeriodId ? "is-selected" : ""} aria-pressed={period.id === selectedPeriodId} onClick={() => onSelect(period)}>
+          <CheckCircle2 aria-hidden="true" />
+          <span><strong>{period.title}</strong><small>{humanDateRange(period.startDate, period.endDate)}{isUsableDate(period.dueDate) ? ` · Due ${humanDate(period.dueDate)}` : ""}</small></span>
+          <ArrowRight aria-hidden="true" />
+        </button>)}
+      </div>
+    </details>
   </section>;
 }
 

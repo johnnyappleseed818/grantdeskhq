@@ -8,7 +8,9 @@ import {
   assessOpportunityAccuracy,
   canMoveToContacted,
   findDuplicateOpportunities,
+  rankGtmOpportunities,
   scoreOpportunity,
+  type AwardDiscoveryScan,
   type GtmOpportunity
 } from "../lib/gtm";
 import type { DailySocialScan } from "../lib/gtm";
@@ -46,6 +48,13 @@ describe("GTM opportunity accuracy", () => {
     const accuracy = assessOpportunityAccuracy(withoutContact);
     expect(accuracy.readyForAction).toBe(false);
     expect(accuracy.blockers.join(" ")).toMatch(/named recipient and verified email/i);
+  });
+
+  it("keeps verified action-ready leads above unverified research candidates", () => {
+    const candidate: GtmOpportunity = { ...initialOpportunities[0], id: "research-candidate", primaryContact: undefined };
+    const ranked = rankGtmOpportunities([candidate, initialOpportunities[0]]);
+    expect(ranked[0].id).toBe(initialOpportunities[0].id);
+    expect(ranked[1].id).toBe("research-candidate");
   });
 
   it("detects duplicate organization signals without silently merging them", () => {
@@ -95,6 +104,25 @@ describe("GTM command center", () => {
       status: "research_only"
     }]
   };
+  const awardCandidate: GtmOpportunity = {
+    ...initialOpportunities[0],
+    id: "usaspending-research-candidate",
+    organization: "Community Action Network",
+    primaryContact: undefined,
+    targetTier: "emerging",
+    amount: 75_000,
+    evidence: [{ ...initialOpportunities[0].evidence[0], id: "award-source", authority: "official", title: "USAspending award" }]
+  };
+  const awardScan: AwardDiscoveryScan = {
+    generatedAt: "2026-08-10T08:00:00.000Z",
+    source: "https://api.usaspending.gov/api/v2/search/spending_by_award/",
+    criteria: { startDate: "2026-05-12", endDate: "2026-08-10", minimumAward: 25_000, recipientTypes: ["Nonprofit Organization"], awardTypes: ["02", "03", "04", "05"], pageSize: 100, maxPages: 4, maxCandidates: 100 },
+    recordsChecked: 100,
+    pagesChecked: 1,
+    coverage: "100 recent federal grant records checked.",
+    opportunities: [awardCandidate],
+    limitations: ["Contacts require verification."]
+  };
 
   it("renders the alert queue, source evidence, and no-send boundary", async () => {
     const user = userEvent.setup();
@@ -142,5 +170,17 @@ describe("GTM command center", () => {
     expect(screen.getByRole("heading", { name: "1 source-linked result" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Manual grant reporting workflow/i })).toHaveAttribute("href", dailyScan.items[0].url);
     expect(screen.getAllByText("research only").length).toBeGreaterThan(0);
+  });
+
+  it("shows expanded award candidates without allowing unverified outreach", async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><GtmDashboardContent initialAwardScan={awardScan} /></MemoryRouter>);
+    expect(screen.getByRole("heading", { name: "Community Action Network" })).toBeInTheDocument();
+    expect(screen.getByText("emerging target")).toBeInTheDocument();
+    const card = screen.getByRole("heading", { name: "Community Action Network" }).closest("article")!;
+    expect(card.textContent).toMatch(/Contact research needed/i);
+    await user.click(screen.getByRole("tab", { name: "Outreach automation" }));
+    expect(screen.getByRole("heading", { name: /Automate the research and drafting/i })).toBeInTheDocument();
+    expect(screen.getByText("Email delivery and follow-up").closest("article")?.textContent).toMatch(/Not connected/i);
   });
 });

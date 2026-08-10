@@ -47,6 +47,17 @@
       "No professional reviewer is available"
     ]
   },
+  "awardDiscovery": {
+    "minimumAward": 25000,
+    "lookbackDays": 90,
+    "maximumCandidates": 100,
+    "segments": {
+      "core": "Nonprofits with awards from $100,000 to $10 million and a visible finance/program reporting handoff.",
+      "emerging": "Nonprofits with awards from $25,000 to $99,999 that may need a lower-cost entry plan.",
+      "adjacent": "Higher education, healthcare, research, and very large recipients retained for fit verification instead of being silently excluded."
+    },
+    "hardOutreachGate": "A named current recipient, authoritative role source, authoritative email source, and reviewed draft are required before outreach."
+  },
   "offer": {
     "name": "Historical Report Assessment",
     "cta": "Test one completed historical report",

@@ -68,6 +68,7 @@ describe("agreement-driven report setup", () => {
     const select = vi.fn();
     render(<ReportingSchedule periods={periods} selectedPeriodId="RP1" onSelect={select} />);
     expect(screen.getByText("4 reporting obligations identified")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("View reporting schedule"));
     expect(screen.getAllByRole("button")).toHaveLength(4);
     fireEvent.click(screen.getByRole("button", { name: /Interim Report 2/i }));
     expect(select).toHaveBeenCalledWith(periods[1]);

@@ -2,6 +2,7 @@ export type SignalKind = "grant_award" | "job_posting" | "excel_pain" | "competi
 export type SourceAuthority = "official" | "employer" | "professional" | "community" | "review_platform";
 export type OpportunityStage = "new" | "reviewing" | "ready" | "contacted" | "replied" | "converted" | "dismissed";
 export type SocialPlatform = "reddit" | "linkedin";
+export type TargetTier = "core" | "emerging" | "adjacent";
 
 export interface DailySocialSignal {
   id: string;
@@ -25,6 +26,28 @@ export interface DailySocialScan {
   sourceCount: number;
   coverage: string;
   items: DailySocialSignal[];
+  limitations: string[];
+}
+
+export interface AwardDiscoveryCriteria {
+  startDate: string;
+  endDate: string;
+  minimumAward: number;
+  recipientTypes: string[];
+  awardTypes: string[];
+  pageSize: number;
+  maxPages: number;
+  maxCandidates: number;
+}
+
+export interface AwardDiscoveryScan {
+  generatedAt: string;
+  source: string;
+  criteria: AwardDiscoveryCriteria;
+  recordsChecked: number;
+  pagesChecked: number;
+  coverage: string;
+  opportunities: GtmOpportunity[];
   limitations: string[];
 }
 
@@ -67,6 +90,10 @@ export interface GtmOpportunity {
   awardStartDate?: string;
   funder?: string;
   location?: string;
+  awardEndDate?: string;
+  assistanceListing?: string;
+  targetTier?: TargetTier;
+  fitSignals?: string[];
   evidence: GtmEvidence[];
   score: OpportunityScoringInput;
   entityVerified: boolean;
@@ -99,7 +126,7 @@ export function scoreOpportunity(input: OpportunityScoringInput) {
   }, 0);
 }
 
-export function assessOpportunityAccuracy(opportunity: GtmOpportunity, today = "2026-08-06"): OpportunityAccuracy {
+export function assessOpportunityAccuracy(opportunity: GtmOpportunity, today = new Date().toISOString().slice(0, 10)): OpportunityAccuracy {
   const score = scoreOpportunity(opportunity.score);
   const blockers: string[] = [];
   const warnings: string[] = [];
@@ -135,6 +162,15 @@ export function assessOpportunityAccuracy(opportunity: GtmOpportunity, today = "
   else if (score >= 55) label = "medium";
 
   return { score, label, confidence, readyForAction, blockers, warnings };
+}
+
+export function rankGtmOpportunities(opportunities: GtmOpportunity[]) {
+  return [...opportunities].sort((left, right) => {
+    const leftAccuracy = assessOpportunityAccuracy(left);
+    const rightAccuracy = assessOpportunityAccuracy(right);
+    if (leftAccuracy.readyForAction !== rightAccuracy.readyForAction) return rightAccuracy.readyForAction ? 1 : -1;
+    return rightAccuracy.score - leftAccuracy.score || left.organization.localeCompare(right.organization);
+  });
 }
 
 export function findDuplicateOpportunities(opportunities: GtmOpportunity[]) {

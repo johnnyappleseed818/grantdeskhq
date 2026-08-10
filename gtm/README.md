@@ -19,7 +19,7 @@ The entry point is not broad grant management. It is the repetitive work between
 - A dedicated Resend segment, exact recipient-count verification, and Broadcast creation
 - Resend-managed unsubscribe links
 - Optional metadata-only Reddit monitoring through approved Data API access
-- Daily federal nonprofit-award discovery through the official USAspending API
+- Daily federal nonprofit-award discovery through the official USAspending API, with core, emerging, and adjacent research tiers
 - One bounded daily OpenAI web-search check for recent indexed Reddit and LinkedIn post URLs
 - A source-backed daily hot list with transparent Pain × Timing × Fit × Value scoring
 - Browser-saved review, ready, contacted, replied, converted, and dismissed states
@@ -47,9 +47,10 @@ The entry point is not broad grant management. It is the repetitive work between
 - `LINKEDIN_PLAYBOOK.md` — manual community discovery and contribution workflow
 - `COMPLIANCE.md` — channel rules and implementation boundaries
 - `generated/` — refreshed summaries, queues, scoring, and email preview
-- `../public/gtm/award-signals.json` — generated official-source alert feed consumed by the dashboard
+- `../public/gtm/award-signals.json` — generated official-source feed for static deployments and local review
 - `../src/data/gtmData.ts` — reviewed starter opportunities and signal-source registry
 - `../src/lib/gtm.ts` — deterministic scoring, corroboration, freshness, duplicate, conflict, and action gates
+- `../server/gtmAwardScanner.ts` — paginated official-source federal award discovery used by the private production dashboard
 - `../server/gtmDailyScanner.ts` — source-validated daily social discovery with no platform interaction
 
 ## Commands
@@ -72,11 +73,22 @@ Refresh the federal award-alert feed from USAspending:
 npm run gtm:awards
 ```
 
-The deployment workflow also runs this scanner once per day. It searches a
-bounded recent window for federal assistance records classified by USAspending
-as nonprofit recipients, then writes only records with usable recipient,
-amount, and award identifiers. The record is a timely research trigger—not
-evidence that the recipient is dissatisfied or currently struggling.
+The default search covers the previous 90 days, federal grant award types
+02–05, nonprofit recipients, awards of at least $25,000, up to four 100-record
+pages, and up to 100 candidates. Environment variables can narrow or broaden
+those bounds without changing code: `GTM_AWARD_WINDOW_DAYS`,
+`GTM_SCAN_START_DATE`, `GTM_MINIMUM_AWARD`, `GTM_AWARD_PAGE_SIZE`,
+`GTM_AWARD_MAX_PAGES`, and `GTM_AWARD_MAX_CANDIDATES`. The scanner classifies
+$25,000–$99,999 awards as emerging, $100,000–$9,999,999 awards as core, and
+higher-education, healthcare, research, or very large recipients as adjacent.
+Adjacent records stay visible for fit review instead of being silently
+discarded.
+
+The production scheduler saves the latest scan to the private Firestore GTM
+record. Static deployments can refresh `public/gtm/award-signals.json` using
+the command above. An award record is a timely research trigger—not evidence
+that the recipient is dissatisfied, has a difficult reporting workflow, or
+intends to buy.
 
 Preview the permission-based email without contacting Resend:
 
@@ -138,9 +150,31 @@ sources. Missing nonprofit identity, unresolved organization identity, missing
 evidence, or conflicting facts block action. Signals older than 45 days are
 warned and should be rechecked.
 
+## Approval-based outreach automation
+
+The private dashboard now separates discovery, contact verification, message
+approval, and delivery. Federal-award candidates appear immediately, but the
+action gate remains closed until a named current recipient and authoritative
+role and email sources are attached. Action-ready drafts can be marked ready
+and exported as an approved CSV queue.
+
+To enable server-side delivery safely, add a permissioned contact-data provider
+or manually verified contacts, then connect Resend Broadcasts with:
+
+1. a server-only API key and verified GrantDeskHQ sending domain;
+2. a suppression list and managed unsubscribe link;
+3. idempotency keys so a retry cannot duplicate a send;
+4. delivery, bounce, complaint, and unsubscribe webhooks;
+5. a daily cap and a single automated follow-up maximum; and
+6. a final per-recipient human approval recorded in the audit log.
+
+The repository does not enable unsolicited automatic sending. LinkedIn and
+Reddit engagement remains manual. Creating an enrichment account, consuming
+provider credits, accessing personal-contact data, or turning on a send job
+requires separate explicit approval.
+
 ## Sources and coverage
 
-- **Used:** public Reddit threads, public LinkedIn posts/company pages, official organization staff pages, G2 review pages, official Resend policy/docs, official LinkedIn policy, official Reddit developer terms, and FTC CAN-SPAM guidance.
 - **Used:** official USAspending API, public Reddit threads, public LinkedIn posts/company pages, employer-controlled or public job pages, official organization pages, G2 review pages, official Resend policy/docs, official LinkedIn policy, official Reddit developer terms, IRS nonprofit data documentation, and FTC CAN-SPAM guidance.
 - **Unavailable or limited:** no configured Sales Intelligence provider, CRM, job-feed API, LinkedIn API, or approved Reddit commercial API credentials. OpenAI web search supplies bounded indexed-result discovery, not complete platform coverage. Organization-level grant volume, current process, budget, accounting software, named buyer, and purchase intent remain unknown until verified.
-- **Coverage:** a bounded daily Reddit/LinkedIn indexed-result check, a bounded recent federal-award feed, five reviewed starter opportunities, ten qualitative Reddit signals, eight LinkedIn research/engagement items, and 27 previously verified nonprofit leaders. This is not exhaustive market coverage or a qualified sales pipeline.
+- **Coverage:** a bounded daily Reddit/LinkedIn indexed-result check, up to 100 recent federal-award research candidates from a paginated official-source scan, five reviewed starter opportunities, ten qualitative Reddit signals, eight LinkedIn research/engagement items, and 27 previously verified nonprofit leaders. This is not exhaustive market coverage or a qualified sales pipeline.

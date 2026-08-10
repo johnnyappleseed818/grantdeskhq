@@ -8,8 +8,9 @@ import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { readBillingStatus, readGtmDailyScan, listReports, saveBillingEvent, saveCompilation, saveGtmDailyScan, saveReview } from "./persistence.ts";
+import { readBillingStatus, readGtmAwardScan, readGtmDailyScan, listReports, saveBillingEvent, saveCompilation, saveGtmAwardScan, saveGtmDailyScan, saveReview } from "./persistence.ts";
 import { runDailySocialScan } from "./gtmDailyScanner.ts";
+import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { requireGtmScheduler } from "./schedulerAuth.ts";
 import { BillingError, billingSnapshotFromEvent, createCheckoutSession, isBillingConfigured, validateBillingSelection, verifyStripeSignature, type StripeWebhookEvent } from "./billing.ts";
 
@@ -44,6 +45,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/readiness-assessment") return await handleReadiness(request, response);
     if (url.pathname === "/api/gtm/access") return await handleGtmAccess(request, response);
     if (url.pathname === "/api/gtm/daily-signals") return await handleGtmDailySignals(request, response);
+    if (url.pathname === "/api/gtm/award-signals") return await handleGtmAwardSignals(request, response);
     if (url.pathname === "/api/gtm/daily-scan") return await handleGtmDailyScan(request, response);
     if (url.pathname === "/api/reports") return await handleReports(request, response);
     const reviewMatch = url.pathname.match(/^\/api\/reports\/(report_[a-f0-9]{32})\/review$/);
@@ -132,11 +134,28 @@ async function handleGtmAccess(request: IncomingMessage, response: ServerRespons
   return json(response, 200, { allowed: true });
 }
 
+async function handleGtmAwardSignals(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  requireGtmAdmin(await requireUser(request));
+  return json(response, 200, { scan: await readGtmAwardScan() });
+}
+
 async function handleGtmDailyScan(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
-  const scan = await saveGtmDailyScan(await runDailySocialScan());
-  return json(response, 200, { status: "completed", generatedAt: scan.generatedAt, itemCount: scan.items.length });
+  const [socialResult, awardResult] = await Promise.allSettled([
+    runDailySocialScan().then(saveGtmDailyScan),
+    runDailyAwardScan().then(saveGtmAwardScan)
+  ]);
+  if (socialResult.status === "rejected" && awardResult.status === "rejected") throw new Error("Both scheduled GTM scans failed.");
+  const errors = [socialResult, awardResult].flatMap((result) => result.status === "rejected" ? [result.reason instanceof Error ? result.reason.message : "Unknown scan error"] : []);
+  return json(response, 200, {
+    status: errors.length ? "partial" : "completed",
+    generatedAt: new Date().toISOString(),
+    socialItemCount: socialResult.status === "fulfilled" ? socialResult.value.items.length : null,
+    awardCandidateCount: awardResult.status === "fulfilled" ? awardResult.value.opportunities.length : null,
+    errors
+  });
 }
 
 async function handleReadiness(request: IncomingMessage, response: ServerResponse) {

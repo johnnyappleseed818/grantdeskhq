@@ -34,6 +34,8 @@ import {
   canMoveToContacted,
   formatOpportunityScore,
   labelForSignal,
+  rankGtmOpportunities,
+  type AwardDiscoveryScan,
   type DailySocialScan,
   type GtmOpportunity,
   type OpportunityStage,
@@ -41,7 +43,7 @@ import {
 } from "../lib/gtm";
 import { useAuth } from "../lib/auth";
 
-type DashboardTab = "hot-list" | "signals" | "sources" | "partners" | "pipeline" | "accuracy";
+type DashboardTab = "hot-list" | "signals" | "sources" | "partners" | "pipeline" | "automation" | "accuracy";
 type StageState = Record<string, OpportunityStage>;
 
 const STORAGE_KEY = "grantdeskhq:gtm-stages:v1";
@@ -63,38 +65,34 @@ export function GtmDashboardPage() {
   return <GtmDashboardContent dailySignalToken={token} />;
 }
 
-export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null }: { dailySignalToken?: () => Promise<string>; initialDailyScan?: DailySocialScan | null } = {}) {
+export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null, initialAwardScan = null }: { dailySignalToken?: () => Promise<string>; initialDailyScan?: DailySocialScan | null; initialAwardScan?: AwardDiscoveryScan | null } = {}) {
   const [activeTab, setActiveTab] = useState<DashboardTab>("hot-list");
   const [filter, setFilter] = useState<"all" | SignalKind>("all");
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<string | null>(initialOpportunities[0]?.id || null);
   const [copied, setCopied] = useState<string | null>(null);
-  const [liveOpportunities, setLiveOpportunities] = useState<GtmOpportunity[]>(initialOpportunities);
-  const [unresolvedAwardCandidates, setUnresolvedAwardCandidates] = useState(0);
+  const [liveOpportunities, setLiveOpportunities] = useState<GtmOpportunity[]>(() => mergeAwardCandidates(initialAwardScan?.opportunities || [], initialOpportunities));
   const [stages, setStages] = useState<StageState>(() => readStages());
   const [dailyScan, setDailyScan] = useState<DailySocialScan | null>(initialDailyScan);
+  const [awardScan, setAwardScan] = useState<AwardDiscoveryScan | null>(initialAwardScan);
   const [signalsLoading, setSignalsLoading] = useState(Boolean(dailySignalToken));
   const [signalsError, setSignalsError] = useState("");
 
   useEffect(() => {
-    fetch("/gtm/award-signals.json", { cache: "no-store" })
-      .then(async (response) => response.ok ? response.json() as Promise<{ opportunities?: GtmOpportunity[] }> : null)
-      .then((body) => {
-        if (!body?.opportunities?.length) return;
-        const contactable = body.opportunities.filter((item) => item.primaryContact?.email && item.emailSubject);
-        const generatedIds = new Set(contactable.map((item) => item.id));
-        setUnresolvedAwardCandidates(body.opportunities.length - contactable.length);
-        setLiveOpportunities([...contactable, ...initialOpportunities.filter((item) => !generatedIds.has(item.id))]);
-      })
-      .catch(() => undefined);
-  }, []);
-
-  useEffect(() => {
     if (!dailySignalToken) return;
     let active = true;
-    dailySignalToken()
-      .then((idToken) => apiRequest<{ scan: DailySocialScan | null }>("/api/gtm/daily-signals", idToken))
-      .then((body) => { if (active) setDailyScan(body.scan); })
+    dailySignalToken().then(async (idToken) => Promise.all([
+      apiRequest<{ scan: DailySocialScan | null }>("/api/gtm/daily-signals", idToken),
+      apiRequest<{ scan: AwardDiscoveryScan | null }>("/api/gtm/award-signals", idToken)
+    ]))
+      .then(([socialBody, awardBody]) => {
+        if (!active) return;
+        setDailyScan(socialBody.scan);
+        setAwardScan(awardBody.scan);
+        if (awardBody.scan?.opportunities.length) {
+          setLiveOpportunities(mergeAwardCandidates(awardBody.scan.opportunities, initialOpportunities));
+        }
+      })
       .catch((requestError) => { if (active) setSignalsError(requestError instanceof Error ? requestError.message : "Daily signals could not be loaded."); })
       .finally(() => { if (active) setSignalsLoading(false); });
     return () => { active = false; };
@@ -104,13 +102,14 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null 
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(stages)); } catch { /* Browser storage can be unavailable. */ }
   }, [stages]);
 
-  const ranked = useMemo(() => [...liveOpportunities].sort((left, right) => assessOpportunityAccuracy(right).score - assessOpportunityAccuracy(left).score), [liveOpportunities]);
+  const ranked = useMemo(() => rankGtmOpportunities(liveOpportunities), [liveOpportunities]);
   const visible = ranked.filter((opportunity) => {
     const matchesFilter = filter === "all" || opportunity.signalKind === filter;
     const haystack = `${opportunity.organization} ${opportunity.headline} ${opportunity.funder || ""}`.toLowerCase();
     return matchesFilter && haystack.includes(query.trim().toLowerCase());
   });
   const readyCount = ranked.filter((item) => assessOpportunityAccuracy(item).readyForAction).length;
+  const unresolvedAwardCandidates = ranked.filter((item) => item.signalKind === "grant_award" && !item.primaryContact?.email).length;
   const contactedCount = Object.values(stages).filter((stage) => ["contacted", "replied", "converted"].includes(stage)).length;
   const pipelineStages: OpportunityStage[] = ["new", "reviewing", "ready", "contacted", "replied", "converted", "dismissed"];
 
@@ -145,7 +144,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null 
     <div className="gtm-tab-wrap">
       <div className="site-shell gtm-tabs" role="tablist" aria-label="GTM dashboard sections">
         {([
-          ["hot-list", "Daily hot list"], ["signals", "Reddit & LinkedIn"], ["sources", "Signal engines"], ["partners", "Referral channels"], ["pipeline", "Progress"], ["accuracy", "Accuracy controls"]
+          ["hot-list", "Daily hot list"], ["signals", "Reddit & LinkedIn"], ["sources", "Signal engines"], ["partners", "Referral channels"], ["pipeline", "Progress"], ["automation", "Outreach automation"], ["accuracy", "Accuracy controls"]
         ] as Array<[DashboardTab, string]>).map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={activeTab === id} className={activeTab === id ? "is-active" : ""} onClick={() => setActiveTab(id)}>{label}</button>)}
       </div>
     </div>
@@ -157,7 +156,8 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null 
           <label className="gtm-search"><Search aria-hidden="true" /><span className="sr-only">Search opportunities</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search organizations or funders" /></label>
           <div className="gtm-filters" aria-label="Filter alerts">{(["all", "grant_award", "job_posting", "excel_pain", "competitor_intent"] as const).map((kind) => <button type="button" className={filter === kind ? "is-active" : ""} aria-pressed={filter === kind} onClick={() => setFilter(kind)} key={kind}>{kind === "all" ? "All alerts" : labelForSignal(kind)}</button>)}</div>
         </div>
-        {unresolvedAwardCandidates > 0 && <div className="gtm-candidate-note"><FileSearch aria-hidden="true" /><p><strong>{unresolvedAwardCandidates} new award record{unresolvedAwardCandidates === 1 ? " is" : "s are"} waiting for contact verification.</strong> They remain research candidates and are not shown as contactable leads until a named recipient and authoritative email source are attached.</p></div>}
+        {awardScan && <div className="gtm-criteria-note"><Radar aria-hidden="true" /><div><strong>Expanded award discovery is active</strong><p>{awardScan.criteria.startDate} through {awardScan.criteria.endDate} · awards from {formatMoney(awardScan.criteria.minimumAward)} · up to {awardScan.criteria.maxCandidates} candidates · core, emerging, and adjacent nonprofit segments</p><small>{awardScan.coverage}</small></div></div>}
+        {unresolvedAwardCandidates > 0 && <div className="gtm-candidate-note"><FileSearch aria-hidden="true" /><p><strong>{unresolvedAwardCandidates} award research candidate{unresolvedAwardCandidates === 1 ? " is" : "s are"} waiting for contact verification.</strong> They are now visible below, but remain blocked from outreach until a named recipient and authoritative email source are attached.</p></div>}
         <div className="gtm-opportunity-list" aria-live="polite">
           {visible.map((opportunity) => {
             const accuracy = assessOpportunityAccuracy(opportunity);
@@ -166,10 +166,11 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null 
             return <article className="gtm-opportunity" key={opportunity.id}>
               <div className="gtm-score" data-label={accuracy.label}><strong>{accuracy.score}</strong><span>{formatOpportunityScore(accuracy.label)}</span></div>
               <div className="gtm-opportunity-main">
-                <div className="gtm-opportunity-top"><div className="flex flex-wrap items-center gap-2"><span className="status-badge status-info">{labelForSignal(opportunity.signalKind)}</span><span className={`status-badge ${accuracy.readyForAction ? "status-success" : "status-review"}`}>{accuracy.confidence} confidence</span><span className="status-badge status-neutral">{stage.replaceAll("_", " ")}</span></div><span className="text-xs text-slate-500">Observed {formatDate(opportunity.observedAt)}</span></div>
+                <div className="gtm-opportunity-top"><div className="flex flex-wrap items-center gap-2"><span className="status-badge status-info">{labelForSignal(opportunity.signalKind)}</span>{opportunity.targetTier && <span className="status-badge status-neutral">{opportunity.targetTier} target</span>}<span className={`status-badge ${accuracy.readyForAction ? "status-success" : "status-review"}`}>{accuracy.confidence} confidence</span><span className="status-badge status-neutral">{stage.replaceAll("_", " ")}</span></div><span className="text-xs text-slate-500">Observed {formatDate(opportunity.observedAt)}</span></div>
                 <h3>{opportunity.organization}</h3><p className="gtm-headline">{opportunity.headline}</p>
                 <div className="gtm-facts">{opportunity.amount && <span><CircleDollarSign aria-hidden="true" />{formatMoney(opportunity.amount)}</span>}{opportunity.funder && <span><Building2 aria-hidden="true" />{opportunity.funder}</span>}{opportunity.location && <span><Radar aria-hidden="true" />{opportunity.location}</span>}</div>
                 {opportunity.primaryContact ? <div className="gtm-contact-summary"><Mail aria-hidden="true" /><div><span>Suggested recipient</span><strong>{opportunity.primaryContact.name} · {opportunity.primaryContact.title}</strong><a href={`mailto:${opportunity.primaryContact.email}`}>{opportunity.primaryContact.email}</a></div></div> : <div className="gtm-contact-summary needs-contact"><AlertCircle aria-hidden="true" /><div><span>Contact research needed</span><strong>No verified recipient email is attached to this generated alert.</strong></div></div>}
+                {opportunity.fitSignals?.length ? <p className="gtm-why"><strong>Visible fit signals:</strong> {opportunity.fitSignals.join(" · ")}</p> : null}
                 <p className="gtm-why"><strong>Why now:</strong> {opportunity.whyNow}</p>
                 <div className="gtm-actions">
                   <button type="button" className="button button-secondary button-small" onClick={() => { setExpanded(isExpanded ? null : opportunity.id); updateStage(opportunity.id, stage === "new" ? "reviewing" : stage); }}>{isExpanded ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}{isExpanded ? "Hide evidence" : "Review evidence"}</button>
@@ -194,6 +195,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null 
       {activeTab === "sources" && <SourcesPanel />}
       {activeTab === "partners" && <PartnersPanel />}
       {activeTab === "pipeline" && <PipelinePanel opportunities={ranked} stages={stages} stagesOrder={pipelineStages} onStageChange={updateStage} />}
+      {activeTab === "automation" && <OutreachAutomationPanel opportunities={ranked} stages={stages} />}
       {activeTab === "accuracy" && <AccuracyPanel />}
     </div>
   </div>;
@@ -223,6 +225,24 @@ function PartnersPanel() {
 
 function PipelinePanel({ opportunities, stages, stagesOrder, onStageChange }: { opportunities: GtmOpportunity[]; stages: StageState; stagesOrder: OpportunityStage[]; onStageChange(id: string, stage: OpportunityStage): void }) {
   return <section><div className="gtm-section-heading"><div><p className="eyebrow">Progress monitor</p><h2>Track every opportunity without pretending there is a CRM</h2><p>Progress is saved in this private browser workspace. No external CRM, email inbox, or campaign analytics are connected yet.</p></div></div><div className="gtm-pipeline-summary">{stagesOrder.map((stage) => <article key={stage}><strong>{opportunities.filter((item) => (stages[item.id] || "new") === stage).length}</strong><span>{stage.replaceAll("_", " ")}</span></article>)}</div><div className="panel panel-flush mt-6"><div className="table-scroll"><table className="data-table gtm-pipeline-table"><thead><tr><th>Organization</th><th>Signal</th><th>Score</th><th>Evidence</th><th>Progress</th></tr></thead><tbody>{opportunities.map((opportunity) => { const accuracy = assessOpportunityAccuracy(opportunity); return <tr key={opportunity.id}><th>{opportunity.organization}</th><td>{labelForSignal(opportunity.signalKind)}</td><td>{accuracy.score} · {formatOpportunityScore(accuracy.label)}</td><td>{opportunity.evidence.length} source{opportunity.evidence.length === 1 ? "" : "s"} · {accuracy.confidence}</td><td><label className="sr-only" htmlFor={`stage-${opportunity.id}`}>Progress for {opportunity.organization}</label><select id={`stage-${opportunity.id}`} className="table-select" value={stages[opportunity.id] || "new"} onChange={(event) => onStageChange(opportunity.id, event.target.value as OpportunityStage)}>{stagesOrder.map((stage) => <option value={stage} key={stage}>{stage.replaceAll("_", " ")}</option>)}</select></td></tr>; })}</tbody></table></div></div></section>;
+}
+
+function OutreachAutomationPanel({ opportunities, stages }: { opportunities: GtmOpportunity[]; stages: StageState }) {
+  const verifiedContacts = opportunities.filter((item) => assessOpportunityAccuracy(item).readyForAction);
+  const approved = verifiedContacts.filter((item) => stages[item.id] === "ready");
+  const contacted = verifiedContacts.filter((item) => ["contacted", "replied", "converted"].includes(stages[item.id] || "new"));
+  const steps = [
+    ["Daily signal discovery", "Active", "Federal awards plus the bounded Reddit and LinkedIn scan run once per day."],
+    ["Contact enrichment", "Needs provider", "Resolve a current finance or grants leader and verify the address from an authoritative source. Apollo, Clay, or another permissioned provider can fill this lane."],
+    ["Personalized draft", "Active", "Each supported lead receives a signal-specific subject and first-touch draft. Unknown details remain blank."],
+    ["Human approval", "Required", "You approve the recipient, evidence, and message before the lead enters the send queue."],
+    ["Email delivery and follow-up", "Not connected", "Connect Resend server-side with suppression, unsubscribe, idempotency, delivery webhooks, and a one-follow-up limit before enabling sends."]
+  ];
+  return <section><div className="gtm-section-heading"><div><p className="eyebrow">Approval-based outreach</p><h2>Automate the research and drafting. Keep the send decision with you.</h2><p>The safest first version prepares a small daily queue of relevant, source-backed emails. It does not spray a generic list or contact anyone whose identity and address have not been verified.</p></div><button type="button" className="button button-primary" disabled={!approved.length} onClick={() => downloadApprovedQueue(approved)}><MailCheck aria-hidden="true" />Download approved queue ({approved.length})</button></div>
+    <div className="gtm-automation-metrics"><article><strong>{opportunities.length}</strong><span>research candidates</span></article><article><strong>{verifiedContacts.length}</strong><span>verified contacts</span></article><article><strong>{approved.length}</strong><span>approved drafts</span></article><article><strong>{contacted.length}</strong><span>contacted or beyond</span></article></div>
+    <div className="gtm-automation-flow">{steps.map(([title, status, detail], index) => <article key={title}><span>{index + 1}</span><div><div className="flex flex-wrap items-center gap-2"><h3>{title}</h3><small className={`status-badge ${status === "Active" ? "status-success" : status === "Required" ? "status-review" : "status-neutral"}`}>{status}</small></div><p>{detail}</p></div></article>)}</div>
+    <div className="gtm-boundary-note"><ShieldCheck aria-hidden="true" /><div><strong>Recommended sending policy</strong><p>Limit automated delivery to U.S. recipients with a verified business role and address, include an accurate sender identity, advertisement disclosure, physical postal address, and working opt-out, suppress every opt-out immediately, and never send more than one automated follow-up. Keep LinkedIn messages and comments manual.</p></div></div>
+  </section>;
 }
 
 function AccuracyPanel() {
@@ -265,4 +285,34 @@ function formatDateTime(value: string) {
 function buildEmailHref(opportunity: GtmOpportunity) {
   if (!opportunity.primaryContact) return "#";
   return `mailto:${opportunity.primaryContact.email}?subject=${encodeURIComponent(opportunity.emailSubject)}&body=${encodeURIComponent(opportunity.draftMessage)}`;
+}
+
+function downloadApprovedQueue(opportunities: GtmOpportunity[]) {
+  const columns = ["organization", "contact_name", "title", "email", "subject", "message", "signal", "source_url"];
+  const rows = opportunities.map((item) => [
+    item.organization,
+    item.primaryContact?.name || "",
+    item.primaryContact?.title || "",
+    item.primaryContact?.email || "",
+    item.emailSubject,
+    item.draftMessage,
+    labelForSignal(item.signalKind),
+    item.evidence[0]?.url || ""
+  ]);
+  const csv = [columns, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+  const url = URL.createObjectURL(new Blob([`${csv}\n`], { type: "text/csv;charset=utf-8" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `GrantDeskHQ_Approved_Outreach_${new Date().toISOString().slice(0, 10)}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function csvCell(value: string) {
+  return /[",\n\r]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
+}
+
+function mergeAwardCandidates(candidates: GtmOpportunity[], verified: GtmOpportunity[]) {
+  const candidateIds = new Set(candidates.map((item) => item.id));
+  return [...candidates, ...verified.filter((item) => !candidateIds.has(item.id))];
 }
