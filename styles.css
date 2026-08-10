@@ -1616,6 +1616,28 @@
     @apply absolute right-3 top-3 h-4 w-4 text-emeraldMuted-600;
   }
 
+  .file-role-suggestion {
+    @apply grid items-start gap-3 border border-amberReview-200 bg-amberReview-50 p-4 md:grid-cols-[24px_minmax(0,1fr)_auto];
+    border-radius: .8rem;
+  }
+
+  .file-role-suggestion > svg {
+    @apply mt-1 h-5 w-5 text-amberReview-700;
+  }
+
+  .file-role-suggestion h3 {
+    @apply mt-1 text-base font-semibold text-navy-950;
+  }
+
+  .file-role-suggestion p:not(.eyebrow),
+  .file-role-suggestion small {
+    @apply mt-1 block text-xs leading-5 text-slate-600;
+  }
+
+  .file-role-suggestion > div:last-child {
+    @apply flex flex-wrap gap-2 md:max-w-64 md:justify-end;
+  }
+
   .setup-checking,
   .setup-match,
   .setup-notice {
@@ -1837,6 +1859,32 @@
   .workflow-obligation-list article > p,
   .workflow-obligation-list article > small {
     @apply mt-1 block text-xs leading-5 text-slate-600;
+  }
+
+  .workflow-task-status {
+    @apply my-3 border-l-2 border-slate-300 bg-slate-50 px-3 py-2;
+  }
+
+  .workflow-task-status span,
+  .workflow-task-status strong {
+    @apply block;
+  }
+
+  .workflow-task-status span {
+    @apply text-[.65rem] font-bold uppercase tracking-wide text-slate-500;
+  }
+
+  .workflow-task-status strong {
+    @apply mt-1 text-xs leading-5 text-navy-800;
+  }
+
+  .workflow-task-status.available {
+    @apply border-emeraldMuted-500 bg-emeraldMuted-50;
+  }
+
+  .workflow-task-status.needed,
+  .workflow-task-status.monitoring {
+    @apply border-amberReview-700 bg-amberReview-50;
   }
 
   .setup-conflict-panel {

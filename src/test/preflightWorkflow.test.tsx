@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PREFLIGHT_SYSTEM_PROMPT } from "../../server/preflightCompiler";
 import { sanitizeSetupDecisions } from "../../server/persistence";
+import { remainingSetupConflicts } from "../lib/agreementSetup";
 import { AgreementSetupCard, ReportingSchedule, ReportWorkflow } from "../pages/CompilePage";
 import type { CompilationPreflightResult, GrantReportingPeriod, GrantWorkflowObligation } from "../types/prototype";
 
@@ -75,12 +76,28 @@ describe("agreement-driven report setup", () => {
   });
 
   it("separates current, conditional, future, and not-applicable work", () => {
-    render(<ReportWorkflow obligations={obligations} referencePeriod={periods[0]} />);
+    render(<ReportWorkflow obligations={obligations} referencePeriod={periods[0]} availableSources={["ledgerExport", "programUpdate"]} />);
     expect(screen.getByRole("heading", { name: "Required for this report" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Required only if triggered" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Conditional requirements" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Required later" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Not required for this report" })).toBeInTheDocument();
     expect(screen.getByText(/A variance reaches \$7,500/)).toBeInTheDocument();
+    expect(screen.getByText("GrantDeskHQ monitors these automatically and creates an action only when the condition occurs.")).toBeInTheDocument();
+    expect(screen.getByText("Accounting data available · validation pending")).toBeInTheDocument();
+    expect(screen.getByText("Program input available · validation pending")).toBeInTheDocument();
+    expect(screen.getByText("Monitoring · trigger evaluated during report analysis")).toBeInTheDocument();
+    expect(screen.getByText("Not yet applicable")).toBeInTheDocument();
+    expect(screen.getAllByText("Source verified").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/^Verified$/)).not.toBeInTheDocument();
+  });
+
+  it("one-click agreement setup clears organization, grant, and reporting-period conflicts together", () => {
+    const conflicts: CompilationPreflightResult["setupConflicts"] = [
+      { ...preflight.setupConflicts[0], id: "organization", type: "organization_identity", title: "Organization details do not match" },
+      preflight.setupConflicts[0],
+      { ...preflight.setupConflicts[0], id: "period", type: "reporting_period", title: "Reporting period is outside the grant period", suggestedPeriodId: "RP1", suggestedValue: "Feb 1 – Jul 31, 2027" }
+    ];
+    expect(remainingSetupConflicts({ ...preflight, setupConflicts: conflicts })).toEqual([]);
   });
 
   it("preserves the previous manual setup in the audit entry", () => {

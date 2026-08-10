@@ -19,6 +19,8 @@ import {
 import { MAX_FILE_BYTES, MAX_TOTAL_BYTES, canGenerateReviewPackage, resultToDownload, validateCompilationRequest } from "../lib/prototype";
 import { buildFinancialExceptionSummary, buildReportAttention, machineCheckCount } from "../lib/reportAttention";
 import { buildProgramInsights, satisfiedProgramCheckIds } from "../lib/programInsights";
+import { fileRoleSuggestionKey, inspectFileRole, type FileRoleSuggestion } from "../lib/fileRoleDetection";
+import { agreementSetup, remainingSetupConflicts } from "../lib/agreementSetup";
 import { apiRequest } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import type { CompilationPreflightResult, CompilationRequest, CompilationResult, CompilerFile, GrantReportingPeriod, GrantWorkflowObligation, ObligationApplicability, PersistedCompilationResponse, ReviewState, SetupConflict, SetupDecision, SourceRole } from "../types/prototype";
@@ -56,14 +58,28 @@ export function CompilePage() {
   const [setupDecisions, setSetupDecisions] = useState<SetupDecision[]>([]);
   const [setupNotice, setSetupNotice] = useState("");
   const [guideOpen, setGuideOpen] = useState(true);
+  const [fileRoleSuggestions, setFileRoleSuggestions] = useState<Partial<Record<SourceRole, FileRoleSuggestion>>>({});
+  const [acceptedFileRoles, setAcceptedFileRoles] = useState<string[]>([]);
 
   const totalBytes = useMemo(() => Object.values(files).reduce((sum, file) => sum + (file?.size || 0), 0), [files]);
   const requiredFilesComplete = sourceFields.filter((field) => field.required).every((field) => files[field.role]);
+  const activeFileRoleSuggestions = useMemo(() => Object.values(fileRoleSuggestions).filter((suggestion): suggestion is FileRoleSuggestion => {
+    if (!suggestion || acceptedFileRoles.includes(suggestion.key)) return false;
+    const file = files[suggestion.assignedRole];
+    return Boolean(file && fileRoleSuggestionKey(suggestion.assignedRole, file) === suggestion.key);
+  }), [acceptedFileRoles, fileRoleSuggestions, files]);
+
+  const inspectSelectedFile = (role: SourceRole, file: File) => {
+    setAcceptedFileRoles((current) => current.filter((key) => !key.startsWith(`${role}:`)));
+    setFileRoleSuggestions((current) => ({ ...current, [role]: undefined }));
+    void inspectFileRole(file, role).then((suggestion) => setFileRoleSuggestions((current) => ({ ...current, [role]: suggestion || undefined })));
+  };
 
   const updateFile = (role: SourceRole, event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     setFiles((current) => ({ ...current, [role]: file }));
+    inspectSelectedFile(role, file);
     setResult(null);
     if (role === "awardAgreement") {
       setPreflight(null);
@@ -87,6 +103,7 @@ export function CompilePage() {
     if (!selected.length) return;
     const { assigned, unmatched } = assignPackageFiles(selected, files);
     setFiles((current) => ({ ...current, ...assigned }));
+    for (const [role, file] of Object.entries(assigned) as Array<[SourceRole, File]>) inspectSelectedFile(role, file);
     setResult(null);
     if (assigned.awardAgreement) {
       setPreflight(null);
@@ -111,6 +128,10 @@ export function CompilePage() {
     }
     if (wizardStep === 2 && !requiredFilesComplete) {
       setError("Add an award agreement or Notice of Award to continue. Everything else can be added later.");
+      return;
+    }
+    if (wizardStep === 2 && activeFileRoleSuggestions.length) {
+      setError("Review the file placement suggestion before continuing. Move the file to the recommended field or confirm that you want to keep it where it is.");
       return;
     }
     if (wizardStep === 2 && (totalBytes > MAX_TOTAL_BYTES || Object.values(files).some((file) => (file?.size || 0) > MAX_FILE_BYTES))) {
@@ -215,10 +236,9 @@ export function CompilePage() {
 
   const acceptAgreementDetails = () => {
     if (!preflight) return;
-    const organizationName = usableProfileValue(preflight.grantProfile.granteeName);
-    const values = [preflight.grantProfile.funderName.value, preflight.grantProfile.grantName.value]
-      .filter((value) => value && !/^information required|unknown|not (found|stated)/i.test(value));
-    const grantName = values.join(" — ");
+    const setup = agreementSetup(preflight);
+    const organizationName = setup.organizationName;
+    const grantName = setup.grantName;
     if (grantName || organizationName) {
       setMeta((current) => ({ ...current, ...(grantName ? { grantName } : {}), ...(organizationName ? { organizationName } : {}) }));
       setSetupNotice([organizationName ? `Organization updated to ${organizationName}.` : "", grantName ? `Grant updated to ${grantName}.` : ""].filter(Boolean).join(" "));
@@ -314,7 +334,7 @@ export function CompilePage() {
     setPreflight({
       ...preflight,
       referencePeriodId: setup.period?.id || preflight.referencePeriodId,
-      setupConflicts: preflight.setupConflicts.filter((conflict) => conflict.type === "reporting_period" && !setup.period)
+      setupConflicts: remainingSetupConflicts(preflight)
     });
     setPreflightKey("");
     setError("");
@@ -345,6 +365,24 @@ export function CompilePage() {
     setError("");
     setWizardStep(2);
     window.requestAnimationFrame(() => document.querySelector(".compile-form")?.scrollIntoView({ block: "start" }));
+  };
+
+  const moveSourceFile = (suggestion: FileRoleSuggestion) => {
+    if (files[suggestion.suggestedRole]) {
+      setError(`${sourceLabel(suggestion.suggestedRole)} already contains a file. Remove or replace that file before moving ${suggestion.fileName}.`);
+      return;
+    }
+    setFiles((current) => ({ ...current, [suggestion.assignedRole]: undefined, [suggestion.suggestedRole]: current[suggestion.assignedRole] }));
+    setFileRoleSuggestions((current) => ({ ...current, [suggestion.assignedRole]: undefined, [suggestion.suggestedRole]: undefined }));
+    setAcceptedFileRoles((current) => current.filter((key) => key !== suggestion.key));
+    setResult(null);
+    setError("");
+    setSetupNotice(`${suggestion.fileName} moved to ${sourceLabel(suggestion.suggestedRole)}.`);
+  };
+
+  const keepSourceFile = (suggestion: FileRoleSuggestion) => {
+    setAcceptedFileRoles((current) => current.includes(suggestion.key) ? current : [...current, suggestion.key]);
+    setError("");
   };
 
   return (
@@ -417,6 +455,11 @@ export function CompilePage() {
                 );
               })}
             </div>
+            {activeFileRoleSuggestions.map((suggestion) => <section key={suggestion.key} className="file-role-suggestion" aria-label={`File placement suggestion for ${suggestion.fileName}`}>
+              <AlertTriangle aria-hidden="true" />
+              <div><p className="eyebrow">Check this file</p><h3>This file looks like {indefiniteSourceLabel(suggestion.suggestedRole)}, not {indefiniteSourceLabel(suggestion.assignedRole)}.</h3><p>{suggestion.reason}</p><small>{suggestion.fileName}</small></div>
+              <div><button type="button" className="button button-primary button-small" onClick={() => moveSourceFile(suggestion)}>Move to {sourceLabel(suggestion.suggestedRole)}</button><button type="button" className="button button-secondary button-small" onClick={() => keepSourceFile(suggestion)}>Keep in {sourceLabel(suggestion.assignedRole)}</button></div>
+            </section>)}
             {preflighting && <div className="setup-checking" role="status"><LoaderCircle className="animate-spin" aria-hidden="true" /><div><strong>Checking the award details</strong><p>GrantDeskHQ is comparing the funder, grant, and reporting period before drafting begins.</p></div></div>}
             {setupNotice && <div className="setup-notice" role="status"><CheckCircle2 aria-hidden="true" /><div><strong>Report setup updated</strong><p>{setupNotice}</p></div></div>}
             {preflight && preflight.setupConflicts.length > 0 && <AgreementSetupCard preflight={preflight} onApply={applyAgreementWorkflow} />}
@@ -451,7 +494,7 @@ export function CompilePage() {
             )}
             {preflight && preflight.setupConflicts.length === 0 && <div className="setup-match"><CheckCircle2 aria-hidden="true" /><div><strong>Award details match this report setup</strong><p>GrantDeskHQ checked the grant identity and reporting period before moving forward.</p></div></div>}
             {preflight && preflight.reportingPeriods.some((period) => period.status === "verified") && <ReportingSchedule periods={preflight.reportingPeriods} selectedPeriodId={preflight.referencePeriodId} onSelect={selectReportingPeriod} />}
-            {preflight && preflight.workflowObligations.length > 0 && <ReportWorkflow obligations={preflight.workflowObligations} referencePeriod={preflight.reportingPeriods.find((period) => period.id === preflight.referencePeriodId)} />}
+            {preflight && preflight.workflowObligations.length > 0 && <ReportWorkflow obligations={preflight.workflowObligations} referencePeriod={preflight.reportingPeriods.find((period) => period.id === preflight.referencePeriodId)} availableSources={Object.keys(files) as SourceRole[]} />}
           </fieldset>
 
           <fieldset className="wizard-step" hidden={wizardStep !== 3}>
@@ -489,7 +532,7 @@ export function CompilePage() {
           <div className="wizard-actions">
             <button type="button" className="button button-secondary" onClick={() => moveWizard(-1)} disabled={wizardStep === 1 || compiling}>Back</button>
             {wizardStep === 2 && preflight && preflight.setupConflicts.length > 0 && <p className="wizard-blocker-note">Resolve the {preflight.setupConflicts.length} setup {preflight.setupConflicts.length === 1 ? "conflict" : "conflicts"} to continue.</p>}
-            {wizardStep < 4 && <button type="button" className="button button-primary" onClick={() => moveWizard(1)} disabled={preflighting || (wizardStep === 2 && Boolean(preflight?.setupConflicts.length))}>{preflighting ? "Checking award…" : "Continue"} {!preflighting && <ArrowRight aria-hidden="true" />}</button>}
+            {wizardStep < 4 && <button type="button" className="button button-primary" onClick={() => moveWizard(1)} disabled={preflighting || (wizardStep === 2 && (Boolean(preflight?.setupConflicts.length) || activeFileRoleSuggestions.length > 0))}>{preflighting ? "Checking award…" : "Continue"} {!preflighting && <ArrowRight aria-hidden="true" />}</button>}
           </div>
         </form>
       </section>
@@ -830,10 +873,10 @@ export function ReportingSchedule({ periods, selectedPeriodId, onSelect }: {
   </section>;
 }
 
-export function ReportWorkflow({ obligations, referencePeriod }: { obligations: GrantWorkflowObligation[]; referencePeriod?: GrantReportingPeriod }) {
+export function ReportWorkflow({ obligations, referencePeriod, availableSources = [] }: { obligations: GrantWorkflowObligation[]; referencePeriod?: GrantReportingPeriod; availableSources?: SourceRole[] }) {
   const groups: Array<{ id: ObligationApplicability; title: string; detail: string }> = [
     { id: "required_now", title: "Required for this report", detail: "Work the team needs to complete for this reporting period." },
-    { id: "conditional", title: "Required only if triggered", detail: "Monitor these thresholds or events; they are not missing tasks unless triggered." },
+    { id: "conditional", title: "Conditional requirements", detail: "GrantDeskHQ monitors these automatically and creates an action only when the condition occurs." },
     { id: "future", title: "Required later", detail: "Obligations the agreement assigns to a later report or milestone." },
     { id: "not_applicable", title: "Not required for this report", detail: "Items the agreement explicitly excludes from this reporting period." }
   ];
@@ -844,16 +887,39 @@ export function ReportWorkflow({ obligations, referencePeriod }: { obligations: 
         const items = obligations.filter((obligation) => obligation.applicability === group.id);
         if (!items.length) return null;
         return <section key={group.id} className={`workflow-group ${group.id}`}><div><h4>{group.title}</h4><p>{group.detail}</p></div><div className="workflow-obligation-list">
-          {items.map((item) => <article key={item.id}>
-            <div className="workflow-obligation-top"><span className="workflow-owner">{item.owner}</span><ReviewLabel status={item.status} /></div>
-            <strong>{item.title}</strong><p>{item.detail}</p>
-            {group.id === "conditional" && item.trigger && !/^not applicable|none$/i.test(item.trigger) && <small><b>Trigger:</b> {item.trigger}</small>}
+          {items.map((item) => {
+            const workflowStatus = obligationWorkflowStatus(item, availableSources);
+            return <article key={item.id}>
+            <div className="workflow-obligation-top"><span className="workflow-owner">{item.owner}</span><SourceStatusBadge status={item.status} /></div>
+            <strong>{item.title}</strong><p>{humanizeWorkflowText(item.detail)}</p><div className={`workflow-task-status ${workflowStatus.tone}`}><span>Workflow status</span><strong>{workflowStatus.label}</strong></div>
+            {group.id === "conditional" && item.trigger && !/^not applicable|none$/i.test(item.trigger) && <small><b>Trigger:</b> {humanizeWorkflowText(item.trigger)}</small>}
             <small>Source: Award agreement · {cleanSourceLocator(item.source.locator)}</small>
-          </article>)}
+          </article>;})}
         </div></section>;
       })}
     </div>
   </section>;
+}
+
+function SourceStatusBadge({ status }: { status: ReviewState }) {
+  const label = status === "verified" ? "Source verified" : status === "review" ? "Source needs review" : status === "blocked" ? "Source conflict" : "Source not evaluated";
+  const tone = status === "verified" ? "success" : status === "review" ? "review" : status === "blocked" ? "blocked" : "neutral";
+  return <MappingStateBadge label={label} tone={tone} />;
+}
+
+function obligationWorkflowStatus(item: GrantWorkflowObligation, availableSources: SourceRole[]) {
+  const available = new Set(availableSources);
+  if (item.applicability === "conditional") return { label: "Monitoring · trigger evaluated during report analysis", tone: "monitoring" };
+  if (item.applicability === "future") return { label: "Not yet applicable", tone: "future" };
+  if (item.applicability === "not_applicable") return { label: "Not required for this report", tone: "future" };
+  if (item.owner === "Finance") return available.has("ledgerExport")
+    ? { label: "Accounting data available · validation pending", tone: "available" }
+    : { label: "Accounting data needed", tone: "needed" };
+  if (item.owner === "Program") return available.has("programUpdate")
+    ? { label: "Program input available · validation pending", tone: "available" }
+    : { label: "Program input needed", tone: "needed" };
+  if (item.owner === "Approver") return { label: "Not started · begins after draft preparation", tone: "not-started" };
+  return { label: "Not started", tone: "not-started" };
 }
 
 function ResultMetric({ label, value, detail, suffix = "" }: { label: string; value: number; detail: string; suffix?: string }) {
@@ -987,6 +1053,17 @@ function acceptsFile(role: SourceRole, file: File) {
   return Boolean(field?.accept.split(",").includes(extension));
 }
 
+function sourceLabel(role: SourceRole) {
+  if (role === "ledgerExport") return "Accounting data";
+  return sourceFields.find((field) => field.role === role)?.label || "the recommended field";
+}
+
+function indefiniteSourceLabel(role: SourceRole) {
+  if (role === "ledgerExport") return "accounting data";
+  const label = sourceLabel(role).toLowerCase();
+  return `${/^[aeiou]/.test(label) ? "an" : "a"} ${label}`;
+}
+
 async function fileToCompilerFile(role: SourceRole, file: File): Promise<CompilerFile> {
   return { role, name: file.name, mimeType: file.type || "application/octet-stream", size: file.size, data: await readAsDataUrl(file) };
 }
@@ -1028,24 +1105,6 @@ function humanDateRange(start: string, end: string) {
   return `${humanDate(start)} – ${humanDate(end)}`;
 }
 
-function agreementSetup(preflight: CompilationPreflightResult) {
-  const organizationName = usableProfileValue(preflight.grantProfile.granteeName);
-  const funder = usableProfileValue(preflight.grantProfile.funderName);
-  const grant = usableProfileValue(preflight.grantProfile.grantName);
-  const verifiedPeriods = preflight.reportingPeriods
-    .filter((period) => period.status === "verified" && isUsableDate(period.startDate) && isUsableDate(period.endDate))
-    .sort((left, right) => Date.parse(left.startDate) - Date.parse(right.startDate));
-  const period = verifiedPeriods.find((item) => item.id === preflight.referencePeriodId) || verifiedPeriods[0];
-  return {
-    organizationName,
-    grantName: [funder, grant].filter(Boolean).join(" — "),
-    awardAmount: usableProfileValue(preflight.grantProfile.awardAmount),
-    period
-  };
-}
-
-function usableProfileValue(field: { value: string; status: ReviewState } | undefined) {
-  if (!field || field.status === "blocked" || field.status === "not_evaluated") return "";
-  const value = field.value.trim();
-  return /^information required|unknown|not (found|stated)/i.test(value) ? "" : value;
+function humanizeWorkflowText(value: string) {
+  return value.replace(/\b(20\d{2}-\d{2}-\d{2})\b/g, (date) => isUsableDate(date) ? humanDate(date) : date);
 }
