@@ -21,9 +21,10 @@ import { buildFinancialExceptionSummary, buildReportAttention, machineCheckCount
 import { buildProgramInsights, buildProgramReadiness, satisfiedProgramCheckIds } from "../lib/programInsights";
 import { fileRoleSuggestionKey, inspectFileRole, type FileRoleSuggestion } from "../lib/fileRoleDetection";
 import { agreementSetup, remainingSetupConflicts } from "../lib/agreementSetup";
+import { futureWorkflowStatus, normalizeWorkflowObligations } from "../lib/obligationApplicability";
 import { apiRequest } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import type { CompilationPreflightResult, CompilationRequest, CompilationResult, CompilerFile, GrantReportingPeriod, GrantWorkflowObligation, ObligationApplicability, PersistedCompilationResponse, ReviewState, SetupConflict, SetupDecision, SourceRole } from "../types/prototype";
+import type { CompilationPreflightResult, CompilationRequest, CompilationResult, CompilerFile, GrantReportingPeriod, GrantWorkflowObligation, ObligationApplicability, PersistedCompilationResponse, ReviewState, SetupDecision, SourceRole } from "../types/prototype";
 
 const sourceFields: Array<{ role: SourceRole; label: string; help: string; accept: string; required: boolean }> = [
   { role: "awardAgreement", label: "Award agreement or Notice of Award", help: "PDF, DOCX, or TXT", accept: ".pdf,.docx,.txt", required: true },
@@ -238,53 +239,6 @@ export function CompilePage() {
     URL.revokeObjectURL(url);
   };
 
-  const acceptAgreementDetails = () => {
-    if (!preflight) return;
-    const setup = agreementSetup(preflight);
-    const organizationName = setup.organizationName;
-    const grantName = setup.grantName;
-    if (grantName || organizationName) {
-      setMeta((current) => ({ ...current, ...(grantName ? { grantName } : {}), ...(organizationName ? { organizationName } : {}) }));
-      setSetupNotice([organizationName ? `Organization updated to ${organizationName}.` : "", grantName ? `Grant updated to ${grantName}.` : ""].filter(Boolean).join(" "));
-      setSetupDecisions((current) => [...current, {
-        at: new Date().toISOString(),
-        action: "agreement_details_applied",
-        detail: [organizationName ? `Organization updated to ${organizationName}.` : "", grantName ? `Grant updated to ${grantName}.` : ""].filter(Boolean).join(" "),
-        sourceName: files.awardAgreement?.name || "Award agreement",
-        previousOrganizationName: meta.organizationName,
-        previousGrantName: meta.grantName,
-        previousReportingPeriod: meta.reportingPeriod
-      }]);
-    }
-    setPreflight({ ...preflight, setupConflicts: preflight.setupConflicts.filter((conflict) => !["organization_identity", "grant_identity"].includes(conflict.type)) });
-    setPreflightKey("");
-    setError("");
-  };
-
-  const applySuggestedReportingPeriod = (conflict: SetupConflict) => {
-    if (!preflight || !conflict.suggestedValue) return;
-    const matchedPeriod = preflight.reportingPeriods.find((period) => period.id === conflict.suggestedPeriodId);
-    if (matchedPeriod) {
-      selectReportingPeriod(matchedPeriod);
-      return;
-    }
-    setMeta((current) => ({ ...current, reportingPeriod: conflict.suggestedValue! }));
-    const due = conflict.suggestedDueDate ? ` Report due ${conflict.suggestedDueDate}.` : "";
-    const detail = `${conflict.suggestedLabel || "Reporting period"}: ${conflict.suggestedValue}.${due}`.replace("..", ".");
-    setSetupNotice(`Reporting period updated. ${detail}`);
-    setSetupDecisions((current) => [...current, {
-      at: new Date().toISOString(),
-      action: "reporting_period_applied",
-      detail,
-      sourceName: files.awardAgreement?.name || "Award agreement",
-      previousGrantName: meta.grantName,
-      previousReportingPeriod: meta.reportingPeriod
-    }]);
-    setPreflight({ ...preflight, setupConflicts: preflight.setupConflicts.filter((item) => item.id !== conflict.id) });
-    setPreflightKey("");
-    setError("");
-  };
-
   const selectReportingPeriod = (period: GrantReportingPeriod) => {
     if (!preflight) return;
     const reportingPeriod = humanDateRange(period.startDate, period.endDate);
@@ -466,36 +420,7 @@ export function CompilePage() {
             </section>)}
             {preflighting && <div className="setup-checking" role="status"><LoaderCircle className="animate-spin" aria-hidden="true" /><div><strong>Checking the award details</strong><p>GrantDeskHQ is comparing the funder, grant, and reporting period before drafting begins.</p></div></div>}
             {setupNotice && <div className="setup-notice" role="status"><CheckCircle2 aria-hidden="true" /><div><strong>Report setup updated</strong><p>{setupNotice}</p></div></div>}
-            {preflight && preflight.setupConflicts.length > 0 && <AgreementSetupCard preflight={preflight} onApply={applyAgreementWorkflow} />}
-            {preflight && preflight.setupConflicts.length > 0 && (
-              <section className="setup-conflict-panel" aria-labelledby="setup-conflict-title">
-                <div><p className="eyebrow">Action required</p><h3 id="setup-conflict-title">We found {preflight.setupConflicts.length} {preflight.setupConflicts.length === 1 ? "conflict" : "conflicts"} with your report setup</h3></div>
-                {preflight.setupConflicts.map((conflict) => (
-                  <article key={conflict.id} className="setup-conflict-card">
-                    <AlertTriangle aria-hidden="true" />
-                    <div>
-                      <ReviewLabel status="blocked" />
-                      <h4>{conflict.title}</h4>
-                      <p>{conflict.detail}</p>
-                      <small className="setup-source-label">Source: Award agreement · {cleanSourceLocator(conflict.source.locator)}</small>
-                      {conflict.type === "reporting_period" && conflict.suggestedValue && (
-                        <div className="setup-period-suggestion">
-                          <span>Recommended from the award agreement</span>
-                          <strong>{conflict.suggestedLabel || "First reporting period"}</strong>
-                          <p>{conflict.suggestedValue}{conflict.suggestedDueDate ? ` · Report due ${conflict.suggestedDueDate}` : ""}</p>
-                        </div>
-                      )}
-                    </div>
-                    <div className="setup-conflict-actions">
-                      {["organization_identity", "grant_identity"].includes(conflict.type) && <button type="button" className="button button-primary button-small" onClick={acceptAgreementDetails}>Use agreement details</button>}
-                      {["organization_identity", "grant_identity"].includes(conflict.type) && <button type="button" className="button button-secondary button-small" onClick={replaceAwardAgreement}>Replace agreement</button>}
-                      {conflict.type === "reporting_period" && conflict.suggestedValue && <button type="button" className="button button-primary button-small" onClick={() => applySuggestedReportingPeriod(conflict)}>Use first reporting period</button>}
-                      <button type="button" className="button button-secondary button-small" onClick={() => returnToSetup(conflict.type === "reporting_period" ? "compiler-period" : conflict.type === "organization_identity" ? "compiler-org" : "compiler-grant")}>{conflict.type === "reporting_period" ? "Choose another period" : "Edit report setup"}</button>
-                    </div>
-                  </article>
-                ))}
-              </section>
-            )}
+            {preflight && preflight.setupConflicts.length > 0 && <AgreementSetupCard preflight={preflight} onApply={applyAgreementWorkflow} onReplaceAgreement={replaceAwardAgreement} onEditSetup={() => returnToSetup("compiler-organization")} />}
             {preflight && preflight.setupConflicts.length === 0 && <div className="setup-match"><CheckCircle2 aria-hidden="true" /><div><strong>Award details match this report setup</strong><p>GrantDeskHQ checked the grant identity and reporting period before moving forward.</p></div></div>}
             {preflight && preflight.reportingPeriods.some((period) => period.status === "verified") && <ReportingSchedule periods={preflight.reportingPeriods} selectedPeriodId={preflight.referencePeriodId} onSelect={selectReportingPeriod} />}
             {preflight && preflight.workflowObligations.length > 0 && <ReportWorkflow obligations={preflight.workflowObligations} referencePeriod={preflight.reportingPeriods.find((period) => period.id === preflight.referencePeriodId)} availableSources={Object.keys(files) as SourceRole[]} />}
@@ -877,12 +802,14 @@ function ReviewLabel({ status }: { status: ReviewState }) {
   return <span className={`status-badge ${className}`}>{label}</span>;
 }
 
-export function AgreementSetupCard({ preflight, onApply }: { preflight: CompilationPreflightResult; onApply(): void }) {
+export function AgreementSetupCard({ preflight, onApply, onReplaceAgreement, onEditSetup }: { preflight: CompilationPreflightResult; onApply(): void; onReplaceAgreement?(): void; onEditSetup?(): void }) {
   const setup = agreementSetup(preflight);
   if (!setup.grantName) return null;
+  const changes = preflight.setupConflicts;
+  const hasIdentityChange = changes.some((conflict) => conflict.type === "organization_identity" || conflict.type === "grant_identity");
   return <section className="agreement-setup-card" aria-labelledby="agreement-setup-title">
     <div className="agreement-setup-heading">
-      <div><p className="eyebrow">Recommended setup</p><h3 id="agreement-setup-title">Set up this report from the agreement</h3><p>{setup.period ? "GrantDeskHQ can correct the grant details and select the first reporting obligation in one step." : "GrantDeskHQ can correct the verified grant details in one step. Choose a reporting period after the update."}</p></div>
+      <div><p className="eyebrow">Recommended setup</p><h3 id="agreement-setup-title">{hasIdentityChange ? "We found a different grant in your award agreement" : "The reporting period does not match the award agreement"}</h3><p>{setup.period ? "We can update the organization, grant, and reporting period automatically." : "We can update the organization and grant automatically. Choose a reporting period after the update."}</p></div>
       <ShieldCheck aria-hidden="true" />
     </div>
     <dl>
@@ -895,8 +822,24 @@ export function AgreementSetupCard({ preflight, onApply }: { preflight: Compilat
         {isUsableDate(setup.period.dueDate) && <div><dt>Due</dt><dd>{humanDate(setup.period.dueDate)}</dd></div>}
       </>}
     </dl>
-    <button type="button" className="button button-primary" onClick={onApply}>{setup.period ? "Use these details" : "Use verified grant details"} <ArrowRight aria-hidden="true" /></button>
+    <button type="button" className="button button-primary" onClick={onApply}>{setup.period ? "Use agreement setup" : "Use verified grant details"} <ArrowRight aria-hidden="true" /></button>
     <small>The previous manual setup will remain in the report’s audit history.</small>
+    <details className="agreement-change-review">
+      <summary><span>Review what will change</span><small>{changes.length} {changes.length === 1 ? "update" : "updates"}</small></summary>
+      <div className="agreement-change-list">
+        {changes.map((conflict) => <article key={conflict.id}>
+          <div><strong>{conflict.title}</strong><small>Source: Award agreement · {cleanSourceLocator(conflict.source.locator)}</small></div>
+          <dl>
+            <div><dt>Current setup</dt><dd>{conflict.enteredValue}</dd></div>
+            <div><dt>From award agreement</dt><dd>{conflict.type === "reporting_period" && conflict.suggestedValue ? `${conflict.suggestedLabel || "First reporting period"}: ${conflict.suggestedValue}${conflict.suggestedDueDate ? ` · Due ${conflict.suggestedDueDate}` : ""}` : conflict.sourceValue}</dd></div>
+          </dl>
+        </article>)}
+      </div>
+      {(onReplaceAgreement || onEditSetup) && <div className="agreement-change-actions">
+        {onReplaceAgreement && <button type="button" className="button button-secondary button-small" onClick={onReplaceAgreement}>Replace agreement</button>}
+        {onEditSetup && <button type="button" className="button button-secondary button-small" onClick={onEditSetup}>Edit setup manually</button>}
+      </div>}
+    </details>
   </section>;
 }
 
@@ -927,6 +870,7 @@ export function ReportingSchedule({ periods, selectedPeriodId, onSelect }: {
 }
 
 export function ReportWorkflow({ obligations, referencePeriod, availableSources = [] }: { obligations: GrantWorkflowObligation[]; referencePeriod?: GrantReportingPeriod; availableSources?: SourceRole[] }) {
+  const normalizedObligations = normalizeWorkflowObligations(obligations);
   const groups: Array<{ id: ObligationApplicability; title: string; detail: string }> = [
     { id: "required_now", title: "Required for this report", detail: "Work the team needs to complete for this reporting period." },
     { id: "conditional", title: "Conditional requirements", detail: "GrantDeskHQ monitors these automatically and creates an action only when the condition occurs." },
@@ -937,7 +881,7 @@ export function ReportWorkflow({ obligations, referencePeriod, availableSources 
     <div className="report-workflow-heading"><div><p className="eyebrow">Report workflow</p><h3 id="report-workflow-title">What your team needs to complete next</h3><p>{referencePeriod ? `${referencePeriod.title} · ${humanDateRange(referencePeriod.startDate, referencePeriod.endDate)}` : "Selected reporting obligation"}</p></div><ClipboardCheck aria-hidden="true" /></div>
     <div className="report-workflow-groups">
       {groups.map((group) => {
-        const items = obligations.filter((obligation) => obligation.applicability === group.id);
+        const items = normalizedObligations.filter((obligation) => obligation.applicability === group.id);
         if (!items.length) return null;
         return <section key={group.id} className={`workflow-group ${group.id}`}><div><h4>{group.title}</h4><p>{group.detail}</p></div><div className="workflow-obligation-list">
           {items.map((item) => {
@@ -963,7 +907,7 @@ function SourceStatusBadge({ status }: { status: ReviewState }) {
 function obligationWorkflowStatus(item: GrantWorkflowObligation, availableSources: SourceRole[]) {
   const available = new Set(availableSources);
   if (item.applicability === "conditional") return { label: "Monitoring · trigger evaluated during report analysis", tone: "monitoring" };
-  if (item.applicability === "future") return { label: "Not yet applicable", tone: "future" };
+  if (item.applicability === "future") return { label: futureWorkflowStatus(item), tone: "future" };
   if (item.applicability === "not_applicable") return { label: "Not required for this report", tone: "future" };
   if (item.owner === "Finance") return available.has("ledgerExport")
     ? { label: "Accounting data available · validation pending", tone: "available" }

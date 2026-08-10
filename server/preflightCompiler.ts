@@ -3,6 +3,7 @@ import { preflightSchema } from "./preflightSchema.ts";
 import { verificationSchema } from "./compilerSchema.ts";
 import { enforceVerificationCompleteness } from "./verification.ts";
 import { detectSetupConflicts } from "./workflowState.ts";
+import { normalizeWorkflowObligations } from "../src/lib/obligationApplicability.ts";
 import type {
   CompilationPreflightRequest,
   CompilationPreflightResult,
@@ -32,6 +33,8 @@ Choose a reference reporting period for workflow planning: use the entered perio
 - conditional: required only if a documented threshold or event is triggered;
 - future: explicitly required in a later reporting period;
 - not_applicable: explicitly not required for this report.
+
+A no-cost extension request is conditional when it is required only if the grantee seeks an extension. A closeout rule about returning unspent funds is future-facing and activates only if an unspent balance remains. Preserve both conditions in the trigger and detail.
 
 Inspect the entire document for financial schedules, program KPIs, evidence, approvals, certifications, matching funds, budget-change thresholds, variance thresholds, indirect-cost caps, per-transaction assistance or expense approvals, record retention, incident notifications, material-change notices, extension deadlines, unspent-funds returns, payment conditions, and submission contacts. Preserve conditional triggers exactly. Do not turn a future or conditional obligation into a current missing task.
 
@@ -175,7 +178,7 @@ async function verifyPreflight(
     grantProfile: verifiedProfile,
     reportingPeriods: verifiedPeriods,
     referencePeriodId: verifiedReferencePeriodId,
-    workflowObligations: verifiedObligations
+    workflowObligations: normalizeWorkflowObligations(verifiedObligations)
   };
 }
 

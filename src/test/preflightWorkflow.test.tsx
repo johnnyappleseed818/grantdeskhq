@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PREFLIGHT_SYSTEM_PROMPT } from "../../server/preflightCompiler";
 import { sanitizeSetupDecisions } from "../../server/persistence";
 import { remainingSetupConflicts } from "../lib/agreementSetup";
+import { normalizeWorkflowObligations } from "../lib/obligationApplicability";
 import { AgreementSetupCard, ReportingSchedule, ReportWorkflow } from "../pages/CompilePage";
 import type { CompilationPreflightResult, GrantReportingPeriod, GrantWorkflowObligation } from "../types/prototype";
 
@@ -24,6 +25,8 @@ const obligations: GrantWorkflowObligation[] = [
   obligation("program-kpis", "Provide six program measures", "Program", "required_now", "Always required for Interim Report 1"),
   obligation("variance", "Explain material variances", "Grants", "conditional", "A variance reaches $7,500"),
   obligation("match", "Certify the $40,000 cash match", "Approver", "future", "Required with the Final Report"),
+  obligation("extension", "Submit a no-cost extension request if needed", "Grants", "future", "If a no-cost extension is sought"),
+  obligation("unspent", "Return unspent balance after grant end", "Finance", "future", "If an unspent balance remains at closeout"),
   obligation("certification", "Final certification", "Approver", "not_applicable", "Not required for Interim Report 1")
 ];
 
@@ -56,12 +59,13 @@ describe("agreement-driven report setup", () => {
   it("offers one action that configures the verified grant and first report", () => {
     const apply = vi.fn();
     render(<AgreementSetupCard preflight={preflight} onApply={apply} />);
-    expect(screen.getByRole("heading", { name: "Set up this report from the agreement" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "We found a different grant in your award agreement" })).toBeInTheDocument();
     expect(screen.getByText("Northstar Community Fund — Family Stability & Housing Navigation Program")).toBeInTheDocument();
     expect(screen.getByText("$325,000")).toBeInTheDocument();
     expect(screen.getByText("Interim Report 1")).toBeInTheDocument();
     expect(screen.getByText("Aug 31, 2027")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Use these details/i }));
+    expect(screen.getByText("Review what will change")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Use agreement setup/i }));
     expect(apply).toHaveBeenCalledOnce();
   });
 
@@ -85,10 +89,16 @@ describe("agreement-driven report setup", () => {
     expect(screen.getByText("GrantDeskHQ monitors these automatically and creates an action only when the condition occurs.")).toBeInTheDocument();
     expect(screen.getByText("Accounting data available · validation pending")).toBeInTheDocument();
     expect(screen.getByText("Program input available · validation pending")).toBeInTheDocument();
-    expect(screen.getByText("Monitoring · trigger evaluated during report analysis")).toBeInTheDocument();
-    expect(screen.getByText("Not yet applicable")).toBeInTheDocument();
+    expect(screen.getAllByText("Monitoring · trigger evaluated during report analysis")).toHaveLength(2);
+    expect(screen.getByText("Not yet applicable · only if an unspent balance remains")).toBeInTheDocument();
     expect(screen.getAllByText("Source verified").length).toBeGreaterThan(0);
     expect(screen.queryByText(/^Verified$/)).not.toBeInTheDocument();
+  });
+
+  it("treats extension requests as conditional while keeping unspent-funds closeout future-facing", () => {
+    const normalized = normalizeWorkflowObligations(obligations);
+    expect(normalized.find((item) => item.id === "extension")?.applicability).toBe("conditional");
+    expect(normalized.find((item) => item.id === "unspent")?.applicability).toBe("future");
   });
 
   it("one-click agreement setup clears organization, grant, and reporting-period conflicts together", () => {
