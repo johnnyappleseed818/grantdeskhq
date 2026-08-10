@@ -1,6 +1,6 @@
-import { randomUUID } from "node:crypto";
-import { canGenerateReviewPackage } from "../src/lib/prototype.ts";
-import type { CompilationRequest, CompilationResult, SavedReportSummary } from "../src/types/prototype.ts";
+import { createHash, randomUUID } from "node:crypto";
+import { canGenerateReviewPackage, isValidCompilationRequestId } from "../src/lib/prototype.ts";
+import type { CompilationRequest, CompilationResult, PersistedCompilationResponse, SavedReportSummary } from "../src/types/prototype.ts";
 import type { AwardDiscoveryScan, DailySocialScan } from "../src/lib/gtm.ts";
 import type { AuthenticatedUser } from "./auth.ts";
 import type { BillingEventSnapshot } from "./billing.ts";
@@ -13,7 +13,7 @@ let tokenCache: { token: string; expiresAt: number } | null = null;
 export async function saveCompilation(user: AuthenticatedUser, request: CompilationRequest, result: CompilationResult) {
   const now = new Date().toISOString();
   const organizationId = `org_${user.uid}`;
-  const reportId = `report_${randomUUID().replaceAll("-", "")}`;
+  const reportId = compilationReportId(user.uid, request.requestId);
   const accessToken = await gcpToken();
   const sources = await Promise.all(request.files.map(async (file) => {
     const objectName = `${organizationId}/reports/${reportId}/sources/${file.role}-${safeName(file.name)}`;
@@ -28,11 +28,42 @@ export async function saveCompilation(user: AuthenticatedUser, request: Compilat
   await writeDocument(accessToken, `organizations/${organizationId}/reports/${reportId}`, {
     ...summary,
     ownerUid: user.uid,
+    requestId: request.requestId || "",
     resultJson: JSON.stringify(result),
     sourcesJson: JSON.stringify(sources),
     auditJson: JSON.stringify([...setupAudit, { at: now, actorUid: user.uid, action: "compiled", detail: "Our AI-powered solution prepared the draft, then completed an independent source check and deterministic validation." }])
   });
   return { reportId, report: summary, result };
+}
+
+export async function readCompilationByRequest(user: AuthenticatedUser, requestId: string | undefined): Promise<PersistedCompilationResponse | null> {
+  if (!isValidCompilationRequestId(requestId)) return null;
+  const reportId = compilationReportId(user.uid, requestId);
+  const response = await authorizedFetch(`${firestoreBase}/organizations/org_${user.uid}/reports/${reportId}`, await gcpToken());
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Saved report could not be checked (${response.status}).`);
+  const record = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
+  if (record.ownerUid !== user.uid || record.requestId !== requestId || !record.resultJson) return null;
+  const result = JSON.parse(String(record.resultJson)) as CompilationResult;
+  const report: SavedReportSummary = {
+    id: reportId,
+    organizationName: String(record.organizationName || ""),
+    grantName: String(record.grantName || ""),
+    reportingPeriod: String(record.reportingPeriod || ""),
+    status: record.status === "ready" ? "ready" : "review_required",
+    evidenceCoveragePercent: Number(record.evidenceCoveragePercent || 0),
+    unresolvedItems: Number(record.unresolvedItems || 0),
+    sourceCount: Number(record.sourceCount || 0),
+    createdAt: String(record.createdAt || ""),
+    updatedAt: String(record.updatedAt || "")
+  };
+  return { reportId, report, result };
+}
+
+export function compilationReportId(userUid: string, requestId: string | undefined) {
+  if (!isValidCompilationRequestId(requestId)) return `report_${randomUUID().replaceAll("-", "")}`;
+  const digest = createHash("sha256").update(`${userUid}:${requestId}`).digest("hex").slice(0, 32);
+  return `report_${digest}`;
 }
 
 export function sanitizeSetupDecisions(request: CompilationRequest, actorUid: string) {

@@ -8,7 +8,7 @@ import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { readBillingStatus, readGtmAwardScan, readGtmDailyScan, listReports, saveBillingEvent, saveCompilation, saveGtmAwardScan, saveGtmDailyScan, saveReview } from "./persistence.ts";
+import { readBillingStatus, readCompilationByRequest, readGtmAwardScan, readGtmDailyScan, listReports, saveBillingEvent, saveCompilation, saveGtmAwardScan, saveGtmDailyScan, saveReview } from "./persistence.ts";
 import { runDailySocialScan } from "./gtmDailyScanner.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { requireGtmScheduler } from "./schedulerAuth.ts";
@@ -71,12 +71,23 @@ async function handleCompiler(request: IncomingMessage, response: ServerResponse
   const errors = validateCompilationRequest(input);
   if (errors.length) return json(response, 400, { error: errors.join(" ") });
   try {
+    const existing = await readCompilationByRequest(user, input.requestId);
+    if (existing) return json(response, 200, existing);
     const result = await compileGrantReport(input);
     return json(response, 200, await saveCompilation(user, input, result));
   } catch (error) {
     console.error("GrantDeskHQ compiler error:", error instanceof Error ? error.message : "Unknown error");
-    return json(response, 502, { error: "The AI compiler could not complete this package. Try the synthetic package again." });
+    const timedOut = isTimeoutFailure(error);
+    return json(response, timedOut ? 504 : 502, {
+      error: timedOut
+        ? "Report generation took longer than expected. Your source files were not changed. Please try again."
+        : "Report generation was temporarily interrupted. Your source files were not changed. Please try again."
+    });
   }
+}
+
+function isTimeoutFailure(error: unknown) {
+  return error instanceof Error && (error.name === "TimeoutError" || /aborted due to timeout|time limit|timed out|timeout/i.test(error.message));
 }
 
 async function handleBillingCheckout(request: IncomingMessage, response: ServerResponse) {

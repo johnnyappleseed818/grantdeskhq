@@ -10,6 +10,7 @@ import { randomUUID } from "node:crypto";
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = "gpt-5.6-terra";
 const DEFAULT_VERIFIER_MODEL = "gpt-5.6-luna";
+const COMPILATION_TIME_BUDGET_MS = 270_000;
 
 export const REPORT_SYSTEM_PROMPT = `You are the evidence-first report compiler inside GrantDeskHQ, a post-award grant-reporting application.
 
@@ -38,6 +39,7 @@ export async function compileGrantReport(request: CompilationRequest): Promise<C
   const model = process.env.OPENAI_MODEL || DEFAULT_MODEL;
   const verifierModel = process.env.OPENAI_VERIFIER_MODEL || DEFAULT_VERIFIER_MODEL;
   const correlationId = randomUUID();
+  const deadlineAt = Date.now() + COMPILATION_TIME_BUDGET_MS;
 
   const sourceContent = request.files.map((file) => ({
     type: "input_file" as const,
@@ -76,7 +78,7 @@ export async function compileGrantReport(request: CompilationRequest): Promise<C
         }
       }
     })
-  }, "report_compile", correlationId, model);
+  }, "report_compile", correlationId, model, { timeoutMs: 120_000, maxAttempts: 1, deadlineAt });
 
   const body = await response.json() as OpenAIResponse;
   logAiResult("report_compile", correlationId, body.model || model, response.ok, Date.now() - startedAt, body.usage);
@@ -92,11 +94,11 @@ export async function compileGrantReport(request: CompilationRequest): Promise<C
   compiled.programChecks ||= [];
   compiled.requirements = mergeRequirements(
     compiled.requirements,
-    await auditMissingRequirements(request, compiled.requirements, apiKey, verifierModel, sourceContent, correlationId)
+    await auditMissingRequirements(request, compiled.requirements, apiKey, verifierModel, sourceContent, correlationId, deadlineAt)
   );
   compiled.programChecks = mergeProgramChecks(
     compiled.programChecks,
-    await auditMissingProgramChecks(request, compiled.requirements, compiled.programChecks, apiKey, verifierModel, sourceContent, correlationId)
+    await auditMissingProgramChecks(request, compiled.requirements, compiled.programChecks, apiKey, verifierModel, sourceContent, correlationId, deadlineAt)
   );
   type ProfileField = NonNullable<(typeof compiled.grantProfile)[keyof typeof compiled.grantProfile]>;
   const profileEntries = Object.entries(compiled.grantProfile)
@@ -108,7 +110,7 @@ export async function compileGrantReport(request: CompilationRequest): Promise<C
     ...compiled.narrative.map((item) => `narrative:${item.id}`),
     ...compiled.programChecks.map((item) => `program:${item.id}`)
   ];
-  const findings = enforceVerificationCompleteness(expectedFindingIds, await verifyAgainstSources(request, compiled, apiKey, verifierModel, sourceContent, correlationId));
+  const findings = enforceVerificationCompleteness(expectedFindingIds, await verifyAgainstSources(request, compiled, apiKey, verifierModel, sourceContent, correlationId, deadlineAt));
   const sourceMatchedItems = findings.filter((finding) => finding.verdict === "source_matched").length;
   const itemsNeedingReview = findings.filter((finding) => finding.verdict === "review").length;
   const blockedItems = findings.filter((finding) => finding.verdict === "blocked").length;
@@ -184,7 +186,8 @@ async function auditMissingRequirements(
   apiKey: string,
   model: string,
   sourceContent: Array<{ type: "input_file"; filename: string; file_data: string }>,
-  correlationId: string
+  correlationId: string,
+  deadlineAt: number
 ): Promise<ModelCompilation["requirements"]> {
   const startedAt = Date.now();
   const response = await fetchAiWithRetry({
@@ -210,7 +213,7 @@ async function auditMissingRequirements(
       ],
       text: { format: { type: "json_schema", name: "grant_requirement_completeness_audit", strict: true, schema: requirementAuditSchema } }
     })
-  }, "requirement_completeness_audit", correlationId, model);
+  }, "requirement_completeness_audit", correlationId, model, { deadlineAt });
   const body = await response.json() as OpenAIResponse;
   logAiResult("requirement_completeness_audit", correlationId, body.model || model, response.ok, Date.now() - startedAt, body.usage);
   if (!response.ok) throw new Error(body.error?.message || `Requirement completeness audit failed with status ${response.status}.`);
@@ -228,7 +231,8 @@ async function auditMissingProgramChecks(
   apiKey: string,
   model: string,
   sourceContent: Array<{ type: "input_file"; filename: string; file_data: string }>,
-  correlationId: string
+  correlationId: string,
+  deadlineAt: number
 ): Promise<NonNullable<ModelCompilation["programChecks"]>> {
   if (!request.files.some((file) => file.role === "programUpdate")) return [];
   const startedAt = Date.now();
@@ -255,7 +259,7 @@ async function auditMissingProgramChecks(
       ],
       text: { format: { type: "json_schema", name: "program_workflow_completeness_audit", strict: true, schema: programAuditSchema } }
     })
-  }, "program_workflow_completeness_audit", correlationId, model);
+  }, "program_workflow_completeness_audit", correlationId, model, { deadlineAt });
   const body = await response.json() as OpenAIResponse;
   logAiResult("program_workflow_completeness_audit", correlationId, body.model || model, response.ok, Date.now() - startedAt, body.usage);
   if (!response.ok) throw new Error(body.error?.message || `Program workflow completeness audit failed with status ${response.status}.`);
@@ -314,7 +318,8 @@ async function verifyAgainstSources(
   apiKey: string,
   model: string,
   sourceContent: Array<{ type: "input_file"; filename: string; file_data: string }>,
-  correlationId: string
+  correlationId: string,
+  deadlineAt: number
 ): Promise<ValidationFinding[]> {
   const candidates = {
     profile: Object.entries(compiled.grantProfile).map(([key, field]) => ({ id: `profile:${key}`, text: field.value, proposedSource: field.source })),
@@ -347,7 +352,7 @@ async function verifyAgainstSources(
       ],
       text: { format: { type: "json_schema", name: "grant_report_verification", strict: true, schema: verificationSchema } }
     })
-  }, "evidence_verify", correlationId, model);
+  }, "evidence_verify", correlationId, model, { deadlineAt });
   const body = await response.json() as OpenAIResponse;
   logAiResult("evidence_verify", correlationId, body.model || model, response.ok, Date.now() - startedAt, body.usage);
   if (!response.ok) throw new Error(body.error?.message || `Evidence verification failed with status ${response.status}.`);
@@ -357,19 +362,29 @@ async function verifyAgainstSources(
   return (JSON.parse(outputText) as { findings: ValidationFinding[] }).findings;
 }
 
-async function fetchAiWithRetry(init: RequestInit, requestType: string, correlationId: string, model: string) {
+interface AiRequestPolicy {
+  timeoutMs?: number;
+  maxAttempts?: number;
+  deadlineAt?: number;
+}
+
+async function fetchAiWithRetry(init: RequestInit, requestType: string, correlationId: string, model: string, policy: AiRequestPolicy = {}) {
   let lastError: unknown;
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
+  const maxAttempts = policy.maxAttempts || 2;
+  const timeoutMs = policy.timeoutMs || 60_000;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const response = await fetch(OPENAI_URL, { ...init, signal: AbortSignal.timeout(60_000) });
+      const remainingMs = policy.deadlineAt ? policy.deadlineAt - Date.now() : timeoutMs;
+      if (remainingMs <= 1_000) throw new DOMException("Report generation exceeded the processing time limit.", "TimeoutError");
+      const response = await fetch(OPENAI_URL, { ...init, signal: AbortSignal.timeout(Math.min(timeoutMs, remainingMs)) });
       if (response.status !== 429 && response.status < 500) return response;
-      if (attempt === 2) return response;
+      if (attempt === maxAttempts) return response;
       response.body?.cancel().catch(() => undefined);
       await delay(300 * attempt);
     } catch (error) {
       lastError = error;
       console.warn(JSON.stringify({ event: "ai_request_retry", requestType, correlationId, model, attempt, errorType: error instanceof Error ? error.name : "unknown" }));
-      if (attempt < 2) await delay(300 * attempt);
+      if (attempt < maxAttempts) await delay(300 * attempt);
     }
   }
   throw lastError instanceof Error ? lastError : new Error("AI provider request failed.");

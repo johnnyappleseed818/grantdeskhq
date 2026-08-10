@@ -21,7 +21,12 @@ export function validateCompilationRequest(input: CompilationRequest): string[] 
   if (totalSize > MAX_TOTAL_BYTES) errors.push("Combined file size must be 2.5 MB or less.");
   if (input.files.some((file) => file.size > MAX_FILE_BYTES)) errors.push("Each file must be 1 MB or less.");
   if (input.files.some((file) => !file.data.startsWith("data:"))) errors.push("Every source file must contain valid encoded file data.");
+  if (input.requestId && !isValidCompilationRequestId(input.requestId)) errors.push("The report request identifier is invalid.");
   return errors;
+}
+
+export function isValidCompilationRequestId(value: string | undefined): value is string {
+  return Boolean(value && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value));
 }
 
 export function validateCompilationPreflightRequest(input: CompilationPreflightRequest): string[] {

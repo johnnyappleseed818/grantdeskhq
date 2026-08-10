@@ -60,6 +60,7 @@ export function CompilePage() {
   const [guideOpen, setGuideOpen] = useState(true);
   const [fileRoleSuggestions, setFileRoleSuggestions] = useState<Partial<Record<SourceRole, FileRoleSuggestion>>>({});
   const [acceptedFileRoles, setAcceptedFileRoles] = useState<string[]>([]);
+  const [compileAttempt, setCompileAttempt] = useState<{ fingerprint: string; requestId: string } | null>(null);
 
   const totalBytes = useMemo(() => Object.values(files).reduce((sum, file) => sum + (file?.size || 0), 0), [files]);
   const requiredFilesComplete = sourceFields.filter((field) => field.required).every((field) => files[field.role]);
@@ -181,7 +182,10 @@ export function CompilePage() {
     setResult(null);
     const selected = Object.entries(files) as Array<[SourceRole, File]>;
     const payloadFiles = await Promise.all(selected.map(([role, file]) => fileToCompilerFile(role, file)));
-    const payload: CompilationRequest = { ...meta, files: payloadFiles, setupDecisions };
+    const fingerprint = compilationFingerprint(meta, selected, setupDecisions);
+    const requestId = compileAttempt?.fingerprint === fingerprint ? compileAttempt.requestId : crypto.randomUUID();
+    setCompileAttempt({ fingerprint, requestId });
+    const payload: CompilationRequest = { ...meta, files: payloadFiles, setupDecisions, requestId };
     const errors = validateCompilationRequest(payload);
     if (!acknowledged) errors.push("Confirm that the files are synthetic or redacted test files.");
     if (errors.length) {
@@ -1056,6 +1060,18 @@ function acceptsFile(role: SourceRole, file: File) {
 function sourceLabel(role: SourceRole) {
   if (role === "ledgerExport") return "Accounting data";
   return sourceFields.find((field) => field.role === role)?.label || "the recommended field";
+}
+
+function compilationFingerprint(
+  meta: { organizationName: string; grantName: string; reportingPeriod: string },
+  files: Array<[SourceRole, File]>,
+  setupDecisions: SetupDecision[]
+) {
+  return JSON.stringify({
+    ...meta,
+    files: files.map(([role, file]) => [role, file.name, file.size, file.lastModified]),
+    setupDecisions: setupDecisions.map((decision) => [decision.action, decision.sourceName, decision.selectedObligationId || ""])
+  });
 }
 
 function indefiniteSourceLabel(role: SourceRole) {

@@ -20,6 +20,7 @@ export interface CompilationRequest {
   reportingPeriod: string;
   files: CompilerFile[];
   setupDecisions?: SetupDecision[];
+  requestId?: string;
 }
 
 export interface SavedReportSummary {

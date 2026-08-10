@@ -31,6 +31,13 @@ describe("prototype request validation", () => {
     expect(validateCompilationRequest(input)).toContain("Missing required source: awardAgreement.");
   });
 
+  it("accepts a UUID request identifier and rejects malformed retry identifiers", () => {
+    const valid = request();
+    valid.requestId = "3dd8a462-480c-4ed7-a4a3-6fcb92d1427a";
+    expect(validateCompilationRequest(valid)).toEqual([]);
+    expect(validateCompilationRequest({ ...valid, requestId: "retry-this-report" })).toContain("The report request identifier is invalid.");
+  });
+
   it("accepts an agreement-only readiness audit and rejects a missing agreement", () => {
     const readiness: ReadinessRequest = {
       organizationName: "Hope Community Services",
