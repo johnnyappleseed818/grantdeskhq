@@ -15,18 +15,36 @@ export function buildReportAttention(result: CompilationResult): ReportAttention
     detail: conflict.detail
   }));
 
-  const transactionExceptions = uniqueByTransaction(result.mappings.filter((mapping) => {
-    const needsReview = mapping.requiresHumanAction || (["review", "blocked"].includes(mapping.status) && !["outside_grant_period", "outside_report_period"].includes(mapping.reviewReason || ""));
-    if (!needsReview) return false;
-    const finding = result.validation.findings.find((item) => item.itemId === `mapping:${mapping.transactionId}`);
-    return !finding || finding.verdict !== "source_matched";
-  }));
-  if (transactionExceptions.length) {
+  const categoryExceptions = uniqueByTransaction(result.mappings.filter((mapping) => mapping.reportTreatment === "needs_category_review"));
+  if (categoryExceptions.length) {
     items.push({
-      id: "transaction-exceptions",
+      id: "transaction-category-exceptions",
       kind: "transactions",
-      title: `Review ${transactionExceptions.length} transaction ${transactionExceptions.length === 1 ? "exception" : "exceptions"}`,
-      detail: humanList(transactionExceptions.map((mapping) => mapping.transactionId))
+      title: `${categoryExceptions.length} ${categoryExceptions.length === 1 ? "transaction needs" : "transactions need"} a category decision`,
+      detail: humanList(categoryExceptions.map((mapping) => mapping.transactionId))
+    });
+  }
+
+  const duplicateExceptions = uniqueByTransaction(result.mappings.filter((mapping) => mapping.reportTreatment === "excluded_duplicate"));
+  if (duplicateExceptions.length) {
+    items.push({
+      id: "transaction-duplicate-exceptions",
+      kind: "transactions",
+      title: `${duplicateExceptions.length} potential ${duplicateExceptions.length === 1 ? "duplicate needs" : "duplicates need"} review`,
+      detail: `${humanList(duplicateExceptions.map((mapping) => mapping.transactionId))} ${duplicateExceptions.length === 1 ? "is" : "are"} excluded from provisional totals.`
+    });
+  }
+
+  const otherTransactionExceptions = uniqueByTransaction(result.mappings.filter((mapping) => {
+    if (["needs_category_review", "excluded_duplicate", "excluded_outside_period", "excluded_grant_period"].includes(mapping.reportTreatment || "")) return false;
+    return mapping.requiresHumanAction || ["review", "blocked"].includes(mapping.status);
+  }));
+  if (otherTransactionExceptions.length) {
+    items.push({
+      id: "transaction-other-exceptions",
+      kind: "transactions",
+      title: `Review ${otherTransactionExceptions.length} additional transaction ${otherTransactionExceptions.length === 1 ? "exception" : "exceptions"}`,
+      detail: humanList(otherTransactionExceptions.map((mapping) => mapping.transactionId))
     });
   }
 

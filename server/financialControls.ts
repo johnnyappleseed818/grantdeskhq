@@ -60,7 +60,10 @@ export function buildFinancialAnalysis(
     const rows = usable.filter((row) => sameCategory(row.category, budget.category));
     const actualAmount = roundMoney(rows.reduce((total, row) => total + row.amount, 0));
     const varianceAmount = roundMoney(actualAmount - budget.approvedAmount);
-    const explanationRequired = varianceThreshold !== null && Math.abs(varianceAmount) >= varianceThreshold;
+    // Without a period-specific spending plan, partial-period underspend is not a
+    // reliable exception. A category that exceeds the approved amount can still
+    // trigger the agreement's absolute-dollar explanation rule.
+    const explanationRequired = varianceThreshold !== null && varianceAmount >= varianceThreshold;
     return {
       category: budget.category,
       approvedAmount: budget.approvedAmount,
@@ -90,6 +93,20 @@ export function buildFinancialAnalysis(
       status: "passed",
       requiresAction: false,
       transactionIds: []
+    });
+  }
+
+  const eligibilityRows = mappings
+    .filter((mapping) => mapping.reportTreatment === "provisional" && mapping.complianceStatus === "eligibility_review")
+    .filter((mapping) => usable.some((row) => row.id === mapping.transactionId));
+  if (eligibilityRows.length) {
+    controls.push({
+      id: "eligibility-review",
+      title: `${eligibilityRows.length} ${eligibilityRows.length === 1 ? "transaction needs" : "transactions need"} an eligibility review`,
+      detail: `The budget category is clear, but the award language does not establish whether ${eligibilityRows.length === 1 ? "this purchase is" : "these purchases are"} allowable. Confirm eligibility before final inclusion.`,
+      status: "review",
+      requiresAction: true,
+      transactionIds: eligibilityRows.map((mapping) => mapping.transactionId)
     });
   }
 
@@ -124,10 +141,11 @@ export function buildFinancialAnalysis(
     const percentageLimit = roundMoney(directActual * indirectPercent / 100);
     const allowed = indirectCap === null ? percentageLimit : Math.min(indirectCap, percentageLimit);
     const withinLimit = indirectActual <= allowed + 0.005;
+    const remainingCapacity = roundMoney(allowed - indirectActual);
     controls.push({
       id: "indirect-cost-limit",
       title: withinLimit ? "Indirect costs are within the current allowable limit" : "Indirect costs exceed the current allowable limit",
-      detail: `${money(indirectActual)} charged · ${money(directActual)} eligible direct costs · current limit ${money(allowed)} (${indirectPercent}%${indirectCap === null ? "" : `, capped at ${money(indirectCap)}`}).`,
+      detail: `${preciseMoney(indirectActual)} charged · ${preciseMoney(directActual)} eligible direct costs · current limit ${preciseMoney(allowed)} (${indirectPercent}%${indirectCap === null ? "" : `, capped at ${preciseMoney(indirectCap)}`}) · ${withinLimit ? `${preciseMoney(remainingCapacity)} remaining capacity` : `${preciseMoney(Math.abs(remainingCapacity))} above the current limit`}.`,
       status: withinLimit ? "passed" : "blocked",
       requiresAction: !withinLimit,
       transactionIds: indirectRows.map((row) => row.id)
@@ -203,4 +221,5 @@ function parsePeriod(value: string) {
 }
 function roundMoney(value: number) { return Math.round(value * 100) / 100; }
 function money(value: number) { return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value); }
+function preciseMoney(value: number) { return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value); }
 function signedMoney(value: number) { return `${value >= 0 ? "+" : "-"}${money(Math.abs(value))}`; }

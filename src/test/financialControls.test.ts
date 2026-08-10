@@ -57,9 +57,9 @@ const result: CompilationResult = {
     description,
     amount,
     suggestedCategory: transactionId === "BW-TECH-004" ? "Unmapped" : rows.find((row) => row[0] === transactionId)?.[2] || "Unmapped",
-    confidence: transactionId === "BW-TECH-004" ? 0 : 0.98,
-    rationale: "Synthetic mapping suggestion.",
-    status: transactionId === "BW-TECH-004" ? "blocked" as const : "verified" as const
+    confidence: 0,
+    rationale: transactionId === "BW-TECH-004" ? "Confirm that equipment is allowable within approved case-management and reporting tools." : "Account and description align to the suggested category.",
+    status: "blocked" as const
   })),
   missingInputs: [],
   narrative: [],
@@ -80,8 +80,8 @@ const result: CompilationResult = {
 describe("deterministic award + ledger financial controls", () => {
   const checked = applyDeterministicAccuracyChecks(request, result);
 
-  it("turns an exact ledger-account and budget-category match into a reviewable suggestion", () => {
-    expect(checked.mappings.find((item) => item.transactionId === "BW-TECH-004")).toMatchObject({ suggestedCategory: "Technology & Data Systems", status: "review", reviewReason: "exact_budget_match", requiresHumanAction: true });
+  it("separates a high-confidence category mapping from an eligibility review", () => {
+    expect(checked.mappings.find((item) => item.transactionId === "BW-TECH-004")).toMatchObject({ suggestedCategory: "Technology & Data Systems", status: "verified", mappingConfidence: "high", complianceStatus: "eligibility_review", reportTreatment: "provisional", reviewReason: "exact_budget_match", requiresHumanAction: false });
   });
 
   it("calculates the exact technology variance and triggers the source-defined threshold", () => {
@@ -96,9 +96,10 @@ describe("deterministic award + ledger financial controls", () => {
   it("calculates the indirect-cost ceiling deterministically", () => {
     const control = checked.financialAnalysis?.controls.find((item) => item.id === "indirect-cost-limit");
     expect(control).toMatchObject({ status: "passed", requiresAction: false });
-    expect(control?.detail).toContain("$9,000 charged");
-    expect(control?.detail).toContain("$123,980 eligible direct costs");
-    expect(control?.detail).toContain("$9,918");
+    expect(control?.detail).toContain("$9,000.00 charged");
+    expect(control?.detail).toContain("$123,980.00 eligible direct costs");
+    expect(control?.detail).toContain("$9,918.40");
+    expect(control?.detail).toContain("$918.40 remaining capacity");
   });
 
   it("accepts a verified budget embedded in the award agreement", () => {

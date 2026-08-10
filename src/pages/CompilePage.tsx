@@ -573,7 +573,74 @@ function Mappings({ result, onAddSources }: { result: CompilationResult; onAddSo
   const hasLedger = result.inputStatus.some((item) => item.role === "ledgerExport" && item.available);
   if (!hasLedger) return <EmptyResultState title="Accounting data is still needed" detail="Add a general-ledger export when it is available. GrantDeskHQ will then suggest grant-budget mappings and calculate the financial schedule from those source rows." action="Add accounting data" onAction={onAddSources} />;
   if (!result.mappings.length) return <EmptyResultState title="No transaction mappings are available yet" detail="GrantDeskHQ could not produce usable mapping suggestions from the current accounting file. Review the file format or add a different export." action="Review accounting data" onAction={onAddSources} />;
-  return <div className="grid gap-5"><div className="financial-trust-note"><ShieldCheck aria-hidden="true" /><p><strong>Financial totals are calculated directly from your uploaded ledger.</strong> Our AI-powered solution may suggest transaction mappings and explanations, but it never invents transaction amounts.</p></div><FinancialControls result={result} /><div className="table-scroll"><table className="data-table prototype-mapping-table"><thead><tr><th>ID</th><th>Date</th><th>Description</th><th>Amount</th><th>Suggested category</th><th>Confidence</th><th>Evidence / rule</th><th>Status</th></tr></thead><tbody>{result.mappings.map((item, index) => <tr key={`${item.transactionId}-${index}`} className={item.status === "blocked" ? "row-unresolved" : ""}><th>{item.transactionId}</th><td>{item.date}</td><td>{item.description}</td><td>{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(item.amount)}</td><td>{item.suggestedCategory}</td><td>{Math.round(item.confidence * 100)}%</td><td>{item.rationale}</td><td><ReviewLabel status={item.status} /></td></tr>)}</tbody></table></div></div>;
+  const analysis = result.financialAnalysis;
+  const automaticallyMapped = result.mappings.filter((item) => item.mappingConfidence === "high" && !["provisional", "excluded_duplicate", "excluded_outside_period", "excluded_grant_period"].includes(item.reportTreatment || "")).length;
+  const categoryReviews = result.mappings.filter((item) => item.reportTreatment === "needs_category_review").length;
+  const duplicates = result.mappings.filter((item) => item.reportTreatment === "excluded_duplicate").length;
+  const dateExclusions = result.mappings.filter((item) => ["excluded_outside_period", "excluded_grant_period"].includes(item.reportTreatment || "")).length;
+  const approvalEvidence = analysis?.controls.find((control) => control.id === "assistance-approvals" && control.requiresAction)?.transactionIds.length || 0;
+  const groupedExceptions = categoryReviews + (duplicates ? 1 : 0) + (analysis?.controls.filter((control) => control.requiresAction).length || 0);
+  return <div className="grid gap-5">
+    <section className="financial-ingestion-summary" aria-labelledby="financial-ingestion-title">
+      <div className="financial-ingestion-heading"><div><p className="eyebrow">Ledger review completed</p><h3 id="financial-ingestion-title">{analysis?.ledgerTransactionCount || result.mappings.length} ledger rows analyzed</h3><p>GrantDeskHQ mapped the routine rows automatically and brought forward only the exceptions that need judgment.</p></div><span>{groupedExceptions} grouped {groupedExceptions === 1 ? "exception" : "exceptions"} to review</span></div>
+      <dl>
+        <div><dt>Mapped automatically</dt><dd>{automaticallyMapped}</dd></div>
+        <div><dt>Category decisions</dt><dd>{categoryReviews}</dd></div>
+        <div><dt>Duplicate rows</dt><dd>{duplicates}</dd></div>
+        <div><dt>Excluded by date</dt><dd>{dateExclusions}</dd></div>
+        <div><dt>Approval evidence</dt><dd>{approvalEvidence}</dd></div>
+      </dl>
+    </section>
+    <div className="financial-trust-note"><ShieldCheck aria-hidden="true" /><p><strong>Financial totals are calculated directly from your uploaded ledger.</strong> Our AI-powered solution may suggest transaction mappings and explanations, but it never invents transaction amounts.</p></div>
+    <FinancialControls result={result} />
+    <div className="table-scroll"><table className="data-table prototype-mapping-table"><thead><tr><th>ID</th><th>Date</th><th>Description</th><th>Amount</th><th>Mapping</th><th>Evidence / compliance</th><th>Report treatment</th></tr></thead><tbody>{result.mappings.map((item, index) => <tr key={`${item.transactionId}-${index}`} className={item.mappingConfidence === "unmapped" ? "row-unresolved" : ""}>
+      <th>{item.transactionId}</th><td>{item.date}</td><td>{item.description}</td><td>{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(item.amount)}</td>
+      <td><strong className="mapping-category">{item.suggestedCategory || "No category selected"}</strong><MappingBadge value={item.mappingConfidence || (item.status === "verified" ? "high" : item.status === "blocked" ? "unmapped" : "review")} /></td>
+      <td><MappingStateBadge label={complianceLabel(item.complianceStatus)} tone={complianceTone(item.complianceStatus)} /><p className="mapping-cell-detail">{item.complianceDetail || item.rationale}</p></td>
+      <td><MappingStateBadge label={treatmentLabel(item.reportTreatment)} tone={treatmentTone(item.reportTreatment)} /></td>
+    </tr>)}</tbody></table></div>
+  </div>;
+}
+
+function MappingBadge({ value }: { value: NonNullable<CompilationResult["mappings"][number]["mappingConfidence"]> }) {
+  const label = value === "high" ? "High confidence" : value === "unmapped" ? "Unmapped" : "Needs review";
+  const tone = value === "high" ? "success" : value === "unmapped" ? "blocked" : "review";
+  return <MappingStateBadge label={label} tone={tone} />;
+}
+
+function MappingStateBadge({ label, tone }: { label: string; tone: "success" | "review" | "blocked" | "neutral" }) {
+  return <span className={`mapping-state mapping-state-${tone}`}>{label}</span>;
+}
+
+function complianceLabel(value: CompilationResult["mappings"][number]["complianceStatus"]) {
+  if (value === "evidence_required") return "Evidence needed";
+  if (value === "eligibility_review") return "Eligibility review";
+  if (value === "duplicate") return "Duplicate";
+  if (value === "not_applicable") return "Not applicable";
+  return "No issue";
+}
+
+function complianceTone(value: CompilationResult["mappings"][number]["complianceStatus"]): "success" | "review" | "blocked" | "neutral" {
+  if (value === "evidence_required" || value === "eligibility_review" || value === "duplicate") return "review";
+  if (value === "not_applicable") return "neutral";
+  return "success";
+}
+
+function treatmentLabel(value: CompilationResult["mappings"][number]["reportTreatment"]) {
+  if (value === "pending_evidence") return "Pending evidence";
+  if (value === "provisional") return "Provisional";
+  if (value === "excluded_duplicate") return "Excluded — duplicate";
+  if (value === "excluded_outside_period") return "Excluded — outside report period";
+  if (value === "excluded_grant_period") return "Excluded — outside grant period";
+  if (value === "needs_category_review") return "Needs category review";
+  return "Included";
+}
+
+function treatmentTone(value: CompilationResult["mappings"][number]["reportTreatment"]): "success" | "review" | "blocked" | "neutral" {
+  if (value === "needs_category_review") return "blocked";
+  if (value === "pending_evidence" || value === "provisional" || value === "excluded_duplicate") return "review";
+  if (value === "excluded_outside_period" || value === "excluded_grant_period") return "neutral";
+  return "success";
 }
 
 function FinancialControls({ result }: { result: CompilationResult }) {

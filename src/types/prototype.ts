@@ -166,6 +166,10 @@ export interface CompiledMapping {
   confidence: number;
   rationale: string;
   status: ReviewState;
+  mappingConfidence?: "high" | "review" | "unmapped";
+  complianceStatus?: "clear" | "evidence_required" | "eligibility_review" | "duplicate" | "not_applicable";
+  complianceDetail?: string;
+  reportTreatment?: "included" | "pending_evidence" | "provisional" | "excluded_duplicate" | "excluded_outside_period" | "excluded_grant_period" | "needs_category_review";
   reviewReason?: "exact_budget_match" | "ambiguous" | "duplicate" | "outside_grant_period" | "outside_report_period";
   requiresHumanAction?: boolean;
 }

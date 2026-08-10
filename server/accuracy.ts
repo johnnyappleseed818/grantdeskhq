@@ -13,46 +13,66 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
   const deterministicFindings: ValidationFinding[] = [];
   const seen = new Set<string>();
   const ledgerIds = new Set(ledger.map((row) => row.id));
-  let mappingIssue = hasLedgerFile && (ledger.length === 0 || ledgerIds.size !== ledger.length);
-  if (ledgerIds.size !== ledger.length) deterministicFindings.push(finding("ledger", "blocked", "The uploaded ledger contains duplicate transaction IDs."));
+  const duplicateCount = ledger.length - ledgerIds.size;
+  let hardMappingIssue = hasLedgerFile && ledger.length === 0;
+  if (duplicateCount) deterministicFindings.push(finding("ledger", "review", `${duplicateCount} duplicate ledger ${duplicateCount === 1 ? "row was" : "rows were"} detected and excluded from provisional totals.`));
   const mappings = result.mappings.map((mapping) => {
     const row = ledger.find((candidate) => candidate.id === mapping.transactionId);
-    if (!row || seen.has(mapping.transactionId)) {
-      mappingIssue = true;
-      deterministicFindings.push(finding(mapping.transactionId, "blocked", row ? "Duplicate transaction mapping detected." : "Transaction ID does not exist in the uploaded ledger."));
-      return { ...mapping, confidence: 0, status: "blocked" as const, reviewReason: row ? "duplicate" as const : "ambiguous" as const, requiresHumanAction: true };
+    if (!row) {
+      hardMappingIssue = true;
+      deterministicFindings.push(finding(`mapping:${mapping.transactionId}`, "blocked", "Transaction ID does not exist in the uploaded ledger."));
+      return { ...mapping, confidence: 0, status: "blocked" as const, mappingConfidence: "unmapped" as const, complianceStatus: "not_applicable" as const, complianceDetail: "The transaction ID was not found in the ledger.", reportTreatment: "needs_category_review" as const, reviewReason: "ambiguous" as const, requiresHumanAction: true };
+    }
+    if (seen.has(mapping.transactionId)) {
+      deterministicFindings.push(finding(`mapping:${mapping.transactionId}`, "review", "Duplicate ledger row excluded from provisional report totals. Confirm whether one or both rows should be kept."));
+      const category = findExactBudgetCategory(row.account, result.requirements) || findExactBudgetCategory(mapping.suggestedCategory, result.requirements) || mapping.suggestedCategory;
+      return { ...mapping, date: row.date, description: row.description, amount: row.amount, suggestedCategory: category, confidence: category && !/^unmapped$/i.test(category) ? 0.95 : 0, status: "review" as const, mappingConfidence: category && !/^unmapped$/i.test(category) ? "high" as const : "unmapped" as const, complianceStatus: "duplicate" as const, complianceDetail: "A matching ledger row with the same transaction ID is already included in provisional totals.", reportTreatment: "excluded_duplicate" as const, reviewReason: "duplicate" as const, requiresHumanAction: true, rationale: "Duplicate ledger row detected and excluded from provisional totals until reviewed." };
     }
     seen.add(mapping.transactionId);
     const amountMatches = Math.abs(mapping.amount - row.amount) < 0.005;
     if (!amountMatches) {
-      mappingIssue = true;
-      deterministicFindings.push(finding(mapping.transactionId, "blocked", `AI amount ${mapping.amount} did not match ledger amount ${row.amount}. The ledger value replaced it.`));
+      hardMappingIssue = true;
+      deterministicFindings.push(finding(mapping.transactionId, "blocked", `The suggested amount ${mapping.amount} did not match the ledger amount ${row.amount}. The uploaded ledger value replaced it.`));
     }
     const periodIssue = dateExclusion(row.date, request.reportingPeriod, result.grantProfile.grantStartDate?.value, result.grantProfile.grantEndDate?.value);
-    if (periodIssue) deterministicFindings.push(finding(mapping.transactionId, "review", periodIssue.detail));
+    if (periodIssue) deterministicFindings.push(finding(`mapping:${mapping.transactionId}`, "source_matched", periodIssue.detail));
     const exactCategory = findExactBudgetCategory(row.account, result.requirements);
-    const modelUnresolved = mapping.status === "blocked" || /^unmapped$/i.test(mapping.suggestedCategory);
-    const exactBudgetSuggestion = !periodIssue && amountMatches && modelUnresolved && Boolean(exactCategory);
+    const suggestedBudgetCategory = findExactBudgetCategory(mapping.suggestedCategory, result.requirements);
+    const category = exactCategory || suggestedBudgetCategory || mapping.suggestedCategory;
+    const ambiguous = /^unmapped$/i.test(category) || /insufficient detail|cannot determine|unable to determine/i.test(mapping.rationale);
+    const highConfidenceMapping = amountMatches && Boolean(exactCategory || suggestedBudgetCategory) && !ambiguous;
+    const complianceStatus = mappingCompliance(mapping.rationale);
+    const complianceDetail = complianceStatus === "clear" ? "No additional transaction-level exception was detected." : mapping.rationale;
+    const reportTreatment = periodIssue
+      ? periodIssue.reason === "outside_report_period" ? "excluded_outside_period" as const : "excluded_grant_period" as const
+      : ambiguous ? "needs_category_review" as const
+        : complianceStatus === "evidence_required" ? "pending_evidence" as const
+          : complianceStatus === "eligibility_review" ? "provisional" as const
+            : "included" as const;
     return {
       ...mapping,
       date: row.date,
       description: row.description,
       amount: row.amount,
-      suggestedCategory: exactBudgetSuggestion ? exactCategory : mapping.suggestedCategory,
-      confidence: exactBudgetSuggestion ? 0.95 : mapping.confidence,
-      status: periodIssue || !amountMatches ? "blocked" as const : exactBudgetSuggestion ? "review" as const : mapping.status,
-      reviewReason: periodIssue?.reason || (exactBudgetSuggestion ? "exact_budget_match" as const : modelUnresolved ? "ambiguous" as const : undefined),
-      requiresHumanAction: periodIssue ? false : exactBudgetSuggestion || modelUnresolved || mapping.status === "review",
+      suggestedCategory: category,
+      confidence: highConfidenceMapping ? exactCategory ? 0.98 : 0.9 : ambiguous ? 0 : Math.max(mapping.confidence, 0.5),
+      status: periodIssue ? "not_evaluated" as const : !amountMatches || ambiguous ? "blocked" as const : highConfidenceMapping ? "verified" as const : "review" as const,
+      mappingConfidence: highConfidenceMapping ? "high" as const : ambiguous ? "unmapped" as const : "review" as const,
+      complianceStatus,
+      complianceDetail,
+      reportTreatment,
+      reviewReason: periodIssue?.reason || (ambiguous ? "ambiguous" as const : highConfidenceMapping ? "exact_budget_match" as const : undefined),
+      requiresHumanAction: !periodIssue && (!highConfidenceMapping || ambiguous),
       rationale: periodIssue
         ? `${periodIssue.detail} Excluded from current-period mapped totals.`
-        : exactBudgetSuggestion
-          ? `The ledger account “${row.account}” exactly matches a source-verified budget category. Suggested for controller review; the transaction amount comes directly from the uploaded ledger.`
-          : `${mapping.rationale} Confirmed against the uploaded ledger by transaction ID, date, description and amount.`
+        : highConfidenceMapping
+          ? `${exactCategory ? `The ledger account “${row.account}”` : `The suggested category “${category}”`} matches a source-verified budget category. ${mapping.rationale} The transaction amount comes directly from the uploaded ledger.`
+          : `${mapping.rationale} The transaction amount was confirmed against the uploaded ledger.`
     };
   });
   for (const row of ledger) {
     if (!seen.has(row.id)) {
-      mappingIssue = true;
+      hardMappingIssue = true;
       deterministicFindings.push(finding(`ledger:${row.id}`, "blocked", `Ledger transaction ${row.id} was omitted from the AI mapping output.`));
     }
   }
@@ -80,8 +100,8 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
     return { ...item, status: "blocked" as const };
   });
 
-  const exactLedgerCoverage = hasLedgerFile && ledger.length > 0 && ledger.length === seen.size && !mappingIssue;
-  const ledgerStatus = !hasLedgerFile ? "not_evaluated" as const : exactLedgerCoverage ? "passed" as const : "blocked" as const;
+  const exactLedgerCoverage = hasLedgerFile && ledger.length > 0 && ledgerIds.size === seen.size && !hardMappingIssue;
+  const ledgerStatus = !hasLedgerFile ? "not_evaluated" as const : hardMappingIssue ? "blocked" as const : duplicateCount ? "review" as const : exactLedgerCoverage ? "passed" as const : "blocked" as const;
   const workflowFactStatus = !hasWorkflowFacts ? "not_evaluated" as const : workflowFactIssue ? "blocked" as const : "passed" as const;
   const financialAnalysis = buildFinancialAnalysis(request, result.requirements, result.grantProfile, ledger, mappings);
   const qualityChecks = [
@@ -89,7 +109,7 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
     {
       id: "deterministic-ledger",
       label: "Ledger reconciliation",
-      detail: !hasLedgerFile ? "Not evaluated — no accounting export has been added yet." : exactLedgerCoverage ? `${ledger.length} accounting rows match by transaction ID and amount.` : `${ledger.length} accounting rows were read; ${seen.size} unique mappings matched. Correct the missing or conflicting rows.`,
+      detail: !hasLedgerFile ? "Not evaluated — no accounting export has been added yet." : hardMappingIssue ? `${ledger.length} accounting rows were read; ${seen.size} unique transaction IDs matched. Correct the missing or conflicting rows.` : duplicateCount ? `${ledger.length} accounting rows were read; ${duplicateCount} duplicate ${duplicateCount === 1 ? "row was" : "rows were"} excluded from provisional totals pending one review decision.` : `${ledger.length} accounting rows match by transaction ID and amount.`,
       required: true,
       status: ledgerStatus
     },
@@ -109,14 +129,24 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
     }))
   ];
   const mappingById = new Map(mappings.map((mapping) => [mapping.transactionId, mapping]));
-  const findings = dedupeFindings([...result.validation.findings, ...deterministicFindings]).map((item) => {
+  const findings = dedupeMappingFindings(dedupeFindings([...result.validation.findings, ...deterministicFindings]).map((item) => {
     const transactionId = item.itemId.replace(/^mapping:/, "");
     const mapping = mappingById.get(transactionId);
-    if (mapping?.reviewReason === "exact_budget_match" && item.verdict === "blocked") {
-      return { ...item, verdict: "review" as const, reason: "The ledger account exactly matches a verified budget category. Review the suggested mapping before approval." };
+    if (!mapping) return item;
+    if (mapping.reportTreatment === "excluded_duplicate") {
+      return item.verdict === "source_matched" ? item : { ...item, verdict: "review" as const, reason: "One matching ledger row is already included. This duplicate is excluded until the reviewer decides whether both entries are valid." };
+    }
+    if (mapping.mappingConfidence === "unmapped") {
+      return item.verdict === "blocked" ? item : { ...item, verdict: "blocked" as const, reason: "The uploaded row does not contain enough information to select a verified budget category." };
+    }
+    if (["excluded_outside_period", "excluded_grant_period"].includes(mapping.reportTreatment || "")) {
+      return { ...item, verdict: "source_matched" as const, reason: mapping.complianceDetail || mapping.rationale };
+    }
+    if (mapping.mappingConfidence === "high" && item.verdict !== "source_matched") {
+      return { ...item, verdict: "source_matched" as const, reason: `The transaction amount matches the ledger and the suggested category matches a source-verified budget category. ${mapping.complianceStatus === "clear" ? "No separate transaction-level exception was detected." : "Any evidence or eligibility question is tracked separately from the mapping."}` };
     }
     return item;
-  });
+  }));
   const sourceMatchedItems = findings.filter((item) => item.verdict === "source_matched").length;
   const itemsNeedingReview = findings.filter((item) => item.verdict === "review").length;
   const blockedItems = findings.filter((item) => item.verdict === "blocked").length;
@@ -244,12 +274,27 @@ function csvRow(line: string) {
   return values;
 }
 
-function finding(itemId: string, verdict: "review" | "blocked", reason: string): ValidationFinding {
+function mappingCompliance(rationale: string): NonNullable<CompilationResult["mappings"][number]["complianceStatus"]> {
+  if (/confirm (?:that )?.*allowable|eligibility|eligible expense|allowability/i.test(rationale)) return "eligibility_review";
+  if (/supporting documentation|supporting approval|written (?:program[- ]director )?approval|receipt (?:is )?(?:needed|missing|required)|documentation is needed/i.test(rationale)) return "evidence_required";
+  return "clear";
+}
+
+function finding(itemId: string, verdict: ValidationFinding["verdict"], reason: string): ValidationFinding {
   return { id: `det-${itemId}-${verdict}`, itemId, verdict, reason, source: { sourceName: "Source data check", locator: itemId.replace(/^ledger:/, "Transaction "), excerpt: reason } };
 }
 
 function dedupeFindings(findings: ValidationFinding[]) {
   const map = new Map<string, ValidationFinding>();
   for (const item of findings) map.set(item.id, item);
+  return [...map.values()];
+}
+
+function dedupeMappingFindings(findings: ValidationFinding[]) {
+  const map = new Map<string, ValidationFinding>();
+  for (const item of findings) {
+    const key = item.itemId.startsWith("mapping:") ? `${item.itemId}:${item.verdict}` : item.id;
+    map.set(key, item);
+  }
   return [...map.values()];
 }
