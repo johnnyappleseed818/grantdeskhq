@@ -159,6 +159,23 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
     }
   });
 
+  it("shows documentation on every assistance disbursement and additional approval only above $1,500", () => {
+    const assistanceMappings = checked.mappings.filter((item) => item.transactionId.startsWith("BW-EA-"));
+    const disbursements = assistanceMappings.filter((item) => item.amount > 0);
+    const approvals = disbursements.filter((item) => item.amount > 1_500);
+    const standardDisbursements = disbursements.filter((item) => item.amount <= 1_500);
+    const credit = assistanceMappings.find((item) => item.transactionId === "BW-EA-013");
+
+    expect(disbursements).toHaveLength(12);
+    expect(disbursements.every((item) => item.complianceStatus === "evidence_required" && item.reportTreatment === "pending_evidence")).toBe(true);
+    expect(disbursements.every((item) => item.complianceDetail === "Payment and housing-purpose documentation required." || item.complianceDetail?.startsWith("Payment and housing-purpose documentation required."))).toBe(true);
+    expect(approvals.map((item) => item.transactionId)).toEqual(["BW-EA-003", "BW-EA-006", "BW-EA-011"]);
+    expect(approvals.every((item) => item.complianceDetail?.includes("Written Program Director approval is also required") && item.complianceDetail.includes("exceeds $1,500"))).toBe(true);
+    expect(standardDisbursements.every((item) => !item.complianceDetail?.includes("Program Director approval"))).toBe(true);
+    expect(credit).toMatchObject({ complianceStatus: "clear", reportTreatment: "included" });
+    expect(credit?.complianceDetail).toContain("does not create a new payment or housing-purpose documentation request");
+  });
+
   it("raises the technology variance, three approval checks, equipment eligibility, and indirect-cap result", () => {
     expect(checked.financialAnalysis?.budgetVariances.find((item) => item.category === "Technology & Data Systems")).toMatchObject({ approvedAmount: 18_000, actualAmount: 26_200, varianceAmount: 8_200, variancePercent: 45.6, explanationRequired: true });
     expect(checked.financialAnalysis?.controls.find((item) => item.id === "material-variance")?.detail).toContain("$26,200 actual vs $18,000 approved; $8,200 above budget (+45.6%)");

@@ -14,6 +14,7 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
   const seen = new Set<string>();
   const ledgerIds = new Set(ledger.map((row) => row.id));
   const duplicateCount = ledger.length - ledgerIds.size;
+  const assistanceApprovalThreshold = findAssistanceApprovalThreshold(result.requirements);
   let hardMappingIssue = hasLedgerFile && ledger.length === 0;
   if (duplicateCount) deterministicFindings.push(finding("ledger", "review", `${duplicateCount} duplicate ledger ${duplicateCount === 1 ? "row was" : "rows were"} detected and excluded from provisional totals.`));
   const mappings = result.mappings.map((mapping) => {
@@ -48,9 +49,26 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
     const ambiguous = !deterministicCategory;
     const highConfidenceMapping = amountMatches && Boolean(deterministicCategory) && !ambiguous;
     const inferredComplianceStatus = mappingCompliance(mapping.rationale);
+    const assistanceTransaction = /^emergency client assistance$/i.test(category);
+    const assistanceDisbursement = assistanceTransaction && row.amount > 0;
+    const assistanceCredit = assistanceTransaction && row.amount < 0;
+    const additionalApprovalRequired = assistanceDisbursement && assistanceApprovalThreshold !== null && row.amount > assistanceApprovalThreshold;
     const categoryDetail = `The ledger label “${row.account || "Unspecified"}” does not match a source-verified approved budget category. Select a category before inclusion.`;
-    const complianceStatus = ambiguous ? "not_applicable" as const : inferredComplianceStatus;
-    const complianceDetail = ambiguous ? categoryDetail : complianceStatus === "clear" ? "No additional transaction-level exception was detected." : mapping.rationale;
+    const assistanceDetail = assistanceCredit
+      ? "Refund or credit reconciled against Emergency Client Assistance spending. It does not create a new payment or housing-purpose documentation request."
+      : assistanceDisbursement
+        ? `Payment and housing-purpose documentation required.${additionalApprovalRequired ? ` Written Program Director approval is also required because this disbursement exceeds ${formatMoney(assistanceApprovalThreshold)}.` : ""}`
+        : "";
+    const complianceStatus = ambiguous
+      ? "not_applicable" as const
+      : assistanceDisbursement
+        ? "evidence_required" as const
+        : assistanceCredit
+          ? "clear" as const
+          : inferredComplianceStatus;
+    const complianceDetail = ambiguous
+      ? categoryDetail
+      : assistanceDetail || (complianceStatus === "clear" ? "No additional transaction-level exception was detected." : mapping.rationale);
     const reportTreatment = periodIssue
       ? periodIssue.reason === "outside_report_period" ? "excluded_outside_period" as const : "excluded_grant_period" as const
       : ambiguous ? "needs_category_review" as const
@@ -303,6 +321,20 @@ function mappingCompliance(rationale: string): NonNullable<CompilationResult["ma
   if (/confirm (?:that )?.*allowable|eligibility|eligible expense|allowability/i.test(rationale)) return "eligibility_review";
   if (/supporting documentation|supporting approval|written (?:program[- ]director )?approval|receipt (?:is )?(?:needed|missing|required)|documentation is needed/i.test(rationale)) return "evidence_required";
   return "clear";
+}
+
+function findAssistanceApprovalThreshold(requirements: CompilationResult["requirements"]) {
+  for (const requirement of requirements.filter((item) => item.status === "verified")) {
+    const text = `${requirement.requirement} ${requirement.source.excerpt}`;
+    if (!/assistance/i.test(text) || !/approval/i.test(text)) continue;
+    const match = text.match(/(?:above|over|exceed(?:s|ed|ing)?|greater than|more than)\s*\$\s*([\d,]+(?:\.\d+)?)/i);
+    if (match) return Number(match[1].replaceAll(",", ""));
+  }
+  return null;
+}
+
+function formatMoney(value: number | null) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value || 0);
 }
 
 function finding(itemId: string, verdict: ValidationFinding["verdict"], reason: string): ValidationFinding {
