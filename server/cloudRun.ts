@@ -8,7 +8,7 @@ import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { readBillingStatus, readCompilationByRequest, readGtmAwardScan, readGtmDailyScan, listReports, saveBillingEvent, saveCompilation, saveGtmAwardScan, saveGtmDailyScan, saveReview } from "./persistence.ts";
+import { readBillingStatus, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmDailyScan, listReports, saveBillingEvent, saveCompilation, saveGtmAwardScan, saveGtmDailyScan, saveReview } from "./persistence.ts";
 import { runDailySocialScan } from "./gtmDailyScanner.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { requireGtmScheduler } from "./schedulerAuth.ts";
@@ -51,6 +51,8 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/award-signals") return await handleGtmAwardSignals(request, response);
     if (url.pathname === "/api/gtm/daily-scan") return await handleGtmDailyScan(request, response);
     if (url.pathname === "/api/reports") return await handleReports(request, response);
+    const savedReportMatch = url.pathname.match(/^\/api\/reports\/(report_[a-f0-9]{32})$/);
+    if (savedReportMatch) return await handleSavedReport(request, response, savedReportMatch[1]);
     const reviewMatch = url.pathname.match(/^\/api\/reports\/(report_[a-f0-9]{32})\/review$/);
     if (reviewMatch) return await handleReview(request, response, reviewMatch[1]);
     if (request.method !== "GET" && request.method !== "HEAD") return json(response, 405, { error: "Method not allowed." });
@@ -200,6 +202,12 @@ async function handleReadiness(request: IncomingMessage, response: ServerRespons
 async function handleReports(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   return json(response, 200, { reports: await listReports(await requireUser(request)) });
+}
+
+async function handleSavedReport(request: IncomingMessage, response: ServerResponse, reportId: string) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  const saved = await readCompilationById(await requireUser(request), reportId);
+  return saved ? json(response, 200, saved) : json(response, 404, { error: "Saved report was not found." });
 }
 
 async function handleReview(request: IncomingMessage, response: ServerResponse, reportId: string) {

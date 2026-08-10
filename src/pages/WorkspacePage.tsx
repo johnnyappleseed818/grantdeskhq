@@ -42,6 +42,7 @@ export function WorkspacePage() {
         <div className="report-list">{reports.map((report) => <article key={report.id} className="report-row">
           <div><span className={`status-badge ${report.status === "ready" ? "status-success" : "status-review"}`}>{report.status === "ready" ? "Review complete" : "Review required"}</span><h2>{report.grantName}</h2><p>{report.organizationName} · {report.reportingPeriod}</p></div>
           <dl><div><dt>Source-supported</dt><dd>{report.evidenceCoveragePercent}%</dd></div><div><dt>Open items</dt><dd>{report.unresolvedItems}</dd></div><div><dt>Sources</dt><dd>{report.sourceCount}</dd></div><div><dt>Updated</dt><dd>{new Date(report.updatedAt).toLocaleDateString()}</dd></div></dl>
+          <Link className="button button-primary report-continue" to={`/compile?report=${encodeURIComponent(report.id)}`}>Continue review <ArrowRight aria-hidden="true" /></Link>
         </article>)}</div>}
     </div>
   </section>;

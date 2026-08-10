@@ -3128,11 +3128,13 @@
 .report-row dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
 .report-row dt { color: #788493; font-size: .7rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
 .report-row dd { margin-top: .15rem; color: #10233f; font-weight: 800; }
+.report-continue { width: 100%; justify-content: center; }
 
 @media (min-width: 900px) {
   .account-grid { grid-template-columns: 1.08fr .92fr; padding-block: 6rem; }
-  .report-row { grid-template-columns: minmax(0, 1fr) minmax(500px, .9fr); align-items: center; }
+  .report-row { grid-template-columns: minmax(0, 1fr) minmax(430px, .9fr) auto; align-items: center; }
   .report-row dl { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .report-continue { width: auto; }
 }
 
 @media (max-width: 640px) {

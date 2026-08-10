@@ -62,6 +62,29 @@ export async function readCompilationByRequest(user: AuthenticatedUser, requestI
   return { reportId, report, result };
 }
 
+export async function readCompilationById(user: AuthenticatedUser, reportId: string): Promise<PersistedCompilationResponse | null> {
+  if (!/^report_[a-f0-9]{32}$/.test(reportId)) return null;
+  const response = await authorizedFetch(`${firestoreBase}/organizations/org_${user.uid}/reports/${reportId}`, await gcpToken());
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Saved report could not be loaded (${response.status}).`);
+  const record = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
+  if (record.ownerUid !== user.uid || !record.resultJson) return null;
+  const result = JSON.parse(String(record.resultJson)) as CompilationResult;
+  const report: SavedReportSummary = {
+    id: reportId,
+    organizationName: String(record.organizationName || ""),
+    grantName: String(record.grantName || ""),
+    reportingPeriod: String(record.reportingPeriod || ""),
+    status: record.status === "ready" ? "ready" : "review_required",
+    evidenceCoveragePercent: Number(record.evidenceCoveragePercent || 0),
+    unresolvedItems: Number(record.unresolvedItems || 0),
+    sourceCount: Number(record.sourceCount || 0),
+    createdAt: String(record.createdAt || ""),
+    updatedAt: String(record.updatedAt || "")
+  };
+  return { reportId, report, result };
+}
+
 export function compilationReportId(userUid: string, requestId: string | undefined) {
   if (!isValidCompilationRequestId(requestId)) return `report_${randomUUID().replaceAll("-", "")}`;
   const digest = createHash("sha256").update(`${userUid}:${requestId}`).digest("hex").slice(0, 32);

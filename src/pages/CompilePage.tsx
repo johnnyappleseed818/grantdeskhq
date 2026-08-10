@@ -1,5 +1,5 @@
-import { ChangeEvent, FormEvent, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowRight,
@@ -38,8 +38,10 @@ const sourceFields: Array<{ role: SourceRole; label: string; help: string; accep
 type ResultTab = "overview" | "requirements" | "inputs" | "mapping" | "narrative" | "review";
 
 export function CompilePage() {
-  const { user, token } = useAuth();
+  const { user, loading, token } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const savedReportId = new URLSearchParams(location.search).get("report") || "";
   const [meta, setMeta] = useState({
     organizationName: "Hope Community Services",
     grantName: "Pacific Youth Foundation — Youth Access Initiative",
@@ -62,6 +64,7 @@ export function CompilePage() {
   const [fileRoleSuggestions, setFileRoleSuggestions] = useState<Partial<Record<SourceRole, FileRoleSuggestion>>>({});
   const [acceptedFileRoles, setAcceptedFileRoles] = useState<string[]>([]);
   const [compileAttempt, setCompileAttempt] = useState<{ fingerprint: string; requestId: string } | null>(null);
+  const [loadingSavedReport, setLoadingSavedReport] = useState(Boolean(savedReportId));
 
   const selectedFiles = useMemo(() => (Object.entries(files) as Array<[SourceRole, File | undefined]>)
     .filter((entry): entry is [SourceRole, File] => Boolean(entry[1])), [files]);
@@ -72,6 +75,26 @@ export function CompilePage() {
     const file = files[suggestion.assignedRole];
     return Boolean(file && fileRoleSuggestionKey(suggestion.assignedRole, file) === suggestion.key);
   }), [acceptedFileRoles, fileRoleSuggestions, files]);
+
+  useEffect(() => {
+    if (!savedReportId || !user) return;
+    setLoadingSavedReport(true);
+    setError("");
+    token()
+      .then((idToken) => apiRequest<PersistedCompilationResponse>(`/api/reports/${encodeURIComponent(savedReportId)}`, idToken))
+      .then((body) => {
+        setReportId(body.reportId);
+        setResult(body.result);
+        setMeta({
+          organizationName: body.report.organizationName,
+          grantName: body.report.grantName,
+          reportingPeriod: body.report.reportingPeriod
+        });
+        setActiveTab("overview");
+      })
+      .catch((requestError) => setError(requestError instanceof Error ? requestError.message : "The saved report could not be opened."))
+      .finally(() => setLoadingSavedReport(false));
+  }, [savedReportId, token, user]);
 
   const inspectSelectedFile = (role: SourceRole, file: File) => {
     setAcceptedFileRoles((current) => current.filter((key) => !key.startsWith(`${role}:`)));
@@ -349,6 +372,19 @@ export function CompilePage() {
     setAcceptedFileRoles((current) => current.includes(suggestion.key) ? current : [...current, suggestion.key]);
     setError("");
   };
+
+  if (savedReportId) {
+    if (loading) return <div className="workspace-loading"><LoaderCircle className="animate-spin" aria-hidden="true" />Checking your account…</div>;
+    if (!user) return <Navigate replace to={`/login?next=${encodeURIComponent(`/compile?report=${savedReportId}`)}`} />;
+    return <div className="compile-page saved-report-page">
+      <section className="site-shell py-10">
+        <Link className="button button-secondary" to="/workspace"><ChevronLeft aria-hidden="true" />Back to reports</Link>
+        {loadingSavedReport && <div className="workspace-loading"><LoaderCircle className="animate-spin" aria-hidden="true" />Opening saved report…</div>}
+        {error && <div className="compiler-error mt-6" role="alert"><AlertTriangle aria-hidden="true" /><span>{error}</span></div>}
+      </section>
+      {result && <CompilerResults result={result} activeTab={activeTab} setActiveTab={setActiveTab} onResolve={resolveCheck} onDownload={download} onEditSetup={() => navigate("/compile")} onAddSources={() => navigate("/compile")} />}
+    </div>;
+  }
 
   return (
     <div className="compile-page">
