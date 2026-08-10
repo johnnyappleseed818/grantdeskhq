@@ -117,8 +117,8 @@ export function buildFinancialAnalysis(
     if (possibleReallocations.length) {
       controls.push({
         id: "budget-reallocation-approval",
-        title: "Budget approval may be required",
-        detail: `${possibleReallocations.map((item) => `${item.category} is ${signedPercent(item.variancePercent)} above its approved amount`).join(" · ")}. The award requires prior written approval for budget reallocations of ${reallocationThreshold}% or more. Add approval documentation if the overage resulted from a reallocation.`,
+        title: "Confirm whether the budget was formally modified",
+        detail: `${possibleReallocations.map((item) => `${item.category} is ${signedPercent(item.variancePercent)} above its approved amount`).join(" · ")}. This overage is a variance, not evidence that a formal budget modification occurred. The award requires prior written approval only if funds were reallocated or the approved budget was changed by ${reallocationThreshold}% or more.`,
         status: "review",
         requiresAction: true,
         transactionIds: possibleReallocations.flatMap((item) => item.transactionIds)

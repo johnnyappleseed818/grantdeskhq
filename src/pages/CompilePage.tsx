@@ -849,7 +849,7 @@ export function ReportingSchedule({ periods, selectedPeriodId, onSelect }: {
   onSelect(period: GrantReportingPeriod): void;
 }) {
   const verified = periods.filter((period) => period.status === "verified");
-  const ordered = [...verified].sort((left, right) => Date.parse(left.startDate) - Date.parse(right.startDate));
+  const ordered = [...verified].sort((left, right) => reportingPeriodOrder(left) - reportingPeriodOrder(right));
   if (!ordered.length) return null;
   return <section className="setup-schedule" aria-label="Reporting schedule found in award agreement">
     <div className="setup-schedule-heading">
@@ -906,6 +906,7 @@ function SourceStatusBadge({ status }: { status: ReviewState }) {
 
 function obligationWorkflowStatus(item: GrantWorkflowObligation, availableSources: SourceRole[]) {
   const available = new Set(availableSources);
+  const text = `${item.title} ${item.detail}`;
   if (item.applicability === "conditional") return { label: "Monitoring · trigger evaluated during report analysis", tone: "monitoring" };
   if (item.applicability === "future") return { label: futureWorkflowStatus(item), tone: "future" };
   if (item.applicability === "not_applicable") return { label: "Not required for this report", tone: "future" };
@@ -913,10 +914,17 @@ function obligationWorkflowStatus(item: GrantWorkflowObligation, availableSource
     ? { label: "Accounting data available · validation pending", tone: "available" }
     : { label: "Accounting data needed", tone: "needed" };
   if (item.owner === "Program") return available.has("programUpdate")
-    ? { label: "Program input available · validation pending", tone: "available" }
+    ? { label: /de-identified|social security|data privacy|participant information/i.test(text) ? "Program input available · privacy scan runs during draft preparation" : "Program input available · validation pending", tone: "available" }
     : { label: "Program input needed", tone: "needed" };
   if (item.owner === "Approver") return { label: "Not started · begins after draft preparation", tone: "not-started" };
   return { label: "Not started", tone: "not-started" };
+}
+
+function reportingPeriodOrder(period: GrantReportingPeriod) {
+  const dueDate = isUsableDate(period.dueDate) ? Date.parse(period.dueDate) : Number.NaN;
+  if (Number.isFinite(dueDate)) return dueDate;
+  const endDate = Date.parse(period.endDate);
+  return Number.isFinite(endDate) ? endDate : Date.parse(period.startDate);
 }
 
 function ResultMetric({ label, value, detail, suffix = "" }: { label: string; value: number; detail: string; suffix?: string }) {

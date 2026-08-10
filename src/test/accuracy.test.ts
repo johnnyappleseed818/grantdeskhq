@@ -98,4 +98,28 @@ describe("deterministic accuracy controls", () => {
     expect(checked.narrative[0].status).not.toBe("blocked");
     expect(checked.qualityChecks.find((item) => item.id === "deterministic-workflow-facts")?.status).toBe("passed");
   });
+
+  it("passes the proactive privacy scan when no obvious prohibited identifiers appear in the draft", () => {
+    const policyOnly = {
+      ...prototypeFixture,
+      narrative: prototypeFixture.narrative.map((item, index) => index === 0 ? { ...item, text: `${item.text} Medical diagnoses and immigration-status information must not appear in the funder report.` } : item)
+    };
+    const checked = applyDeterministicAccuracyChecks(request(), policyOnly);
+    expect(checked.qualityChecks.find((item) => item.id === "deterministic-privacy-scan")).toMatchObject({
+      status: "passed",
+      required: true
+    });
+  });
+
+  it("blocks a draft containing an obvious Social Security number without echoing the value", () => {
+    const sensitive = {
+      ...prototypeFixture,
+      narrative: prototypeFixture.narrative.map((item, index) => index === 0 ? { ...item, text: `${item.text} Participant SSN: 123-45-6789.` } : item)
+    };
+    const checked = applyDeterministicAccuracyChecks(request(), sensitive);
+    const privacy = checked.qualityChecks.find((item) => item.id === "deterministic-privacy-scan");
+    expect(privacy).toMatchObject({ status: "blocked", required: true });
+    expect(privacy?.detail).toContain("a Social Security number");
+    expect(privacy?.detail).not.toContain("123-45-6789");
+  });
 });

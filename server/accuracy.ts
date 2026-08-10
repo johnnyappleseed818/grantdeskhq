@@ -103,9 +103,11 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
   const exactLedgerCoverage = hasLedgerFile && ledger.length > 0 && ledgerIds.size === seen.size && !hardMappingIssue;
   const ledgerStatus = !hasLedgerFile ? "not_evaluated" as const : hardMappingIssue ? "blocked" as const : duplicateCount ? "review" as const : exactLedgerCoverage ? "passed" as const : "blocked" as const;
   const workflowFactStatus = !hasWorkflowFacts ? "not_evaluated" as const : workflowFactIssue ? "blocked" as const : "passed" as const;
+  const piiTypes = obviousProhibitedPiiTypes(narrative.map((item) => item.text).join("\n"));
+  const privacyStatus = !narrative.length ? "not_evaluated" as const : piiTypes.length ? "blocked" as const : "passed" as const;
   const financialAnalysis = buildFinancialAnalysis(request, result.requirements, result.grantProfile, ledger, mappings);
   const qualityChecks = [
-    ...result.qualityChecks.filter((check) => !["deterministic-ledger", "deterministic-workflow-facts"].includes(check.id)),
+    ...result.qualityChecks.filter((check) => !["deterministic-ledger", "deterministic-workflow-facts", "deterministic-privacy-scan"].includes(check.id)),
     {
       id: "deterministic-ledger",
       label: "Ledger reconciliation",
@@ -119,6 +121,17 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
       detail: !hasWorkflowFacts ? "Not evaluated — no confirmed current-period program or financial figures have been supplied." : workflowFactIssue ? "At least one draft figure conflicts with the confirmed current-period information." : "Draft figures agree with the confirmed current-period information.",
       required: true,
       status: workflowFactStatus
+    },
+    {
+      id: "deterministic-privacy-scan",
+      label: "Prohibited PII scan",
+      detail: !narrative.length
+        ? "Not evaluated — no draft language is available yet."
+        : piiTypes.length
+          ? `Action required — the current draft may contain ${piiTypes.join(", ")}. Remove or de-identify this information before submission.`
+          : "No obvious Social Security numbers, bank-account numbers, full birth dates, medical-diagnosis details, or immigration-status details were detected in the current draft. Human review is still required.",
+      required: true,
+      status: privacyStatus
     },
     ...financialAnalysis.controls.map((control) => ({
       id: `deterministic-financial-${control.id}`,
@@ -170,6 +183,17 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
       ...(hasLedgerFile ? ["Financial totals are calculated directly from your uploaded ledger. Our AI-powered solution may suggest transaction mappings and explanations, but it never invents transaction amounts."] : [])
     ])]
   };
+}
+
+function obviousProhibitedPiiTypes(text: string) {
+  const checks: Array<[string, RegExp]> = [
+    ["a Social Security number", /\b\d{3}-\d{2}-\d{4}\b/],
+    ["a bank-account number", /\b(?:bank\s+)?account\s*(?:number|no\.?|#)\s*[:#-]?\s*\d{6,17}\b/i],
+    ["a full date of birth", /\b(?:date of birth|dob)\s*[:#-]?\s*(?:\d{1,2}[/-]){2}\d{4}\b/i],
+    ["medical-diagnosis details", /\b(?:participant|client|patient)(?:'s)?\s+(?:medical )?diagnosis\s*(?:is|:|-)\s*(?!not\b|unknown\b|withheld\b)[a-z][a-z -]{2,40}\b/i],
+    ["immigration-status details", /\b(?:participant|client)(?:'s)?\s+(?:immigration|visa) status\s*(?:is|:|-)\s*(?!not\b|unknown\b|withheld\b)[a-z][a-z -]{2,40}\b/i]
+  ];
+  return checks.filter(([, pattern]) => pattern.test(text)).map(([label]) => label);
 }
 
 function parseWorkflowFacts(request: CompilationRequest): WorkflowFacts {

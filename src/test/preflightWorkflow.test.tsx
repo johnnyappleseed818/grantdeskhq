@@ -17,13 +17,16 @@ const periods: GrantReportingPeriod[] = [
   period("RP1", "Interim Report 1", "2027-02-01", "2027-07-31", "2027-08-31"),
   period("RP2", "Interim Report 2", "2027-08-01", "2028-01-31", "2028-02-29"),
   period("RP3", "Interim Report 3", "2028-02-01", "2028-04-30", "2028-05-31"),
-  period("RP4", "Final Report", "2028-05-01", "2028-07-31", "2028-09-29")
+  period("RP4", "Final Report", "2027-02-01", "2028-07-31", "2028-09-29")
 ];
 
 const obligations: GrantWorkflowObligation[] = [
   obligation("finance-gl", "Add the general ledger", "Finance", "required_now", "Always required for Interim Report 1"),
   obligation("program-kpis", "Provide six program measures", "Program", "required_now", "Always required for Interim Report 1"),
+  obligation("privacy", "Use aggregated or de-identified participant information", "Program", "required_now", "Always required for Interim Report 1"),
+  { ...obligation("indirect", "Comply with indirect-cost cap", "Finance", "required_now", "Always applies"), detail: "Indirect Costs may not exceed the lesser of $20,000 or 8% of direct costs.", source: { ...source, excerpt: "Indirect Costs may not exceed the lesser of $20,000 or 8% of total direct costs actually charged to the grant." }, status: "review" },
   obligation("variance", "Explain material variances", "Grants", "conditional", "A variance reaches $7,500"),
+  { ...obligation("assistance", "Obtain written approval for high-value emergency client assistance", "Program", "conditional", "Applies above $1,500"), detail: "Emergency client assistance requires a payment record and documentation of the housing-related purpose. Assistance above $1,500 per household must also include written Program Director approval.", source: { ...source, excerpt: "For emergency client assistance, retain a payment record and documentation of the housing-related purpose; assistance above $1,500 per household must also include written Program Director approval." } },
   obligation("match", "Certify the $40,000 cash match", "Approver", "future", "Required with the Final Report"),
   obligation("extension", "Submit a no-cost extension request if needed", "Grants", "future", "If a no-cost extension is sought"),
   obligation("unspent", "Return unspent balance after grant end", "Finance", "future", "If an unspent balance remains at closeout"),
@@ -74,7 +77,12 @@ describe("agreement-driven report setup", () => {
     render(<ReportingSchedule periods={periods} selectedPeriodId="RP1" onSelect={select} />);
     expect(screen.getByText("4 reporting obligations identified")).toBeInTheDocument();
     fireEvent.click(screen.getByText("View reporting schedule"));
-    expect(screen.getAllByRole("button")).toHaveLength(4);
+    const reportButtons = screen.getAllByRole("button");
+    expect(reportButtons).toHaveLength(4);
+    expect(reportButtons[0]).toHaveAccessibleName(/Interim Report 1/i);
+    expect(reportButtons[1]).toHaveAccessibleName(/Interim Report 2/i);
+    expect(reportButtons[2]).toHaveAccessibleName(/Interim Report 3/i);
+    expect(reportButtons[3]).toHaveAccessibleName(/Final Report/i);
     fireEvent.click(screen.getByRole("button", { name: /Interim Report 2/i }));
     expect(select).toHaveBeenCalledWith(periods[1]);
   });
@@ -87,9 +95,10 @@ describe("agreement-driven report setup", () => {
     expect(screen.getByRole("heading", { name: "Not required for this report" })).toBeInTheDocument();
     expect(screen.getByText(/A variance reaches \$7,500/)).toBeInTheDocument();
     expect(screen.getByText("GrantDeskHQ monitors these automatically and creates an action only when the condition occurs.")).toBeInTheDocument();
-    expect(screen.getByText("Accounting data available · validation pending")).toBeInTheDocument();
+    expect(screen.getAllByText("Accounting data available · validation pending")).toHaveLength(2);
     expect(screen.getByText("Program input available · validation pending")).toBeInTheDocument();
-    expect(screen.getAllByText("Monitoring · trigger evaluated during report analysis")).toHaveLength(2);
+    expect(screen.getByText("Program input available · privacy scan runs during draft preparation")).toBeInTheDocument();
+    expect(screen.getAllByText("Monitoring · trigger evaluated during report analysis")).toHaveLength(4);
     expect(screen.getByText("Not yet applicable · only if an unspent balance remains")).toBeInTheDocument();
     expect(screen.getAllByText("Source verified").length).toBeGreaterThan(0);
     expect(screen.queryByText(/^Verified$/)).not.toBeInTheDocument();
@@ -99,6 +108,27 @@ describe("agreement-driven report setup", () => {
     const normalized = normalizeWorkflowObligations(obligations);
     expect(normalized.find((item) => item.id === "extension")?.applicability).toBe("conditional");
     expect(normalized.find((item) => item.id === "unspent")?.applicability).toBe("future");
+  });
+
+  it("separates emergency-assistance documentation from the additional approval threshold", () => {
+    const normalized = normalizeWorkflowObligations(obligations);
+    expect(normalized.find((item) => item.id === "assistance-documentation")).toMatchObject({
+      title: "Document all emergency client assistance",
+      trigger: "Applies whenever emergency client assistance is charged to the grant."
+    });
+    expect(normalized.find((item) => item.id === "assistance-approval")).toMatchObject({
+      title: "Obtain Program Director approval for assistance above $1,500",
+      trigger: "Applies only when an emergency client assistance payment exceeds $1,500 per household."
+    });
+    expect(normalizeWorkflowObligations([...obligations, {
+      ...obligation("separate-documentation", "Document emergency client assistance", "Program", "conditional", "Whenever assistance is charged"),
+      detail: "Retain a payment record and housing-related purpose documentation for emergency client assistance."
+    }]).filter((item) => /Document all emergency|Document emergency/.test(item.title))).toHaveLength(1);
+  });
+
+  it("keeps a precisely sourced indirect-cost rule verified while current compliance remains pending", () => {
+    const normalized = normalizeWorkflowObligations(obligations);
+    expect(normalized.find((item) => item.id === "indirect")?.status).toBe("verified");
   });
 
   it("one-click agreement setup clears organization, grant, and reporting-period conflicts together", () => {

@@ -126,7 +126,8 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
   it("raises the technology variance, three approval checks, equipment eligibility, and indirect-cap result", () => {
     expect(checked.financialAnalysis?.budgetVariances.find((item) => item.category === "Technology & Data Systems")).toMatchObject({ approvedAmount: 18_000, actualAmount: 26_200, varianceAmount: 8_200, variancePercent: 45.6, explanationRequired: true });
     expect(checked.financialAnalysis?.controls.find((item) => item.id === "material-variance")?.detail).toContain("$8,200 above the approved budget (+45.6%)");
-    expect(checked.financialAnalysis?.controls.find((item) => item.id === "budget-reallocation-approval")).toMatchObject({ title: "Budget approval may be required", status: "review", requiresAction: true });
+    expect(checked.financialAnalysis?.controls.find((item) => item.id === "budget-reallocation-approval")).toMatchObject({ title: "Confirm whether the budget was formally modified", status: "review", requiresAction: true });
+    expect(checked.financialAnalysis?.controls.find((item) => item.id === "budget-reallocation-approval")?.detail).toContain("This overage is a variance, not evidence that a formal budget modification occurred.");
     expect(checked.financialAnalysis?.controls.find((item) => item.id === "assistance-approvals")?.transactionIds).toEqual(["BW-EA-003", "BW-EA-006", "BW-EA-011"]);
     expect(checked.financialAnalysis?.controls.find((item) => item.id === "eligibility-review")?.transactionIds).toEqual(["BW-TECH-004"]);
     const indirect = checked.financialAnalysis?.controls.find((item) => item.id === "indirect-cost-limit");
