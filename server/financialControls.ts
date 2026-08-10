@@ -185,10 +185,9 @@ export function buildFinancialAnalysis(
     });
   }
 
-  const indirectRule = matchingRequirement(requirements, /indirect/i, /lesser|actual (?:eligible )?direct costs|direct-cost base|indirect-cost cap/i, /%/i);
-  const indirectPercent = indirectRule ? firstPercent(indirectRule) : null;
-  const indirectCap = indirectRule ? largestMoney(indirectRule) : null;
-  if (indirectPercent !== null) {
+  const indirectLimit = findIndirectLimit(requirements);
+  if (indirectLimit) {
+    const { percent: indirectPercent, fixedCap: indirectCap } = indirectLimit;
     const indirectRows = usable.filter((row) => /indirect/i.test(`${row.account} ${row.category}`));
     const indirectActual = roundMoney(indirectRows.reduce((total, row) => total + row.amount, 0));
     const directActual = roundMoney(usable.filter((row) => !/indirect/i.test(`${row.account} ${row.category}`)).reduce((total, row) => total + row.amount, 0));
@@ -274,7 +273,6 @@ function verifiedRequirements(requirements: CompiledRequirement[]) {
 }
 
 function firstMoney(value: string) { return moneyValues(value)[0] ?? null; }
-function largestMoney(value: string) { const values = moneyValues(value); return values.length ? Math.max(...values) : null; }
 function moneyValues(value: string) { return [...value.matchAll(/\$\s*([\d,]+(?:\.\d+)?)/g)].map((match) => Number(match[1].replaceAll(",", ""))).filter(Number.isFinite); }
 function amountAdjacentToCategory(value: string, category: string) {
   const categoryPattern = category.trim().split(/\s+/).map(escapeRegExp).join("\\s+");
@@ -286,6 +284,24 @@ function amountAdjacentToCategory(value: string, category: string) {
 function thresholdAfterComparator(value: string) {
   const match = value.match(/(?:above|over|exceed(?:s|ed|ing)?|greater than|more than)\s*\$\s*([\d,]+(?:\.\d+)?)/i);
   return match ? Number(match[1].replaceAll(",", "")) : null;
+}
+function findIndirectLimit(requirements: CompiledRequirement[]) {
+  for (const requirement of verifiedRequirements(requirements)) {
+    const text = `${requirement.requirement} ${requirement.source.excerpt}`;
+    if (!/indirect/i.test(text)) continue;
+    // The rate must be grammatically tied to the direct-cost base. A nearby
+    // percentage can describe an entirely different rule (for example a 15%
+    // budget-reallocation threshold) and must never become the indirect rate.
+    const percentMatch = text.match(/(\d+(?:\.\d+)?)\s*%\s+of\s+(?:the\s+)?(?:total\s+)?(?:actual\s+)?(?:eligible\s+)?direct costs?(?:\s+actually charged(?:\s+to\s+the\s+grant)?)?/i);
+    if (!percentMatch) continue;
+    const percent = Number(percentMatch[1]);
+    if (!Number.isFinite(percent)) continue;
+    const beforeRate = text.slice(Math.max(0, (percentMatch.index || 0) - 180), percentMatch.index || 0);
+    const lesserClause = beforeRate.match(/lesser\s+of\s+\$\s*([\d,]+(?:\.\d+)?)\s*(?:,?\s*or)?\s*$/i);
+    const fixedCap = lesserClause ? Number(lesserClause[1].replaceAll(",", "")) : null;
+    return { percent, fixedCap: fixedCap !== null && Number.isFinite(fixedCap) ? fixedCap : null };
+  }
+  return null;
 }
 function escapeRegExp(value: string) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 function firstPercent(value: string) { const match = value.match(/(\d+(?:\.\d+)?)\s*%/); return match ? Number(match[1]) : null; }

@@ -20,8 +20,12 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
     const row = ledger.find((candidate) => candidate.id === mapping.transactionId);
     if (!row) {
       hardMappingIssue = true;
-      deterministicFindings.push(finding(`mapping:${mapping.transactionId}`, "blocked", "Transaction ID does not exist in the uploaded ledger."));
-      return { ...mapping, confidence: 0, status: "blocked" as const, mappingConfidence: "unmapped" as const, complianceStatus: "not_applicable" as const, complianceDetail: "The transaction ID was not found in the ledger.", reportTreatment: "needs_category_review" as const, reviewReason: "ambiguous" as const, requiresHumanAction: true };
+      const malformedRow = /malformed/i.test(mapping.rationale);
+      const detail = malformedRow
+        ? `Malformed ledger row — category suggested: ${mapping.suggestedCategory || "not determined"}. Review the source row and mapping before inclusion.`
+        : "This mapping could not be reconciled to a readable row in the uploaded ledger. Review the source row before inclusion.";
+      deterministicFindings.push(finding(`mapping:${mapping.transactionId}`, "blocked", detail));
+      return { ...mapping, confidence: 0, status: "blocked" as const, mappingConfidence: "unmapped" as const, complianceStatus: "not_applicable" as const, complianceDetail: detail, reportTreatment: "needs_category_review" as const, reviewReason: "ambiguous" as const, requiresHumanAction: true };
     }
     if (seen.has(mapping.transactionId)) {
       deterministicFindings.push(finding(`mapping:${mapping.transactionId}`, "review", "Duplicate ledger row excluded from provisional report totals. Confirm whether one or both rows should be kept."));

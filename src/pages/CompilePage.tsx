@@ -634,7 +634,8 @@ function Mappings({ result, onAddSources }: { result: CompilationResult; onAddSo
     || result.mappings.filter((item) => item.reportTreatment === "excluded_duplicate").length;
   const dateExclusions = result.mappings.filter((item) => ["excluded_outside_period", "excluded_grant_period"].includes(item.reportTreatment || "")).length;
   const approvalEvidence = analysis?.controls.find((control) => control.id === "assistance-approvals" && control.requiresAction)?.transactionIds.length || 0;
-  const groupedExceptions = buildFinancialExceptionSummary(result).length;
+  const groupedExceptionItems = buildFinancialExceptionSummary(result);
+  const groupedExceptions = groupedExceptionItems.length;
   return <div className="grid gap-5">
     <section className="financial-ingestion-summary" aria-labelledby="financial-ingestion-title">
       <div className="financial-ingestion-heading"><div><p className="eyebrow">Ledger review completed</p><h3 id="financial-ingestion-title">{analysis?.ledgerTransactionCount || result.mappings.length} ledger rows analyzed</h3><p>GrantDeskHQ mapped the routine rows automatically and brought forward only the exceptions that need judgment.</p></div><span>{groupedExceptions} grouped {groupedExceptions === 1 ? "exception" : "exceptions"} to review</span></div>
@@ -645,6 +646,14 @@ function Mappings({ result, onAddSources }: { result: CompilationResult; onAddSo
         <div><dt>Excluded by date</dt><dd>{dateExclusions}</dd></div>
         <div><dt>Approval evidence</dt><dd>{approvalEvidence}</dd></div>
       </dl>
+      {groupedExceptionItems.length > 0 && <div className="financial-exception-groups" aria-label="Grouped financial decisions">
+        {groupedExceptionItems.map((item, index) => <article key={item.id}>
+          <span>Decision {index + 1} of {groupedExceptionItems.length}</span>
+          <h4>{item.title}</h4>
+          <p>{item.detail}</p>
+          {item.transactionIds.length > 0 && <small>{item.transactionIds.length} transaction {item.transactionIds.length === 1 ? "row" : "rows"} covered by this decision</small>}
+        </article>)}
+      </div>}
     </section>
     <div className="financial-trust-note"><ShieldCheck aria-hidden="true" /><p><strong>Financial totals are calculated directly from your uploaded ledger.</strong> Our AI-powered solution may suggest transaction mappings and explanations, but it never invents transaction amounts.</p></div>
     <FinancialControls result={result} />
@@ -701,7 +710,7 @@ function treatmentTone(value: CompilationResult["mappings"][number]["reportTreat
 function FinancialControls({ result }: { result: CompilationResult }) {
   const analysis = result.financialAnalysis;
   if (!analysis) return null;
-  return <section className="financial-analysis" aria-labelledby="financial-analysis-title"><div className="financial-analysis-heading"><div><p className="eyebrow">Agreement + ledger checks</p><h3 id="financial-analysis-title">Financial controls for this reporting period</h3></div><span>{analysis.mappedTransactionCount} mapped · {analysis.excludedTransactionCount} excluded</span></div><div className="financial-control-grid">{analysis.controls.map((control) => <article key={control.id} className={control.status}><ReviewLabel status={qualityState(control.status)} /><h4>{control.title}</h4><p>{control.detail}</p>{control.transactionIds.length > 0 && <small>Transactions: {control.transactionIds.join(", ")}</small>}</article>)}</div>{analysis.budgetVariances.length > 0 && <div className="table-scroll"><table className="data-table"><thead><tr><th>Budget category</th><th>Approved</th><th>Current-period actual</th><th>Variance</th><th>Variance %</th><th>Result</th></tr></thead><tbody>{analysis.budgetVariances.map((item) => <tr key={item.category}><th>{item.category}</th><td>{formatCurrency(item.approvedAmount)}</td><td>{formatCurrency(item.actualAmount)}</td><td>{signedCurrency(item.varianceAmount)}</td><td>{item.variancePercent >= 0 ? "+" : ""}{item.variancePercent.toFixed(1)}%</td><td>{item.explanationRequired ? "Explanation required" : "Within threshold"}</td></tr>)}</tbody></table></div>}</section>;
+  return <section className="financial-analysis" aria-labelledby="financial-analysis-title"><div className="financial-analysis-heading"><div><p className="eyebrow">Agreement + ledger checks</p><h3 id="financial-analysis-title">Detailed checks and calculations</h3><p>These checks support the grouped decisions above. Multiple related checks do not create separate tasks for your team.</p></div><span>{analysis.mappedTransactionCount} mapped · {analysis.excludedTransactionCount} excluded</span></div><div className="financial-control-grid">{analysis.controls.map((control) => <article key={control.id} className={control.status}><ReviewLabel status={qualityState(control.status)} /><h4>{control.title}</h4><p>{control.detail}</p>{control.transactionIds.length > 0 && <small>Transactions: {control.transactionIds.join(", ")}</small>}</article>)}</div>{analysis.budgetVariances.length > 0 && <div className="table-scroll"><table className="data-table"><thead><tr><th>Budget category</th><th>Approved</th><th>Current-period actual</th><th>Variance</th><th>Variance %</th><th>Result</th></tr></thead><tbody>{analysis.budgetVariances.map((item) => <tr key={item.category}><th>{item.category}</th><td>{formatCurrency(item.approvedAmount)}</td><td>{formatCurrency(item.actualAmount)}</td><td>{signedCurrency(item.varianceAmount)}</td><td>{item.variancePercent >= 0 ? "+" : ""}{item.variancePercent.toFixed(1)}%</td><td>{item.explanationRequired ? "Explanation required" : "Within threshold"}</td></tr>)}</tbody></table></div>}</section>;
 }
 
 function Narrative({ result, onAddSources, onReviewFinancial }: { result: CompilationResult; onAddSources(): void; onReviewFinancial(): void }) {

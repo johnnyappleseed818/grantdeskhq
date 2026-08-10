@@ -157,14 +157,31 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
     expect(indirect?.detail).toContain("$918.40 remaining capacity");
   });
 
-  it("keeps eligibility and the deterministic variance as separate grouped decisions", () => {
+  it("never uses the 15% reallocation threshold as the 8% indirect-cost rate", () => {
+    const combinedFinancialRules = requirements.filter((item) => !["RULE-REALLOC", "RULE-IND"].includes(item.id));
+    combinedFinancialRules.push(requirement(
+      "RULE-COMBINED",
+      "Budget reallocations of 15% or more require prior written approval. Indirect Costs may not exceed the lesser of $20,000 or 8% of total direct costs actually charged to the grant."
+    ));
+    const crossChecked = applyDeterministicAccuracyChecks(request, { ...rawResult, requirements: combinedFinancialRules });
+    const indirect = crossChecked.financialAnalysis?.controls.find((item) => item.id === "indirect-cost-limit");
+    expect(indirect).toMatchObject({ status: "passed", requiresAction: false });
+    expect(indirect?.detail).toContain("$123,980.00 eligible direct costs");
+    expect(indirect?.detail).toContain("current limit $9,918.40 (8%, capped at $20,000.00)");
+    expect(indirect?.detail).toContain("$918.40 remaining capacity");
+    expect(indirect?.detail).not.toContain("15%");
+  });
+
+  it("groups connected technology checks into one bounded customer decision", () => {
     expect(buildReportAttention(checked).map((item) => item.title)).toEqual([
       "1 transaction needs a category decision",
       "1 potential duplicate needs review",
-      "1 transaction needs an eligibility review",
       "1 budget variance requires explanation",
       "Emergency assistance documentation"
     ]);
+    const technologyDecision = buildReportAttention(checked).find((item) => item.title === "1 budget variance requires explanation");
+    expect(technologyDecision?.detail).toContain("Confirm eligibility before final inclusion");
+    expect(technologyDecision?.detail).toContain("formal budget modification occurred");
   });
 
   it("does not turn legacy routine mapping states back into row-by-row category work", () => {
@@ -180,10 +197,13 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
     expect(categoryAction?.detail).not.toContain("BW-PAY-001");
   });
 
-  it("recognizes and parses the uploaded GL workbook even when it was placed in the budget field", async () => {
+  it("recognizes the uploaded GL workbook and preserves its two shifted Evaluation rows", async () => {
+    const workbookRows = rows.map(([id, date, account, description, amount]) => id.startsWith("BW-EVAL-")
+      ? [id, date, "Impact Metrics LLC", description, "Impact Metrics LLC", amount, "Housing Navigation", "NCF-27-118", id.replace("BW-EVAL-", "IM-"), null, null]
+      : [id, date, account.slice(0, 4), account, description, "Synthetic Vendor", amount, "Housing Navigation", "NCF-27-118", id, null]);
     const buffer = await writeExcelFile([
-      ["Transaction ID", "Date", "Account", "Description", "Amount"].map((value) => ({ value })),
-      ...rows.map((row) => row.slice(0, 5).map((value) => ({ value })))
+      ["Transaction ID", "Date", "Account Code", "Account Name", "Description", "Vendor / Payee", "Amount", "Department", "Project / Grant", "Document Ref", "Memo"].map((value) => ({ value })),
+      ...workbookRows.map((row) => row.map((value) => ({ value: value ?? "" })))
     ]).toBuffer();
     const misplaced: CompilationRequest = {
       ...request,
@@ -196,8 +216,12 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
     expect(normalized.correctedLedgerRole).toBe(true);
     expect(normalized.request.files.find((file) => file.name.includes("Synthetic_GL"))?.role).toBe("ledgerExport");
     expect(normalized.ledgerRows).toHaveLength(56);
+    expect(normalized.ledgerRows.find((row) => row.id === "BW-EVAL-001")).toMatchObject({ description: "Evaluation design and baseline review", vendor: "Impact Metrics LLC", amount: 2_250 });
+    expect(normalized.ledgerRows.find((row) => row.id === "BW-EVAL-002")).toMatchObject({ description: "Interim data-quality review", vendor: "Impact Metrics LLC", amount: 2_250 });
     const output = applyDeterministicAccuracyChecks(normalized.request, rawResult, normalized.ledgerRows);
     expect(output.financialAnalysis).toMatchObject({ ledgerTransactionCount: 56, mappedTransactionCount: 52, mappedActualTotal: 132_980 });
+    expect(output.financialAnalysis?.budgetVariances.find((item) => item.category === "Evaluation")).toMatchObject({ approvedAmount: 14_500, actualAmount: 4_500 });
+    expect(output.mappings.filter((item) => item.transactionId.startsWith("BW-EVAL-")).every((item) => item.mappingConfidence === "high" && item.reportTreatment === "included")).toBe(true);
     expect(buildInputStatus(normalized.request, output).find((item) => item.role === "ledgerExport")).toMatchObject({ available: true });
   });
 
@@ -240,7 +264,6 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
     expect(buildReportAttention(workflow).map((item) => item.title)).toEqual([
       "1 transaction needs a category decision",
       "1 potential duplicate needs review",
-      "1 transaction needs an eligibility review",
       "1 budget variance requires explanation",
       "Emergency assistance documentation",
       "P2 — Assessment count needs confirmation",

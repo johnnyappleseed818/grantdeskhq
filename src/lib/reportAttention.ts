@@ -119,9 +119,8 @@ export function machineCheckCount(result: CompilationResult) {
 }
 
 function connectedControlGroups<T extends { id?: string; title?: string; detail?: string; transactionIds: string[] }>(controls: T[]) {
-  const standalone = controls.filter((control) => /eligib|allowab/i.test(`${control.id || ""} ${control.title || ""} ${control.detail || ""}`));
-  const remaining = controls.filter((control) => !standalone.includes(control));
-  const groups: T[][] = standalone.map((control) => [control]);
+  const remaining = [...controls];
+  const groups: T[][] = [];
   while (remaining.length) {
     const group = [remaining.shift()!];
     let expanded = true;

@@ -61,14 +61,40 @@ function ledgerRows(rows: Cell[][]): FinancialLedgerRow[] {
   if (headerIndex < 0) return [];
   const header = rows[headerIndex].map((value) => cellText(value).toLowerCase());
   const column = (...names: string[]) => header.findIndex((value) => names.includes(value));
-  return rows.slice(headerIndex + 1).map((row) => ({
-    id: cellText(row[column("transaction id", "transaction id #", "transaction number", "id")]).trim(),
-    date: dateText(row[column("date", "transaction date")]),
-    description: cellText(row[column("vendor or memo", "description", "memo", "vendor/payee")]).trim(),
-    amount: amountValue(row[column("amount", "transaction amount")]),
-    account: cellText(row[column("gl account", "account", "account name", "general ledger account")]).trim(),
-    vendor: cellText(row[column("vendor/payee", "vendor", "payee", "vendor or memo")]).trim()
-  })).filter((row) => row.id && Number.isFinite(row.amount));
+  const idColumn = column("transaction id", "transaction id #", "transaction number", "id");
+  const dateColumn = column("date", "transaction date");
+  const descriptionColumn = column("vendor or memo", "description", "memo", "vendor/payee", "vendor / payee");
+  const amountColumn = column("amount", "transaction amount");
+  const accountColumn = column("gl account", "account", "account name", "general ledger account");
+  const vendorColumn = column("vendor/payee", "vendor / payee", "vendor", "payee", "vendor or memo");
+  return rows.slice(headerIndex + 1).map((row) => {
+    // Real accounting exports occasionally contain a malformed row whose cells
+    // shift left or right after the stable ID/date columns. Recover the amount
+    // only when it is in an immediately adjacent column, then apply that same
+    // offset to the descriptive fields. This preserves the row without guessing
+    // its financial value or silently dropping it.
+    const resolvedAmountColumn = nearbyAmountColumn(row, amountColumn);
+    const detailOffset = resolvedAmountColumn === amountColumn ? 0 : resolvedAmountColumn - amountColumn;
+    const detailCell = (index: number) => row[index < 0 ? index : index + detailOffset];
+    return {
+      id: cellText(row[idColumn]).trim(),
+      date: dateText(row[dateColumn]),
+      description: cellText(detailCell(descriptionColumn)).trim(),
+      amount: amountValue(row[resolvedAmountColumn]),
+      account: cellText(detailCell(accountColumn)).trim(),
+      vendor: cellText(detailCell(vendorColumn)).trim()
+    };
+  }).filter((row) => row.id && Number.isFinite(row.amount));
+}
+
+function nearbyAmountColumn(row: Cell[], expectedColumn: number) {
+  if (expectedColumn < 0 || Number.isFinite(amountValue(row[expectedColumn]))) return expectedColumn;
+  for (let distance = 1; distance <= 2; distance += 1) {
+    for (const candidate of [expectedColumn - distance, expectedColumn + distance]) {
+      if (candidate >= 0 && Number.isFinite(amountValue(row[candidate]))) return candidate;
+    }
+  }
+  return expectedColumn;
 }
 
 function cellText(value: Cell | undefined) {
