@@ -139,7 +139,7 @@ describe("GTM command center", () => {
 
   it("renders the alert queue, source evidence, and no-send boundary", async () => {
     const user = userEvent.setup();
-    render(<MemoryRouter><GtmDashboardContent /></MemoryRouter>);
+    render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} /></MemoryRouter>);
     expect(screen.getByRole("heading", { name: /Find the few organizations worth acting on today/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Junior Achievement of South Florida" })).toBeInTheDocument();
     expect(screen.getByText(/Nothing is posted or emailed automatically/i)).toBeInTheDocument();
@@ -151,7 +151,7 @@ describe("GTM command center", () => {
 
   it("requires explicit approval before the contacted action is enabled", async () => {
     const user = userEvent.setup();
-    render(<MemoryRouter><GtmDashboardContent /></MemoryRouter>);
+    render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} /></MemoryRouter>);
     const jaHeading = screen.getByRole("heading", { name: "Junior Achievement of South Florida" });
     const card = jaHeading.closest("article")!;
     const contacted = Array.from(card.querySelectorAll("button")).find((button) => button.textContent?.includes("Mark contacted"))!;
@@ -166,7 +166,7 @@ describe("GTM command center", () => {
   });
 
   it("supports keyboard-accessible tab and filter controls", () => {
-    render(<MemoryRouter><GtmDashboardContent /></MemoryRouter>);
+    render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} /></MemoryRouter>);
     const sourcesTab = screen.getByRole("tab", { name: "Signal engines" });
     fireEvent.click(sourcesTab);
     expect(sourcesTab).toHaveAttribute("aria-selected", "true");
@@ -178,7 +178,7 @@ describe("GTM command center", () => {
 
   it("shows the latest daily social scan as research-only evidence", async () => {
     const user = userEvent.setup();
-    render(<MemoryRouter><GtmDashboardContent initialDailyScan={dailyScan} /></MemoryRouter>);
+    render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} initialDailyScan={dailyScan} /></MemoryRouter>);
     await user.click(screen.getByRole("tab", { name: "Reddit & LinkedIn" }));
     expect(screen.getByRole("heading", { name: "1 source-linked result" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Manual grant reporting workflow/i })).toHaveAttribute("href", dailyScan.items[0].url);
@@ -187,7 +187,7 @@ describe("GTM command center", () => {
 
   it("shows expanded award candidates without allowing unverified outreach", async () => {
     const user = userEvent.setup();
-    render(<MemoryRouter><GtmDashboardContent initialAwardScan={awardScan} /></MemoryRouter>);
+    render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} initialAwardScan={awardScan} /></MemoryRouter>);
     expect(screen.getByRole("heading", { name: "Community Action Network" })).toBeInTheDocument();
     expect(screen.getByText("emerging target")).toBeInTheDocument();
     const card = screen.getByRole("heading", { name: "Community Action Network" }).closest("article")!;

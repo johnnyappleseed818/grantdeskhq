@@ -27,7 +27,7 @@ import {
 import { Link, Navigate } from "react-router-dom";
 import redditSignals from "../../gtm/data/reddit-signals.json";
 import linkedinItems from "../../gtm/data/linkedin-engagement.json";
-import { initialOpportunities, referralChannels, signalSources } from "../data/gtmData";
+import { referralChannels, signalSources } from "../data/gtmData";
 import { apiRequest } from "../lib/api";
 import {
   assessOpportunityAccuracy,
@@ -65,13 +65,13 @@ export function GtmDashboardPage() {
   return <GtmDashboardContent dailySignalToken={token} />;
 }
 
-export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null, initialAwardScan = null }: { dailySignalToken?: () => Promise<string>; initialDailyScan?: DailySocialScan | null; initialAwardScan?: AwardDiscoveryScan | null } = {}) {
+export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null, initialAwardScan = null, seedOpportunities = [] }: { dailySignalToken?: () => Promise<string>; initialDailyScan?: DailySocialScan | null; initialAwardScan?: AwardDiscoveryScan | null; seedOpportunities?: GtmOpportunity[] } = {}) {
   const [activeTab, setActiveTab] = useState<DashboardTab>("hot-list");
   const [filter, setFilter] = useState<"all" | SignalKind>("all");
   const [query, setQuery] = useState("");
-  const [expanded, setExpanded] = useState<string | null>(initialOpportunities[0]?.id || null);
+  const [expanded, setExpanded] = useState<string | null>(seedOpportunities[0]?.id || null);
   const [copied, setCopied] = useState<string | null>(null);
-  const [liveOpportunities, setLiveOpportunities] = useState<GtmOpportunity[]>(() => mergeAwardCandidates(initialAwardScan?.opportunities || [], initialOpportunities));
+  const [liveOpportunities, setLiveOpportunities] = useState<GtmOpportunity[]>(() => mergeAwardCandidates(initialAwardScan?.opportunities || [], seedOpportunities));
   const [stages, setStages] = useState<StageState>(() => readStages());
   const [dailyScan, setDailyScan] = useState<DailySocialScan | null>(initialDailyScan);
   const [awardScan, setAwardScan] = useState<AwardDiscoveryScan | null>(initialAwardScan);
@@ -82,16 +82,16 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
     if (!dailySignalToken) return;
     let active = true;
     dailySignalToken().then(async (idToken) => Promise.all([
+      apiRequest<{ opportunities: GtmOpportunity[] }>("/api/gtm/opportunities", idToken),
       apiRequest<{ scan: DailySocialScan | null }>("/api/gtm/daily-signals", idToken),
       apiRequest<{ scan: AwardDiscoveryScan | null }>("/api/gtm/award-signals", idToken)
     ]))
-      .then(([socialBody, awardBody]) => {
+      .then(([opportunityBody, socialBody, awardBody]) => {
         if (!active) return;
         setDailyScan(socialBody.scan);
         setAwardScan(awardBody.scan);
-        if (awardBody.scan?.opportunities.length) {
-          setLiveOpportunities(mergeAwardCandidates(awardBody.scan.opportunities, initialOpportunities));
-        }
+        setLiveOpportunities(mergeAwardCandidates(awardBody.scan?.opportunities || [], opportunityBody.opportunities));
+        setExpanded((current) => current || opportunityBody.opportunities[0]?.id || null);
       })
       .catch((requestError) => { if (active) setSignalsError(requestError instanceof Error ? requestError.message : "Daily signals could not be loaded."); })
       .finally(() => { if (active) setSignalsLoading(false); });

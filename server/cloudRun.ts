@@ -14,6 +14,7 @@ import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { requireGtmScheduler } from "./schedulerAuth.ts";
 import { BillingError, billingSnapshotFromEvent, createCheckoutSession, isBillingConfigured, validateBillingSelection, verifyStripeSignature, type StripeWebhookEvent } from "./billing.ts";
 import { normalizeCompilationSources } from "./sourceNormalization.ts";
+import { initialOpportunities } from "../src/data/gtmData.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
@@ -45,6 +46,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/compile-report" || url.pathname === "/api/reports/compile") return await handleCompiler(request, response);
     if (url.pathname === "/api/readiness-assessment") return await handleReadiness(request, response);
     if (url.pathname === "/api/gtm/access") return await handleGtmAccess(request, response);
+    if (url.pathname === "/api/gtm/opportunities") return await handleGtmOpportunities(request, response);
     if (url.pathname === "/api/gtm/daily-signals") return await handleGtmDailySignals(request, response);
     if (url.pathname === "/api/gtm/award-signals") return await handleGtmAwardSignals(request, response);
     if (url.pathname === "/api/gtm/daily-scan") return await handleGtmDailyScan(request, response);
@@ -145,6 +147,12 @@ async function handleGtmAccess(request: IncomingMessage, response: ServerRespons
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   requireGtmAdmin(await requireUser(request));
   return json(response, 200, { allowed: true });
+}
+
+async function handleGtmOpportunities(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  requireGtmAdmin(await requireUser(request));
+  return json(response, 200, { opportunities: initialOpportunities });
 }
 
 async function handleGtmAwardSignals(request: IncomingMessage, response: ServerResponse) {
