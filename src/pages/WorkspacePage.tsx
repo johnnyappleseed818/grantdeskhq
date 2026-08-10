@@ -41,7 +41,7 @@ export function WorkspacePage() {
         <div className="workspace-empty"><FolderCheck aria-hidden="true" /><h2>No saved reports yet</h2><p>Upload an appropriately redacted grant agreement, budget, accounting export, funder form, and program update to prepare your first draft.</p><Link className="button button-primary" to="/compile">Prepare your first report <ArrowRight aria-hidden="true" /></Link></div> :
         <div className="report-list">{reports.map((report) => <article key={report.id} className="report-row">
           <div><span className={`status-badge ${report.status === "ready" ? "status-success" : "status-review"}`}>{report.status === "ready" ? "Review complete" : "Review required"}</span><h2>{report.grantName}</h2><p>{report.organizationName} · {report.reportingPeriod}</p></div>
-          <dl><div><dt>Evidence coverage</dt><dd>{report.evidenceCoveragePercent}%</dd></div><div><dt>Open items</dt><dd>{report.unresolvedItems}</dd></div><div><dt>Sources</dt><dd>{report.sourceCount}</dd></div><div><dt>Updated</dt><dd>{new Date(report.updatedAt).toLocaleDateString()}</dd></div></dl>
+          <dl><div><dt>Source-supported</dt><dd>{report.evidenceCoveragePercent}%</dd></div><div><dt>Open items</dt><dd>{report.unresolvedItems}</dd></div><div><dt>Sources</dt><dd>{report.sourceCount}</dd></div><div><dt>Updated</dt><dd>{new Date(report.updatedAt).toLocaleDateString()}</dd></div></dl>
         </article>)}</div>}
     </div>
   </section>;

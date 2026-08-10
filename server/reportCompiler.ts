@@ -6,6 +6,8 @@ import { applyDeterministicAccuracyChecks } from "./accuracy.ts";
 import { enforceVerificationCompleteness } from "./verification.ts";
 import { applyWorkflowState } from "./workflowState.ts";
 import { randomUUID } from "node:crypto";
+import { normalizeCompilationSources } from "./sourceNormalization.ts";
+import type { FinancialLedgerRow } from "./financialControls.ts";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = "gpt-5.6-terra";
@@ -33,7 +35,9 @@ interface OpenAIResponse {
   usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number };
 }
 
-export async function compileGrantReport(request: CompilationRequest): Promise<CompilationResult> {
+export async function compileGrantReport(request: CompilationRequest, preparedLedgerRows?: FinancialLedgerRow[]): Promise<CompilationResult> {
+  const normalizedSources = preparedLedgerRows ? { request, ledgerRows: preparedLedgerRows } : await normalizeCompilationSources(request);
+  request = normalizedSources.request;
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured.");
   const model = process.env.OPENAI_MODEL || DEFAULT_MODEL;
@@ -177,7 +181,7 @@ export async function compileGrantReport(request: CompilationRequest): Promise<C
     generatedAt: new Date().toISOString(),
     model: body.model || model
   };
-  return applyWorkflowState(request, applyDeterministicAccuracyChecks(request, result));
+  return applyWorkflowState(request, applyDeterministicAccuracyChecks(request, result, normalizedSources.ledgerRows));
 }
 
 async function auditMissingRequirements(

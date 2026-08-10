@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+import writeExcelFile from "write-excel-file/node";
 import { applyDeterministicAccuracyChecks } from "../../server/accuracy";
+import { normalizeCompilationSources } from "../../server/sourceNormalization";
+import { applyWorkflowState, buildInputStatus } from "../../server/workflowState";
 import { buildReportAttention } from "../lib/reportAttention";
 import type { CompilationRequest, CompilationResult, CompiledRequirement } from "../types/prototype";
 
@@ -18,6 +21,7 @@ const requirements: CompiledRequirement[] = [
   budget("BUD-IND", "Indirect Costs", 20_000),
   requirement("RULE-VAR", "Explain any budget category variance of $7,500 or more."),
   requirement("RULE-REALLOC", "Budget reallocations of 15% or more require prior written approval."),
+  requirement("RULE-AID-DOC", "Emergency Client Assistance requires a payment record and documentation of the housing-related purpose."),
   requirement("RULE-AID", "Written Program Director approval is required for assistance above $1,500 per household."),
   requirement("RULE-IND", "Indirect costs are limited to the lesser of $20,000 or 8% of actual eligible direct costs.")
 ];
@@ -137,8 +141,66 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
       "1 transaction needs a category decision",
       "1 potential duplicate needs review",
       "Review Technology & Data Systems allowability and variance",
-      "3 assistance transactions require approval support"
+      "Emergency assistance documentation"
     ]);
+  });
+
+  it("recognizes and parses the uploaded GL workbook even when it was placed in the budget field", async () => {
+    const buffer = await writeExcelFile([
+      ["Transaction ID", "Date", "Account", "Description", "Amount"].map((value) => ({ value })),
+      ...rows.map((row) => row.slice(0, 5).map((value) => ({ value })))
+    ]).toBuffer();
+    const misplaced: CompilationRequest = {
+      ...request,
+      files: [
+        request.files[0],
+        { role: "approvedBudget", name: "GrantDeskHQ_Synthetic_GL_Interim_Report_1.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", size: buffer.byteLength, data: `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${buffer.toString("base64")}` }
+      ]
+    };
+    const normalized = await normalizeCompilationSources(misplaced);
+    expect(normalized.correctedLedgerRole).toBe(true);
+    expect(normalized.request.files.find((file) => file.name.includes("Synthetic_GL"))?.role).toBe("ledgerExport");
+    expect(normalized.ledgerRows).toHaveLength(56);
+    const output = applyDeterministicAccuracyChecks(normalized.request, rawResult, normalized.ledgerRows);
+    expect(output.financialAnalysis).toMatchObject({ ledgerTransactionCount: 56, mappedTransactionCount: 52, mappedActualTotal: 132_980 });
+    expect(buildInputStatus(normalized.request, output).find((item) => item.role === "ledgerExport")).toMatchObject({ available: true });
+  });
+
+  it("collapses duplicate program checks and keeps generated financial work and future milestones out of current actions", () => {
+    const programSource = { sourceName: "BridgeWorks_Program_Update.docx", locator: "Page 2", excerpt: "Synthetic program results." };
+    const programChecks: NonNullable<CompilationResult["programChecks"]> = [
+      programCheck("P2-CONFLICT", "data_conflict", "P2 assessment-count conflict", "The KPI table reports 158 while the activities section reports 160."),
+      programCheck("P2-KPI", "kpi_result", "P2 — Housing stability assessments completed", "The KPI result is internally inconsistent: 158 versus 160."),
+      programCheck("P6", "kpi_result", "P6 — Client satisfaction", "No confirmed result is available because the survey dataset remains under validation."),
+      programCheck("DUP", "data_conflict", "Duplicate general-ledger transaction", "BW-LGL-003 appears twice in the ledger."),
+      programCheck("DATES", "data_conflict", "Interim-period financial population and out-of-period transactions", "The ledger contains an out-of-period and a pre-grant transaction."),
+      programCheck("BVA", "award_trigger", "Interim Report 1 budget-to-actual and variance explanation", "A budget-to-actual presentation and variance explanation are required."),
+      programCheck("AID", "award_trigger", "Emergency-assistance approval threshold review", "Emergency-assistance approvals and support remain unresolved."),
+      programCheck("PAYMENT", "award_trigger", "Interim Report 1 acceptance and second-installment condition", "The second installment follows funder acceptance of this report.")
+    ];
+    const withPrograms: CompilationResult = {
+      ...checked,
+      programChecks,
+      qualityChecks: [
+        ...checked.qualityChecks,
+        ...programChecks.map((check) => ({ id: `program-${check.id}`, label: check.title, detail: check.detail, required: true, status: "review" as const }))
+      ]
+    };
+    const requestWithProgram = {
+      ...request,
+      files: [...request.files, { role: "programUpdate" as const, name: programSource.sourceName, mimeType: "text/plain", size: 10, data: "data:text/plain;base64,dGVzdA==" }]
+    };
+    const workflow = applyWorkflowState(requestWithProgram, withPrograms);
+    expect(buildReportAttention(workflow).map((item) => item.title)).toEqual([
+      "1 transaction needs a category decision",
+      "1 potential duplicate needs review",
+      "Review Technology & Data Systems allowability and variance",
+      "Emergency assistance documentation",
+      "P2 assessment-count conflict",
+      "P6 — Client satisfaction"
+    ]);
+    expect(workflow.programChecks?.find((check) => check.id === "PAYMENT")).toMatchObject({ severity: "info", resolution: "resolved" });
+    expect(workflow.programChecks?.find((check) => check.id === "P2-KPI")).toMatchObject({ severity: "info", resolution: "resolved" });
   });
 });
 
@@ -148,4 +210,8 @@ function field(value: string) { return { value, confidence: 0.99, source: agreem
 function csvData(values: LedgerRow[]) {
   const csv = ["Transaction ID,Date,Account,Description,Amount", ...values.map((row) => row.slice(0, 5).map((value) => String(value)).join(","))].join("\n");
   return `data:text/csv;base64,${Buffer.from(csv).toString("base64")}`;
+}
+
+function programCheck(id: string, type: NonNullable<CompilationResult["programChecks"]>[number]["type"], title: string, detail: string): NonNullable<CompilationResult["programChecks"]>[number] {
+  return { id, type, title, detail, action: "Review this item.", owner: "Grants", severity: "review", sources: [agreementSource], resolution: "open", status: "review" };
 }

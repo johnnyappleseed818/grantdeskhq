@@ -13,6 +13,7 @@ import { runDailySocialScan } from "./gtmDailyScanner.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { requireGtmScheduler } from "./schedulerAuth.ts";
 import { BillingError, billingSnapshotFromEvent, createCheckoutSession, isBillingConfigured, validateBillingSelection, verifyStripeSignature, type StripeWebhookEvent } from "./billing.ts";
+import { normalizeCompilationSources } from "./sourceNormalization.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
@@ -73,8 +74,9 @@ async function handleCompiler(request: IncomingMessage, response: ServerResponse
   try {
     const existing = await readCompilationByRequest(user, input.requestId);
     if (existing) return json(response, 200, existing);
-    const result = await compileGrantReport(input);
-    return json(response, 200, await saveCompilation(user, input, result));
+    const normalized = await normalizeCompilationSources(input);
+    const result = await compileGrantReport(normalized.request, normalized.ledgerRows);
+    return json(response, 200, await saveCompilation(user, normalized.request, result));
   } catch (error) {
     console.error("GrantDeskHQ compiler error:", error instanceof Error ? error.message : "Unknown error");
     const timedOut = isTimeoutFailure(error);

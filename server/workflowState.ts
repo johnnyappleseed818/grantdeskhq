@@ -28,7 +28,7 @@ const inputDefinitions: Array<{
 ];
 
 export function applyWorkflowState(request: CompilationRequest, result: ResultBeforeWorkflow): CompilationResult {
-  const normalized = applyVerifiedProgramConclusions(result);
+  const normalized = applyVerifiedProgramConclusions(normalizeProgramWorkflow(result));
   const setupConflicts = detectSetupConflicts(request, normalized.grantProfile);
   const inputStatus = buildInputStatus(request, normalized);
   const blockedChecks = normalized.qualityChecks.filter((check) => check.required && check.status === "blocked").length;
@@ -53,6 +53,69 @@ export function applyWorkflowState(request: CompilationRequest, result: ResultBe
     inputStatus,
     workflow: { readiness, actionRequiredCount, needsReviewCount, missingInputCount }
   };
+}
+
+function normalizeProgramWorkflow(result: ResultBeforeWorkflow): ResultBeforeWorkflow {
+  if (!result.programChecks?.length) return result;
+  const superseded = new Map<string, string>();
+  const hasFinancialAnalysis = Boolean(result.financialAnalysis?.ledgerTransactionCount);
+  const controls = new Set(result.financialAnalysis?.controls.map((control) => control.id) || []);
+  const hasDateExclusions = result.mappings.some((mapping) => ["excluded_outside_period", "excluded_grant_period"].includes(mapping.reportTreatment || ""));
+
+  for (const check of result.programChecks) {
+    const text = `${check.title} ${check.detail} ${check.action}`.toLowerCase();
+    if (/installment|payment milestone/.test(text) && /acceptance|after submission|follows acceptance|conditional/.test(text)) {
+      superseded.set(check.id, "Future milestone — no action is required until the report has been submitted and reviewed by the funder.");
+    } else if (hasFinancialAnalysis && /budget[- ]to[- ]actual|budget versus actual|variance explanation/.test(text)) {
+      superseded.set(check.id, "GrantDeskHQ generated the budget-to-actual schedule from the verified award budget and uploaded ledger. Any required explanation is tracked with the financial exception.");
+    } else if (controls.has("duplicate-transactions") && /duplicate/.test(text) && /ledger|transaction|general[- ]ledger/.test(text)) {
+      superseded.set(check.id, "The duplicate is already excluded from provisional totals and tracked as one financial decision.");
+    } else if (hasDateExclusions && /out[- ]of[- ]period|outside.*period|pre[- ]grant|financial population/.test(text)) {
+      superseded.set(check.id, "Transactions outside the selected report or grant period were automatically excluded from current-period totals.");
+    } else if ([...controls].some((id) => id.startsWith("assistance-")) && /emergency.{0,30}assistance|assistance.{0,30}(approval|support|documentation)/.test(text)) {
+      superseded.set(check.id, "Emergency-assistance documentation and approvals are grouped into one financial evidence decision.");
+    }
+  }
+
+  const active = result.programChecks.filter((check) => check.severity !== "info" && check.resolution === "open" && !superseded.has(check.id));
+  const families = new Map<string, typeof active>();
+  for (const check of active) {
+    const family = programIssueFamily(check);
+    if (!family) continue;
+    families.set(family, [...(families.get(family) || []), check]);
+  }
+  for (const checks of families.values()) {
+    if (checks.length < 2) continue;
+    const preferred = [...checks].sort((left, right) => programCheckPriority(left.type) - programCheckPriority(right.type))[0];
+    for (const check of checks) if (check.id !== preferred.id) superseded.set(check.id, `Combined with “${preferred.title}” so your team has one decision for this issue.`);
+  }
+  if (!superseded.size) return result;
+  return {
+    ...result,
+    programChecks: result.programChecks.map((check) => superseded.has(check.id) ? {
+      ...check,
+      detail: superseded.get(check.id)!,
+      action: "No separate action needed.",
+      severity: "info" as const,
+      resolution: "resolved" as const,
+      status: "verified" as const
+    } : check),
+    qualityChecks: result.qualityChecks.map((check) => {
+      const programId = check.id.startsWith("program-") ? check.id.slice("program-".length) : "";
+      return superseded.has(programId) ? { ...check, detail: superseded.get(programId)!, required: false, status: "passed" as const } : check;
+    })
+  };
+}
+
+function programIssueFamily(check: NonNullable<ResultBeforeWorkflow["programChecks"]>[number]) {
+  const text = `${check.title} ${check.detail}`.toLowerCase();
+  if (/\bp2\b|housing stability assessment/.test(text) && /assessment/.test(text)) return "kpi-p2-assessment";
+  if (/\bp6\b|client satisfaction/.test(text) && /satisfaction|survey/.test(text)) return "kpi-p6-satisfaction";
+  return "";
+}
+
+function programCheckPriority(type: NonNullable<ResultBeforeWorkflow["programChecks"]>[number]["type"]) {
+  return type === "data_conflict" ? 0 : type === "kpi_result" ? 1 : type === "award_trigger" ? 2 : 3;
 }
 
 function applyVerifiedProgramConclusions(result: ResultBeforeWorkflow): ResultBeforeWorkflow {

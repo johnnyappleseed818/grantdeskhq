@@ -36,10 +36,11 @@ export function buildFinancialAnalysis(
   const grantEnd = safeDate(grantProfile.grantEndDate?.value);
   const seenIds = new Set<string>();
   const usable: Array<FinancialLedgerRow & { category: string }> = [];
+  const duplicateRows: FinancialLedgerRow[] = [];
   let excludedTransactionCount = 0;
 
   for (const row of ledger) {
-    if (seenIds.has(row.id)) { excludedTransactionCount += 1; continue; }
+    if (seenIds.has(row.id)) { duplicateRows.push(row); excludedTransactionCount += 1; continue; }
     seenIds.add(row.id);
     const rowDate = safeDate(row.date);
     if (!rowDate || (grantStart && rowDate < grantStart) || (grantEnd && rowDate > grantEnd) || (reportPeriod && (rowDate < reportPeriod.start || rowDate > reportPeriod.end))) {
@@ -79,6 +80,17 @@ export function buildFinancialAnalysis(
   });
 
   const controls: FinancialControlResult[] = [];
+  if (duplicateRows.length) {
+    const duplicateIds = [...new Set(duplicateRows.map((row) => row.id))];
+    controls.push({
+      id: "duplicate-transactions",
+      title: `${duplicateIds.length} potential ${duplicateIds.length === 1 ? "duplicate needs" : "duplicates need"} review`,
+      detail: `${duplicateIds.join(", ")} ${duplicateIds.length === 1 ? "is" : "are"} excluded from provisional totals because the same transaction ID appears more than once in the ledger.`,
+      status: "review",
+      requiresAction: true,
+      transactionIds: duplicateIds
+    });
+  }
   const materialVariances = budgetVariances.filter((item) => item.explanationRequired);
   if (varianceThreshold !== null) {
     controls.push(materialVariances.length ? {
@@ -130,15 +142,27 @@ export function buildFinancialAnalysis(
 
   const assistanceRule = matchingRequirement(requirements, /assistance/i, /approval|written/i);
   const assistanceThreshold = assistanceRule ? firstMoney(assistanceRule) : null;
-  if (assistanceThreshold !== null) {
-    const assistanceRows = usable.filter((row) => /assistance/i.test(`${row.account} ${row.category} ${row.description}`) && Math.abs(row.amount) > assistanceThreshold);
-    controls.push(assistanceRows.length ? {
-      id: "assistance-approvals",
-      title: `${assistanceRows.length} assistance ${assistanceRows.length === 1 ? "transaction requires" : "transactions require"} approval support`,
-      detail: `The award requires written approval for assistance above ${money(assistanceThreshold)}. Confirm supporting approval for ${assistanceRows.map((row) => `${row.id} (${money(row.amount)})`).join(", ")}.`,
+  const assistanceDocumentationRule = matchingRequirement(requirements, /assistance/i, /payment record|housing.{0,30}purpose|supporting documentation|documentation/i);
+  const assistanceRows = usable.filter((row) => /assistance/i.test(`${row.account} ${row.category} ${row.description}`));
+  if (assistanceDocumentationRule && assistanceRows.length) {
+    controls.push({
+      id: "assistance-documentation",
+      title: "Emergency assistance documentation",
+      detail: `Payment and housing-purpose documentation must be confirmed for ${assistanceRows.length} report-period assistance transactions.`,
       status: "review",
       requiresAction: true,
       transactionIds: assistanceRows.map((row) => row.id)
+    });
+  }
+  if (assistanceThreshold !== null) {
+    const aboveThreshold = assistanceRows.filter((row) => Math.abs(row.amount) > assistanceThreshold);
+    controls.push(aboveThreshold.length ? {
+      id: "assistance-approvals",
+      title: `${aboveThreshold.length} assistance ${aboveThreshold.length === 1 ? "transaction requires" : "transactions require"} approval support`,
+      detail: `The award requires written approval for assistance above ${money(assistanceThreshold)}. Confirm supporting approval for ${aboveThreshold.map((row) => `${row.id} (${money(row.amount)})`).join(", ")}.`,
+      status: "review",
+      requiresAction: true,
+      transactionIds: aboveThreshold.map((row) => row.id)
     } : {
       id: "assistance-approvals",
       title: "Assistance approval threshold not triggered",

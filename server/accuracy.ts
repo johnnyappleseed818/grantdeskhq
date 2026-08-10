@@ -7,8 +7,8 @@ interface WorkflowFacts {
   knownFinancialAmounts?: number[];
 }
 
-export function applyDeterministicAccuracyChecks(request: CompilationRequest, result: CompilationResult): CompilationResult {
-  const ledger = parseLedger(request);
+export function applyDeterministicAccuracyChecks(request: CompilationRequest, result: CompilationResult, ledgerOverride?: FinancialLedgerRow[]): CompilationResult {
+  const ledger = ledgerOverride ?? parseLedger(request);
   const hasLedgerFile = request.files.some((item) => item.role === "ledgerExport");
   const deterministicFindings: ValidationFinding[] = [];
   const seen = new Set<string>();

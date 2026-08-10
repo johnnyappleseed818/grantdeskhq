@@ -595,7 +595,7 @@ function Overview({ result, onEditSetup }: { result: CompilationResult; onEditSe
     <ResultMetric label="Your actions" value={attention.length} detail="Grouped decisions—not every check the system performed" />
     <div className="attention-summary col-span-full"><div><p className="eyebrow">Less work for your team</p><h3>GrantDeskHQ ran {machineCheckCount(result)} checks. You only need to review {attention.length} {attention.length === 1 ? "thing" : "things"}.</h3></div><div className="attention-summary-list">{attention.map((item) => <article key={item.id}><CheckCircle2 aria-hidden="true" /><div><strong>{item.title}</strong><p>{item.detail}</p></div></article>)}</div></div>
     {result.setupConflicts.length > 0 && <div className="setup-conflict-summary col-span-full"><AlertTriangle aria-hidden="true" /><div><strong>{result.setupConflicts.length} setup {result.setupConflicts.length === 1 ? "conflict" : "conflicts"} must be corrected</strong><p>{result.setupConflicts.map((item) => item.title).join(" · ")}</p></div><button type="button" className="button button-primary button-small" onClick={onEditSetup}>Fix report setup</button></div>}
-    <div className="validation-method col-span-full"><ShieldCheck aria-hidden="true" /><div><strong>Source verification: {result.validation.evidenceCoveragePercent}% of checked claims matched</strong><p>{result.validation.method}</p></div></div>
+    <div className="validation-method col-span-full"><ShieldCheck aria-hidden="true" /><div><strong>Evidence status</strong><p><b>{result.validation.sourceMatchedItems} verified</b> · {result.validation.itemsNeedingReview} need evidence or review · {result.validation.blockedItems} blocked or unsupported</p><p>{result.validation.method}</p></div></div>
     <div className="col-span-full mt-3 grid gap-3">
       {result.warnings.map((warning) => <div className="prototype-warning" key={warning}><ShieldCheck aria-hidden="true" />{warning}</div>)}
     </div>
@@ -695,7 +695,8 @@ function Mappings({ result, onAddSources }: { result: CompilationResult; onAddSo
   const analysis = result.financialAnalysis;
   const automaticallyMapped = result.mappings.filter((item) => item.mappingConfidence === "high" && !["provisional", "excluded_duplicate", "excluded_outside_period", "excluded_grant_period"].includes(item.reportTreatment || "")).length;
   const categoryReviews = result.mappings.filter((item) => item.reportTreatment === "needs_category_review").length;
-  const duplicates = result.mappings.filter((item) => item.reportTreatment === "excluded_duplicate").length;
+  const duplicates = result.financialAnalysis?.controls.find((control) => control.id === "duplicate-transactions")?.transactionIds.length
+    || result.mappings.filter((item) => item.reportTreatment === "excluded_duplicate").length;
   const dateExclusions = result.mappings.filter((item) => ["excluded_outside_period", "excluded_grant_period"].includes(item.reportTreatment || "")).length;
   const approvalEvidence = analysis?.controls.find((control) => control.id === "assistance-approvals" && control.requiresAction)?.transactionIds.length || 0;
   const groupedExceptions = buildFinancialExceptionSummary(result).length;

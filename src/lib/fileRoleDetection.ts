@@ -46,7 +46,7 @@ export async function inspectFileRole(file: File, assignedRole: SourceRole): Pro
 export function detectRoleFromHeaders(values: string[]): SourceRole | null {
   const normalized = values.join(" | ").toLowerCase();
   if (!normalized) return null;
-  const ledgerSignals = ["transaction id", "transaction date", "vendor", "payee", "memo", "account code", "gl account", "department", "class", "debit", "credit"]
+  const ledgerSignals = ["transaction id", "transaction date", "vendor", "payee", "memo", "description", "account", "account code", "gl account", "department", "class", "debit", "credit"]
     .filter((value) => normalized.includes(value)).length;
   const hasDate = /\bdate\b/.test(normalized);
   const hasAmount = /\bamount\b|\bdebit\b|\bcredit\b/.test(normalized);

@@ -72,7 +72,10 @@ export function buildFinancialExceptionSummary(result: CompilationResult): Finan
     });
   }
 
-  const openControls = result.financialAnalysis?.controls.filter((item) => item.requiresAction && result.qualityChecks.find((check) => check.id === `deterministic-financial-${item.id}`)?.status !== "passed") || [];
+  const duplicateAlreadyRepresented = items.some((item) => item.id === "transaction-duplicate-exceptions");
+  const openControls = result.financialAnalysis?.controls.filter((item) => item.requiresAction
+    && result.qualityChecks.find((check) => check.id === `deterministic-financial-${item.id}`)?.status !== "passed"
+    && !(item.id === "duplicate-transactions" && duplicateAlreadyRepresented)) || [];
   const controlGroups = connectedControlGroups(openControls);
   for (const group of controlGroups) {
     const transactionIds = [...new Set(group.flatMap((control) => control.transactionIds))];
