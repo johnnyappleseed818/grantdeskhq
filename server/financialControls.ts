@@ -27,11 +27,29 @@ export function buildFinancialAnalysis(
   requirements: CompiledRequirement[],
   grantProfile: GrantProfile,
   ledger: FinancialLedgerRow[],
-  mappings: CompiledMapping[]
+  mappings: CompiledMapping[],
+  overrides: { assistanceApprovalThreshold?: number | null } = {}
 ): FinancialAnalysis {
   if (!ledger.length) return { ledgerTransactionCount: 0, mappedTransactionCount: 0, excludedTransactionCount: 0, mappedActualTotal: 0, budgetVariances: [], controls: [] };
 
   const reportPeriod = parseReportingPeriod(request.reportingPeriod);
+  if (!reportPeriod) {
+    return {
+      ledgerTransactionCount: ledger.length,
+      mappedTransactionCount: 0,
+      excludedTransactionCount: ledger.length,
+      mappedActualTotal: 0,
+      budgetVariances: [],
+      controls: [{
+        id: "reporting-period-boundary",
+        title: "Confirm the reporting-period dates",
+        detail: `GrantDeskHQ could not determine exact start and end dates from “${request.reportingPeriod}.” No ledger rows were included in current-period totals. Enter a date range before continuing.`,
+        status: "blocked",
+        requiresAction: true,
+        transactionIds: []
+      }]
+    };
+  }
   const grantStart = safeDate(grantProfile.grantStartDate?.value);
   const grantEnd = safeDate(grantProfile.grantEndDate?.value);
   const seenIds = new Set<string>();
@@ -47,9 +65,9 @@ export function buildFinancialAnalysis(
       excludedTransactionCount += 1;
       continue;
     }
-    const mapping = mappings.find((item) => item.transactionId === row.id);
+    const mapping = mappings.find((item) => item.transactionId === row.id && item.reportTreatment !== "excluded_duplicate");
     const exactCategory = findExactBudgetCategory(row.account, requirements);
-    const category = exactCategory || (mapping && mapping.status !== "blocked" && !/^unmapped$/i.test(mapping.suggestedCategory) ? mapping.suggestedCategory : "");
+    const category = exactCategory || (mapping ? mappedBudgetCategory(mapping, requirements) : "");
     if (!category) { excludedTransactionCount += 1; continue; }
     usable.push({ ...row, category });
   }
@@ -110,8 +128,7 @@ export function buildFinancialAnalysis(
     });
   }
 
-  const reallocationRule = matchingRequirement(requirements, /budget|reallocation|reallocate/i, /prior|written|approval/i, /%/i);
-  const reallocationThreshold = reallocationRule ? firstPercent(reallocationRule) : null;
+  const reallocationThreshold = findReallocationThreshold(requirements);
   if (reallocationThreshold !== null) {
     const possibleReallocations = budgetVariances.filter((item) => item.variancePercent >= reallocationThreshold);
     if (possibleReallocations.length) {
@@ -141,9 +158,9 @@ export function buildFinancialAnalysis(
   }
 
   const assistanceRule = matchingRequirement(requirements, /assistance/i, /approval|written/i);
-  const assistanceThreshold = assistanceRule ? thresholdAfterComparator(assistanceRule) ?? firstMoney(assistanceRule) : null;
+  const assistanceThreshold = overrides.assistanceApprovalThreshold ?? (assistanceRule ? thresholdAfterComparator(assistanceRule) : null);
   const assistanceDocumentationRule = matchingRequirement(requirements, /assistance/i, /payment record|housing.{0,30}purpose|supporting documentation|documentation/i);
-  const assistanceRows = usable.filter((row) => /assistance/i.test(`${row.account} ${row.category} ${row.description}`));
+  const assistanceRows = usable.filter((row) => /\b(?:emergency|client|participant|housing)(?:\s+\w+){0,2}\s+assistance\b/i.test(`${row.account} ${row.category}`));
   const assistanceDisbursements = assistanceRows.filter((row) => row.amount > 0);
   const assistanceCredits = assistanceRows.filter((row) => row.amount < 0);
   if (assistanceDocumentationRule && assistanceDisbursements.length) {
@@ -215,6 +232,28 @@ export function buildFinancialAnalysis(
   };
 }
 
+const excludedFinancialTreatments = new Set([
+  "excluded_duplicate",
+  "excluded_outside_period",
+  "excluded_grant_period",
+  "excluded_period_unavailable",
+  "excluded_invalid_date",
+  "needs_category_review"
+]);
+
+/** One authoritative predicate for whether a compiled mapping represents a
+ * source-verified approved category that can enter mapped financial totals.
+ * Date and duplicate controls assign excluded treatments before this check. */
+export function isMappingIncludedInFinancialAnalysis(mapping: CompiledMapping, requirements: CompiledRequirement[]) {
+  return !excludedFinancialTreatments.has(mapping.reportTreatment || "")
+    && Boolean(mappedBudgetCategory(mapping, requirements));
+}
+
+function mappedBudgetCategory(mapping: CompiledMapping, requirements: CompiledRequirement[]) {
+  if (/^unmapped$/i.test(mapping.suggestedCategory)) return "";
+  return findExactBudgetCategory(mapping.suggestedCategory, requirements);
+}
+
 export function findExactBudgetCategory(account: string, requirements: CompiledRequirement[]) {
   const cleanAccount = account.trim();
   if (!cleanAccount || /^(misc|miscellaneous|other|unallocated|uncategorized|community outreach)$/i.test(cleanAccount)) return "";
@@ -235,9 +274,21 @@ export function findExactBudgetCategory(account: string, requirements: CompiledR
 
 export function findBudgetCategoryFromLedgerSignals(row: Pick<FinancialLedgerRow, "description" | "vendor">, requirements: CompiledRequirement[]) {
   const signals = normalize(`${row.description} ${row.vendor}`);
-  const evaluation = findExactBudgetCategory("Evaluation", requirements)
-    || (Number.isFinite(findApprovedAmount("Evaluation", requirements)) ? "Evaluation" : "");
-  if (evaluation && /\bevaluation\b|\bbaseline (?:design|review|assessment)\b|\bdata quality\b|\bimpact metrics?\b|\boutcome measurement\b/.test(signals)) return evaluation;
+  const candidates: Array<[string, RegExp]> = [
+    ["Personnel", /\bpayroll\b|\bsalar(?:y|ies)\b|\bwages?\b|\bpay period\b/],
+    ["Fringe Benefits", /\bfringe\b|\bemployee benefits?\b/],
+    ["Emergency Client Assistance", /\b(?:emergency|client|participant|housing|rent|utility|security deposit|move in|stabilization)(?:\s+\w+){0,3}\s+assistance\b|\barrears?\b/],
+    ["Legal & Benefits Navigation", /\blegal (?:clinic|services?)\b|\bbenefits? navigation\b/],
+    ["Technology & Data Systems", /\btechnology\b|\bsoftware\b|\bdata (?:system|migration)\b|\bcase management\b|\blaptops?\b/],
+    ["Local Travel", /\bmileage\b|\blocal travel\b|\boutreach transit\b|\btransit passes?\b/],
+    ["Evaluation", /\bevaluation\b|\bbaseline (?:design|review|assessment)\b|\bdata quality\b|\bimpact metrics?\b|\boutcome measurement\b/],
+    ["Indirect Costs", /\bindirect (?:cost|allocation|charge)s?\b/]
+  ];
+  for (const [name, pattern] of candidates) {
+    const category = findExactBudgetCategory(name, requirements)
+      || (Number.isFinite(findApprovedAmount(name, requirements)) ? name : "");
+    if (category && pattern.test(signals)) return category;
+  }
   return "";
 }
 
@@ -249,8 +300,6 @@ function findApprovedAmount(category: string, requirements: CompiledRequirement[
     if (!tokens.every((token) => normalized.includes(token))) continue;
     const adjacentAmount = amountAdjacentToCategory(text, category);
     if (adjacentAmount !== null) return adjacentAmount;
-    const amounts = moneyValues(text);
-    if (amounts.length === 1) return amounts[0];
   }
   return Number.NaN;
 }
@@ -259,8 +308,20 @@ function findMoneyThreshold(requirements: CompiledRequirement[], pattern: RegExp
   for (const requirement of verifiedRequirements(requirements)) {
     const text = `${requirement.requirement} ${requirement.source.excerpt}`;
     if (!pattern.test(text) || !/explain|explanation|required|threshold/i.test(text)) continue;
-    const amounts = moneyValues(text);
-    if (amounts.length) return amounts[0];
+    const threshold = text.match(/(?:variance|difference)[^.]{0,100}?(?:of|reaches?|equals?|exceeds?|above|over|at least)?\s*\$\s*([\d,]+(?:\.\d+)?)/i)?.[1]
+      || text.match(/\$\s*([\d,]+(?:\.\d+)?)\s*(?:or more|or greater|and above)?[^.]{0,100}?(?:variance|difference)/i)?.[1];
+    if (threshold) return Number(threshold.replaceAll(",", ""));
+  }
+  return null;
+}
+
+function findReallocationThreshold(requirements: CompiledRequirement[]) {
+  for (const requirement of verifiedRequirements(requirements)) {
+    const text = `${requirement.requirement} ${requirement.source.excerpt}`;
+    if (!/(?:reallocat|budget (?:change|modification)|change[^.]{0,50}(?:category|approved budget))/i.test(text) || !/(?:prior|written)\s+(?:fund\s+)?approval/i.test(text)) continue;
+    const threshold = text.match(/(?:reallocat\w*|budget (?:change|modification)|change (?:of|to))[^.]{0,100}?(\d+(?:\.\d+)?)\s*%/i)?.[1]
+      || text.match(/(\d+(?:\.\d+)?)\s*%[^.]{0,100}?(?:reallocat\w*|budget (?:change|modification)|change (?:to|of) (?:a |any )?(?:single )?(?:approved )?category)/i)?.[1];
+    if (threshold) return Number(threshold);
   }
   return null;
 }
@@ -277,8 +338,6 @@ function verifiedRequirements(requirements: CompiledRequirement[]) {
   return requirements.filter((item) => item.status === "verified");
 }
 
-function firstMoney(value: string) { return moneyValues(value)[0] ?? null; }
-function moneyValues(value: string) { return [...value.matchAll(/\$\s*([\d,]+(?:\.\d+)?)/g)].map((match) => Number(match[1].replaceAll(",", ""))).filter(Number.isFinite); }
 function amountAdjacentToCategory(value: string, category: string) {
   const categoryPattern = category.trim().split(/\s+/).map(escapeRegExp).join("\\s+");
   const after = value.match(new RegExp(`${categoryPattern}\\s*(?:[:—–-]|is|of)?\\s*\\$\\s*([\\d,]+(?:\\.\\d+)?)`, "i"));
@@ -309,20 +368,39 @@ function findIndirectLimit(requirements: CompiledRequirement[]) {
   return null;
 }
 function escapeRegExp(value: string) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
-function firstPercent(value: string) { const match = value.match(/(\d+(?:\.\d+)?)\s*%/); return match ? Number(match[1]) : null; }
 function meaningfulTokens(value: string) { return normalize(value).split(" ").filter((token) => token.length >= 3 && !["and", "the", "for", "systems", "costs"].includes(token)); }
 function normalize(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
 function sameCategory(left: string, right: string) { return normalize(left) === normalize(right); }
 function safeDate(value: string | undefined) { const timestamp = Date.parse(value || ""); return Number.isFinite(timestamp) ? new Date(timestamp) : null; }
 export function parseReportingPeriod(value: string) {
-  const separator = /\s+(?:through|to)\s+|[–—]|\s+-\s+|(?<=\d)-(?=[A-Za-z])/i.exec(value);
+  const normalized = value.trim().replace(/[–—]/g, " - ").replace(/\s+/g, " ");
+  const iso = normalized.match(/^(\d{4}-\d{2}-\d{2})\s+(?:through|to|-)\s+(\d{4}-\d{2}-\d{2})$/i);
+  if (iso) return orderedPeriod(safeDate(iso[1]), safeDate(iso[2]));
+  const separator = /\s+(?:through|to|-)\s+/i.exec(normalized)
+    || /(?<=[A-Za-z])-(?=[A-Za-z])/i.exec(normalized);
   if (!separator || separator.index === undefined) return null;
-  const startText = value.slice(0, separator.index).trim();
-  const endText = value.slice(separator.index + separator[0].length).trim();
+  const startText = normalized.slice(0, separator.index).trim();
+  const endText = normalized.slice(separator.index + separator[0].length).trim();
+  const endYear = Number(endText.match(/\b(\d{4})\b/)?.[1]);
+  if (!Number.isInteger(endYear)) return null;
+  const monthOnlyStart = monthNumber(startText);
+  const monthOnlyEnd = monthNumber(endText.replace(/,?\s*\d{4}\s*$/, ""));
+  if (monthOnlyStart !== null && monthOnlyEnd !== null) {
+    return orderedPeriod(
+      new Date(Date.UTC(endYear, monthOnlyStart, 1)),
+      new Date(Date.UTC(endYear, monthOnlyEnd + 1, 0))
+    );
+  }
   const end = safeDate(endText);
-  const startWithYear = end && !/\b\d{4}\b/.test(startText) ? `${startText}, ${end.getUTCFullYear()}` : startText;
-  const start = safeDate(startWithYear);
-  return start && end ? { start, end } : null;
+  const startWithYear = !/\b\d{4}\b/.test(startText) ? `${startText}, ${endYear}` : startText;
+  return orderedPeriod(safeDate(startWithYear), end);
+}
+function orderedPeriod(start: Date | null, end: Date | null) { return start && end && start <= end ? { start, end } : null; }
+function monthNumber(value: string) {
+  const months = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+  const normalized = value.trim().toLowerCase();
+  const index = months.findIndex((month) => month === normalized || month.slice(0, 3) === normalized);
+  return index >= 0 ? index : null;
 }
 function roundMoney(value: number) { return Math.round(value * 100) / 100; }
 function roundPercent(value: number) { return Math.round(value * 10) / 10; }

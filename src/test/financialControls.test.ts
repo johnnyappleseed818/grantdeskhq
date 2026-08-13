@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { applyDeterministicAccuracyChecks } from "../../server/accuracy";
 import { buildInputStatus } from "../../server/workflowState";
 import type { CompilationRequest, CompilationResult, CompiledRequirement } from "../types/prototype";
+import { fixtureCompilerFile } from "./northstarRegression";
 
 const source = { sourceName: "BridgeWorks_Award.docx", locator: "Page 3", excerpt: "Approved budget and financial conditions." };
 
@@ -91,6 +92,25 @@ describe("deterministic award + ledger financial controls", () => {
   it("flags all three assistance transactions above the approval threshold", () => {
     const control = checked.financialAnalysis?.controls.find((item) => item.id === "assistance-approvals");
     expect(control).toMatchObject({ status: "review", requiresAction: true, transactionIds: ["BW-AID-001", "BW-AID-002", "BW-AID-003"] });
+  });
+
+  it("recovers the exact assistance threshold from the award when model requirement status is unresolved", () => {
+    const awardRequest = {
+      ...request,
+      files: [
+        fixtureCompilerFile("GrantDeskHQ_Synthetic_Grant_Agreement_Test_2.docx", "awardAgreement"),
+        request.files[1]
+      ]
+    };
+    const unresolvedRuleResult: CompilationResult = {
+      ...result,
+      requirements: result.requirements.map((item) => item.id === "RULE-AID" ? { ...item, status: "review" as const, confidence: 0.9 } : item)
+    };
+
+    expect(applyDeterministicAccuracyChecks(awardRequest, unresolvedRuleResult).financialAnalysis?.controls.find((item) => item.id === "assistance-approvals")).toMatchObject({
+      status: "review",
+      transactionIds: ["BW-AID-001", "BW-AID-002", "BW-AID-003"]
+    });
   });
 
   it("calculates the indirect-cost ceiling deterministically", () => {

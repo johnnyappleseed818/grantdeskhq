@@ -61,6 +61,15 @@ describe("deterministic accuracy controls", () => {
     expect(checked.validation.findings.some((item) => item.itemId === `ledger:${prototypeFixture.mappings[0].transactionId}` && item.verdict === "blocked")).toBe(true);
   });
 
+  it("creates one deterministic missing-input request for every genuinely unmapped transaction", () => {
+    const withoutRequest = { ...prototypeFixture, missingInputs: [] };
+    const checked = applyDeterministicAccuracyChecks(request(), withoutRequest);
+    const unmapped = checked.mappings.filter((item) => item.reportTreatment === "needs_category_review");
+    for (const mapping of unmapped) {
+      expect(checked.missingInputs.filter((item) => item.question.includes(mapping.transactionId))).toHaveLength(1);
+    }
+  });
+
   it("marks financial and current-period checks not evaluated when their inputs are missing", () => {
     const input = request();
     input.files = input.files.filter((file) => file.role !== "ledgerExport");
@@ -83,6 +92,12 @@ describe("deterministic accuracy controls", () => {
     expect(checked.qualityChecks.find((item) => item.id === "deterministic-workflow-facts")?.status).toBe("passed");
   });
 
+  it("does not attribute an unrelated program-activity count to a nearby KPI", () => {
+    const corrected = { ...prototypeFixture, narrative: prototypeFixture.narrative.map((item, index) => index === 0 ? { ...item, text: "Hope Community Services served 118 youth against a target of 120. The program also completed 3 additional school-site visits." } : item) };
+    const checked = applyDeterministicAccuracyChecks(requestWithConfirmedKpi(), corrected);
+    expect(checked.qualityChecks.find((item) => item.id === "deterministic-workflow-facts")?.status).toBe("passed");
+  });
+
   it("blocks a prior-period participant count when the current-period value is 118", () => {
     const stale = { ...prototypeFixture, narrative: prototypeFixture.narrative.map((item, index) => index === 0 ? { ...item, text: "Hope Community Services served 150 youth during the reporting period." } : item) };
     const checked = applyDeterministicAccuracyChecks(requestWithConfirmedKpi(), stale);
@@ -97,6 +112,34 @@ describe("deterministic accuracy controls", () => {
     const checked = applyDeterministicAccuracyChecks(requestWithConfirmedKpi(), withSupportedAmounts);
     expect(checked.narrative[0].status).not.toBe("blocked");
     expect(checked.qualityChecks.find((item) => item.id === "deterministic-workflow-facts")?.status).toBe("passed");
+  });
+
+  it("allows deterministic mapped totals and category totals derived from ledger rows", () => {
+    const localTravel = prototypeFixture.mappings.filter((item) => item.suggestedCategory === "Local Travel").reduce((sum, item) => sum + item.amount, 0);
+    const localTravelBudget = { ...prototypeFixture.requirements[0], id: "BUDGET-TRAVEL", requirement: "Approved budget: Local Travel $15,000.", source: { ...prototypeFixture.requirements[0].source, excerpt: "Local Travel — $15,000" } };
+    const withDerivedTotals = { ...prototypeFixture, requirements: [...prototypeFixture.requirements, localTravelBudget], narrative: prototypeFixture.narrative.map((item, index) => index === 0 ? { ...item, text: `Mapped Local Travel expenditures total $${localTravel.toLocaleString("en-US")}.` } : item) };
+    const checked = applyDeterministicAccuracyChecks(request(), withDerivedTotals);
+    expect(checked.narrative[0].status).not.toBe("blocked");
+  });
+
+  it("accepts financial values present in the narrative's exact uploaded-source excerpt", () => {
+    const narrative = prototypeFixture.narrative.map((item, index) => index === 0 ? {
+      ...item,
+      text: "Local Travel actual was $9,800 against a $7,500 elapsed-period plan, a $2,300 variance.",
+      source: { ...item.source, excerpt: "Local Travel actual $9,800; elapsed-period plan $7,500; variance $2,300." }
+    } : item);
+    const checked = applyDeterministicAccuracyChecks(requestWithConfirmedKpi(), { ...prototypeFixture, narrative });
+    expect(checked.narrative[0].status).not.toBe("blocked");
+  });
+
+  it("blocks financial values absent from both deterministic results and the cited source excerpt", () => {
+    const narrative = prototypeFixture.narrative.map((item, index) => index === 0 ? {
+      ...item,
+      text: "Local Travel actual was $9,800 against an unsupported $7,777 plan.",
+      source: { ...item.source, excerpt: "Local Travel actual was $9,800." }
+    } : item);
+    const checked = applyDeterministicAccuracyChecks(requestWithConfirmedKpi(), { ...prototypeFixture, narrative });
+    expect(checked.narrative[0].status).toBe("blocked");
   });
 
   it("passes the proactive privacy scan when no obvious prohibited identifiers appear in the draft", () => {

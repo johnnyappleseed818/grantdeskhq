@@ -1,5 +1,5 @@
 import type { CompilationResult } from "../types/prototype";
-import { satisfiedProgramCheckIds } from "./programInsights";
+import { satisfiedProgramCheckIds } from "./programInsights.ts";
 
 export interface ReportAttentionItem {
   id: string;
@@ -24,12 +24,12 @@ export function buildReportAttention(result: CompilationResult): ReportAttention
   items.push(...financialExceptions);
 
   const satisfiedProgramChecks = satisfiedProgramCheckIds(result);
-  for (const check of (result.programChecks || []).filter((item) => item.severity !== "info" && item.resolution === "open" && !satisfiedProgramChecks.has(item.id))) {
+  for (const check of (result.programChecks || []).filter((item) => item.severity !== "info" && item.resolution === "open" && (item.type === "data_conflict" || !item.evidenceSatisfiedBy?.length) && !satisfiedProgramChecks.has(item.id))) {
     items.push({
       id: `program-${check.id}`,
       kind: check.severity === "action_required" ? "review" : "input",
       title: check.title,
-      detail: check.detail
+      detail: clarifyProgramMetricPercent(check.title, check.detail)
     });
   }
 
@@ -40,7 +40,7 @@ export function buildReportAttention(result: CompilationResult): ReportAttention
     items.push({ id: `input-${input.role}`, kind: "input", title: `Add ${input.label.toLowerCase()}`, detail: input.detail });
   }
 
-  const remainingReview = result.qualityChecks.filter((check) => check.required && ["blocked", "review"].includes(check.status) && !check.id.startsWith("deterministic-financial-") && !check.id.startsWith("program-") && check.id !== "deterministic-ledger");
+  const remainingReview = result.qualityChecks.filter((check) => check.required && !check.evidenceSatisfiedBy?.length && ["blocked", "review"].includes(check.status) && !check.id.startsWith("deterministic-financial-") && !check.id.startsWith("program-") && check.id !== "deterministic-ledger");
   if (remainingReview.length) {
     items.push({ id: "remaining-review", kind: "review", title: "Review the remaining report checks", detail: `${remainingReview.length} related checks are grouped here instead of being presented as separate tasks.` });
   }
@@ -92,7 +92,8 @@ export function buildFinancialExceptionSummary(result: CompilationResult): Finan
   const covered = new Set(items.flatMap((item) => item.transactionIds));
   const otherTransactionExceptions = uniqueByTransaction(result.mappings.filter((mapping) => {
     if (covered.has(mapping.transactionId)) return false;
-    if (["needs_category_review", "excluded_duplicate", "excluded_outside_period", "excluded_grant_period"].includes(mapping.reportTreatment || "")) return false;
+    if (mapping.evidenceRequirementStatus === "satisfied") return false;
+    if (["needs_category_review", "excluded_duplicate", "excluded_outside_period", "excluded_grant_period", "excluded_period_unavailable"].includes(mapping.reportTreatment || "")) return false;
     return mapping.requiresHumanAction || ["review", "blocked"].includes(mapping.status);
   }));
   if (otherTransactionExceptions.length) {
@@ -151,4 +152,9 @@ function humanList(items: string[]) {
   if (items.length < 2) return items[0] || "";
   if (items.length === 2) return `${items[0]} and ${items[1]}`;
   return `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
+}
+
+function clarifyProgramMetricPercent(title: string, detail: string) {
+  if (!/\bp2\b|housing stability assessments?/i.test(title)) return detail;
+  return detail.replace(/(\d[\d,]*\s+assessments?)\s*\((\d+(?:\.\d+)?)%\)(?!\s+of households served)/i, "$1 ($2% of households served)");
 }

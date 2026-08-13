@@ -129,6 +129,9 @@ describe("important routes", () => {
     expect(document.body.textContent).not.toMatch(/private beta/i);
     expect(document.body.textContent).not.toMatch(/How AI reduces the manual work/i);
     expect(screen.getByText("Choose the report")).toBeVisible();
+    await user.type(screen.getByLabelText("Organization"), "BridgeWorks Family Services");
+    await user.type(screen.getByLabelText("Grant or award"), "Northstar Community Fund");
+    await user.type(screen.getByLabelText("Reporting period"), "Feb 1 – Jul 31, 2027");
     await user.click(screen.getByRole("button", { name: /Continue/i }));
     expect(screen.getByText("Add the files your team already has")).toBeVisible();
     expect(screen.getByLabelText(/Award agreement or Notice of Award/i)).toBeRequired();
@@ -142,6 +145,9 @@ describe("important routes", () => {
   it("continues with an award document while allowing every other source later", async () => {
     const user = userEvent.setup();
     renderRoute("/compile");
+    await user.type(screen.getByLabelText("Organization"), "BridgeWorks Family Services");
+    await user.type(screen.getByLabelText("Grant or award"), "Northstar Community Fund");
+    await user.type(screen.getByLabelText("Reporting period"), "Feb 1 – Jul 31, 2027");
     await user.click(screen.getByRole("button", { name: /Continue/i }));
     await user.upload(
       screen.getByLabelText(/Award agreement or Notice of Award/i),
@@ -175,6 +181,9 @@ describe("important routes", () => {
   it("removes the old source slot when moving a misclassified ledger file", async () => {
     const user = userEvent.setup();
     renderRoute("/compile");
+    await user.type(screen.getByLabelText("Organization"), "BridgeWorks Family Services");
+    await user.type(screen.getByLabelText("Grant or award"), "Northstar Community Fund");
+    await user.type(screen.getByLabelText("Reporting period"), "Feb 1 – Jul 31, 2027");
     await user.click(screen.getByRole("button", { name: /Continue/i }));
     await user.upload(
       screen.getByLabelText(/Award agreement or Notice of Award/i),

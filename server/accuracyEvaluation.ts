@@ -122,6 +122,8 @@ function criticalAccuracyFailures(request: CompilationRequest, result: Compilati
   if (/serv(ed|ing)?\s+(120|150)\s+youth|(120|150)\s+youth.{0,30}serv/.test(narrative)) failures.push("The workflow reported an incorrect youth-served result.");
   if (result.qualityChecks.find((check) => check.id === "deterministic-ledger")?.status !== "passed") failures.push("The deterministic ledger gate did not pass.");
   if (result.qualityChecks.find((check) => check.id === "deterministic-workflow-facts")?.status !== "passed") failures.push("The deterministic current-period fact gate did not pass.");
+  const integrity = result.qualityChecks.find((check) => check.id === "deterministic-analysis-integrity");
+  if (integrity && integrity.status !== "passed") failures.push("The deterministic analysis-consistency gate did not pass.");
   if (result.validation.findings.some((finding) => /verification-completeness/i.test(finding.id))) failures.push("The verifier omitted, duplicated, or invented a candidate finding.");
   return [...new Set(failures)];
 }

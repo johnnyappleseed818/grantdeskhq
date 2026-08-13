@@ -10,7 +10,7 @@ function request(): CompilationRequest {
     organizationName: "Hope Community Services",
     grantName: "Youth Access Initiative",
     reportingPeriod: "January–June 2026",
-    files: requiredRoles.map((role) => ({ role, name: `${role}.txt`, mimeType: "text/plain", size: 20, data: "data:text/plain;base64,dGVzdA==" }))
+    files: requiredRoles.map((role) => ({ role, name: `${role}.txt`, mimeType: "text/plain", size: 4, data: "data:text/plain;base64,dGVzdA==" }))
   };
 }
 
@@ -38,11 +38,33 @@ describe("prototype request validation", () => {
     expect(validateCompilationRequest({ ...valid, requestId: "retry-this-report" })).toContain("The report request identifier is invalid.");
   });
 
+  it("accepts 50 separate evidence files and enforces the configurable evidence count", () => {
+    const input = request();
+    input.files.push(...Array.from({ length: 50 }, (_, index) => ({
+      role: "supportingEvidence" as const,
+      name: `evidence-${index}.pdf`,
+      mimeType: "application/pdf",
+      size: 4,
+      data: "data:application/pdf;base64,dGVzdA=="
+    })));
+    expect(validateCompilationRequest(input)).toEqual([]);
+    expect(validateCompilationRequest(input, { maxEvidenceFiles: 49 })).toContain("A report can contain up to 49 supporting evidence files.");
+  });
+
+  it("rejects duplicate core roles and spoofed file sizes", () => {
+    const duplicate = request();
+    duplicate.files.push({ ...duplicate.files[0], name: "second-award.txt" });
+    expect(validateCompilationRequest(duplicate)).toContain("Only one awardAgreement source can be supplied.");
+    const spoofed = request();
+    spoofed.files[0] = { ...spoofed.files[0], size: 1 };
+    expect(validateCompilationRequest(spoofed)).toContain("One or more source file sizes do not match the uploaded data.");
+  });
+
   it("accepts an agreement-only readiness audit and rejects a missing agreement", () => {
     const readiness: ReadinessRequest = {
       organizationName: "Hope Community Services",
       grantName: "Youth Access Initiative",
-      files: [{ role: "awardAgreement", name: "agreement.txt", mimeType: "text/plain", size: 20, data: "data:text/plain;base64,dGVzdA==" }]
+      files: [{ role: "awardAgreement", name: "agreement.txt", mimeType: "text/plain", size: 4, data: "data:text/plain;base64,dGVzdA==" }]
     };
     expect(validateReadinessRequest(readiness)).toEqual([]);
     expect(validateReadinessRequest({ ...readiness, files: [] })).toContain("An award agreement is required.");

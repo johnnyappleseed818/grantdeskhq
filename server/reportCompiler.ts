@@ -4,10 +4,12 @@ import { programAuditSchema } from "./programAuditSchema.ts";
 import type { CompilationRequest, CompilationResult, ValidationFinding } from "../src/types/prototype.ts";
 import { applyDeterministicAccuracyChecks } from "./accuracy.ts";
 import { enforceVerificationCompleteness } from "./verification.ts";
-import { applyWorkflowState } from "./workflowState.ts";
+import { applyWorkflowState, normalizeExplicitRequirementStatuses } from "./workflowState.ts";
 import { randomUUID } from "node:crypto";
 import { normalizeCompilationSources } from "./sourceNormalization.ts";
 import type { FinancialLedgerRow } from "./financialControls.ts";
+import { applyDeterministicProgramSourceFacts } from "./programSourceNormalization.ts";
+import { canonicalizeCompilationState, deriveExplicitSourceRequirements } from "./canonicalization.ts";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = "gpt-5.6-terra";
@@ -104,10 +106,10 @@ export async function compileGrantReport(request: CompilationRequest, preparedLe
     auditMissingRequirements(request, compiled.requirements, apiKey, verifierModel, sourceContent, correlationId, deadlineAt),
     auditMissingProgramChecks(request, compiled.requirements, compiled.programChecks, apiKey, verifierModel, sourceContent, correlationId, deadlineAt)
   ]);
-  compiled.requirements = mergeRequirements(
-    compiled.requirements,
+  compiled.requirements = canonicalizeRequirements(mergeRequirements(
+    [...compiled.requirements, ...deriveExplicitSourceRequirements(request)],
     missingRequirements
-  );
+  ));
   compiled.programChecks = mergeProgramChecks(
     compiled.programChecks,
     missingProgramChecks
@@ -189,7 +191,11 @@ export async function compileGrantReport(request: CompilationRequest, preparedLe
     generatedAt: new Date().toISOString(),
     model: body.model || model
   };
-  return applyWorkflowState(request, applyDeterministicAccuracyChecks(request, result, normalizedSources.ledgerRows));
+  const deterministic = applyDeterministicProgramSourceFacts(
+    request,
+    applyDeterministicAccuracyChecks(request, normalizeExplicitRequirementStatuses(result), normalizedSources.ledgerRows)
+  );
+  return applyWorkflowState(request, canonicalizeCompilationState(request, deterministic));
 }
 
 async function auditMissingRequirements(
@@ -285,7 +291,7 @@ async function auditMissingProgramChecks(
 function mergeProgramChecks(current: NonNullable<ModelCompilation["programChecks"]>, audited: NonNullable<ModelCompilation["programChecks"]>) {
   const merged = [...current];
   for (const item of audited) {
-    if (merged.some((existing) => existing.type === item.type && nearDuplicateRequirement(`${existing.title} ${existing.detail}`, `${item.title} ${item.detail}`))) continue;
+    if (merged.some((existing) => existing.type === item.type && areNearDuplicateRequirements(`${existing.title} ${existing.detail}`, `${item.title} ${item.detail}`))) continue;
     merged.push(item);
   }
   return merged;
@@ -294,7 +300,7 @@ function mergeProgramChecks(current: NonNullable<ModelCompilation["programChecks
 function mergeRequirements(current: ModelCompilation["requirements"], audited: ModelCompilation["requirements"]) {
   const merged = [...current];
   for (const item of audited) {
-    if (merged.some((existing) => nearDuplicateRequirement(existing.requirement, item.requirement))) continue;
+    if (merged.some((existing) => areNearDuplicateRequirements(existing.requirement, item.requirement))) continue;
     const used = new Set(merged.map((existing) => existing.id));
     let id = item.id;
     let suffix = 1;
@@ -304,12 +310,61 @@ function mergeRequirements(current: ModelCompilation["requirements"], audited: M
   return merged;
 }
 
-function nearDuplicateRequirement(left: string, right: string) {
+export function canonicalizeRequirements(requirements: CompilationResult["requirements"]) {
+  const ordered = [...requirements].sort((left, right) => requirementSortKey(left).localeCompare(requirementSortKey(right)));
+  const distinct: CompilationResult["requirements"] = [];
+  for (const requirement of ordered) {
+    const duplicateIndex = distinct.findIndex((existing) => areNearDuplicateRequirements(existing.requirement, requirement.requirement));
+    if (duplicateIndex === -1) {
+      distinct.push(requirement);
+      continue;
+    }
+    distinct[duplicateIndex] = preferredRequirement(distinct[duplicateIndex], requirement);
+  }
+  return distinct.sort((left, right) => requirementSortKey(left).localeCompare(requirementSortKey(right)));
+}
+
+function preferredRequirement(left: CompilationResult["requirements"][number], right: CompilationResult["requirements"][number]) {
+  const leftScore = requirementQualityScore(left);
+  const rightScore = requirementQualityScore(right);
+  if (rightScore !== leftScore) return rightScore > leftScore ? right : left;
+  return requirementSortKey(left).localeCompare(requirementSortKey(right)) <= 0 ? left : right;
+}
+
+function requirementQualityScore(requirement: CompilationResult["requirements"][number]) {
+  return requirement.confidence * 1_000
+    + Math.min(requirement.source.locator.trim().length, 200)
+    + Math.min(requirement.source.excerpt.trim().length, 700);
+}
+
+function requirementSortKey(requirement: CompilationResult["requirements"][number]) {
+  return [
+    requirement.source.sourceName.trim().toLowerCase(),
+    requirement.source.locator.trim().toLowerCase(),
+    requirement.requirement.trim().toLowerCase().replace(/\s+/g, " "),
+    requirement.id
+  ].join("|");
+}
+
+export function areNearDuplicateRequirements(left: string, right: string) {
+  const leftValues = materialRequirementValues(left);
+  const rightValues = materialRequirementValues(right);
+  if (leftValues.size && rightValues.size && !sameSet(leftValues, rightValues)) return false;
   const leftTokens = meaningfulRequirementTokens(left);
   const rightTokens = meaningfulRequirementTokens(right);
   if (!leftTokens.size || !rightTokens.size) return false;
   const overlap = [...leftTokens].filter((token) => rightTokens.has(token)).length;
-  return overlap / Math.min(leftTokens.size, rightTokens.size) >= 0.82;
+  return overlap / Math.min(leftTokens.size, rightTokens.size) >= (leftValues.size ? 0.65 : 0.82);
+}
+
+function materialRequirementValues(value: string) {
+  return new Set([
+    ...value.matchAll(/\$\s*[\d,]+(?:\.\d+)?|\b\d+(?:\.\d+)?\s*%|\b\d{4}-\d{2}-\d{2}\b|\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:,\s*\d{4})?/gi)
+  ].map((match) => match[0].toLowerCase().replace(/\s+/g, " ")));
+}
+
+function sameSet(left: Set<string>, right: Set<string>) {
+  return left.size === right.size && [...left].every((value) => right.has(value));
 }
 
 function meaningfulRequirementTokens(value: string) {

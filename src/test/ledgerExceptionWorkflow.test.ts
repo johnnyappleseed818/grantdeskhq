@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import writeExcelFile from "write-excel-file/node";
 import { applyDeterministicAccuracyChecks } from "../../server/accuracy";
+import { applyEvidenceMatches } from "../../server/evidenceReconciliation";
 import { normalizeCompilationSources } from "../../server/sourceNormalization";
-import { applyWorkflowState, buildInputStatus } from "../../server/workflowState";
+import { applyWorkflowState, buildInputStatus, normalizeExplicitRequirementStatuses } from "../../server/workflowState";
 import { buildReportAttention } from "../lib/reportAttention";
 import type { CompilationRequest, CompilationResult, CompiledRequirement } from "../types/prototype";
 
@@ -111,6 +112,39 @@ describe("exception-first processing for the 56-row BridgeWorks ledger", () => {
     const automaticallyMapped = checked.mappings.filter((item) => item.mappingConfidence === "high" && !["provisional", "excluded_duplicate", "excluded_outside_period", "excluded_grant_period"].includes(item.reportTreatment || ""));
     expect(automaticallyMapped).toHaveLength(51);
     expect(automaticallyMapped.every((item) => item.status === "verified" && item.confidence >= 0.9 && !item.requiresHumanAction)).toBe(true);
+  });
+
+  it("normalizes exact award citations before mapping and preserves mappings after evidence reconciliation", () => {
+    const sourceReviewResult = {
+      ...rawResult,
+      requirements: rawResult.requirements.map((item) => ({ ...item, status: "review" as const, confidence: 1, source: { ...item.source, locator: "Pages 2–3, Section 5" } })),
+      validation: {
+        ...rawResult.validation,
+        findings: [
+          ...rawResult.validation.findings,
+          ...rawResult.requirements.map((item) => ({ id: `VERIFY-${item.id}`, itemId: `requirement:${item.id}`, verdict: "source_matched" as const, reason: "The cited award section directly states this rule.", source: item.source }))
+        ]
+      }
+    };
+    const sourceNormalized = normalizeExplicitRequirementStatuses(sourceReviewResult);
+    const mapped = applyDeterministicAccuracyChecks(request, sourceNormalized);
+    const boardNotes = {
+      id: "evidence_boardnotes",
+      name: "Board Notes.pdf",
+      mimeType: "application/pdf",
+      size: 100,
+      uploadedAt: "2026-08-11T00:00:00.000Z",
+      parsingStatus: "parsed" as const,
+      relevance: "irrelevant" as const,
+      matches: []
+    };
+    const reconciled = applyEvidenceMatches(mapped, [boardNotes]);
+    expect(sourceNormalized.requirements.map((item) => String(item.status))).toEqual(sourceNormalized.requirements.map(() => "verified"));
+    const categoryDecision = buildReportAttention(reconciled).find((item) => item.id === "transaction-category-exceptions");
+    expect(categoryDecision?.detail).toContain("BW-AMB-001");
+    expect(categoryDecision?.detail).not.toContain("BW-PAY-001");
+    expect(reconciled.financialAnalysis).toMatchObject({ mappedActualTotal: 132_980 });
+    expect(reconciled.financialAnalysis?.budgetVariances.find((item) => item.category === "Technology & Data Systems")).toMatchObject({ actualAmount: 26_200, varianceAmount: 8_200 });
   });
 
   it("keeps mapping, compliance, and report treatment independent", () => {

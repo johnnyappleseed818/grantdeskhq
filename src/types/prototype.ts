@@ -12,6 +12,36 @@ export interface CompilerFile {
   mimeType: string;
   size: number;
   data: string;
+  evidenceId?: string;
+  uploadedAt?: string;
+}
+
+export type EvidenceParsingStatus = "pending" | "parsed" | "failed";
+export type EvidenceMatchStatus = "matched" | "suggested";
+export type EvidenceRelevance = "matched" | "review" | "unmatched" | "irrelevant";
+export type EvidenceTargetType = "requirement" | "kpi" | "transaction" | "approval" | "issue";
+
+export interface EvidenceMatchResult {
+  targetType: EvidenceTargetType;
+  targetId: string;
+  targetLabel: string;
+  confidence: number;
+  status: EvidenceMatchStatus;
+  rationale: string;
+  source: SourceReference;
+  confirmedByUser?: boolean;
+}
+
+export interface SupportingEvidenceFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  uploadedAt: string;
+  parsingStatus: EvidenceParsingStatus;
+  relevance: EvidenceRelevance;
+  matches: EvidenceMatchResult[];
+  parsingMessage?: string;
 }
 
 export interface CompilationRequest {
@@ -36,10 +66,23 @@ export interface SavedReportSummary {
   updatedAt: string;
 }
 
+export interface PersistedReportSource {
+  role: SourceRole;
+  name: string;
+  mimeType: string;
+  size: number;
+  evidenceId?: string;
+  uploadedAt?: string;
+  parsingStatus?: EvidenceParsingStatus;
+  relevance?: EvidenceRelevance;
+  evidenceMatches?: EvidenceMatchResult[];
+}
+
 export interface PersistedCompilationResponse {
   reportId: string;
   report: SavedReportSummary;
   result: CompilationResult;
+  sources: PersistedReportSource[];
 }
 
 export type ReviewState = "verified" | "review" | "blocked" | "not_evaluated";
@@ -158,6 +201,10 @@ export interface CompiledRequirement {
   source: SourceReference;
   confidence: number;
   status: ReviewState;
+  canonicalType?: "award_fact" | "contractual_obligation" | "reporting_requirement" | "financial_rule" | "evidence_requirement" | "future_obligation" | "conditional_obligation";
+  canonicalSubject?: string;
+  applicability?: "current" | "general" | "conditional" | "future";
+  evidenceSatisfiedBy?: string[];
 }
 
 export interface CompiledMapping {
@@ -172,9 +219,11 @@ export interface CompiledMapping {
   mappingConfidence?: "high" | "review" | "unmapped";
   complianceStatus?: "clear" | "evidence_required" | "eligibility_review" | "duplicate" | "not_applicable";
   complianceDetail?: string;
-  reportTreatment?: "included" | "pending_evidence" | "provisional" | "excluded_duplicate" | "excluded_outside_period" | "excluded_grant_period" | "needs_category_review";
-  reviewReason?: "exact_budget_match" | "ambiguous" | "duplicate" | "outside_grant_period" | "outside_report_period";
+  reportTreatment?: "included" | "pending_evidence" | "provisional" | "excluded_duplicate" | "excluded_outside_period" | "excluded_grant_period" | "excluded_invalid_date" | "excluded_period_unavailable" | "needs_category_review";
+  reviewReason?: "exact_budget_match" | "ambiguous" | "duplicate" | "outside_grant_period" | "outside_report_period" | "invalid_transaction_date" | "invalid_reporting_period";
   requiresHumanAction?: boolean;
+  evidenceSatisfiedBy?: string[];
+  evidenceRequirementStatus?: "open" | "partial" | "satisfied";
 }
 
 export interface BudgetVarianceResult {
@@ -196,6 +245,11 @@ export interface FinancialControlResult {
   status: "passed" | "review" | "blocked" | "not_evaluated";
   requiresAction: boolean;
   transactionIds: string[];
+  evidenceSatisfiedBy?: string[];
+  evidenceTargetTransactionIds?: string[];
+  evidenceOriginalStatus?: FinancialControlResult["status"];
+  evidenceOriginalRequiresAction?: boolean;
+  evidenceOriginalDetail?: string;
 }
 
 export interface FinancialAnalysis {
@@ -218,6 +272,16 @@ export interface ProgramCheck {
   sources: SourceReference[];
   resolution: "open" | "resolved" | "not_applicable";
   status: ReviewState;
+  evidenceSatisfiedBy?: string[];
+  evidenceBackedValue?: string;
+  evidenceRecommendation?: string;
+  evidenceOriginalDetail?: string;
+  evidenceOriginalAction?: string;
+  evidenceOriginalSeverity?: ProgramCheck["severity"];
+  evidenceOriginalResolution?: ProgramCheck["resolution"];
+  evidenceOriginalStatus?: ProgramCheck["status"];
+  evidenceOriginalSources?: SourceReference[];
+  evidenceResolutionApplied?: boolean;
 }
 
 export interface MissingInput {
@@ -226,6 +290,7 @@ export interface MissingInput {
   assignedRole: string;
   reason: string;
   status: "open" | "answered";
+  evidenceSatisfiedBy?: string[];
 }
 
 export interface NarrativeStatement {
@@ -242,6 +307,7 @@ export interface QualityCheck {
   detail: string;
   required: boolean;
   status: "passed" | "review" | "blocked" | "not_evaluated";
+  evidenceSatisfiedBy?: string[];
 }
 
 export interface ValidationFinding {
@@ -250,6 +316,7 @@ export interface ValidationFinding {
   verdict: "source_matched" | "review" | "blocked";
   reason: string;
   source: SourceReference;
+  evidenceSatisfiedBy?: string[];
 }
 
 export interface ValidationSummary {
@@ -277,6 +344,7 @@ export interface CompilationResult {
   warnings: string[];
   financialAnalysis?: FinancialAnalysis;
   programChecks?: ProgramCheck[];
+  evidenceFiles?: SupportingEvidenceFile[];
   generatedAt: string;
   model: string;
 }

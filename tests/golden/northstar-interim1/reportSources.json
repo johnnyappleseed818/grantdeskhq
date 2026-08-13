@@ -1,0 +1,10 @@
+{
+  "core": {
+    "awardAgreement": "present",
+    "approvedBudget": "derived_from_award",
+    "ledgerExport": "present",
+    "programUpdate": "present",
+    "funderTemplate": "optional_not_provided"
+  },
+  "supportingEvidence": { "total": 9, "matched": 8, "irrelevant": 1 }
+}

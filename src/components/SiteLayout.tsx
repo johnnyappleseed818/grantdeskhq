@@ -70,7 +70,13 @@ export function SiteLayout() {
             ))}
             {gtmAllowed && <Link className="nav-link admin-nav-link" to="/gtm">GTM Command Center</Link>}
             <Link className="nav-link account-nav-link" to={user ? "/workspace" : "/login"}>{user ? "My workspace" : "Sign in"}</Link>
-            <Link className="button button-primary whitespace-nowrap" to={user ? "/compile" : "/login?next=/compile"}>{user ? "New report" : "Create account"}</Link>
+            <Link
+              className="button button-primary whitespace-nowrap"
+              to={user ? "/compile?new=1" : "/login?next=/compile"}
+              reloadDocument={Boolean(user)}
+            >
+              {user ? "New report" : "Create account"}
+            </Link>
           </nav>
         </div>
       </header>

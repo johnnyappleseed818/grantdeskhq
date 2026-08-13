@@ -45,4 +45,11 @@ describe("saved report workspace", () => {
     expect(link).toHaveAttribute("href", "/compile?report=report_1234567890abcdef1234567890abcdef");
     expect(screen.getByText("BridgeWorks Family Services · Feb 1 – Jul 31, 2027")).toBeInTheDocument();
   });
+
+  it("starts a fresh report with a full navigation instead of retaining open-report state", async () => {
+    render(<MemoryRouter><WorkspacePage /></MemoryRouter>);
+
+    const link = await screen.findByRole("link", { name: /^New report$/i });
+    expect(link).toHaveAttribute("href", "/compile?new=1");
+  });
 });

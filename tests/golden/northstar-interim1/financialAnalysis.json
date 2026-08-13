@@ -1,0 +1,20 @@
+{
+  "categoryActuals": {
+    "Personnel": 54000,
+    "Fringe Benefits": 13500,
+    "Emergency Client Assistance": 14980,
+    "Legal & Benefits Navigation": 8400,
+    "Technology & Data Systems": 26200,
+    "Local Travel": 2400,
+    "Evaluation": 4500,
+    "Indirect Costs": 9000
+  },
+  "onlyUnmappedTransaction": "BW-AMB-001",
+  "duplicate": { "transactionId": "BW-LGL-003", "amount": 2100, "includedRows": 1, "excludedRows": 1 },
+  "dateExclusions": {
+    "BW-OOP-001": "excluded_outside_period",
+    "BW-OOG-001": "excluded_grant_period"
+  },
+  "technologyVariance": { "approved": 18000, "actual": 26200, "amount": 8200, "percent": 45.6, "explanationRequired": true },
+  "indirect": { "directCostBase": 123980, "percent": 8, "fixedCap": 20000, "currentLimit": 9918.4, "charged": 9000, "remainingCapacity": 918.4, "status": "passed" }
+}

@@ -1,0 +1,7 @@
+{
+  "allExplicitRequirementsSourceVerified": true,
+  "stableAcrossRepeatedAnalysis": true,
+  "current": ["interim_report_1", "budget_to_actual", "kpi_table", "evidence_index"],
+  "conditional": ["variance_7500", "budget_change_15_percent", "emergency_assistance_documentation", "assistance_approval_1500", "incident_notice_5_business_days", "no_cost_extension_45_days"],
+  "future": ["matching_funds_interim_2", "final_certification", "record_retention_7_years", "return_unspent_funds_60_days"]
+}

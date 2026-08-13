@@ -1,5 +1,6 @@
-import type { CompilationRequest, CompilationResult, ValidationFinding } from "../src/types/prototype.ts";
-import { buildFinancialAnalysis, findBudgetCategoryFromLedgerSignals, findExactBudgetCategory, parseReportingPeriod, type FinancialLedgerRow } from "./financialControls.ts";
+import type { CompilationRequest, CompilationResult, CompiledRequirement, CompilerFile, SourceReference, ValidationFinding } from "../src/types/prototype.ts";
+import { buildFinancialAnalysis, findBudgetCategoryFromLedgerSignals, findExactBudgetCategory, isMappingIncludedInFinancialAnalysis, parseReportingPeriod, type FinancialLedgerRow } from "./financialControls.ts";
+import { extractDocxParagraphs } from "./programSourceNormalization.ts";
 
 interface WorkflowFacts {
   programMetrics?: Array<{ label: string; target: number; actual: number }>;
@@ -9,12 +10,13 @@ interface WorkflowFacts {
 
 export function applyDeterministicAccuracyChecks(request: CompilationRequest, result: CompilationResult, ledgerOverride?: FinancialLedgerRow[]): CompilationResult {
   const ledger = ledgerOverride ?? parseLedger(request);
+  const financialRequirements = [...result.requirements, ...deterministicAwardFinancialRequirements(request)];
   const hasLedgerFile = request.files.some((item) => item.role === "ledgerExport");
   const deterministicFindings: ValidationFinding[] = [];
   const seen = new Set<string>();
   const ledgerIds = new Set(ledger.map((row) => row.id));
   const duplicateCount = ledger.length - ledgerIds.size;
-  const assistanceApprovalThreshold = findAssistanceApprovalThreshold(result.requirements);
+  const assistanceApprovalThreshold = findAssistanceApprovalThreshold(request, financialRequirements);
   let hardMappingIssue = hasLedgerFile && ledger.length === 0;
   if (duplicateCount) deterministicFindings.push(finding("ledger", "review", `${duplicateCount} duplicate ledger ${duplicateCount === 1 ? "row was" : "rows were"} detected and excluded from provisional totals.`));
   const mappings = result.mappings.map((mapping) => {
@@ -30,7 +32,7 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
     }
     if (seen.has(mapping.transactionId)) {
       deterministicFindings.push(finding(`mapping:${mapping.transactionId}`, "review", "Duplicate ledger row excluded from provisional report totals. Confirm whether one or both rows should be kept."));
-      const category = findExactBudgetCategory(row.account, result.requirements) || findExactBudgetCategory(mapping.suggestedCategory, result.requirements) || mapping.suggestedCategory;
+      const category = findExactBudgetCategory(row.account, financialRequirements) || findExactBudgetCategory(mapping.suggestedCategory, financialRequirements) || mapping.suggestedCategory;
       return { ...mapping, date: row.date, description: row.description, amount: row.amount, suggestedCategory: category, confidence: category && !/^unmapped$/i.test(category) ? 0.95 : 0, status: "review" as const, mappingConfidence: category && !/^unmapped$/i.test(category) ? "high" as const : "unmapped" as const, complianceStatus: "duplicate" as const, complianceDetail: "A matching ledger row with the same transaction ID is already included in provisional totals.", reportTreatment: "excluded_duplicate" as const, reviewReason: "duplicate" as const, requiresHumanAction: true, rationale: "Duplicate ledger row detected and excluded from provisional totals until reviewed." };
     }
     seen.add(mapping.transactionId);
@@ -41,9 +43,9 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
     }
     const periodIssue = dateExclusion(row.date, request.reportingPeriod, result.grantProfile.grantStartDate?.value, result.grantProfile.grantEndDate?.value);
     if (periodIssue) deterministicFindings.push(finding(`mapping:${mapping.transactionId}`, "source_matched", periodIssue.detail));
-    const exactCategory = findExactBudgetCategory(row.account, result.requirements);
-    const suggestedBudgetCategory = findExactBudgetCategory(mapping.suggestedCategory, result.requirements);
-    const signalCategory = findBudgetCategoryFromLedgerSignals(row, result.requirements);
+    const exactCategory = findExactBudgetCategory(row.account, financialRequirements);
+    const suggestedBudgetCategory = findExactBudgetCategory(mapping.suggestedCategory, financialRequirements);
+    const signalCategory = findBudgetCategoryFromLedgerSignals(row, financialRequirements);
     const deterministicCategory = exactCategory || suggestedBudgetCategory || signalCategory;
     const category = deterministicCategory || "Unmapped";
     const ambiguous = !deterministicCategory;
@@ -70,7 +72,10 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
       ? categoryDetail
       : assistanceDetail || (complianceStatus === "clear" ? "No additional transaction-level exception was detected." : mapping.rationale);
     const reportTreatment = periodIssue
-      ? periodIssue.reason === "outside_report_period" ? "excluded_outside_period" as const : "excluded_grant_period" as const
+      ? periodIssue.reason === "outside_report_period" ? "excluded_outside_period" as const
+        : periodIssue.reason === "outside_grant_period" ? "excluded_grant_period" as const
+          : periodIssue.reason === "invalid_transaction_date" ? "excluded_invalid_date" as const
+            : "excluded_period_unavailable" as const
       : ambiguous ? "needs_category_review" as const
         : complianceStatus === "evidence_required" ? "pending_evidence" as const
           : complianceStatus === "eligibility_review" ? "provisional" as const
@@ -82,13 +87,13 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
       amount: row.amount,
       suggestedCategory: category,
       confidence: highConfidenceMapping ? exactCategory ? 0.98 : 0.9 : ambiguous ? 0 : Math.max(mapping.confidence, 0.5),
-      status: periodIssue ? "not_evaluated" as const : !amountMatches || ambiguous ? "blocked" as const : highConfidenceMapping ? "verified" as const : "review" as const,
+      status: periodIssue ? periodIssue.reason === "invalid_transaction_date" ? "blocked" as const : "not_evaluated" as const : !amountMatches || ambiguous ? "blocked" as const : highConfidenceMapping ? "verified" as const : "review" as const,
       mappingConfidence: highConfidenceMapping ? "high" as const : ambiguous ? "unmapped" as const : "review" as const,
       complianceStatus,
       complianceDetail,
       reportTreatment,
       reviewReason: periodIssue?.reason || (ambiguous ? "ambiguous" as const : highConfidenceMapping ? "exact_budget_match" as const : undefined),
-      requiresHumanAction: !periodIssue && (!highConfidenceMapping || ambiguous),
+      requiresHumanAction: periodIssue?.reason === "invalid_transaction_date" || (!periodIssue && (!highConfidenceMapping || ambiguous)),
       rationale: periodIssue
         ? `${periodIssue.detail} Excluded from current-period mapped totals.`
         : ambiguous
@@ -106,8 +111,14 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
   }
 
   const sourceNames = new Set(request.files.map((file) => file.name));
-  for (const item of [...result.requirements, ...result.narrative]) {
-    if (!sourceNames.has(item.source.sourceName) || !item.source.locator.trim() || !item.source.excerpt.trim()) {
+  const citedItems = [
+    ...Object.entries(result.grantProfile).flatMap(([key, field]) => field ? [{ id: `profile:${key}`, sources: [field.source] }] : []),
+    ...result.requirements.map((item) => ({ id: `requirement:${item.id}`, sources: [item.source] })),
+    ...result.narrative.map((item) => ({ id: `narrative:${item.id}`, sources: [item.source] })),
+    ...(result.programChecks || []).map((item) => ({ id: `program:${item.id}`, sources: item.sources }))
+  ];
+  for (const item of citedItems) {
+    if (!item.sources.length || item.sources.some((source) => !sourceNames.has(source.sourceName) || !source.locator.trim() || !source.excerpt.trim())) {
       deterministicFindings.push(finding(item.id, "blocked", "The citation does not contain a complete reference to an uploaded source."));
     }
   }
@@ -118,10 +129,22 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
   const sourceMatchedRequirementAmounts = result.requirements
     .filter((item) => sourceMatchedRequirementIds.has(item.id))
     .flatMap((item) => extractFinancialAmounts(`${item.requirement} ${item.source.excerpt}`));
-  const sourceFinancialAmounts = [...ledger.map((row) => row.amount), ...sourceMatchedRequirementAmounts];
+  const sourceMatchedNarrativeIds = new Set(result.validation.findings.filter((item) => item.verdict === "source_matched" && item.itemId.startsWith("narrative:")).map((item) => item.itemId.slice("narrative:".length)));
+  const sourceMatchedNarrativeAmounts = result.narrative
+    .filter((item) => sourceMatchedNarrativeIds.has(item.id))
+    .flatMap((item) => extractFinancialAmounts(`${item.text} ${item.source.excerpt}`));
+  const includedMappings = mappings.filter((mapping) => isMappingIncludedInFinancialAnalysis(mapping, financialRequirements));
+  const categoryActuals = [...new Set(includedMappings.map((mapping) => mapping.suggestedCategory))]
+    .map((category) => includedMappings.filter((mapping) => mapping.suggestedCategory === category).reduce((sum, mapping) => sum + mapping.amount, 0));
+  const derivedLedgerAmounts = [
+    ledger.reduce((sum, row) => sum + row.amount, 0),
+    includedMappings.reduce((sum, mapping) => sum + mapping.amount, 0),
+    ...categoryActuals
+  ];
+  const sourceFinancialAmounts = [...ledger.map((row) => row.amount), ...derivedLedgerAmounts, ...sourceMatchedRequirementAmounts, ...sourceMatchedNarrativeAmounts];
   let workflowFactIssue = false;
   const narrative = result.narrative.map((item) => {
-    const reasons = narrativeContradictions(item.text, workflowFacts, sourceFinancialAmounts);
+    const reasons = narrativeContradictions(item.text, workflowFacts, sourceFinancialAmounts, extractFinancialAmounts(item.source.excerpt));
     if (!reasons.length) return item;
     workflowFactIssue = true;
     deterministicFindings.push(finding(item.id, "blocked", reasons.join(" ")));
@@ -133,7 +156,7 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
   const workflowFactStatus = !hasWorkflowFacts ? "not_evaluated" as const : workflowFactIssue ? "blocked" as const : "passed" as const;
   const piiTypes = obviousProhibitedPiiTypes(narrative.map((item) => item.text).join("\n"));
   const privacyStatus = !narrative.length ? "not_evaluated" as const : piiTypes.length ? "blocked" as const : "passed" as const;
-  const financialAnalysis = buildFinancialAnalysis(request, result.requirements, result.grantProfile, ledger, mappings);
+  const financialAnalysis = buildFinancialAnalysis(request, financialRequirements, result.grantProfile, ledger, mappings, { assistanceApprovalThreshold });
   const qualityChecks = [
     ...result.qualityChecks.filter((check) => !["deterministic-ledger", "deterministic-workflow-facts", "deterministic-privacy-scan"].includes(check.id)),
     {
@@ -180,7 +203,7 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
     if (mapping.mappingConfidence === "unmapped") {
       return item.verdict === "blocked" ? item : { ...item, verdict: "blocked" as const, reason: "The uploaded row does not contain enough information to select a verified budget category." };
     }
-    if (["excluded_outside_period", "excluded_grant_period"].includes(mapping.reportTreatment || "")) {
+    if (["excluded_outside_period", "excluded_grant_period", "excluded_period_unavailable"].includes(mapping.reportTreatment || "")) {
       return { ...item, verdict: "source_matched" as const, reason: mapping.complianceDetail || mapping.rationale };
     }
     if (mapping.mappingConfidence === "high" && item.verdict !== "source_matched") {
@@ -191,9 +214,22 @@ export function applyDeterministicAccuracyChecks(request: CompilationRequest, re
   const sourceMatchedItems = findings.filter((item) => item.verdict === "source_matched").length;
   const itemsNeedingReview = findings.filter((item) => item.verdict === "review").length;
   const blockedItems = findings.filter((item) => item.verdict === "blocked").length;
+  const missingInputs = [...result.missingInputs];
+  for (const mapping of mappings.filter((item) => item.reportTreatment === "needs_category_review" || item.mappingConfidence === "unmapped")) {
+    const alreadyRequested = missingInputs.some((item) => new RegExp(`\\b${escapeRegExp(mapping.transactionId)}\\b`, "i").test(`${item.question} ${item.reason}`));
+    if (alreadyRequested) continue;
+    missingInputs.push({
+      id: `deterministic-category-input-${mapping.transactionId}`,
+      question: `Select an approved grant budget category for transaction ${mapping.transactionId}.`,
+      assignedRole: "Finance",
+      reason: `${mapping.transactionId} cannot enter grant totals until its ledger details support an approved budget category.`,
+      status: "open"
+    });
+  }
   return {
     ...result,
     mappings,
+    missingInputs,
     narrative,
     qualityChecks,
     financialAnalysis,
@@ -232,23 +268,27 @@ function parseWorkflowFacts(request: CompilationRequest): WorkflowFacts {
   catch { return {}; }
 }
 
-function narrativeContradictions(text: string, facts: WorkflowFacts, sourceFinancialAmounts: number[]) {
+function narrativeContradictions(text: string, facts: WorkflowFacts, sourceFinancialAmounts: number[], citedFinancialAmounts: number[] = []) {
   const reasons: string[] = [];
-  const lower = text.toLowerCase();
   for (const metric of facts.programMetrics || []) {
     const tokens = metric.label.toLowerCase().split(/[^a-z0-9]+/).filter((token) => token.length >= 4);
-    if (!tokens.length || !tokens.every((token) => lower.includes(token))) continue;
-    for (const match of text.matchAll(/\b\d+(?:\.\d+)?%?/g)) {
-      const value = Number(match[0].replace("%", ""));
-      if (value >= 1900 && value <= 2100) continue;
-      const context = lower.slice(Math.max(0, (match.index || 0) - 24), (match.index || 0) + match[0].length + 24);
-      const achievement = metric.target === 0 ? null : (metric.actual / metric.target) * 100;
-      const isAllowed = close(value, metric.actual) || close(value, metric.target) || close(value, metric.actual - metric.target) || (achievement !== null && close(value, achievement, 0.11));
-      if (!isAllowed) reasons.push(`${metric.label} includes ${match[0]}, which is not present in the confirmed current-period KPI data.`);
-      else if (close(value, metric.target) && !close(metric.target, metric.actual) && !/(target|goal|planned|plan)/.test(context)) reasons.push(`${metric.label} uses the target ${metric.target} as an achieved result; the confirmed actual is ${metric.actual}.`);
+    if (!tokens.length) continue;
+    for (const sentence of text.split(/(?<=[.!?;])\s+/)) {
+      const lower = sentence.toLowerCase();
+      if (!tokens.every((token) => lower.includes(token))) continue;
+      for (const match of sentence.matchAll(/\b\d+(?:\.\d+)?%?/g)) {
+        const value = Number(match[0].replace("%", ""));
+        if (value >= 1900 && value <= 2100) continue;
+        const context = lower.slice(Math.max(0, (match.index || 0) - 36), (match.index || 0) + match[0].length + 36);
+        if (!tokens.every((token) => context.includes(token))) continue;
+        const achievement = metric.target === 0 ? null : (metric.actual / metric.target) * 100;
+        const isAllowed = close(value, metric.actual) || close(value, metric.target) || close(value, metric.actual - metric.target) || (achievement !== null && close(value, achievement, 0.11));
+        if (!isAllowed) reasons.push(`${metric.label} includes ${match[0]}, which is not present in the confirmed current-period KPI data.`);
+        else if (close(value, metric.target) && !close(metric.target, metric.actual) && !/(target|goal|planned|plan)/.test(context)) reasons.push(`${metric.label} uses the target ${metric.target} as an achieved result; the confirmed actual is ${metric.actual}.`);
+      }
     }
   }
-  const allowedFinancialValues = [...(facts.budgetVsActual || []).flatMap((line) => [line.approvedAmount, line.actualEligibleExpenditure, line.remainingAmount, line.percentageSpent, line.varianceAmount, line.spendRateAgainstElapsedPlan]), ...(facts.knownFinancialAmounts || []), ...sourceFinancialAmounts].filter((value): value is number => value !== null && Number.isFinite(value));
+  const allowedFinancialValues = [...(facts.budgetVsActual || []).flatMap((line) => [line.approvedAmount, line.actualEligibleExpenditure, line.remainingAmount, line.percentageSpent, line.varianceAmount, line.spendRateAgainstElapsedPlan]), ...(facts.knownFinancialAmounts || []), ...sourceFinancialAmounts, ...citedFinancialAmounts].filter((value): value is number => value !== null && Number.isFinite(value));
   for (const match of text.matchAll(/\$\s*([\d,]+(?:\.\d+)?)/g)) {
     const value = Number(match[1].replaceAll(",", ""));
     if (allowedFinancialValues.length && !allowedFinancialValues.some((allowed) => close(Math.abs(value), Math.abs(allowed), 0.011))) reasons.push(`The financial amount ${match[0]} is not present in the deterministic budget-versus-actual results.`);
@@ -261,6 +301,7 @@ function extractFinancialAmounts(text: string) {
 }
 
 function close(left: number, right: number, tolerance = 0.005) { return Math.abs(left - right) < tolerance; }
+function escapeRegExp(value: string) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 
 export function parseLedger(request: CompilationRequest): FinancialLedgerRow[] {
   const file = request.files.find((item) => item.role === "ledgerExport" && (item.mimeType.includes("csv") || item.name.toLowerCase().endsWith(".csv")));
@@ -288,11 +329,13 @@ function parseAmount(value: string) {
 
 function dateExclusion(date: string, reportingPeriod: string, grantStartValue?: string, grantEndValue?: string) {
   const transactionDate = parseDate(date);
+  if (!transactionDate) return { reason: "invalid_transaction_date" as const, detail: `Transaction date “${date || "blank"}” could not be validated. The row is excluded until the date is corrected.` };
   const grantStart = parseDate(grantStartValue || "");
   const grantEnd = parseDate(grantEndValue || "");
   if (transactionDate && grantStart && transactionDate < grantStart) return { reason: "outside_grant_period" as const, detail: `Transaction ${date} predates the grant start date.` };
   if (transactionDate && grantEnd && transactionDate > grantEnd) return { reason: "outside_grant_period" as const, detail: `Transaction ${date} falls after the grant end date.` };
   const period = parseReportingPeriod(reportingPeriod);
+  if (!period) return { reason: "invalid_reporting_period" as const, detail: `The selected reporting period “${reportingPeriod}” does not provide exact start and end dates. The row is excluded until the reporting period is corrected.` };
   if (transactionDate && period && (transactionDate < period.start || transactionDate > period.end)) return { reason: "outside_report_period" as const, detail: `Transaction ${date} is outside the selected reporting period.` };
   return null;
 }
@@ -323,12 +366,70 @@ function mappingCompliance(rationale: string): NonNullable<CompilationResult["ma
   return "clear";
 }
 
-function findAssistanceApprovalThreshold(requirements: CompilationResult["requirements"]) {
+function deterministicAwardFinancialRequirements(request: CompilationRequest): CompiledRequirement[] {
+  const derived: CompiledRequirement[] = [];
+  for (const file of request.files.filter((item) => item.role === "awardAgreement" || item.role === "approvedBudget")) {
+    const paragraphs = sourceParagraphs(file);
+    if (!paragraphs.length) continue;
+    const budgetStart = paragraphs.findIndex((value) => /approved (?:grant )?budget/i.test(value));
+    const budgetEnd = budgetStart < 0
+      ? -1
+      : paragraphs.findIndex((value, index) => index > budgetStart && /^\d+\.\s+/.test(value));
+    const budget = budgetStart < 0 ? [] : paragraphs.slice(budgetStart + 1, budgetEnd < 0 ? paragraphs.length : budgetEnd);
+    for (let index = 0; index < budget.length - 1; index += 1) {
+      const category = budget[index].trim();
+      const amount = budget[index + 1].match(/^\$\s*([\d,]+(?:\.\d+)?)\s*(?:USD)?$/i)?.[1];
+      if (!amount || /^(?:category|approved amount|% of award|notes|total)$/i.test(category) || /^\d/.test(category)) continue;
+      const excerpt = `${category} — $${amount}`;
+      derived.push(derivedRequirement(file, `budget-${category}`, excerpt, "Approved Grant Budget", excerpt));
+    }
+    const rulePatterns = [
+      /indirect costs?.*(?:lesser of|% of).*direct costs?/i,
+      /category variance.*\$.*(?:explain|explanation)|(?:explain|explanation).*category variance.*\$/i,
+      /prior written approval.*(?:15\s*%|new budget category|indirect costs?)/i,
+      /emergency client assistance.*(?:payment record|housing-related purpose|program[- ]director approval)/i,
+      /assistance above\s*\$.*program[- ]director approval/i
+    ];
+    for (const paragraph of paragraphs) {
+      if (!rulePatterns.some((pattern) => pattern.test(paragraph))) continue;
+      derived.push(derivedRequirement(file, `rule-${derived.length + 1}`, paragraph, "Award financial rule", paragraph));
+    }
+  }
+  return [...new Map(derived.map((item) => [item.requirement.toLowerCase().replace(/\s+/g, " "), item])).values()];
+}
+
+function sourceParagraphs(file: CompilerFile) {
+  if (/\.docx$/i.test(file.name) || /wordprocessingml/i.test(file.mimeType)) return extractDocxParagraphs(file);
+  if (!/text|csv|json/i.test(file.mimeType) && !/\.(?:txt|csv)$/i.test(file.name)) return [];
+  const encoded = file.data.split(",", 2)[1];
+  if (!encoded) return [];
+  try {
+    return Buffer.from(encoded, "base64").toString("utf8").split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function derivedRequirement(file: CompilerFile, suffix: string, requirement: string, locator: string, excerpt: string): CompiledRequirement {
+  const id = `SOURCE-FIN-${suffix.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80)}`;
+  const source: SourceReference = { sourceName: file.name, locator, excerpt: excerpt.slice(0, 700) };
+  return { id, requirement, source, confidence: 1, status: "verified" };
+}
+
+function findAssistanceApprovalThreshold(request: CompilationRequest, requirements: CompilationResult["requirements"]) {
   for (const requirement of requirements.filter((item) => item.status === "verified")) {
     const text = `${requirement.requirement} ${requirement.source.excerpt}`;
     if (!/assistance/i.test(text) || !/approval/i.test(text)) continue;
     const match = text.match(/(?:above|over|exceed(?:s|ed|ing)?|greater than|more than)\s*\$\s*([\d,]+(?:\.\d+)?)/i);
     if (match) return Number(match[1].replaceAll(",", ""));
+  }
+  const award = request.files.find((file) => file.role === "awardAgreement" && /\.docx$/i.test(file.name));
+  if (award) {
+    for (const paragraph of extractDocxParagraphs(award)) {
+      if (!/assistance/i.test(paragraph) || !/written\s+program[- ]director\s+approval/i.test(paragraph)) continue;
+      const match = paragraph.match(/(?:above|over|exceed(?:s|ed|ing)?|greater than|more than)\s*\$\s*([\d,]+(?:\.\d+)?)/i);
+      if (match) return Number(match[1].replaceAll(",", ""));
+    }
   }
   return null;
 }

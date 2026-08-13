@@ -81,7 +81,7 @@ describe("report compiler verification resilience", () => {
 
     expect(downgradedOneRequirement).toBe(true);
     expect(result.requirements.every((item) => item.status === "verified")).toBe(true);
-    expect(result.validation.findings.find((item) => item.itemId === "requirement:R1")).toMatchObject({ verdict: "source_matched" });
+    expect(result.validation.findings.find((item) => item.itemId === `requirement:${result.requirements[0].id}`)).toMatchObject({ verdict: "source_matched" });
   });
 });
 

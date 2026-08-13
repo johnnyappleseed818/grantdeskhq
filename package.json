@@ -12,6 +12,7 @@
     "lint": "eslint . --max-warnings 0",
     "pretest": "npm run generate:assets",
     "test": "vitest run",
+    "test:grantdesk-regression": "node scripts/run-grantdesk-regression.mjs",
     "test:watch": "vitest",
     "eval:ai": "node scripts/run-ai-accuracy-eval.mjs",
     "build": "npm run generate:assets && tsc --noEmit && vite build && node scripts/create-spa-routes.js",
@@ -24,6 +25,7 @@
     "stripe:configure": "node --experimental-strip-types scripts/configure-stripe-pricing.mjs"
   },
   "dependencies": {
+    "fflate": "^0.8.3",
     "firebase": "12.17.1",
     "lucide-react": "0.468.0",
     "read-excel-file": "^9.3.5",

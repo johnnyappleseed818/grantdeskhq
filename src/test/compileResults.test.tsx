@@ -74,9 +74,36 @@ describe("report review trust states", () => {
     };
     render(<CompilerResults result={result} activeTab="overview" {...actions} />);
     expect(screen.getByText("2 verified")).toBeInTheDocument();
-    expect(screen.getByText(/1 need source review\. Workflow applicability is tracked separately\./)).toBeInTheDocument();
+    expect(screen.getByText(/1 need source review\. Duplicated wording is consolidated; these are extraction checks, not additional workflow tasks\./)).toBeInTheDocument();
+    const sourceReview = screen.getByText("Review 1 award requirement needing source confirmation");
+    expect(sourceReview).toBeInTheDocument();
+    fireEvent.click(sourceReview);
+    expect(screen.getByText("Client satisfaction target")).toBeInTheDocument();
     expect(screen.getByText(/8 source checks need review/)).toBeInTheDocument();
     expect(screen.getByText(/grouped actions cover the related checks shown above/)).toBeInTheDocument();
+  });
+
+  it("labels the P2 percentage as the share of households served", () => {
+    const source = prototypeFixture.grantProfile.grantName.source;
+    const result = {
+      ...prototypeFixture,
+      programChecks: [{
+        id: "P2-CONFLICT",
+        type: "data_conflict" as const,
+        title: "P2 — Housing stability assessments completed",
+        detail: "Reported KPI result is 158 assessments (92%); the activities section reports 160 assessments.",
+        action: "Confirm the assessment count.",
+        owner: "Program" as const,
+        severity: "review" as const,
+        sources: [source],
+        resolution: "open" as const,
+        status: "review" as const
+      }]
+    };
+
+    render(<CompilerResults result={result} activeTab="overview" {...actions} />);
+
+    expect(screen.getByText(/158 assessments \(92% of households served\)/)).toBeInTheDocument();
   });
 
   it("shows only unresolved program decisions in the inputs workflow", () => {
@@ -97,6 +124,36 @@ describe("report review trust states", () => {
     expect(screen.queryByText("Current-period result is available.")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Not applicable" }));
     expect(actions.onResolve).toHaveBeenCalledWith("program-STAFF-1", "not_applicable");
+  });
+
+  it("offers the evidence-backed P2 value without hiding the original conflict", () => {
+    const source = prototypeFixture.grantProfile.grantName.source;
+    const evidenceSource = { sourceName: "P2_Assessment_Records.xlsx", locator: "Rows 2–159", excerpt: "158 completed housing stability assessments." };
+    const onResolve = vi.fn();
+    const result = {
+      ...prototypeFixture,
+      programChecks: [{
+        id: "P2-CONFLICT",
+        type: "data_conflict" as const,
+        title: "P2 — Assessment count needs confirmation",
+        detail: "Underlying completed-assessment records support 158 assessments. The program narrative states 160. Recommended report value: 158.",
+        action: "Update the report narrative to 158, or keep 160 and explain the difference. The original conflict remains in the audit history.",
+        owner: "Program" as const,
+        severity: "review" as const,
+        sources: [source, evidenceSource],
+        resolution: "open" as const,
+        status: "review" as const,
+        evidenceBackedValue: "158",
+        evidenceRecommendation: "Use 158 in the report, or keep the narrative value and document why it differs."
+      }]
+    };
+
+    render(<CompilerResults result={result} activeTab="inputs" {...actions} onResolve={onResolve} />);
+
+    expect(screen.getByText(/original conflict remains in the audit history/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Use 158 in report" }));
+    expect(onResolve).toHaveBeenCalledWith("program-P2-CONFLICT");
+    expect(screen.getByRole("button", { name: "Keep current value and explain" })).toBeInTheDocument();
   });
 
   it("distinguishes supplied inputs from fully verified inputs", () => {
@@ -148,9 +205,88 @@ describe("report review trust states", () => {
     expect(screen.getByText("Source for this draft")).toBeInTheDocument();
     expect(screen.getByText("Required underlying evidence")).toBeInTheDocument();
     expect(screen.getByText("Narrative source verified")).toBeInTheDocument();
-    expect(screen.getByText("Not yet uploaded")).toBeInTheDocument();
+    expect(screen.getByText("No matching evidence uploaded yet")).toBeInTheDocument();
     const draft = screen.getByRole("heading", { name: "Source-linked draft language" }).closest("section");
     expect(draft).not.toBeNull();
     expect(within(draft!).queryByText(/Finalize the client-satisfaction result/)).not.toBeInTheDocument();
+  });
+
+  it("summarizes independently matched, suggested, and irrelevant evidence files", () => {
+    const result = {
+      ...prototypeFixture,
+      evidenceFiles: [
+        { id: "evidence_one", name: "receipt.pdf", mimeType: "application/pdf", size: 100, uploadedAt: "2026-08-11T00:00:00.000Z", parsingStatus: "parsed" as const, relevance: "matched" as const, parsingMessage: "Receipt matched.", matches: [{ targetType: "transaction" as const, targetId: "transaction:TRV-003:payment", targetLabel: "Payment record for TRV-003", confidence: 0.98, status: "matched" as const, rationale: "Direct receipt.", source: { sourceName: "receipt.pdf", locator: "Page 1", excerpt: "TRV-003" } }] },
+        { id: "evidence_two", name: "possible-approval.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size: 200, uploadedAt: "2026-08-11T00:00:00.000Z", parsingStatus: "parsed" as const, relevance: "review" as const, parsingMessage: "Possible approval.", matches: [{ targetType: "approval" as const, targetId: "approval:TRV-003:director", targetLabel: "Director approval", confidence: 0.72, status: "suggested" as const, rationale: "Signer is unclear.", source: { sourceName: "possible-approval.docx", locator: "Page 1", excerpt: "Approved" } }] },
+        { id: "evidence_three", name: "menu.jpg", mimeType: "image/jpeg", size: 300, uploadedAt: "2026-08-11T00:00:00.000Z", parsingStatus: "parsed" as const, relevance: "irrelevant" as const, parsingMessage: "Unrelated file.", matches: [] }
+      ]
+    };
+    render(<CompilerResults result={result} activeTab="inputs" {...actions} onConfirmEvidenceMatch={vi.fn()} />);
+    expect(screen.getByText("3 supporting evidence files")).toBeInTheDocument();
+    expect(screen.getByText("1 matched automatically · 1 needs review · 0 unmatched · 1 not relevant")).toBeInTheDocument();
+    expect(screen.getByText("Payment record for TRV-003")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm match" })).toBeInTheDocument();
+    expect(screen.getByText("Not relevant")).toBeInTheDocument();
+  });
+
+  it("links assessment and combined placement evidence to every KPI stated in a draft paragraph", () => {
+    const source = { sourceName: "Program_Update.docx", locator: "Program Performance Metrics", excerpt: "P1 172; P2 158; P3 98; P5 139." };
+    const matchedFile = (id: string, name: string, targetId: string, targetLabel: string, excerpt: string) => ({
+      id,
+      name,
+      mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      size: 100,
+      uploadedAt: "2026-08-11T00:00:00.000Z",
+      parsingStatus: "parsed" as const,
+      relevance: "matched" as const,
+      matches: [{
+        targetType: "kpi" as const,
+        targetId,
+        targetLabel,
+        confidence: 0.98,
+        status: "matched" as const,
+        rationale: "Direct underlying record.",
+        source: { sourceName: name, locator: "Workbook", excerpt }
+      }]
+    });
+    const result = {
+      ...prototypeFixture,
+      requirements: [{
+        ...prototypeFixture.requirements[0],
+        id: "KPI-EVIDENCE",
+        requirement: "Maintain an evidence index linking every reported KPI to its underlying source records.",
+        status: "verified" as const
+      }],
+      narrative: [{
+        id: "KPI-DRAFT",
+        text: "The program reported serving 172 unduplicated households, completing 158 housing stability assessments, placing 98 households, and completing benefits screening for 139 households.",
+        evidenceType: "program_response" as const,
+        source,
+        status: "verified" as const
+      }, {
+        id: "QUALITATIVE-DRAFT",
+        text: "Housing placements were constrained by low vacancy rates and limited landlord participation; 17 placement-ready households remained in navigation for more than 30 days.",
+        evidenceType: "program_response" as const,
+        source,
+        status: "verified" as const
+      }],
+      evidenceFiles: [
+        matchedFile("evidence-p1", "01_Enrollment_Records_Interim1.xlsx", "requirement:P1", "P1 enrollment records", "172 households served."),
+        matchedFile("evidence-p2", "02_Assessment_Records_Interim1.xlsx", "requirement:P2", "P2 assessment records", "158 completed assessments."),
+        matchedFile("evidence-p3p4", "03_Housing_Placement_and_120_Day_Followup_Interim1.xlsx", "requirement:P4", "P4 follow-up records", "98 placements; 40 of 49 retained at 120 days."),
+        matchedFile("evidence-p5", "04_Benefits_Screening_Records_Interim1.xlsx", "requirement:P5", "P5 screening records", "139 benefits screenings.")
+      ]
+    };
+
+    render(<CompilerResults result={result} activeTab="narrative" {...actions} />);
+
+    const draft = screen.getByRole("heading", { name: /The program reported serving 172 unduplicated households/ }).closest("article");
+    expect(draft).not.toBeNull();
+    expect(within(draft!).getByText("Underlying evidence matched")).toBeInTheDocument();
+    expect(within(draft!).getByText(/02_Assessment_Records_Interim1\.xlsx/)).toBeInTheDocument();
+    expect(within(draft!).getByText(/03_Housing_Placement_and_120_Day_Followup_Interim1\.xlsx/)).toBeInTheDocument();
+    const qualitative = screen.getByRole("heading", { name: /Housing placements were constrained by low vacancy rates/ }).closest("article");
+    expect(qualitative).not.toBeNull();
+    expect(within(qualitative!).getByText("No separate requirement identified")).toBeInTheDocument();
+    expect(within(qualitative!).queryByText(/Enrollment_Records|Assessment_Records|Housing_Placement_and_120_Day|Benefits_Screening/)).not.toBeInTheDocument();
   });
 });

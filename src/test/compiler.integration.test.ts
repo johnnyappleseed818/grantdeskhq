@@ -27,6 +27,14 @@ describe.skipIf(!enabled)("live AI compiler smoke test", () => {
       files
     };
     const result = await runCompiler(request);
+    if (result.qualityChecks.find((check) => check.id === "deterministic-workflow-facts")?.status !== "passed") {
+      console.log(JSON.stringify({
+        event: "ai_smoke_workflow_fact_failure",
+        check: result.qualityChecks.find((item) => item.id === "deterministic-workflow-facts"),
+        blockedNarrative: result.narrative.filter((item) => item.status === "blocked"),
+        blockedFindings: result.validation.findings.filter((item) => item.verdict === "blocked")
+      }, null, 2));
+    }
     expect(result.reportTitle).toBeTruthy();
     expect(result.requirements.length).toBeGreaterThan(0);
     expect(result.validation.findings.length).toBeGreaterThan(0);

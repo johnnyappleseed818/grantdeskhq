@@ -1,0 +1,17 @@
+{
+  "fixture": "northstar-interim1",
+  "files": [
+    { "name": "GrantDeskHQ_Synthetic_Grant_Agreement_Test_2.docx", "role": "awardAgreement", "sha256": "c84e80cc1ab9d794cafa212414fd59f1450691aba7714e0d7ad2e2168707122b" },
+    { "name": "GrantDeskHQ_Synthetic_GL_Interim_Report_1.xlsx", "role": "ledgerExport", "sha256": "54986c78c9fc0c475565d6bebd2962c5abf584e526554571d65b5acfb3881d70" },
+    { "name": "GrantDeskHQ_Synthetic_Program_Update_Interim_Report_1.docx", "role": "programUpdate", "sha256": "3eff8b11087014f7e1ed4ea1eca89f4a7f30416683ee152f43aa2202a2d36a2e" },
+    { "name": "01_Enrollment_Records_Interim1.xlsx", "role": "supportingEvidence", "sha256": "ce452f98e2215b28083314798eb5745cc0dedf60da93ceaf06baa2ce7f7976cf" },
+    { "name": "02_Assessment_Records_Interim1.xlsx", "role": "supportingEvidence", "sha256": "6627ae2321a7c54722bca7d6bdb49a8f34e9c7db213943cf7b70efeea5054852" },
+    { "name": "03_Housing_Placement_and_120_Day_Followup_Interim1.xlsx", "role": "supportingEvidence", "sha256": "6cb72aae7249858856b65276f2e62e676110087af440dbc993c250430d501cba" },
+    { "name": "04_Benefits_Screening_Records_Interim1.xlsx", "role": "supportingEvidence", "sha256": "4709a8e778b58023fbadb5dfe58585726fe16db87d1ce2aa46e7597733fa3f81" },
+    { "name": "05_Client_Satisfaction_Survey_Interim1.xlsx", "role": "supportingEvidence", "sha256": "93c376d5a89dd53e6caec39501d03a3082f811aaa508ca22534198ee608632fc" },
+    { "name": "06_Emergency_Assistance_Support_Interim1.xlsx", "role": "supportingEvidence", "sha256": "910692d6fdce05138940fc736db1b96965575470d1849aae8c7e7570aadcc8ed" },
+    { "name": "07_PD_Approval_BW-EA-003.pdf", "role": "supportingEvidence", "sha256": "0b02b6464270e85c5c90898cb5ddf06d18f1f6956882ce86e039de67536d7822" },
+    { "name": "08_PD_Approval_BW-EA-006.pdf", "role": "supportingEvidence", "sha256": "b4a20233875deb4f6e6a878e4496c9fd9c3aa23ddc899957801d21826c33db08" },
+    { "name": "09_Irrelevant_Board_Meeting_Notes.pdf", "role": "supportingEvidence", "sha256": "74969ab23ec6f46d374446e783511ef5e775558fd1b06eacc4638c511854482f" }
+  ]
+}

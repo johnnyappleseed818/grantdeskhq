@@ -12,28 +12,32 @@ import {
   FileText,
   LoaderCircle,
   LockKeyhole,
+  RefreshCw,
   ShieldCheck,
   Sparkles,
+  Trash2,
   UploadCloud
 } from "lucide-react";
-import { MAX_FILE_BYTES, MAX_TOTAL_BYTES, canGenerateReviewPackage, resultToDownload, validateCompilationRequest } from "../lib/prototype";
+import { MAX_EVIDENCE_FILE_BYTES, MAX_EVIDENCE_FILES, MAX_EVIDENCE_TOTAL_BYTES, MAX_FILE_BYTES, MAX_TOTAL_BYTES, canGenerateReviewPackage, resultToDownload, validateCompilationRequest } from "../lib/prototype";
 import { buildFinancialExceptionSummary, buildReportAttention, machineCheckCount } from "../lib/reportAttention";
 import { buildProgramInsights, buildProgramReadiness, satisfiedProgramCheckIds } from "../lib/programInsights";
 import { fileRoleSuggestionKey, inspectFileRole, type FileRoleSuggestion } from "../lib/fileRoleDetection";
 import { agreementSetup, remainingSetupConflicts } from "../lib/agreementSetup";
+import { createEvidenceId, mergePendingEvidenceFiles, type PendingEvidenceFile } from "../lib/evidenceUploads";
 import { futureWorkflowStatus, normalizeWorkflowObligations } from "../lib/obligationApplicability";
 import { apiRequest } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import type { CompilationPreflightResult, CompilationRequest, CompilationResult, CompilerFile, GrantReportingPeriod, GrantWorkflowObligation, ObligationApplicability, PersistedCompilationResponse, ReviewState, SetupDecision, SourceRole } from "../types/prototype";
+import type { CompilationPreflightResult, CompilationRequest, CompilationResult, CompilerFile, GrantReportingPeriod, GrantWorkflowObligation, ObligationApplicability, PersistedCompilationResponse, ReviewState, SetupDecision, SourceRole, SupportingEvidenceFile } from "../types/prototype";
 
 const sourceFields: Array<{ role: SourceRole; label: string; help: string; accept: string; required: boolean }> = [
   { role: "awardAgreement", label: "Award agreement or Notice of Award", help: "PDF, DOCX, or TXT", accept: ".pdf,.docx,.txt", required: true },
   { role: "approvedBudget", label: "Approved grant budget", help: "Add now or later · XLSX, CSV, or PDF", accept: ".xlsx,.csv,.pdf", required: false },
   { role: "ledgerExport", label: "General ledger export", help: "Add now or later · CSV or XLSX", accept: ".csv,.xlsx", required: false },
   { role: "funderTemplate", label: "Funder report template", help: "Optional · DOCX or PDF", accept: ".docx,.pdf", required: false },
-  { role: "programUpdate", label: "Program update", help: "Add now or later · DOCX, PDF, or TXT", accept: ".docx,.pdf,.txt", required: false },
-  { role: "supportingEvidence", label: "Supporting evidence", help: "Add if required · PDF, XLSX, CSV, or image", accept: ".pdf,.xlsx,.csv,.png,.jpg,.jpeg", required: false }
+  { role: "programUpdate", label: "Program update", help: "Add now or later · DOCX, PDF, or TXT", accept: ".docx,.pdf,.txt", required: false }
 ];
+
+const evidenceAccept = ".xlsx,.csv,.pdf,.docx,.txt,.png,.jpg,.jpeg";
 
 type ResultTab = "overview" | "requirements" | "inputs" | "mapping" | "narrative" | "review";
 
@@ -43,11 +47,13 @@ export function CompilePage() {
   const location = useLocation();
   const savedReportId = new URLSearchParams(location.search).get("report") || "";
   const [meta, setMeta] = useState({
-    organizationName: "Hope Community Services",
-    grantName: "Pacific Youth Foundation — Youth Access Initiative",
-    reportingPeriod: "January 1–June 30, 2026"
+    organizationName: "",
+    grantName: "",
+    reportingPeriod: ""
   });
   const [files, setFiles] = useState<Partial<Record<SourceRole, File>>>({});
+  const [evidenceFiles, setEvidenceFiles] = useState<PendingEvidenceFile[]>([]);
+  const [evidenceBusy, setEvidenceBusy] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
   const [compiling, setCompiling] = useState(false);
   const [error, setError] = useState("");
@@ -66,9 +72,15 @@ export function CompilePage() {
   const [compileAttempt, setCompileAttempt] = useState<{ fingerprint: string; requestId: string } | null>(null);
   const [loadingSavedReport, setLoadingSavedReport] = useState(Boolean(savedReportId));
 
-  const selectedFiles = useMemo(() => (Object.entries(files) as Array<[SourceRole, File | undefined]>)
+  const selectedCoreFiles = useMemo(() => (Object.entries(files) as Array<[SourceRole, File | undefined]>)
     .filter((entry): entry is [SourceRole, File] => Boolean(entry[1])), [files]);
-  const totalBytes = useMemo(() => selectedFiles.reduce((sum, [, file]) => sum + file.size, 0), [selectedFiles]);
+  const selectedFiles = useMemo<Array<[SourceRole, File]>>(() => [
+    ...selectedCoreFiles,
+    ...evidenceFiles.map((item) => ["supportingEvidence" as const, item.file] as [SourceRole, File])
+  ], [evidenceFiles, selectedCoreFiles]);
+  const coreBytes = useMemo(() => selectedCoreFiles.reduce((sum, [, file]) => sum + file.size, 0), [selectedCoreFiles]);
+  const evidenceBytes = useMemo(() => evidenceFiles.reduce((sum, item) => sum + item.file.size, 0), [evidenceFiles]);
+  const totalBytes = coreBytes + evidenceBytes;
   const requiredFilesComplete = sourceFields.filter((field) => field.required).every((field) => files[field.role]);
   const activeFileRoleSuggestions = useMemo(() => Object.values(fileRoleSuggestions).filter((suggestion): suggestion is FileRoleSuggestion => {
     if (!suggestion || acceptedFileRoles.includes(suggestion.key)) return false;
@@ -117,6 +129,49 @@ export function CompilePage() {
     setError("");
   };
 
+  const appendEvidenceFiles = (selected: File[]) => {
+    if (!selected.length) return;
+    const unsupported = selected.filter((file) => !acceptsEvidenceFile(file));
+    const accepted = selected.filter(acceptsEvidenceFile);
+    setEvidenceFiles((current) => {
+      const merged = mergePendingEvidenceFiles(current, accepted);
+      if (merged.error) window.requestAnimationFrame(() => setError(merged.error));
+      return merged.files;
+    });
+    setResult(null);
+    if (unsupported.length) setError(`${unsupported.map((file) => file.name).join(", ")} is not a supported evidence format.`);
+  };
+
+  const updateEvidenceFiles = (event: ChangeEvent<HTMLInputElement>) => {
+    appendEvidenceFiles(Array.from(event.target.files || []));
+    event.target.value = "";
+  };
+
+  const removePendingEvidence = (id: string) => {
+    setEvidenceFiles((current) => current.filter((item) => item.id !== id));
+    setResult(null);
+    setError("");
+  };
+
+  const replacePendingEvidence = (id: string, event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !acceptsEvidenceFile(file)) {
+      if (file) setError(`${file.name} is not a supported evidence format.`);
+      return;
+    }
+    setEvidenceFiles((current) => {
+      const next = current.map((item) => item.id === id ? { id, file, uploadedAt: new Date().toISOString() } : item);
+      if (file.size > MAX_EVIDENCE_FILE_BYTES || next.reduce((sum, item) => sum + item.file.size, 0) > MAX_EVIDENCE_TOTAL_BYTES) {
+        window.requestAnimationFrame(() => setError("The replacement would exceed the supporting-evidence upload limit."));
+        return current;
+      }
+      return next;
+    });
+    setResult(null);
+    setError("");
+  };
+
   const updateMeta = (next: typeof meta) => {
     setMeta(next);
     setPreflight(null);
@@ -128,8 +183,9 @@ export function CompilePage() {
   const uploadPackage = (event: ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(event.target.files || []);
     if (!selected.length) return;
-    const { assigned, unmatched } = assignPackageFiles(selected, files);
+    const { assigned, evidence, unmatched } = assignPackageFiles(selected, files);
     setFiles((current) => ({ ...current, ...assigned }));
+    appendEvidenceFiles(evidence);
     for (const [role, file] of Object.entries(assigned) as Array<[SourceRole, File]>) inspectSelectedFile(role, file);
     setResult(null);
     if (assigned.awardAgreement) {
@@ -139,7 +195,7 @@ export function CompilePage() {
       setSetupNotice("");
     }
     setWizardStep(2);
-    setError(unmatched.length ? `${unmatched.map((file) => file.name).join(", ")} could not be assigned automatically. Add each file to the appropriate source box below.` : "");
+    if (unmatched.length) setError(`${unmatched.map((file) => file.name).join(", ")} could not be assigned automatically. Add each file to the appropriate source box below.`);
     event.target.value = "";
   };
 
@@ -161,7 +217,8 @@ export function CompilePage() {
       setError("Review the file placement suggestion before continuing. Move the file to the recommended field or confirm that you want to keep it where it is.");
       return;
     }
-    if (wizardStep === 2 && (totalBytes > MAX_TOTAL_BYTES || Object.values(files).some((file) => (file?.size || 0) > MAX_FILE_BYTES))) {
+    if (wizardStep === 2 && (coreBytes > MAX_TOTAL_BYTES || Object.values(files).some((file) => (file?.size || 0) > MAX_FILE_BYTES)
+      || evidenceFiles.length > MAX_EVIDENCE_FILES || evidenceBytes > MAX_EVIDENCE_TOTAL_BYTES || evidenceFiles.some((item) => item.file.size > MAX_EVIDENCE_FILE_BYTES))) {
       setError("Reduce the source package size before continuing.");
       return;
     }
@@ -217,7 +274,10 @@ export function CompilePage() {
 
     setCompiling(true);
     try {
-      const payloadFiles = await Promise.all(selectedFiles.map(([role, file]) => fileToCompilerFile(role, file)));
+      const payloadFiles = await Promise.all(selectedFiles.map(([role, file], index) => {
+        const evidence = role === "supportingEvidence" ? evidenceFiles[index - selectedCoreFiles.length] : undefined;
+        return fileToCompilerFile(role, file, evidence?.id, evidence?.uploadedAt);
+      }));
       const payload: CompilationRequest = { ...meta, files: payloadFiles, setupDecisions, requestId };
       const errors = validateCompilationRequest(payload);
       if (!acknowledged) errors.push("Confirm that the files are synthetic or redacted test files.");
@@ -225,9 +285,23 @@ export function CompilePage() {
         setError(errors.join(" "));
         return;
       }
-      const body = await apiRequest<PersistedCompilationResponse>("/api/reports/compile", await token(), { method: "POST", body: JSON.stringify(payload) });
+      const idToken = await token();
+      const corePayload = { ...payload, files: payload.files.filter((file) => file.role !== "supportingEvidence") };
+      const body = await apiRequest<PersistedCompilationResponse>("/api/reports/compile", idToken, { method: "POST", body: JSON.stringify(corePayload) });
       setResult(body.result);
       setReportId(body.reportId);
+      let completed = body;
+      const evidencePayload = payload.files.filter((file) => file.role === "supportingEvidence");
+      if (evidencePayload.length) {
+        try {
+          completed = await apiRequest<PersistedCompilationResponse>(`/api/reports/${body.reportId}/evidence`, idToken, { method: "POST", body: JSON.stringify({ files: evidencePayload }) });
+          setEvidenceFiles([]);
+        } catch (evidenceError) {
+          setError(`The report draft was saved, but supporting evidence analysis did not finish. ${evidenceError instanceof Error ? evidenceError.message : "Try adding the evidence again from the Inputs tab."}`);
+        }
+      }
+      setResult(completed.result);
+      setReportId(completed.reportId);
       setActiveTab("overview");
       window.requestAnimationFrame(() => document.getElementById("compiler-results")?.focus());
     } catch (compileError) {
@@ -239,8 +313,25 @@ export function CompilePage() {
 
   const resolveCheck = (id: string, resolution: "resolved" | "not_applicable" = "resolved") => setResult((current) => {
     if (!current) return current;
+    const resolvedProgramCheck = current.programChecks?.find((check) => `program-${check.id}` === id);
+    const useEvidenceBackedValue = resolution === "resolved" && resolvedProgramCheck?.type === "data_conflict" && resolvedProgramCheck.evidenceBackedValue;
+    const evidenceBackedNarrativeId = resolvedProgramCheck ? `evidence-backed-${resolvedProgramCheck.id}` : "";
+    const evidenceBackedSource = resolvedProgramCheck?.sources.at(-1);
+    const updatedNarrative = useEvidenceBackedValue && evidenceBackedSource
+      ? [
+          ...current.narrative.filter((statement) => statement.id !== evidenceBackedNarrativeId),
+          {
+            id: evidenceBackedNarrativeId,
+            text: `${current.grantProfile.granteeName?.value || "The organization"} completed ${resolvedProgramCheck.evidenceBackedValue} housing stability assessments during the reporting period.`,
+            evidenceType: "source_fact" as const,
+            source: evidenceBackedSource,
+            status: "verified" as const
+          }
+        ]
+      : current.narrative;
     const updated = {
       ...current,
+      narrative: updatedNarrative,
       qualityChecks: current.qualityChecks.map((check) => check.id === id && check.status === "review" ? { ...check, status: "passed" as const, detail: `${check.detail} Reviewed and confirmed by the signed-in user.` } : check),
       validation: {
         ...current.validation,
@@ -249,9 +340,56 @@ export function CompilePage() {
       programChecks: current.programChecks?.map((check) => `program-${check.id}` === id ? { ...check, resolution } : check)
     };
     const next = synchronizeClientResult(updated);
-    if (reportId && user) token().then((idToken) => apiRequest(`/api/reports/${reportId}/review`, idToken, { method: "PATCH", body: JSON.stringify({ itemId: id, result: next }) })).catch(() => setError("The review changed locally but could not be saved. Try again before leaving this page."));
+    if (reportId && user) token().then((idToken) => apiRequest(`/api/reports/${reportId}/review`, idToken, { method: "PATCH", body: JSON.stringify({ itemId: id, resolution }) })).catch(() => setError("The review changed locally but could not be saved. Try again before leaving this page."));
     return next;
   });
+
+  const addEvidenceToSavedReport = async (selected: File[], replaceEvidenceId?: string) => {
+    if (!reportId || !selected.length) return;
+    setEvidenceBusy(true);
+    setError("");
+    try {
+      const uploadedAt = new Date().toISOString();
+      const payloadFiles = await Promise.all(selected.map((file) => fileToCompilerFile("supportingEvidence", file, createEvidenceId(), uploadedAt)));
+      const body = await apiRequest<PersistedCompilationResponse>(`/api/reports/${reportId}/evidence`, await token(), {
+        method: "POST",
+        body: JSON.stringify({ files: payloadFiles, replaceEvidenceId })
+      });
+      setResult(body.result);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Supporting evidence could not be analyzed.");
+    } finally {
+      setEvidenceBusy(false);
+    }
+  };
+
+  const removeEvidenceFromSavedReport = async (evidenceId: string) => {
+    if (!reportId) return;
+    setEvidenceBusy(true);
+    setError("");
+    try {
+      const body = await apiRequest<PersistedCompilationResponse>(`/api/reports/${reportId}/evidence/${encodeURIComponent(evidenceId)}`, await token(), { method: "DELETE" });
+      setResult(body.result);
+    } catch (removeError) {
+      setError(removeError instanceof Error ? removeError.message : "Supporting evidence could not be removed.");
+    } finally {
+      setEvidenceBusy(false);
+    }
+  };
+
+  const confirmEvidenceMatchForSavedReport = async (evidenceId: string, targetId: string) => {
+    if (!reportId) return;
+    setEvidenceBusy(true);
+    setError("");
+    try {
+      const body = await apiRequest<PersistedCompilationResponse>(`/api/reports/${reportId}/evidence/${encodeURIComponent(evidenceId)}/matches`, await token(), { method: "PATCH", body: JSON.stringify({ targetId }) });
+      setResult(body.result);
+    } catch (reviewError) {
+      setError(reviewError instanceof Error ? reviewError.message : "The evidence match could not be confirmed.");
+    } finally {
+      setEvidenceBusy(false);
+    }
+  };
 
   const download = () => {
     if (!result || !canGenerateReviewPackage(result)) return;
@@ -382,7 +520,7 @@ export function CompilePage() {
         {loadingSavedReport && <div className="workspace-loading"><LoaderCircle className="animate-spin" aria-hidden="true" />Opening saved report…</div>}
         {error && <div className="compiler-error mt-6" role="alert"><AlertTriangle aria-hidden="true" /><span>{error}</span></div>}
       </section>
-      {result && <CompilerResults result={result} activeTab={activeTab} setActiveTab={setActiveTab} onResolve={resolveCheck} onDownload={download} onEditSetup={() => navigate("/compile")} onAddSources={() => navigate("/compile")} />}
+      {result && <CompilerResults result={result} activeTab={activeTab} setActiveTab={setActiveTab} onResolve={resolveCheck} onDownload={download} onEditSetup={() => navigate("/compile")} onAddSources={() => navigate("/compile")} onAddEvidence={addEvidenceToSavedReport} onRemoveEvidence={removeEvidenceFromSavedReport} onConfirmEvidenceMatch={confirmEvidenceMatchForSavedReport} evidenceBusy={evidenceBusy} />}
     </div>;
   }
 
@@ -442,7 +580,7 @@ export function CompilePage() {
 
           <fieldset className="wizard-step" hidden={wizardStep !== 2}>
             <legend><span className="eyebrow">Step 2 of 4</span>Add the files your team already has</legend>
-            <div className="wizard-intro flex items-center justify-between gap-4"><span>Only an award agreement or Notice of Award is needed to start. Add everything else now or later. No accounting connection is needed.</span><strong>{formatBytes(totalBytes)} / 2.5 MB</strong></div>
+            <div className="wizard-intro flex items-center justify-between gap-4"><span>Only an award agreement or Notice of Award is needed to start. Add everything else now or later. No accounting connection is needed.</span><strong>Core {formatBytes(coreBytes)} / {formatBytes(MAX_TOTAL_BYTES)} · Evidence {formatBytes(evidenceBytes)} / {formatBytes(MAX_EVIDENCE_TOTAL_BYTES)}</strong></div>
             <div className="source-upload-grid">
               {sourceFields.map((field) => {
                 const file = files[field.role];
@@ -456,6 +594,21 @@ export function CompilePage() {
                 );
               })}
             </div>
+            <section className="evidence-upload-panel" aria-labelledby="supporting-evidence-upload-title">
+              <div className="evidence-upload-heading">
+                <div><p className="eyebrow">Supporting evidence</p><h3 id="supporting-evidence-upload-title">Add receipts, approvals, KPI records, and other supporting files</h3><p>Select several files at once or add more later. Each file stays separate and is matched independently after the report is created.</p></div>
+                <label className="button button-secondary button-small" htmlFor="source-supporting-evidence"><UploadCloud aria-hidden="true" />Add evidence files</label>
+                <input id="source-supporting-evidence" className="sr-only" type="file" multiple accept={evidenceAccept} onChange={updateEvidenceFiles} />
+              </div>
+              <div className="evidence-upload-summary"><strong>{evidenceFiles.length} supporting evidence {evidenceFiles.length === 1 ? "file" : "files"}</strong><span>{formatBytes(evidenceBytes)} · up to {MAX_EVIDENCE_FILES} files</span></div>
+              {evidenceFiles.length > 0 && <div className="evidence-pending-list">{evidenceFiles.map((item) => <article key={item.id}>
+                <FileText aria-hidden="true" />
+                <div><strong>{item.file.name}</strong><small>{item.file.type || "File"} · {formatBytes(item.file.size)} · Ready to analyze</small></div>
+                <label className="button button-secondary button-small" htmlFor={`replace-${item.id}`}><RefreshCw aria-hidden="true" />Replace</label>
+                <input id={`replace-${item.id}`} className="sr-only" type="file" accept={evidenceAccept} onChange={(event) => replacePendingEvidence(item.id, event)} />
+                <button type="button" className="button button-secondary button-small" onClick={() => removePendingEvidence(item.id)}><Trash2 aria-hidden="true" />Remove</button>
+              </article>)}</div>}
+            </section>
             {activeFileRoleSuggestions.map((suggestion) => <section key={suggestion.key} className="file-role-suggestion" aria-label={`File placement suggestion for ${suggestion.fileName}`}>
               <AlertTriangle aria-hidden="true" />
               <div><p className="eyebrow">Check this file</p><h3>This file looks like {indefiniteSourceLabel(suggestion.suggestedRole)}, not {indefiniteSourceLabel(suggestion.assignedRole)}.</h3><p>{suggestion.reason}</p><small>{suggestion.fileName}</small></div>
@@ -474,7 +627,7 @@ export function CompilePage() {
             <p className="wizard-intro">GrantDeskHQ starts with the available sources, identifies missing inputs, and compares the material output with the source package.</p>
             <div className="preflight-list">
               <Preflight label="Award document present" passed={requiredFilesComplete} detail={`${sourceFields.filter((field) => field.required && files[field.role]).length} of ${sourceFields.filter((field) => field.required).length} required to start`} />
-              <Preflight label="Package fits file limits" passed={totalBytes <= MAX_TOTAL_BYTES && Object.values(files).every((file) => (file?.size || 0) <= MAX_FILE_BYTES)} detail={`${formatBytes(totalBytes)} total · 1 MB maximum per file`} />
+              <Preflight label="Package fits file limits" passed={coreBytes <= MAX_TOTAL_BYTES && evidenceBytes <= MAX_EVIDENCE_TOTAL_BYTES && evidenceFiles.length <= MAX_EVIDENCE_FILES && Object.values(files).every((file) => (file?.size || 0) <= MAX_FILE_BYTES) && evidenceFiles.every((item) => item.file.size <= MAX_EVIDENCE_FILE_BYTES)} detail={`${formatBytes(coreBytes)} core files · ${evidenceFiles.length} evidence files (${formatBytes(evidenceBytes)})`} />
               <Preflight label="Source checks ready" passed detail="Every important item is checked against the uploaded sources before it can be marked verified." />
               <Preflight label="Unsupported output blocked from export" passed detail="Required review items must be resolved by a professional before package generation." />
             </div>
@@ -510,12 +663,12 @@ export function CompilePage() {
       </section>
 
       {reportId && <div className="site-shell"><div className="account-notice">Report saved to your private workspace. <Link className="underline" to="/workspace">View saved reports</Link></div></div>}
-      {result && <CompilerResults result={result} activeTab={activeTab} setActiveTab={setActiveTab} onResolve={resolveCheck} onDownload={download} onEditSetup={() => returnToSetup("compiler-grant")} onAddSources={returnToSources} />}
+      {result && <CompilerResults result={result} activeTab={activeTab} setActiveTab={setActiveTab} onResolve={resolveCheck} onDownload={download} onEditSetup={() => returnToSetup("compiler-grant")} onAddSources={returnToSources} onAddEvidence={addEvidenceToSavedReport} onRemoveEvidence={removeEvidenceFromSavedReport} onConfirmEvidenceMatch={confirmEvidenceMatchForSavedReport} evidenceBusy={evidenceBusy} />}
     </div>
   );
 }
 
-export function CompilerResults({ result, activeTab, setActiveTab, onResolve, onDownload, onEditSetup, onAddSources }: { result: CompilationResult; activeTab: ResultTab; setActiveTab(tab: ResultTab): void; onResolve(id: string, resolution?: "resolved" | "not_applicable"): void; onDownload(): void; onEditSetup(): void; onAddSources(): void }) {
+export function CompilerResults({ result, activeTab, setActiveTab, onResolve, onDownload, onEditSetup, onAddSources, onAddEvidence, onRemoveEvidence, onConfirmEvidenceMatch, evidenceBusy = false }: { result: CompilationResult; activeTab: ResultTab; setActiveTab(tab: ResultTab): void; onResolve(id: string, resolution?: "resolved" | "not_applicable"): void; onDownload(): void; onEditSetup(): void; onAddSources(): void; onAddEvidence?(files: File[], replaceEvidenceId?: string): void; onRemoveEvidence?(evidenceId: string): void; onConfirmEvidenceMatch?(evidenceId: string, targetId: string): void; evidenceBusy?: boolean }) {
   const actions = buildReportAttention(result).length;
   const checks = machineCheckCount(result);
   const hasLedger = result.inputStatus.some((item) => item.role === "ledgerExport" && item.available);
@@ -540,7 +693,7 @@ export function CompilerResults({ result, activeTab, setActiveTab, onResolve, on
         <div className="result-panel">
           {activeTab === "overview" && <Overview result={result} onEditSetup={onEditSetup} />}
           {activeTab === "requirements" && <Requirements result={result} />}
-          {activeTab === "inputs" && <Inputs result={result} onAddSources={onAddSources} onResolve={onResolve} />}
+          {activeTab === "inputs" && <Inputs result={result} onAddSources={onAddSources} onResolve={onResolve} onAddEvidence={onAddEvidence} onRemoveEvidence={onRemoveEvidence} onConfirmEvidenceMatch={onConfirmEvidenceMatch} evidenceBusy={evidenceBusy} />}
           {activeTab === "mapping" && <Mappings result={result} onAddSources={onAddSources} />}
           {activeTab === "narrative" && <Narrative result={result} onAddSources={onAddSources} onReviewFinancial={() => setActiveTab("mapping")} />}
           {activeTab === "review" && <Review result={result} onResolve={onResolve} onDownload={onDownload} onEditSetup={onEditSetup} onAddSources={onAddSources} />}
@@ -556,14 +709,23 @@ function Overview({ result, onEditSetup }: { result: CompilationResult; onEditSe
   const verifiedRequirements = result.requirements.filter((item) => item.status === "verified").length;
   const reviewRequirements = result.requirements.filter((item) => item.status === "review").length;
   const blockedRequirements = result.requirements.filter((item) => ["blocked", "not_evaluated"].includes(item.status)).length;
+  const requirementsNeedingSourceReview = result.requirements.filter((item) => item.status !== "verified");
   const attention = buildReportAttention(result);
   const readinessLabel = result.workflow.readiness === "not_ready" ? "Not ready" : result.workflow.readiness === "needs_review" ? "Needs review" : "Ready for review";
   return <div className="result-metric-grid">
     <TextResultMetric label="Report readiness" value={readinessLabel} detail={result.workflow.readiness === "not_ready" ? "Complete the items below before export." : "Professional review and approval are still required."} />
-    <TextResultMetric label="Award requirements" value={verifiedRequirements === result.requirements.length ? `${verifiedRequirements} of ${result.requirements.length}` : `${verifiedRequirements} verified`} detail={verifiedRequirements === result.requirements.length ? "All identified requirements are verified against the award documents" : `${reviewRequirements} need source review${blockedRequirements ? ` · ${blockedRequirements} awaiting support` : ""}. Workflow applicability is tracked separately.`} />
+    <TextResultMetric label="Distinct award requirements" value={verifiedRequirements === result.requirements.length ? `${verifiedRequirements} of ${result.requirements.length}` : `${verifiedRequirements} verified`} detail={verifiedRequirements === result.requirements.length ? "All distinct requirements identified in this analysis are verified against the award documents" : `${reviewRequirements} need source review${blockedRequirements ? ` · ${blockedRequirements} awaiting support` : ""}. Duplicated wording is consolidated; these are extraction checks, not additional workflow tasks.`} />
     <TextResultMetric label="Required inputs" value={`${availableInputs} of ${requiredInputs.length}`} detail="Available for this reporting period" />
     <ResultMetric label="Your actions" value={attention.length} detail="Grouped decisions—not every check the system performed" />
-    <div className="attention-summary col-span-full"><div><p className="eyebrow">Less work for your team</p><h3>GrantDeskHQ ran {machineCheckCount(result)} checks. You only need to review {attention.length} {attention.length === 1 ? "thing" : "things"}.</h3></div><div className="attention-summary-list">{attention.map((item) => <article key={item.id}><CheckCircle2 aria-hidden="true" /><div><strong>{item.title}</strong><p>{item.detail}</p></div></article>)}</div></div>
+    {requirementsNeedingSourceReview.length > 0 && <details className="requirement-source-review col-span-full">
+      <summary>Review {requirementsNeedingSourceReview.length} award {requirementsNeedingSourceReview.length === 1 ? "requirement" : "requirements"} needing source confirmation</summary>
+      <p>GrantDeskHQ found these possible requirements, but the source wording or extraction confidence needs confirmation. They are not treated as completed obligations, and they do not become extra workflow tasks unless the award supports them.</p>
+      <div>{requirementsNeedingSourceReview.map((item) => <article key={item.id}>
+        <div><ReviewLabel status={item.status} /><strong>{item.requirement}</strong></div>
+        <small>{Math.round(item.confidence * 100)}% extraction confidence · {item.source.sourceName} · {cleanSourceLocator(item.source.locator)}</small>
+      </article>)}</div>
+    </details>}
+    <div className="attention-summary col-span-full"><div><p className="eyebrow">Less work for your team</p><h3>GrantDeskHQ ran {machineCheckCount(result)} checks. You only need to review {attention.length} {attention.length === 1 ? "thing" : "things"}.</h3></div><div className="attention-summary-list">{attention.map((item) => <article key={item.id} data-action-id={item.id} data-action-kind={item.kind}><CheckCircle2 aria-hidden="true" /><div><strong>{item.title}</strong><p>{item.detail}</p></div></article>)}</div></div>
     {result.setupConflicts.length > 0 && <div className="setup-conflict-summary col-span-full"><AlertTriangle aria-hidden="true" /><div><strong>{result.setupConflicts.length} setup {result.setupConflicts.length === 1 ? "conflict" : "conflicts"} must be corrected</strong><p>{result.setupConflicts.map((item) => item.title).join(" · ")}</p></div><button type="button" className="button button-primary button-small" onClick={onEditSetup}>Fix report setup</button></div>}
     <div className="validation-method col-span-full"><ShieldCheck aria-hidden="true" /><div><strong>Evidence status</strong><p><b>{result.validation.sourceMatchedItems} verified</b> · {result.validation.itemsNeedingReview} source checks need review · {result.validation.blockedItems} awaiting inputs or not yet verified</p><p>{attention.length} grouped {attention.length === 1 ? "action covers" : "actions cover"} the related checks shown above. {result.validation.method}</p></div></div>
     <div className="col-span-full mt-3 grid gap-3">
@@ -579,7 +741,7 @@ function Requirements({ result }: { result: CompilationResult }) {
   </article>)}</div>;
 }
 
-function Inputs({ result, onAddSources, onResolve }: { result: CompilationResult; onAddSources(): void; onResolve(id: string, resolution?: "resolved" | "not_applicable"): void }) {
+function Inputs({ result, onAddSources, onResolve, onAddEvidence, onRemoveEvidence, onConfirmEvidenceMatch, evidenceBusy }: { result: CompilationResult; onAddSources(): void; onResolve(id: string, resolution?: "resolved" | "not_applicable"): void; onAddEvidence?(files: File[], replaceEvidenceId?: string): void; onRemoveEvidence?(evidenceId: string): void; onConfirmEvidenceMatch?(evidenceId: string, targetId: string): void; evidenceBusy: boolean }) {
   const satisfiedChecks = satisfiedProgramCheckIds(result);
   const programChecks = (result.programChecks || []).filter((check) => !satisfiedChecks.has(check.id));
   return <div className="input-status-list">
@@ -587,7 +749,7 @@ function Inputs({ result, onAddSources, onResolve }: { result: CompilationResult
       <div><p className="eyebrow">Start with what you have</p><h3>GrantDeskHQ shows exactly what is still needed</h3><p>Add the remaining information as it becomes available. Missing inputs stay visible and cannot be mistaken for completed work.</p></div>
       <button type="button" className="button button-primary button-small" onClick={onAddSources}>Add report inputs</button>
     </div>
-    {result.inputStatus.map((item) => {
+    {result.inputStatus.filter((item) => item.role !== "supportingEvidence").map((item) => {
       const available = item.available || (item.role === "ledgerExport" && (result.mappings.length > 0 || Boolean(result.financialAnalysis?.ledgerTransactionCount)));
       const presentation = inputPresentation(result, item.role, available);
       return <article key={item.role} className={`input-status-card ${available ? "is-available" : "is-missing"} ${presentation.tone === "review" ? "has-review" : ""}`}>
@@ -595,8 +757,66 @@ function Inputs({ result, onAddSources, onResolve }: { result: CompilationResult
       <div><div className="input-status-heading"><h3>{item.label}</h3><MappingStateBadge label={presentation.label} tone={presentation.tone} /></div><p>{presentation.detail || item.detail}</p>{!available && item.requiredForCompletion && <small>Needed before the report can be prepared for approval.</small>}</div>
       {!available && <button type="button" className="button button-secondary button-small" onClick={onAddSources}>{item.actionLabel}</button>}
     </article>;})}
+    <EvidenceCollection result={result} onAddEvidence={onAddEvidence} onRemoveEvidence={onRemoveEvidence} onConfirmEvidenceMatch={onConfirmEvidenceMatch} busy={evidenceBusy} />
     <ProgramChecks checks={programChecks} onAddSources={onAddSources} onResolve={onResolve} />
   </div>;
+}
+
+function EvidenceCollection({ result, onAddEvidence, onRemoveEvidence, onConfirmEvidenceMatch, busy }: { result: CompilationResult; onAddEvidence?(files: File[], replaceEvidenceId?: string): void; onRemoveEvidence?(evidenceId: string): void; onConfirmEvidenceMatch?(evidenceId: string, targetId: string): void; busy: boolean }) {
+  const evidence = result.evidenceFiles || [];
+  const matched = evidence.filter((file) => file.relevance === "matched").length;
+  const review = evidence.filter((file) => file.relevance === "review" || file.parsingStatus === "failed").length;
+  const irrelevant = evidence.filter((file) => file.relevance === "irrelevant").length;
+  const unmatched = evidence.filter((file) => file.relevance === "unmatched").length;
+  const addFiles = (event: ChangeEvent<HTMLInputElement>, replaceEvidenceId?: string) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    if (files.length) onAddEvidence?.(files, replaceEvidenceId);
+  };
+  return <section className="evidence-collection" aria-labelledby="evidence-collection-title">
+    <div className="evidence-collection-heading">
+      <div><p className="eyebrow">Supporting evidence</p><h3 id="evidence-collection-title">Evidence files stay separate and traceable</h3><p>GrantDeskHQ analyzes each file independently and matches it to requirements, KPI results, transactions, approvals, and open report issues.</p></div>
+      <label className={`button button-primary button-small ${busy || !onAddEvidence ? "is-disabled" : ""}`} htmlFor="saved-evidence-add"><UploadCloud aria-hidden="true" />{busy ? "Analyzing evidence…" : "Add evidence files"}</label>
+      <input id="saved-evidence-add" className="sr-only" type="file" multiple accept={evidenceAccept} disabled={busy || !onAddEvidence} onChange={addFiles} />
+    </div>
+    <div className="evidence-collection-summary">
+      <strong>{evidence.length} supporting evidence {evidence.length === 1 ? "file" : "files"}</strong>
+      <span>{matched} matched automatically · {review} {review === 1 ? "needs" : "need"} review · {unmatched} unmatched · {irrelevant} not relevant</span>
+    </div>
+    {!evidence.length && <div className="evidence-empty"><FileText aria-hidden="true" /><div><strong>No supporting evidence added yet</strong><p>Add only the records this award requires. Irrelevant files remain unmatched and cannot satisfy a requirement.</p></div></div>}
+    {evidence.length > 0 && <div className="evidence-file-list">{evidence.map((file) => <EvidenceFileCard key={file.id} file={file} busy={busy} onConfirm={(targetId) => onConfirmEvidenceMatch?.(file.id, targetId)} onReplace={(event) => addFiles(event, file.id)} onRemove={() => {
+      if (!onRemoveEvidence) return;
+      if (window.confirm(`Remove ${file.name}? This will not affect any other evidence file.`)) onRemoveEvidence(file.id);
+    }} />)}</div>}
+  </section>;
+}
+
+function EvidenceFileCard({ file, busy, onReplace, onRemove, onConfirm }: { file: SupportingEvidenceFile; busy: boolean; onReplace(event: ChangeEvent<HTMLInputElement>): void; onRemove(): void; onConfirm(targetId: string): void }) {
+  const presentation = evidenceFilePresentation(file);
+  const autoMatches = file.matches.filter((match) => match.status === "matched");
+  const suggestions = file.matches.filter((match) => match.status === "suggested");
+  return <article className={`evidence-file-card ${presentation.tone}`}>
+    <FileText aria-hidden="true" />
+    <div className="evidence-file-main">
+      <div className="evidence-file-title"><div><strong>{file.name}</strong><small>{file.mimeType || "File"} · {formatBytes(file.size)} · Uploaded {humanTimestamp(file.uploadedAt)}</small></div><MappingStateBadge label={presentation.label} tone={presentation.badgeTone} /></div>
+      <p>{file.parsingMessage || presentation.detail}</p>
+      {autoMatches.length > 0 && <div className="evidence-match-list"><strong>Matched automatically</strong>{autoMatches.map((match) => <span key={`${match.targetId}-${match.source.locator}`}><CheckCircle2 aria-hidden="true" />{match.targetLabel}<small>{Math.round(match.confidence * 100)}% · {match.source.locator}</small></span>)}</div>}
+      {suggestions.length > 0 && <div className="evidence-match-list suggestions"><strong>Suggested match — review needed</strong>{suggestions.map((match) => <span key={`${match.targetId}-${match.source.locator}`}><AlertTriangle aria-hidden="true" />{match.targetLabel}<small>{Math.round(match.confidence * 100)}% · {match.rationale}</small><button type="button" className="button button-secondary button-small" disabled={busy} onClick={() => onConfirm(match.targetId)}>Confirm match</button></span>)}</div>}
+    </div>
+    <div className="evidence-file-actions">
+      <label className="button button-secondary button-small" htmlFor={`saved-replace-${file.id}`}><RefreshCw aria-hidden="true" />Replace</label>
+      <input id={`saved-replace-${file.id}`} className="sr-only" type="file" accept={evidenceAccept} disabled={busy} onChange={onReplace} />
+      <button type="button" className="button button-secondary button-small" disabled={busy} onClick={onRemove}><Trash2 aria-hidden="true" />Remove</button>
+    </div>
+  </article>;
+}
+
+function evidenceFilePresentation(file: SupportingEvidenceFile): { label: string; detail: string; tone: string; badgeTone: "success" | "review" | "blocked" | "neutral" } {
+  if (file.parsingStatus === "failed") return { label: "Needs review", detail: "GrantDeskHQ could not finish parsing this file. Replace it or try again.", tone: "review", badgeTone: "review" };
+  if (file.relevance === "matched") return { label: "Matched", detail: "This file directly supports one or more report requirements.", tone: "matched", badgeTone: "success" };
+  if (file.relevance === "review") return { label: "Suggested match", detail: "The likely relationship is not confident enough to apply automatically.", tone: "review", badgeTone: "review" };
+  if (file.relevance === "irrelevant") return { label: "Not relevant", detail: "This file does not support a requirement in this report and has not cleared any item.", tone: "irrelevant", badgeTone: "neutral" };
+  return { label: "Unmatched", detail: "No direct match was found. The file remains available without satisfying a requirement.", tone: "unmatched", badgeTone: "neutral" };
 }
 
 function inputPresentation(result: CompilationResult, role: SourceRole, available: boolean): { label: string; tone: "success" | "review" | "blocked" | "neutral"; detail?: string } {
@@ -626,7 +846,7 @@ function inputPresentation(result: CompilationResult, role: SourceRole, availabl
   }
   if (role === "programUpdate") {
     const satisfiedChecks = satisfiedProgramCheckIds(result);
-    const open = (result.programChecks || []).filter((item) => item.severity !== "info" && item.resolution === "open" && !satisfiedChecks.has(item.id)).length;
+    const open = (result.programChecks || []).filter((item) => item.severity !== "info" && item.resolution === "open" && (item.type === "data_conflict" || !item.evidenceSatisfiedBy?.length) && !satisfiedChecks.has(item.id)).length;
     return open
       ? { label: `Available · ${open} ${open === 1 ? "item needs" : "items need"} review`, tone: "review", detail: `Program results are available. ${open} ${open === 1 ? "item still needs" : "items still need"} confirmation before the draft can be approved.` }
       : (result.programChecks?.length || result.narrative.some((item) => item.status === "verified" && item.evidenceType === "program_response"))
@@ -637,7 +857,7 @@ function inputPresentation(result: CompilationResult, role: SourceRole, availabl
 }
 
 function ProgramChecks({ checks, onAddSources, onResolve }: { checks: NonNullable<CompilationResult["programChecks"]>; onAddSources(): void; onResolve(id: string, resolution?: "resolved" | "not_applicable"): void }) {
-  const ordered = checks.filter((item) => item.resolution === "open" && item.severity !== "info").sort((left, right) => programPriority(left.severity) - programPriority(right.severity));
+  const ordered = checks.filter((item) => item.resolution === "open" && item.severity !== "info" && (item.type === "data_conflict" || !item.evidenceSatisfiedBy?.length)).sort((left, right) => programPriority(left.severity) - programPriority(right.severity));
   if (!ordered.length) return null;
   return <section className="program-checks" aria-labelledby="program-checks-title">
     <div className="program-checks-heading"><div><p className="eyebrow">Program items needing attention</p><h3 id="program-checks-title">Review only the unresolved results</h3><p>Completed source checks stay in the background. These are the program decisions or missing facts that still need your team.</p></div><span>{ordered.length} open</span></div>
@@ -645,7 +865,10 @@ function ProgramChecks({ checks, onAddSources, onResolve }: { checks: NonNullabl
       {check.severity === "info" || check.resolution !== "open" ? <CheckCircle2 aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
       <div><div className="program-check-label"><MappingStateBadge label={programSeverityLabel(check)} tone={check.resolution !== "open" || check.severity === "info" ? "success" : check.severity === "action_required" ? "blocked" : "review"} /><span>Owner: {check.owner}</span></div><h4>{check.title}</h4><p>{check.detail}</p>{check.severity !== "info" && <p className="program-next-step"><strong>Next step:</strong> {check.action}</p>}<small>{check.sources.map((source) => `${source.sourceName} · ${source.locator}`).join(" · ")}</small></div>
       {check.resolution === "open" && check.severity !== "info" && <div className="program-check-actions">
-        {check.type === "kpi_result" ? <button type="button" className="button button-primary button-small" onClick={onAddSources}>Add information</button> : <button type="button" className="button button-primary button-small" onClick={() => onResolve(`program-${check.id}`)}>Mark addressed</button>}
+        {check.type === "data_conflict" && check.evidenceBackedValue ? <>
+          <button type="button" className="button button-primary button-small" onClick={() => onResolve(`program-${check.id}`)}>Use {check.evidenceBackedValue} in report</button>
+          <button type="button" className="button button-secondary button-small" onClick={onAddSources}>Keep current value and explain</button>
+        </> : check.type === "kpi_result" ? <button type="button" className="button button-primary button-small" onClick={onAddSources}>Add information</button> : <button type="button" className="button button-primary button-small" onClick={() => onResolve(`program-${check.id}`)}>Mark addressed</button>}
         {check.type === "award_trigger" && <button type="button" className="button button-secondary button-small" onClick={() => onResolve(`program-${check.id}`, "not_applicable")}>Not applicable</button>}
       </div>}
     </article>)}</div>
@@ -808,12 +1031,58 @@ function findUnderlyingEvidenceRequirement(result: CompilationResult) {
 }
 
 function narrativeEvidenceState(result: CompilationResult, item: CompilationResult["narrative"][number], evidenceRequirement: CompilationResult["requirements"][number] | undefined) {
-  const isKpiClaim = /households?|participants?|KPI|retention|assessments?|screenings?|placed|served|outcomes?/i.test(item.text);
-  if (!isKpiClaim || !evidenceRequirement) return { tone: "neutral", label: "No separate requirement identified", detail: "The uploaded award did not identify a separate underlying-evidence requirement for this statement." };
-  const available = result.inputStatus.some((input) => input.role === "supportingEvidence" && input.available);
-  return available
-    ? { tone: "success", label: "Supporting files available", detail: "Confirm that the appropriate uploaded record supports this statement before approval." }
-    : { tone: "review", label: "Not yet uploaded", detail: `The narrative source supports this draft, but the award also requires underlying records: ${evidenceRequirement.requirement}` };
+  const families = narrativeClaimKpiFamilies(item.text);
+  if (!families.length || !evidenceRequirement) return { tone: "neutral", label: "No separate requirement identified", detail: "The uploaded award did not identify a separate underlying-evidence requirement for this statement." };
+  const filesByFamily = new Map<string, string[]>();
+  for (const file of result.evidenceFiles || []) {
+    if (file.parsingStatus !== "parsed" || file.relevance === "irrelevant" || file.relevance === "unmatched") continue;
+    for (const match of file.matches.filter((candidate) => candidate.status === "matched" && (candidate.confidence >= 0.88 || candidate.confirmedByUser))) {
+      for (const family of evidenceMatchKpiFamilies(file.name, match.targetId, match.rationale, match.source)) {
+        filesByFamily.set(family, [...new Set([...(filesByFamily.get(family) || []), file.name])]);
+      }
+    }
+  }
+  const missing = families.filter((family) => !filesByFamily.get(family)?.length);
+  const matchedFiles = [...new Set(families.flatMap((family) => filesByFamily.get(family) || []))];
+  if (!missing.length) return { tone: "success", label: "Underlying evidence matched", detail: matchedFiles.join(" · ") };
+  if (matchedFiles.length) return { tone: "review", label: "Some underlying evidence is still needed", detail: `Matched: ${matchedFiles.join(" · ")}. Still needed: ${missing.map(kpiFamilyLabel).join(", ")}.` };
+  return { tone: "review", label: "No matching evidence uploaded yet", detail: `The narrative source supports this draft, but the award also requires underlying records: ${evidenceRequirement.requirement}` };
+}
+
+function narrativeClaimKpiFamilies(value: string) {
+  const normalized = value.replace(/[_/\\-]+/g, " ");
+  const families: string[] = [];
+  if (/(?:served|serving)\s+\d[\d,]*\s+(?:unduplicated\s+)?households?|\d[\d,]*\s+(?:unduplicated\s+)?households?\s+(?:were\s+)?served/i.test(normalized)) families.push("p1");
+  if (/\d[\d,]*\s+(?:housing(?: stability)?\s+)?assessments?|(?:completed|reported)\s+\d[\d,]*\s+(?:housing(?: stability)?\s+)?assessments?/i.test(normalized)) families.push("p2");
+  if (/(?:placed|placing|secured|securing)\s+\d[\d,]*\s+(?:households?|(?:stable housing\s+)?placements?\b(?!\s+ready))|\d[\d,]*\s+(?:households?\s+(?:were\s+)?placed|(?:stable housing\s+)?placements?\b(?!\s+ready))/i.test(normalized)) families.push("p3");
+  if (/(?:120\s*days?|120 day)[^.]{0,100}\d[\d,]*\s+of\s+\d[\d,]*|\d[\d,]*\s+of\s+\d[\d,]*[^.]{0,100}(?:120\s*days?|120 day)/i.test(normalized)) families.push("p4");
+  if (/\d[\d,]*\s+(?:households?[^.]{0,30})?benefits?\s+screenings?|benefits?\s+screenings?[^.]{0,30}\d[\d,]*/i.test(normalized)) families.push("p5");
+  if (/(?:average\s+)?client satisfaction[^.]{0,40}\d+(?:\.\d+)?\s*(?:\/|out of)\s*5/i.test(normalized)) families.push("p6");
+  return [...new Set(families)];
+}
+
+function evidenceMatchKpiFamilies(fileName: string, targetId: string, rationale: string, source: CompilationResult["narrative"][number]["source"]) {
+  const explicitTarget = targetId.match(/(?:^|[:_-])(p[1-6])(?:$|[:_-])/i)?.[1]?.toLowerCase();
+  return [...new Set([
+    ...(explicitTarget ? [explicitTarget] : []),
+    ...narrativeKpiFamilies(`${fileName} ${rationale} ${source.sourceName} ${source.locator} ${source.excerpt}`)
+  ])];
+}
+
+function narrativeKpiFamilies(value: string) {
+  const normalized = value.replace(/[_/\\-]+/g, " ");
+  const families: string[] = [];
+  if (/\bp1\b|unduplicated households?|households? served|enrollment records?/i.test(normalized)) families.push("p1");
+  if (/\bp2\b|housing(?: stability)? assessments?|assessment records?|completed assessments?/i.test(normalized)) families.push("p2");
+  if (/\bp3\b|households? placed|placing\s+\d[\d,]*\s+households?|housing placements?|placement records?/i.test(normalized)) families.push("p3");
+  if (/\bp4\b|120 day|retention|follow up records?|remained (?:stably )?housed/i.test(normalized)) families.push("p4");
+  if (/\bp5\b|benefits? screenings?|screening records?/i.test(normalized)) families.push("p5");
+  if (/\bp6\b|client satisfaction|satisfaction survey|survey responses?/i.test(normalized)) families.push("p6");
+  return [...new Set(families)];
+}
+
+function kpiFamilyLabel(value: string) {
+  return ({ p1: "households served", p2: "housing assessments", p3: "housing placements", p4: "120-day housing retention", p5: "benefits screenings", p6: "client satisfaction" } as Record<string, string>)[value] || value.toUpperCase();
 }
 
 function Review({ result, onResolve, onDownload, onEditSetup, onAddSources }: { result: CompilationResult; onResolve(id: string, resolution?: "resolved" | "not_applicable"): void; onDownload(): void; onEditSetup(): void; onAddSources(): void }) {
@@ -829,7 +1098,7 @@ function Review({ result, onResolve, onDownload, onEditSetup, onAddSources }: { 
   return <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
     <div className="grid gap-3">
       <div className="attention-review-heading"><p className="eyebrow">Your review queue</p><h3>{attention.length} grouped {attention.length === 1 ? "decision" : "decisions"}</h3><p>GrantDeskHQ completed {machineCheckCount(result)} checks in the background. The items below group related checks so your team can focus on the decisions that need judgment.</p></div>
-      <div className="attention-summary-list">{attention.map((item) => <article key={item.id}><AlertTriangle aria-hidden="true" /><div><strong>{item.title}</strong><p>{item.detail}</p></div></article>)}</div>
+      <div className="attention-summary-list">{attention.map((item) => <article key={item.id} data-action-id={item.id} data-action-kind={item.kind}><AlertTriangle aria-hidden="true" /><div><strong>{item.title}</strong><p>{item.detail}</p></div></article>)}</div>
       {result.setupConflicts.map((conflict) => <article key={conflict.id} className="prototype-review-item blocked">
         <AlertTriangle aria-hidden="true" /><div><ReviewLabel status="blocked" /><h3>{conflict.title}</h3><p>{conflict.detail}</p><small>{conflict.source.sourceName} · {conflict.source.locator}</small></div><button type="button" className="button button-primary button-small" onClick={onEditSetup}>Fix report setup</button>
       </article>)}
@@ -1051,13 +1320,13 @@ function Field({ label, id, children }: { label: string; id: string; children: R
 
 function synchronizeClientResult(result: CompilationResult): CompilationResult {
   const findings = result.validation.findings;
-  const sourceMatchedItems = findings.filter((item) => item.verdict === "source_matched").length;
-  const itemsNeedingReview = findings.filter((item) => item.verdict === "review").length;
-  const blockedItems = findings.filter((item) => item.verdict === "blocked").length;
-  const blockedChecks = result.qualityChecks.filter((check) => check.required && check.status === "blocked").length;
-  const reviewChecks = result.qualityChecks.filter((check) => check.required && check.status === "review").length;
+  const sourceMatchedItems = findings.filter((item) => item.verdict === "source_matched" || item.evidenceSatisfiedBy?.length).length;
+  const itemsNeedingReview = findings.filter((item) => item.verdict === "review" && !item.evidenceSatisfiedBy?.length).length;
+  const blockedItems = findings.filter((item) => item.verdict === "blocked" && !item.evidenceSatisfiedBy?.length).length;
+  const blockedChecks = result.qualityChecks.filter((check) => check.required && check.status === "blocked" && !check.evidenceSatisfiedBy?.length).length;
+  const reviewChecks = result.qualityChecks.filter((check) => check.required && check.status === "review" && !check.evidenceSatisfiedBy?.length).length;
   const missingRequiredSources = result.inputStatus.filter((item) => item.requiredForCompletion && !item.available).length;
-  const openMissingInputs = result.missingInputs.filter((item) => item.status === "open").length;
+  const openMissingInputs = result.missingInputs.filter((item) => item.status === "open" && !item.evidenceSatisfiedBy?.length).length;
   const actionRequiredCount = result.setupConflicts.length + blockedChecks + blockedItems;
   const needsReviewCount = reviewChecks + itemsNeedingReview;
   const missingInputCount = Math.max(missingRequiredSources, openMissingInputs);
@@ -1091,25 +1360,32 @@ const roleHints: Array<[SourceRole, RegExp]> = [
 function assignPackageFiles(selected: File[], current: Partial<Record<SourceRole, File>>) {
   const assigned: Partial<Record<SourceRole, File>> = {};
   const occupied = new Set<SourceRole>(Object.keys(current) as SourceRole[]);
+  const evidence: File[] = [];
   const unmatched: File[] = [];
 
   for (const file of selected) {
     const hinted = roleHints.find(([role, pattern]) => pattern.test(file.name) && acceptsFile(role, file))?.[0];
+    if (hinted === "supportingEvidence") {
+      evidence.push(file);
+      continue;
+    }
     const role = hinted && !occupied.has(hinted)
       ? hinted
       : sourceFields.find((field) => !occupied.has(field.role) && acceptsFile(field.role, file))?.role;
     if (!role) {
-      unmatched.push(file);
+      if (acceptsEvidenceFile(file)) evidence.push(file);
+      else unmatched.push(file);
       continue;
     }
     assigned[role] = file;
     occupied.add(role);
   }
 
-  return { assigned, unmatched };
+  return { assigned, evidence, unmatched };
 }
 
 function acceptsFile(role: SourceRole, file: File) {
+  if (role === "supportingEvidence") return acceptsEvidenceFile(file);
   const field = sourceFields.find((candidate) => candidate.role === role);
   const extension = file.name.toLowerCase().match(/\.[a-z0-9]+$/)?.[0] || "";
   return Boolean(field?.accept.split(",").includes(extension));
@@ -1117,6 +1393,7 @@ function acceptsFile(role: SourceRole, file: File) {
 
 function sourceLabel(role: SourceRole) {
   if (role === "ledgerExport") return "Accounting data";
+  if (role === "supportingEvidence") return "Supporting evidence";
   return sourceFields.find((field) => field.role === role)?.label || "the recommended field";
 }
 
@@ -1138,9 +1415,15 @@ function indefiniteSourceLabel(role: SourceRole) {
   return `${/^[aeiou]/.test(label) ? "an" : "a"} ${label}`;
 }
 
-async function fileToCompilerFile(role: SourceRole, file: File): Promise<CompilerFile> {
-  return { role, name: file.name, mimeType: file.type || "application/octet-stream", size: file.size, data: await readAsDataUrl(file) };
+async function fileToCompilerFile(role: SourceRole, file: File, evidenceId?: string, uploadedAt?: string): Promise<CompilerFile> {
+  return { role, name: file.name, mimeType: file.type || "application/octet-stream", size: file.size, data: await readAsDataUrl(file), ...(evidenceId ? { evidenceId, uploadedAt: uploadedAt || new Date().toISOString() } : {}) };
 }
+
+function acceptsEvidenceFile(file: File) {
+  const extension = file.name.toLowerCase().match(/\.[a-z0-9]+$/)?.[0] || "";
+  return evidenceAccept.split(",").includes(extension);
+}
+
 
 function readAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -1155,6 +1438,12 @@ function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function humanTimestamp(value: string) {
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime())) return "time unavailable";
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }).format(parsed);
 }
 
 function cleanSourceLocator(locator: string) {

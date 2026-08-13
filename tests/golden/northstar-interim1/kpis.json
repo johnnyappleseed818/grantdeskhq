@@ -1,0 +1,9 @@
+{
+  "P1": { "actual": 172, "target": 300, "progressPercent": 57.3, "status": "ready" },
+  "P2": { "actual": 158, "narrativeValue": 160, "target": 270, "servedPercent": 91.9, "status": "conflict", "recommendedValue": 158, "evidencePresent": true },
+  "P3": { "actual": 98, "target": 180, "progressPercent": 54.4, "status": "ready" },
+  "P4": { "eligible": 49, "stable": 40, "actualPercent": 81.6, "targetPercent": 80, "status": "target_achieved" },
+  "P5": { "actual": 139, "target": 240, "progressPercent": 57.9, "status": "ready" },
+  "P6": { "responses": 80, "actual": 4.4, "target": 4.3, "status": "target_achieved" },
+  "readiness": { "ready": 5, "conflicts": 1, "awaitingConfirmation": 0, "total": 6 }
+}

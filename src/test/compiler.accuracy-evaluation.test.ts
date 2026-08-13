@@ -17,6 +17,14 @@ describe.skipIf(!enabled)("live AI accuracy release gate", () => {
     const result = await compileGrantReport(request);
     const evaluation = evaluateCompilationAccuracy(request, result);
     console.log(JSON.stringify({ event: "ai_accuracy_evaluation", ...evaluation }, null, 2));
+    if (!evaluation.passed) console.log(JSON.stringify({
+      event: "ai_accuracy_gate_diagnostics",
+      integrity: result.qualityChecks.find((item) => item.id === "deterministic-analysis-integrity"),
+      workflowFacts: result.qualityChecks.find((item) => item.id === "deterministic-workflow-facts"),
+      blockedNarrative: result.narrative.filter((item) => item.status === "blocked"),
+      requirementsWithoutAuthoritativeCitation: result.requirements.filter((item) => !request.files.some((file) => file.name === item.source.sourceName)),
+      verificationCompleteness: result.validation.findings.filter((item) => /verification-completeness/i.test(item.id))
+    }, null, 2));
     expect(evaluation.criticalFailures).toEqual([]);
     expect(evaluation.score).toBeGreaterThan(95);
     expect(evaluation.passed).toBe(true);

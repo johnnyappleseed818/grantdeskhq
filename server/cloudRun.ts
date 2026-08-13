@@ -2,13 +2,13 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { validateCompilationPreflightRequest, validateCompilationRequest, validateReadinessRequest } from "../src/lib/prototype.ts";
-import type { CompilationPreflightRequest, CompilationRequest, ReadinessRequest } from "../src/types/prototype.ts";
+import { MAX_EVIDENCE_FILE_BYTES, MAX_EVIDENCE_FILES, MAX_EVIDENCE_TOTAL_BYTES, validateCompilationPreflightRequest, validateCompilationRequest, validateReadinessRequest } from "../src/lib/prototype.ts";
+import type { CompilationPreflightRequest, CompilationRequest, CompilerFile, ReadinessRequest } from "../src/types/prototype.ts";
 import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { readBillingStatus, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmDailyScan, listReports, saveBillingEvent, saveCompilation, saveGtmAwardScan, saveGtmDailyScan, saveReview } from "./persistence.ts";
+import { addSupportingEvidence, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmDailyScan, listReports, removeSupportingEvidence, saveBillingEvent, saveCompilation, saveGtmAwardScan, saveGtmDailyScan, saveReview } from "./persistence.ts";
 import { runDailySocialScan } from "./gtmDailyScanner.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { requireGtmScheduler } from "./schedulerAuth.ts";
@@ -18,7 +18,7 @@ import { initialOpportunities } from "../src/data/gtmData.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
-const maxBodyBytes = 4_000_000;
+const maxBodyBytes = configuredPositiveInteger("MAX_REQUEST_BODY_BYTES", 24_000_000);
 const allowedOrigins = new Set(
   (process.env.CORS_ORIGINS || "https://grantdeskhq.com,https://www.grantdeskhq.com")
     .split(",")
@@ -55,6 +55,12 @@ createServer(async (request, response) => {
     if (savedReportMatch) return await handleSavedReport(request, response, savedReportMatch[1]);
     const reviewMatch = url.pathname.match(/^\/api\/reports\/(report_[a-f0-9]{32})\/review$/);
     if (reviewMatch) return await handleReview(request, response, reviewMatch[1]);
+    const evidenceCollectionMatch = url.pathname.match(/^\/api\/reports\/(report_[a-f0-9]{32})\/evidence$/);
+    if (evidenceCollectionMatch) return await handleEvidenceCollection(request, response, evidenceCollectionMatch[1]);
+    const evidenceItemMatch = url.pathname.match(/^\/api\/reports\/(report_[a-f0-9]{32})\/evidence\/(evidence_[a-zA-Z0-9_-]{8,80})$/);
+    if (evidenceItemMatch) return await handleEvidenceItem(request, response, evidenceItemMatch[1], evidenceItemMatch[2]);
+    const evidenceMatchReview = url.pathname.match(/^\/api\/reports\/(report_[a-f0-9]{32})\/evidence\/(evidence_[a-zA-Z0-9_-]{8,80})\/matches$/);
+    if (evidenceMatchReview) return await handleEvidenceMatchReview(request, response, evidenceMatchReview[1], evidenceMatchReview[2]);
     if (request.method !== "GET" && request.method !== "HEAD") return json(response, 405, { error: "Method not allowed." });
     return serveStatic(url.pathname, request.method === "HEAD", response);
   } catch (error) {
@@ -73,13 +79,21 @@ async function handleCompiler(request: IncomingMessage, response: ServerResponse
   const user = await requireUser(request);
   const input = await readJson(request) as CompilationRequest;
   if (!input || !Array.isArray(input.files)) return json(response, 400, { error: "A source package is required." });
-  const errors = validateCompilationRequest(input);
+  const errors = validateCompilationRequest(input, {
+    maxEvidenceFiles: configuredPositiveInteger("EVIDENCE_MAX_FILES", MAX_EVIDENCE_FILES),
+    maxEvidenceFileBytes: configuredPositiveInteger("EVIDENCE_MAX_FILE_BYTES", MAX_EVIDENCE_FILE_BYTES),
+    maxEvidenceTotalBytes: configuredPositiveInteger("EVIDENCE_MAX_TOTAL_BYTES", MAX_EVIDENCE_TOTAL_BYTES)
+  });
   if (errors.length) return json(response, 400, { error: errors.join(" ") });
   try {
     const existing = await readCompilationByRequest(user, input.requestId);
     if (existing) return json(response, 200, existing);
     const normalized = await normalizeCompilationSources(input);
-    const result = await compileGrantReport(normalized.request, normalized.ledgerRows);
+    const cached = await readCompilationAnalysisCache(normalized.request);
+    const result = cached || await finalizeCompilationAnalysisCache(
+      normalized.request,
+      await compileGrantReport(normalized.request, normalized.ledgerRows)
+    );
     return json(response, 200, await saveCompilation(user, normalized.request, result));
   } catch (error) {
     console.error("GrantDeskHQ compiler error:", error instanceof Error ? error.message : "Unknown error");
@@ -205,17 +219,41 @@ async function handleReports(request: IncomingMessage, response: ServerResponse)
 }
 
 async function handleSavedReport(request: IncomingMessage, response: ServerResponse, reportId: string) {
-  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
-  const saved = await readCompilationById(await requireUser(request), reportId);
+  if (!['GET', 'DELETE'].includes(request.method || "")) return json(response, 405, { error: "Method not allowed." });
+  const user = await requireUser(request);
+  if (request.method === "DELETE") return json(response, 200, await deleteReport(user, reportId));
+  const saved = await readCompilationById(user, reportId);
   return saved ? json(response, 200, saved) : json(response, 404, { error: "Saved report was not found." });
 }
 
 async function handleReview(request: IncomingMessage, response: ServerResponse, reportId: string) {
   if (request.method !== "PATCH") return json(response, 405, { error: "Method not allowed." });
   const user = await requireUser(request);
-  const input = await readJson(request) as { itemId?: string; result?: unknown };
-  if (!input.itemId || !input.result || typeof input.result !== "object") return json(response, 400, { error: "A reviewed item and report result are required." });
-  return json(response, 200, await saveReview(user, reportId, input.result as Awaited<ReturnType<typeof compileGrantReport>>, input.itemId));
+  const input = await readJson(request) as { itemId?: string; resolution?: "resolved" | "not_applicable" };
+  if (!input.itemId || (input.resolution && !["resolved", "not_applicable"].includes(input.resolution))) return json(response, 400, { error: "A valid reviewed item is required." });
+  return json(response, 200, await saveReview(user, reportId, input.itemId, input.resolution || "resolved"));
+}
+
+async function handleEvidenceCollection(request: IncomingMessage, response: ServerResponse, reportId: string) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  const user = await requireUser(request);
+  const input = await readJson(request) as { files?: CompilerFile[]; replaceEvidenceId?: string };
+  const files = input.files || [];
+  if (!files.length || files.length > MAX_EVIDENCE_FILES || files.some((file) => file.role !== "supportingEvidence")) return json(response, 400, { error: "Add one or more valid supporting evidence files." });
+  if (files.some((file) => file.size > configuredPositiveInteger("EVIDENCE_MAX_FILE_BYTES", MAX_EVIDENCE_FILE_BYTES))) return json(response, 400, { error: "One or more supporting evidence files exceed the configured file limit." });
+  return json(response, 200, await addSupportingEvidence(user, reportId, files, input.replaceEvidenceId));
+}
+
+async function handleEvidenceItem(request: IncomingMessage, response: ServerResponse, reportId: string, evidenceId: string) {
+  if (request.method !== "DELETE") return json(response, 405, { error: "Method not allowed." });
+  return json(response, 200, await removeSupportingEvidence(await requireUser(request), reportId, evidenceId));
+}
+
+async function handleEvidenceMatchReview(request: IncomingMessage, response: ServerResponse, reportId: string, evidenceId: string) {
+  if (request.method !== "PATCH") return json(response, 405, { error: "Method not allowed." });
+  const input = await readJson(request) as { targetId?: string };
+  if (!input.targetId?.trim()) return json(response, 400, { error: "Choose the suggested evidence match to confirm." });
+  return json(response, 200, await confirmEvidenceMatch(await requireUser(request), reportId, evidenceId, input.targetId));
 }
 
 function handleConfig(request: IncomingMessage, response: ServerResponse) {
@@ -289,7 +327,7 @@ function applyCors(request: IncomingMessage, response: ServerResponse) {
   const origin = request.headers.origin;
   if (!origin || !allowedOrigins.has(origin)) return;
   response.setHeader("Access-Control-Allow-Origin", origin);
-  response.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
+  response.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
   response.setHeader("Access-Control-Max-Age", "600");
   response.setHeader("Vary", "Origin");
@@ -302,4 +340,9 @@ function mime(filePath: string) {
     ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
     ".pdf": "application/pdf", ".csv": "text/csv; charset=utf-8", ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
   } as Record<string, string>)[extension] || "application/octet-stream";
+}
+
+function configuredPositiveInteger(name: string, fallback: number) {
+  const value = Number(process.env[name]);
+  return Number.isInteger(value) && value > 0 ? value : fallback;
 }

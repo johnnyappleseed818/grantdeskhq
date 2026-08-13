@@ -8,6 +8,7 @@ import type {
   SourceRole
 } from "../src/types/prototype.ts";
 import { buildProgramInsights, buildRetentionInsight, satisfiedProgramCheckIds } from "../src/lib/programInsights.ts";
+import { applyAnalysisIntegrityCheck } from "./analysisIntegrity.ts";
 
 type ResultBeforeWorkflow = Omit<CompilationResult, "setupConflicts" | "inputStatus" | "workflow">;
 
@@ -28,15 +29,15 @@ const inputDefinitions: Array<{
 ];
 
 export function applyWorkflowState(request: CompilationRequest, result: ResultBeforeWorkflow): CompilationResult {
-  const normalized = applyVerifiedProgramConclusions(normalizeProgramWorkflow(result));
+  const normalized = applyAnalysisIntegrityCheck(normalizeExplicitRequirementStatuses(applyVerifiedProgramConclusions(normalizeProgramWorkflow(result))));
   const setupConflicts = detectSetupConflicts(request, normalized.grantProfile);
   const inputStatus = buildInputStatus(request, normalized);
-  const blockedChecks = normalized.qualityChecks.filter((check) => check.required && check.status === "blocked").length;
-  const reviewChecks = normalized.qualityChecks.filter((check) => check.required && check.status === "review").length;
-  const blockedFindings = normalized.validation.findings.filter((finding) => finding.verdict === "blocked").length;
-  const reviewFindings = normalized.validation.findings.filter((finding) => finding.verdict === "review").length;
+  const blockedChecks = normalized.qualityChecks.filter((check) => check.required && check.status === "blocked" && !check.evidenceSatisfiedBy?.length).length;
+  const reviewChecks = normalized.qualityChecks.filter((check) => check.required && check.status === "review" && !check.evidenceSatisfiedBy?.length).length;
+  const blockedFindings = normalized.validation.findings.filter((finding) => finding.verdict === "blocked" && !finding.evidenceSatisfiedBy?.length).length;
+  const reviewFindings = normalized.validation.findings.filter((finding) => finding.verdict === "review" && !finding.evidenceSatisfiedBy?.length).length;
   const missingRequiredSources = inputStatus.filter((item) => item.requiredForCompletion && !item.available).length;
-  const openMissingInputs = normalized.missingInputs.filter((item) => item.status === "open").length;
+  const openMissingInputs = normalized.missingInputs.filter((item) => item.status === "open" && !item.evidenceSatisfiedBy?.length).length;
   const actionRequiredCount = setupConflicts.length + blockedChecks + blockedFindings;
   const needsReviewCount = reviewChecks + reviewFindings;
   const missingInputCount = Math.max(openMissingInputs, missingRequiredSources);
@@ -64,14 +65,48 @@ function normalizeProgramWorkflow(result: ResultBeforeWorkflow): ResultBeforeWor
   const controlById = new Map(result.financialAnalysis?.controls.map((control) => [control.id, control]) || []);
   const hasDateExclusions = result.mappings.some((mapping) => ["excluded_outside_period", "excluded_grant_period"].includes(mapping.reportTreatment || ""));
   const hasUnmappedTransaction = result.mappings.some((mapping) => mapping.reportTreatment === "needs_category_review" || mapping.mappingConfidence === "unmapped");
+  const unmappedTransactionIds = result.mappings
+    .filter((mapping) => mapping.reportTreatment === "needs_category_review" || mapping.mappingConfidence === "unmapped")
+    .map((mapping) => mapping.transactionId.toLowerCase());
+  const unmappedAmounts = result.mappings
+    .filter((mapping) => mapping.reportTreatment === "needs_category_review" || mapping.mappingConfidence === "unmapped")
+    .map((mapping) => `$${Math.abs(mapping.amount).toLocaleString("en-US", { maximumFractionDigits: 2 })}`.toLowerCase());
+  const privacyScanPassed = result.qualityChecks.some((check) => check.id === "deterministic-privacy-scan" && check.status === "passed");
   const retention = buildRetentionInsight(result);
+  const preparingInterimOne = /\binterim report 1\b/i.test(result.reportTitle);
 
   for (const check of result.programChecks) {
     const text = `${check.title} ${check.detail} ${check.action}`.toLowerCase();
     if (/installment|payment milestone/.test(text) && /acceptance|after submission|follows acceptance|conditional/.test(text)) {
       superseded.set(check.id, "Future milestone — no action is required until the report has been submitted and reviewed by the funder.");
+    } else if (preparingInterimOne && /matching[- ]funds?|cash contributions?/.test(text) && /interim report 2|second interim/.test(text)) {
+      superseded.set(check.id, "Future progress — matching-funds status is tracked for Interim Report 2 and does not block Interim Report 1.");
+    } else if ((/not (?:yet )?submitted|has not been submitted/.test(text)
+      || (preparingInterimOne && /internal|does not prove/.test(text)))
+      && /submit|submission|fund portal|report deadline/.test(text)
+      && !/(?:\b(?:is|was|became|appears|reported as)\s+(?:overdue|late)\b|\bpast due\b|\bmissed (?:the )?deadline\b)/.test(text)) {
+      superseded.set(check.id, "Submission milestone — this report is still being prepared. Submission status and the funder due date remain visible in the workflow but do not block drafting or export.");
+    } else if (hasFinancialAnalysis
+      && /unresolved/.test(text)
+      && /ledger|account|transaction/.test(text)
+      && /mapping|budget category|classification/.test(text)) {
+      superseded.set(check.id, "Ledger classification is controlled by the deterministic Financial Mapping state. Resolved mappings remain resolved, and any genuinely unmapped transaction is already represented by its grouped category decision.");
+    } else if (unmappedTransactionIds.some((id) => text.includes(id))
+      && /unresolved mapping|cannot be determined|cannot determine|not an approved budget category/.test(text)) {
+      superseded.set(check.id, "The transaction is already represented by the grouped category decision in Financial Mapping.");
+    } else if (hasUnmappedTransaction
+      && unmappedAmounts.some((amount) => text.includes(amount))
+      && /charge|transaction|program services/.test(text)
+      && /allowable|approved (?:grant[- ]|budget )?categor|insufficient|lacks enough description|cannot determine|unresolved classification/.test(text)) {
+      superseded.set(check.id, "The transaction is already represented by the grouped category decision in Financial Mapping.");
+    } else if (privacyScanPassed
+      && /privacy|prohibited participant information|participant-level illustrative|de-identified/.test(text)
+      && /confirm|review|does not document/.test(text)) {
+      superseded.set(check.id, "The deterministic privacy scan found no obvious prohibited PII in the current reporting content. Human review remains part of final approval, but this is not a separate open action.");
     } else if (hasFinancialAnalysis && /budget[- ]to[- ]actual|budget versus actual|variance explanation/.test(text)) {
       superseded.set(check.id, "GrantDeskHQ generated the budget-to-actual schedule from the verified award budget and uploaded ledger. Any required explanation is tracked with the financial exception.");
+    } else if (controls.has("budget-reallocation-approval") && /budget.{0,30}(?:reallocation|modification).{0,30}approval|approval.{0,30}budget.{0,30}(?:reallocation|modification)/.test(text)) {
+      superseded.set(check.id, "The financial controls already track the verified variance separately from whether a formal budget modification occurred. An overage alone is not evidence that the approved budget was changed or reallocated.");
     } else if (controlById.get("indirect-cost-limit")?.status === "passed" && /indirect/.test(text) && /cap|limit|reconcil|direct[- ]cost base|calculate/.test(text)) {
       superseded.set(check.id, controlById.get("indirect-cost-limit")!.detail);
     } else if (hasUnmappedTransaction && /new (?:grant )?budget category|creation of a new (?:grant )?budget category|program services budget category/.test(text)) {
@@ -80,7 +115,7 @@ function normalizeProgramWorkflow(result: ResultBeforeWorkflow): ResultBeforeWor
       superseded.set(check.id, `${retention.value}. ${retention.detail} Underlying follow-up records remain required as supporting evidence.`);
     } else if (controls.has("duplicate-transactions") && /duplicate/.test(text) && /ledger|transaction|general[- ]ledger/.test(text)) {
       superseded.set(check.id, "The duplicate is already excluded from provisional totals and tracked as one financial decision.");
-    } else if (hasDateExclusions && /out[- ]of[- ]period|outside.*period|pre[- ]grant|financial population/.test(text)) {
+    } else if (hasDateExclusions && /out[- ]of[- ]period|outside.*period|pre[- ]grant|financial population|period[- ]of[- ]performance|after.{0,120}reporting period|before.{0,120}grant start/.test(text)) {
       superseded.set(check.id, "Transactions outside the selected report or grant period were automatically excluded from current-period totals.");
     } else if ([...controls].some((id) => id.startsWith("assistance-")) && /emergency.{0,30}assistance|assistance.{0,30}(approval|support|documentation)/.test(text)) {
       superseded.set(check.id, "Emergency-assistance documentation and approvals are grouped into one financial evidence decision.");
@@ -176,9 +211,16 @@ function applyVerifiedProgramConclusions(result: ResultBeforeWorkflow): ResultBe
   };
 }
 
-export function buildInputStatus(request: CompilationRequest, result?: Pick<ResultBeforeWorkflow, "missingInputs" | "requirements">): ReportInputStatus[] {
+export function buildInputStatus(
+  request: CompilationRequest,
+  result?: Pick<ResultBeforeWorkflow, "missingInputs" | "requirements"> & Partial<Pick<ResultBeforeWorkflow, "evidenceFiles" | "grantProfile" | "narrative" | "mappings" | "financialAnalysis" | "programChecks">>
+): ReportInputStatus[] {
   const available = new Set(request.files.map((file) => file.role));
-  const evidenceRequired = Boolean(result?.missingInputs.some((item) => /receipt|attachment|supporting evidence|documentation/i.test(`${item.question} ${item.reason}`)));
+  if (result?.evidenceFiles?.length) available.add("supportingEvidence");
+  if (result && hasParsedAwardSource(result)) available.add("awardAgreement");
+  if (result && ((result.mappings?.length || 0) > 0 || Boolean(result.financialAnalysis?.ledgerTransactionCount))) available.add("ledgerExport");
+  if (result && hasParsedProgramSource(result)) available.add("programUpdate");
+  const evidenceRequired = Boolean(result?.missingInputs.some((item) => item.status === "open" && !item.evidenceSatisfiedBy?.length && /receipt|attachment|supporting evidence|documentation/i.test(`${item.question} ${item.reason}`)));
   const budgetFoundInAward = Boolean(result?.requirements.some((item) => item.status === "verified" && /\$\s*[\d,]+/.test(`${item.requirement} ${item.source.excerpt}`) && /approved budget|budget(?:ed)?|allocation|(?:personnel|travel|supplies|indirect|technology|assistance|occupancy|training|equipment)/i.test(`${item.requirement} ${item.source.excerpt}`)));
   return inputDefinitions.map((definition) => {
     const isAvailable = available.has(definition.role) || (definition.role === "approvedBudget" && budgetFoundInAward);
@@ -192,6 +234,54 @@ export function buildInputStatus(request: CompilationRequest, result?: Pick<Resu
       actionLabel: definition.actionLabel
     };
   });
+}
+
+export function normalizeExplicitRequirementStatuses<T extends Pick<ResultBeforeWorkflow, "requirements" | "validation">>(result: T): T {
+  const verdictByRequirement = new Map(result.validation.findings
+    .filter((finding) => finding.itemId.startsWith("requirement:"))
+    .map((finding) => [finding.itemId.slice("requirement:".length), finding.verdict]));
+  return {
+    ...result,
+    requirements: result.requirements.map((item) => {
+      const verdict = verdictByRequirement.get(item.id);
+      if (verdict === "source_matched") return { ...item, status: "verified" as const };
+      if (verdict === "blocked") return explicitRequirementHasExactSupport(item)
+        ? { ...item, status: "verified" as const }
+        : { ...item, status: "blocked" as const };
+      if (verdict === "review") return explicitRequirementHasExactSupport(item)
+        ? { ...item, status: "verified" as const }
+        : { ...item, status: "review" as const };
+      return item;
+    })
+  };
+}
+
+function explicitRequirementHasExactSupport(item: ResultBeforeWorkflow["requirements"][number]) {
+  if (item.confidence < 0.85 || !hasUsableSource(item.source)) return false;
+  const text = `${item.requirement} ${item.source.excerpt}`;
+  return !/\b(?:ambiguous|unclear|possibly|may require|could require|not (?:found|stated)|information required)\b/i.test(text);
+}
+
+function hasParsedProgramSource(result: Pick<ResultBeforeWorkflow, "requirements"> & Partial<Pick<ResultBeforeWorkflow, "grantProfile" | "narrative" | "programChecks">>) {
+  if (result.narrative?.some((item) => item.evidenceType === "program_response" && hasUsableSource(item.source))) return true;
+  const awardSources = new Set([
+    ...result.requirements.map((item) => item.source.sourceName),
+    ...Object.values(result.grantProfile || {}).flatMap((field) => field ? [field.source.sourceName] : [])
+  ]);
+  return Boolean(result.programChecks?.some((item) => item.sources.some((source) => hasUsableSource(source) && !awardSources.has(source.sourceName))));
+}
+
+function hasParsedAwardSource(result: Pick<ResultBeforeWorkflow, "requirements"> & Partial<Pick<ResultBeforeWorkflow, "grantProfile">>) {
+  if (result.requirements.some((item) => hasUsableSource(item.source))) return true;
+  return result.grantProfile ? Object.values(result.grantProfile).some((field) => field && hasUsableSource(field.source)) : false;
+}
+
+function hasUsableSource(source: { sourceName: string; locator: string; excerpt: string }) {
+  return Boolean(source.sourceName.trim()
+    && source.locator.trim()
+    && !/^(?:not found|unknown|not stated|information required)$/i.test(source.locator.trim())
+    && source.excerpt.trim()
+    && !/^(?:not stated|not found|information required)/i.test(source.excerpt.trim()));
 }
 
 function humanizeSourceSummary(summary: string, inputStatus: ReportInputStatus[]) {
@@ -266,7 +356,7 @@ export function detectSetupConflicts(
 }
 
 export function customerWarnings(warnings: string[], hasFinancialAnalysis = false) {
-  return warnings.filter((warning) => {
+  const customerFacing = warnings.filter((warning) => {
     const value = warning.toLowerCase();
     if (containsInternalSourceRole(value)) return false;
     if (/internal document|not been submitted to the funder|synthetic (?:test )?document|test content detected/.test(value)) return false;
@@ -275,6 +365,7 @@ export function customerWarnings(warnings: string[], hasFinancialAnalysis = fals
     if (hasFinancialAnalysis && /mapped .*spending|annual category amount|budget variance|variance explanation/.test(value)) return false;
     return true;
   });
+  return customerFacing.length ? customerFacing : ["Working draft — human review required."];
 }
 
 function containsInternalSourceRole(value: string) {
