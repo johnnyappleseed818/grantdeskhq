@@ -36,7 +36,7 @@ if [[ -z "${origin}" ]]; then
   exit 2
 fi
 
-if ! curl -fsS "${origin%/}/healthz" >/dev/null; then
+if ! curl -fsS "${origin%/}/api/health" >/dev/null; then
   rollback_if_allowed "basic health check failed"
   exit 1
 fi
