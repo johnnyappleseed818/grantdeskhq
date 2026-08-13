@@ -7,6 +7,7 @@ import { buildProgramInsights, buildProgramReadiness } from "../lib/programInsig
 import { buildReportAttention } from "../lib/reportAttention";
 import type {
   CompilationRequest,
+  CompilationResult,
   CompilerFile,
   PersistedCompilationResponse,
   SourceRole
@@ -176,7 +177,28 @@ export function splitStructuredSnapshots(response: RegressionApiResponse) {
     "evidenceMatches.json": state.evidenceMatches,
     "canonicalProgramState.json": state.canonicalProgramState,
     "actions.json": state.actions,
+    "integrity.json": integrityDiagnostic(response.result),
     "reportReadiness.json": state.reportReadiness
+  };
+}
+
+function integrityDiagnostic(result: CompilationResult) {
+  return {
+    status: result.integrity?.status || null,
+    criticalFailureCount: result.integrity?.criticalFailureCount || 0,
+    warningCount: result.integrity?.warningCount || 0,
+    assertions: (result.integrity?.assertions || []).map((assertion) => ({
+      id: assertion.id,
+      area: assertion.area,
+      severity: assertion.severity,
+      status: assertion.status,
+      detail: normalizeText(assertion.detail)
+    })).sort((left, right) => left.id.localeCompare(right.id)),
+    unresolvedQualityChecks: result.qualityChecks.filter((check) => check.required && ["blocked", "review"].includes(check.status)).map((check) => ({
+      id: check.id,
+      status: check.status,
+      detail: normalizeText(check.detail)
+    })).sort((left, right) => left.id.localeCompare(right.id))
   };
 }
 

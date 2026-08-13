@@ -13,6 +13,8 @@
     "pretest": "npm run generate:assets",
     "test": "vitest run",
     "test:grantdesk-regression": "node scripts/run-grantdesk-regression.mjs",
+    "test:reliability": "vitest run src/test/reliabilityHealth.test.ts --disableConsoleIntercept",
+    "canary:reliability": "node scripts/run-reliability-canary.mjs",
     "test:watch": "vitest",
     "eval:ai": "node scripts/run-ai-accuracy-eval.mjs",
     "build": "npm run generate:assets && tsc --noEmit && vite build && node scripts/create-spa-routes.js",

@@ -1,3 +1,5 @@
+import type { AnalysisManifest, AnalysisPerformance, ReportIntegrityResult } from "./reliability";
+
 export type SourceRole =
   | "awardAgreement"
   | "approvedBudget"
@@ -83,6 +85,7 @@ export interface PersistedCompilationResponse {
   report: SavedReportSummary;
   result: CompilationResult;
   sources: PersistedReportSource[];
+  manifest?: AnalysisManifest;
 }
 
 export type ReviewState = "verified" | "review" | "blocked" | "not_evaluated";
@@ -347,6 +350,9 @@ export interface CompilationResult {
   evidenceFiles?: SupportingEvidenceFile[];
   generatedAt: string;
   model: string;
+  analysisMetrics?: AnalysisPerformance;
+  integrity?: ReportIntegrityResult;
+  analysisManifest?: AnalysisManifest;
 }
 
 export type ReadinessSourceRole = "awardAgreement" | "reportingRequirements" | "approvedBudget";

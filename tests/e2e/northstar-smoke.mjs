@@ -34,7 +34,7 @@ page.setDefaultTimeout(30_000);
 let status = "FAIL";
 let browserCompilationRequest = "";
 page.on("request", (request) => {
-  if (request.method() === "POST" && /\/api\/(?:reports\/compile|compile-report)$/.test(new URL(request.url()).pathname)) {
+  if (request.method() === "POST" && /\/api\/(?:reports\/compile|compile-report)$/.test(new globalThis.URL(request.url()).pathname)) {
     browserCompilationRequest = request.postData() || browserCompilationRequest;
   }
 });

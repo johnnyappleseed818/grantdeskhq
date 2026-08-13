@@ -13,6 +13,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { GtmDashboardPage } from "./pages/GtmDashboardPage";
 import { ReadinessPage } from "./pages/ReadinessPage";
+import { ReliabilityDashboardPage } from "./pages/ReliabilityDashboardPage";
 import { AuthProvider } from "./lib/auth";
 import { AnalyticsManager } from "./lib/analytics";
 
@@ -48,6 +49,7 @@ export default function App() {
           <Route path="login" element={<LoginPage />} />
           <Route path="workspace" element={<WorkspacePage />} />
           <Route path="gtm" element={<GtmDashboardPage />} />
+          <Route path="internal/reliability" element={<ReliabilityDashboardPage />} />
           <Route path="readiness" element={<ReadinessPage />} />
           <Route path="assessment" element={<PilotPage />} />
           <Route path="pilot" element={<Navigate replace to="/assessment" />} />

@@ -174,7 +174,7 @@ export function applyEvidenceMatches(result: CompilationResult, evidenceFiles: S
         sources: [...item.sources, p2Evidence.source].filter((source, index, values) => values.findIndex((candidate) => candidate.sourceName === source.sourceName && candidate.locator === source.locator) === index)
       };
     }
-    if (satisfactionEvidence && itemFamilies.includes("p6") && /under validation|not confirmed|not finalized|confirmation needed|information required/i.test(`${item.title} ${item.detail}`)) {
+    if (satisfactionEvidence && itemFamilies.includes("p6") && (item.type === "kpi_result" || /under validation|not confirmed|not finalized|confirmation needed|information required/i.test(`${item.title} ${item.detail}`))) {
       const supersession = `Finalized satisfaction-survey evidence reports ${satisfactionEvidence.score} out of 5 across ${satisfactionEvidence.responses || "the supplied"} valid responses and supersedes the earlier pending-validation status. The stale-source discrepancy remains in the report history.`;
       return {
         ...item,

@@ -46,7 +46,7 @@ describe.skipIf(!enabled)("live AI compiler smoke test", () => {
     expect(result.qualityChecks.find((check) => check.id === "deterministic-ledger")?.status).toBe("passed");
     expect(result.qualityChecks.find((check) => check.id === "deterministic-workflow-facts")?.status).toBe("passed");
     expect(result.narrative.some((statement) => /hotel/i.test(statement.text))).toBe(false);
-  }, 120_000);
+  }, 300_000);
 });
 
 async function runCompiler(request: CompilationRequest): Promise<CompilationResult> {

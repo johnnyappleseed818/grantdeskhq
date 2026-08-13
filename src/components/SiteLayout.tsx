@@ -69,6 +69,7 @@ export function SiteLayout() {
               <NavLink key={label} to={href} className="nav-link">{label}</NavLink>
             ))}
             {gtmAllowed && <Link className="nav-link admin-nav-link" to="/gtm">GTM Command Center</Link>}
+            {gtmAllowed && <Link className="nav-link admin-nav-link" to="/internal/reliability">Reliability</Link>}
             <Link className="nav-link account-nav-link" to={user ? "/workspace" : "/login"}>{user ? "My workspace" : "Sign in"}</Link>
             <Link
               className="button button-primary whitespace-nowrap"
@@ -101,6 +102,7 @@ export function SiteLayout() {
               <Link to="/pricing">Pricing</Link>
               <Link to={user ? "/workspace" : "/login"}>{user ? "My workspace" : "Account sign in"}</Link>
               {gtmAllowed && <Link to="/gtm">GTM Command Center</Link>}
+              {gtmAllowed && <Link to="/internal/reliability">Reliability dashboard</Link>}
               <Link to="/assessment">Free first report</Link>
             </div>
           </div>

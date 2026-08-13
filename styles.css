@@ -3519,3 +3519,41 @@
   .gtm-tab-wrap { top: 4.5rem; }
   .readiness-preview { margin-top: .5rem; }
 }
+.reliability-page { min-height: 70vh; background: #f8fafc; }
+.reliability-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 2rem; margin-bottom: 2rem; }
+.reliability-header h1 { margin-top: .35rem; font-size: clamp(2rem, 4vw, 3.25rem); color: #0f172a; }
+.reliability-header p:last-child { margin-top: .7rem; max-width: 58rem; color: #475569; }
+.reliability-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
+.reliability-summary article { display: grid; gap: .35rem; min-height: 9rem; padding: 1.2rem; border: 1px solid #dbe3ee; border-radius: 1rem; background: white; box-shadow: 0 10px 25px rgb(15 23 42 / .04); }
+.reliability-summary svg { width: 1.35rem; color: #2563eb; }
+.reliability-summary span, .reliability-score-grid span { color: #64748b; font-size: .78rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.reliability-summary strong { align-self: end; font-size: 1.12rem; color: #0f172a; overflow-wrap: anywhere; }
+.reliability-summary small { color: #64748b; overflow-wrap: anywhere; }
+.reliability-health-healthy { border-color: #86efac !important; background: #f0fdf4 !important; }
+.reliability-health-healthy svg, .reliability-health-healthy strong { color: #166534; }
+.reliability-health-degraded { border-color: #fde68a !important; background: #fffbeb !important; }
+.reliability-health-unhealthy, .reliability-health-unknown { border-color: #fecaca !important; background: #fef2f2 !important; }
+.reliability-health-unhealthy svg, .reliability-health-unhealthy strong, .reliability-health-unknown svg, .reliability-health-unknown strong { color: #b91c1c; }
+.reliability-panel { margin-top: 1.25rem; padding: 1.4rem; border: 1px solid #dbe3ee; border-radius: 1rem; background: white; }
+.reliability-panel h2 { margin-bottom: 1rem; font-size: 1.15rem; color: #0f172a; }
+.reliability-score-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; }
+.reliability-score-grid > div { display: grid; gap: .45rem; padding: 1rem; border-radius: .8rem; background: #f8fafc; }
+.reliability-score-grid strong { font-size: 1.3rem; color: #0f172a; text-transform: uppercase; }
+.reliability-list, .reliability-drift { display: grid; gap: .75rem; }
+.reliability-list li, .reliability-drift li { display: flex; align-items: flex-start; gap: .75rem; padding: .9rem; border-radius: .75rem; background: #fff7ed; }
+.reliability-list svg { width: 1.15rem; flex: none; color: #c2410c; }
+.reliability-list p, .reliability-drift p, .reliability-incidents p { margin-top: .25rem; color: #475569; }
+.reliability-empty { display: flex; align-items: center; gap: .6rem; color: #166534; }
+.reliability-empty svg { width: 1.2rem; }
+.reliability-incidents { display: grid; gap: .85rem; }
+.reliability-incidents article { padding: 1rem; border: 1px solid #fed7aa; border-radius: .8rem; background: #fffaf3; }
+.reliability-incidents article > div:first-child { display: flex; align-items: center; gap: .7rem; }
+.reliability-incidents dl, .reliability-details { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .7rem; margin-top: .8rem; }
+.reliability-incidents dl div, .reliability-details div { display: grid; gap: .2rem; }
+.reliability-incidents dt, .reliability-details dt { color: #64748b; font-size: .78rem; text-transform: uppercase; }
+.reliability-incidents dd, .reliability-details dd { color: #0f172a; overflow-wrap: anywhere; }
+.reliability-two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+.reliability-drift li { background: #f8fafc; }
+.reliability-drift li > span { min-width: 5.5rem; font-size: .72rem; font-weight: 800; text-transform: uppercase; color: #9a3412; }
+@media (max-width: 900px) { .reliability-summary, .reliability-score-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .reliability-two-column { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .reliability-header { align-items: flex-start; flex-direction: column; } .reliability-summary, .reliability-score-grid, .reliability-incidents dl, .reliability-details { grid-template-columns: 1fr; } }

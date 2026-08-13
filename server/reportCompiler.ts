@@ -10,6 +10,7 @@ import { normalizeCompilationSources } from "./sourceNormalization.ts";
 import type { FinancialLedgerRow } from "./financialControls.ts";
 import { applyDeterministicProgramSourceFacts } from "./programSourceNormalization.ts";
 import { canonicalizeCompilationState, deriveExplicitSourceRequirements } from "./canonicalization.ts";
+import { applyRuntimeIntegrity } from "./reliability.ts";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = "gpt-5.6-terra";
@@ -42,7 +43,10 @@ interface OpenAIResponse {
 }
 
 export async function compileGrantReport(request: CompilationRequest, preparedLedgerRows?: FinancialLedgerRow[]): Promise<CompilationResult> {
+  const analysisStartedAt = Date.now();
+  const parserStartedAt = Date.now();
   const normalizedSources = preparedLedgerRows ? { request, ledgerRows: preparedLedgerRows } : await normalizeCompilationSources(request);
+  const parserDurationMs = Date.now() - parserStartedAt;
   request = normalizedSources.request;
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured.");
@@ -195,7 +199,16 @@ export async function compileGrantReport(request: CompilationRequest, preparedLe
     request,
     applyDeterministicAccuracyChecks(request, normalizeExplicitRequirementStatuses(result), normalizedSources.ledgerRows)
   );
-  return applyWorkflowState(request, canonicalizeCompilationState(request, deterministic));
+  const canonical = applyWorkflowState(request, canonicalizeCompilationState(request, {
+    ...deterministic,
+    analysisMetrics: {
+      analysisDurationMs: Date.now() - analysisStartedAt,
+      parserDurationMs,
+      llmDurationMs: Math.max(0, Date.now() - analysisStartedAt - parserDurationMs),
+      evidenceReconciliationDurationMs: 0
+    }
+  }));
+  return applyWorkflowState(request, applyRuntimeIntegrity(canonical));
 }
 
 async function auditMissingRequirements(

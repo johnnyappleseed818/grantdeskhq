@@ -8,13 +8,15 @@ import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { addSupportingEvidence, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmDailyScan, listReports, removeSupportingEvidence, saveBillingEvent, saveCompilation, saveGtmAwardScan, saveGtmDailyScan, saveReview } from "./persistence.ts";
+import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmDailyScan, readLatestReliabilityCanary, readReliabilityDashboard, listReports, removeSupportingEvidence, saveBillingEvent, saveCompilation, saveGtmAwardScan, saveGtmDailyScan, saveReview } from "./persistence.ts";
 import { runDailySocialScan } from "./gtmDailyScanner.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
-import { requireGtmScheduler } from "./schedulerAuth.ts";
+import { requireGtmScheduler, requireHealthScheduler } from "./schedulerAuth.ts";
 import { BillingError, billingSnapshotFromEvent, createCheckoutSession, isBillingConfigured, validateBillingSelection, verifyStripeSignature, type StripeWebhookEvent } from "./billing.ts";
 import { normalizeCompilationSources } from "./sourceNormalization.ts";
 import { initialOpportunities } from "../src/data/gtmData.ts";
+import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
+import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
@@ -36,7 +38,7 @@ createServer(async (request, response) => {
       return;
     }
     if (url.pathname === "/healthz" || url.pathname === "/api/health") {
-      return json(response, 200, { status: "ok", service: "grantdeskhq-prototype" });
+      return json(response, 200, { status: "ok", service: "grantdeskhq-prototype", environment: applicationEnvironment(), applicationRevision: applicationRevision(), deploymentRevision: deploymentRevision() });
     }
     if (url.pathname === "/api/config") return handleConfig(request, response);
     if (url.pathname === "/api/billing/checkout") return await handleBillingCheckout(request, response);
@@ -50,6 +52,11 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/daily-signals") return await handleGtmDailySignals(request, response);
     if (url.pathname === "/api/gtm/award-signals") return await handleGtmAwardSignals(request, response);
     if (url.pathname === "/api/gtm/daily-scan") return await handleGtmDailyScan(request, response);
+    if (url.pathname === "/api/internal/reliability/access") return await handleReliabilityAccess(request, response);
+    if (url.pathname === "/api/internal/reliability/summary") return await handleReliabilitySummary(request, response);
+    if (url.pathname === "/api/internal/reliability/dependencies") return await handleReliabilityDependencies(request, response);
+    if (url.pathname === "/api/internal/reliability/canary/latest") return await handleLatestReliabilityCanary(request, response);
+    if (url.pathname === "/api/internal/reliability/canary") return await handleReliabilityCanary(request, response);
     if (url.pathname === "/api/reports") return await handleReports(request, response);
     const savedReportMatch = url.pathname.match(/^\/api\/reports\/(report_[a-f0-9]{32})$/);
     if (savedReportMatch) return await handleSavedReport(request, response, savedReportMatch[1]);
@@ -193,6 +200,45 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
     awardCandidateCount: awardResult.status === "fulfilled" ? awardResult.value.opportunities.length : null,
     errors
   });
+}
+
+async function handleReliabilityAccess(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  requireGtmAdmin(await requireUser(request));
+  return json(response, 200, { allowed: true });
+}
+
+async function handleReliabilitySummary(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  requireGtmAdmin(await requireUser(request));
+  return json(response, 200, { reliability: await readReliabilityDashboard() });
+}
+
+async function handleReliabilityDependencies(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  requireGtmAdmin(await requireUser(request));
+  const dependencies = await checkReliabilityDependencies();
+  return json(response, dependencies.status === "healthy" ? 200 : 503, { dependencies });
+}
+
+async function handleLatestReliabilityCanary(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  requireGtmAdmin(await requireUser(request));
+  return json(response, 200, { canary: await readLatestReliabilityCanary() });
+}
+
+async function handleReliabilityCanary(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  if (request.headers["x-cloudscheduler"] || request.headers["x-grantdesk-health-scheduler"]) await requireHealthScheduler(request);
+  else requireGtmAdmin(await requireUser(request));
+  const input = await readJson(request).catch(() => ({})) as { trigger?: "daily" | "post_deploy" | "manual"; browserApiConsistency?: "pass" | "fail" | "not_evaluated" };
+  const result = await runNorthstarReliabilityCanary({
+    origin: process.env.RELIABILITY_CANARY_ORIGIN?.trim() || requestOrigin(request),
+    trigger: input.trigger || (request.headers["x-cloudscheduler"] ? "daily" : "manual"),
+    firebaseReferer: process.env.RELIABILITY_FIREBASE_REFERER || "https://grantdeskhq.com",
+    browserApiConsistency: input.browserApiConsistency || "not_evaluated"
+  });
+  return json(response, result.status === "healthy" ? 200 : 503, { canary: result });
 }
 
 async function handleReadiness(request: IncomingMessage, response: ServerResponse) {

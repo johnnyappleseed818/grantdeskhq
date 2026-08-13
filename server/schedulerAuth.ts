@@ -10,9 +10,17 @@ interface TokenInfo {
 }
 
 export async function requireGtmScheduler(request: IncomingMessage) {
-  const expectedEmail = process.env.GTM_SCHEDULER_SERVICE_ACCOUNT?.trim();
-  const expectedAudience = process.env.GTM_SCHEDULER_AUDIENCE?.trim();
-  if (!expectedEmail || !expectedAudience) throw new HttpError(503, "The GTM scheduler identity is not configured.");
+  return requireScheduler(request, process.env.GTM_SCHEDULER_SERVICE_ACCOUNT, process.env.GTM_SCHEDULER_AUDIENCE, "GTM");
+}
+
+export async function requireHealthScheduler(request: IncomingMessage) {
+  return requireScheduler(request, process.env.HEALTH_SCHEDULER_SERVICE_ACCOUNT, process.env.HEALTH_SCHEDULER_AUDIENCE, "reliability");
+}
+
+async function requireScheduler(request: IncomingMessage, configuredEmail: string | undefined, configuredAudience: string | undefined, label: string) {
+  const expectedEmail = configuredEmail?.trim();
+  const expectedAudience = configuredAudience?.trim();
+  if (!expectedEmail || !expectedAudience) throw new HttpError(503, `The ${label} scheduler identity is not configured.`);
   const authorization = request.headers.authorization || "";
   if (!authorization.startsWith("Bearer ")) throw new HttpError(401, "A verified scheduler identity is required.");
   const token = authorization.slice(7);
@@ -27,5 +35,5 @@ export async function requireGtmScheduler(request: IncomingMessage) {
     || Number(payload.exp || 0) <= now
     || !["https://accounts.google.com", "accounts.google.com"].includes(String(payload.iss || ""))
   ) throw new HttpError(401, "The scheduler identity is not authorized for this GrantDeskHQ job.");
-  return { email: payload.email };
+  return { email: payload.email, job: label };
 }

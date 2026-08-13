@@ -44,7 +44,9 @@ describe("report compilation idempotency", () => {
       prototypeFixture
     );
 
-    expect(firestoreWrites).toBe(3);
+    // First organization write is retried after 429, followed by the report and immutable analysis-manifest writes.
+    expect(firestoreWrites).toBe(4);
     expect(saved.reportId).toBe(compilationReportId("user-a", requestId));
+    expect(saved.manifest.canonicalBusinessStateHash).toMatch(/^[a-f0-9]{64}$/);
   });
 });

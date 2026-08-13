@@ -10,11 +10,16 @@ import { normalizeCompilationSources } from "./sourceNormalization.ts";
 import { applyWorkflowState, normalizeExplicitRequirementStatuses } from "./workflowState.ts";
 import { buildReportAttention } from "../src/lib/reportAttention.ts";
 import { canonicalizeRequirements } from "./reportCompiler.ts";
+import { CANONICAL_ANALYSIS_VERSION, CANONICALIZATION_SCHEMA_VERSION, REPORT_PROMPT_VERSION, SOURCE_PARSER_VERSION } from "./analysisVersions.ts";
+import { applyRuntimeIntegrity, buildAnalysisManifest, compareAnalysisManifests } from "./reliability.ts";
+import type { AnalysisManifest, AnalysisSourceManifest } from "../src/types/reliability.ts";
+import type { AnalysisDriftEvent, LastKnownGoodRelease, ReliabilityCanaryResult, ReliabilityDashboardSnapshot, ReliabilityIncident } from "../src/types/reliability.ts";
+import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
 
 const projectId = process.env.GOOGLE_CLOUD_PROJECT || "grantdeskhq-proto-ek-2026";
 const bucket = process.env.REPORT_FILES_BUCKET || "grantdeskhq-proto-ek-2026-report-files";
 const firestoreBase = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
-export const COMPILATION_VERSION = "2026-08-13-canonical-analysis-v31";
+export const COMPILATION_VERSION = CANONICAL_ANALYSIS_VERSION;
 let tokenCache: { token: string; expiresAt: number } | null = null;
 
 export async function saveCompilation(user: AuthenticatedUser, request: CompilationRequest, result: CompilationResult) {
@@ -27,9 +32,12 @@ export async function saveCompilation(user: AuthenticatedUser, request: Compilat
     const evidenceSuffix = evidenceId ? `${evidenceId}-` : "";
     const objectName = `${organizationId}/reports/${reportId}/sources/${file.role}-${evidenceSuffix}${safeName(file.name)}`;
     await uploadObject(accessToken, objectName, file);
-    return { role: file.role, name: file.name, mimeType: file.mimeType, size: file.size, objectName, ...(evidenceId ? { evidenceId, uploadedAt: file.uploadedAt || now } : {}) };
+    return { role: file.role, name: file.name, mimeType: file.mimeType, size: file.size, objectName, sha256: sourceFileHash(file), ...(evidenceId ? { evidenceId, uploadedAt: file.uploadedAt || now } : {}) };
   }));
-  const summary = summarize(reportId, request, result, now, now);
+  const finalized = finalizeReliabilityWorkflow(request, result, undefined, sources);
+  const manifest = buildAnalysisManifest({ reportId, result: finalized, sources: manifestSources(sources), createdAt: now });
+  const persistedResult = { ...finalized, analysisManifest: manifest };
+  const summary = summarize(reportId, request, persistedResult, now, now);
   await writeDocument(accessToken, `organizations/${organizationId}`, {
     id: organizationId, ownerUid: user.uid, ownerEmail: user.email, name: request.organizationName, createdAt: now, updatedAt: now
   });
@@ -39,13 +47,15 @@ export async function saveCompilation(user: AuthenticatedUser, request: Compilat
     ownerUid: user.uid,
     requestId: request.requestId || "",
     compilationVersion: COMPILATION_VERSION,
-    resultJson: JSON.stringify(result),
-    coreResultJson: JSON.stringify(result),
+    resultJson: JSON.stringify(persistedResult),
+    coreResultJson: JSON.stringify(persistedResult),
+    manifestJson: JSON.stringify(manifest),
     sourcesJson: JSON.stringify(sources),
     coreSourcesJson: JSON.stringify(sources.filter((source) => source.role !== "supportingEvidence")),
     auditJson: JSON.stringify([...setupAudit, { at: now, actorUid: user.uid, action: "compiled", detail: "Our AI-powered solution prepared the draft, then completed an independent source check and deterministic validation." }])
   });
-  return { reportId, report: summary, result, sources: publicSources(sources) };
+  await persistAnalysisManifest(accessToken, `organizations/${organizationId}/reports/${reportId}`, manifest);
+  return { reportId, report: summary, result: persistedResult, sources: publicSources(sources), manifest };
 }
 
 export async function readCompilationByRequest(user: AuthenticatedUser, requestId: string | undefined): Promise<PersistedCompilationResponse | null> {
@@ -70,7 +80,7 @@ export async function readCompilationByRequest(user: AuthenticatedUser, requestI
     createdAt: String(record.createdAt || ""),
     updatedAt: String(record.updatedAt || "")
   };
-  return { reportId, report, result, sources: publicSources(persistedSources(record)) };
+  return { reportId, report, result, sources: publicSources(persistedSources(record)), ...(parseAnalysisManifest(record.manifestJson) ? { manifest: parseAnalysisManifest(record.manifestJson)! } : {}) };
 }
 
 export async function readCompilationById(user: AuthenticatedUser, reportId: string): Promise<PersistedCompilationResponse | null> {
@@ -94,7 +104,7 @@ export async function readCompilationById(user: AuthenticatedUser, reportId: str
     createdAt: String(record.createdAt || ""),
     updatedAt: String(record.updatedAt || "")
   };
-  return { reportId, report, result, sources: publicSources(persistedSources(record)) };
+  return { reportId, report, result, sources: publicSources(persistedSources(record)), ...(parseAnalysisManifest(record.manifestJson) ? { manifest: parseAnalysisManifest(record.manifestJson)! } : {}) };
 }
 
 export function compilationReportId(userUid: string, requestId: string | undefined) {
@@ -106,6 +116,8 @@ export function compilationReportId(userUid: string, requestId: string | undefin
 export function compilationAnalysisCacheKey(request: CompilationRequest) {
   const digest = createHash("sha256");
   digest.update(COMPILATION_VERSION);
+  digest.update(`\0${CANONICALIZATION_SCHEMA_VERSION}\0${REPORT_PROMPT_VERSION}\0${SOURCE_PARSER_VERSION}`);
+  digest.update(`\0${process.env.OPENAI_MODEL || "gpt-5.6-terra"}\0${process.env.OPENAI_VERIFIER_MODEL || "gpt-5.6-luna"}`);
   digest.update("\0");
   digest.update(request.organizationName.trim());
   digest.update("\0");
@@ -174,9 +186,23 @@ export async function deleteReport(user: AuthenticatedUser, reportId: string) {
   const record = await readOwnedReportRecord(user, reportId);
   const sources = persistedSources(record.existing);
   for (const source of sources) await deleteObject(record.accessToken, source.objectName);
+  await deleteAnalysisManifestHistory(record.accessToken, record.path);
   const response = await authorizedFetch(`${firestoreBase}/${record.path}`, record.accessToken, { method: "DELETE" });
   if (!response.ok && response.status !== 404) throw new Error(`Saved report could not be deleted (${response.status}).`);
   return { reportId, deleted: true };
+}
+
+async function deleteAnalysisManifestHistory(accessToken: string, reportPath: string) {
+  const response = await authorizedFetch(`${firestoreBase}/${reportPath}/analyses?pageSize=100`, accessToken);
+  if (response.status === 404) return;
+  if (!response.ok) throw new Error(`Analysis manifest history could not be enumerated for cleanup (${response.status}).`);
+  const body = await response.json() as { documents?: Array<{ name?: string }> };
+  for (const document of body.documents || []) {
+    const relative = document.name?.split("/documents/")[1];
+    if (!relative?.startsWith(`${reportPath}/analyses/`)) continue;
+    const deleted = await authorizedFetch(`${firestoreBase}/${relative}`, accessToken, { method: "DELETE" });
+    if (!deleted.ok && deleted.status !== 404) throw new Error(`Analysis manifest history could not be cleaned up (${deleted.status}).`);
+  }
 }
 
 export async function saveReview(user: AuthenticatedUser, reportId: string, itemId: string, resolution: "resolved" | "not_applicable" = "resolved") {
@@ -194,14 +220,17 @@ export async function saveReview(user: AuthenticatedUser, reportId: string, item
   const now = new Date().toISOString();
   const priorAudit = JSON.parse(String(existing.auditJson || "[]")) as unknown[];
   const requestLike = reportRequest(existing, sources);
-  const summary = summarize(reportId, requestLike, result, String(existing.createdAt), now, Number(existing.sourceCount || 0));
+  const finalized = withAnalysisManifest(reportId, requestLike, result, sources, now);
+  const summary = summarize(reportId, requestLike, finalized.result, String(existing.createdAt), now, Number(existing.sourceCount || 0));
   await writeDocument(accessToken, path, {
     ...existing,
     ...summary,
-    resultJson: JSON.stringify(result),
+    resultJson: JSON.stringify(finalized.result),
+    manifestJson: JSON.stringify(finalized.manifest),
     auditJson: JSON.stringify([...priorAudit, { at: now, actorUid: user.uid, action: "review_confirmed", itemId, resolution }])
   });
-  return { reportId, report: summary, result, sources: publicSources(sources) };
+  await persistAnalysisManifest(accessToken, path, finalized.manifest, parseAnalysisManifest(existing.manifestJson));
+  return { reportId, report: summary, result: finalized.result, sources: publicSources(sources), manifest: finalized.manifest };
 }
 
 export function applyBoundedReviewDecision(result: CompilationResult, itemId: string, resolution: "resolved" | "not_applicable" = "resolved") {
@@ -241,6 +270,7 @@ export function applyBoundedReviewDecision(result: CompilationResult, itemId: st
 }
 
 export async function addSupportingEvidence(user: AuthenticatedUser, reportId: string, files: CompilerFile[], replaceEvidenceId?: string): Promise<PersistedCompilationResponse> {
+  const reconciliationStartedAt = Date.now();
   validateEvidenceFiles(files);
   if (replaceEvidenceId && !isEvidenceId(replaceEvidenceId)) throw new Error("Invalid evidence identifier.");
   const record = await readOwnedReportRecord(user, reportId);
@@ -267,20 +297,30 @@ export async function addSupportingEvidence(user: AuthenticatedUser, reportId: s
   const now = new Date().toISOString();
   const sourceRecords = [...remainingSources, ...uploadedSources];
   assertCoreSourceBindingsPreserved(priorSources, sourceRecords);
-  const updatedResult = refreshEvidenceWorkflow(record.existing, sourceRecords, applyEvidenceMatches(priorResult, mergedEvidence));
+  const updatedResult = refreshEvidenceWorkflow(record.existing, sourceRecords, {
+    ...applyEvidenceMatches(priorResult, mergedEvidence),
+    analysisMetrics: {
+      ...(priorResult.analysisMetrics || { analysisDurationMs: 0, parserDurationMs: 0, llmDurationMs: 0, evidenceReconciliationDurationMs: 0 }),
+      evidenceReconciliationDurationMs: Date.now() - reconciliationStartedAt
+    }
+  });
   const authoritativeSources = synchronizeEvidenceSourceState(sourceRecords, updatedResult.evidenceFiles || []);
-  const summary = summarize(reportId, reportRequest(record.existing, authoritativeSources), updatedResult, String(record.existing.createdAt), now, authoritativeSources.length);
+  const requestLike = reportRequest(record.existing, authoritativeSources);
+  const finalized = withAnalysisManifest(reportId, requestLike, updatedResult, authoritativeSources, now);
+  const summary = summarize(reportId, requestLike, finalized.result, String(record.existing.createdAt), now, authoritativeSources.length);
   const audit = JSON.parse(String(record.existing.auditJson || "[]")) as unknown[];
   await writeDocument(record.accessToken, record.path, {
     ...record.existing,
     ...summary,
-    resultJson: JSON.stringify(updatedResult),
+    resultJson: JSON.stringify(finalized.result),
+    manifestJson: JSON.stringify(finalized.manifest),
     sourcesJson: JSON.stringify(authoritativeSources),
     auditJson: JSON.stringify([...audit, { at: now, actorUid: user.uid, action: replaceEvidenceId ? "evidence_replaced" : "evidence_added", evidenceIds: analyzed.map((item) => item.id) }])
   });
+  await persistAnalysisManifest(record.accessToken, record.path, finalized.manifest, parseAnalysisManifest(record.existing.manifestJson));
   const replacedSource = priorSources.find((source) => source.evidenceId === replaceEvidenceId);
   if (replacedSource?.objectName) await deleteObject(record.accessToken, replacedSource.objectName);
-  return { reportId, report: summary, result: updatedResult, sources: publicSources(authoritativeSources) };
+  return { reportId, report: summary, result: finalized.result, sources: publicSources(authoritativeSources), manifest: finalized.manifest };
 }
 
 export async function removeSupportingEvidence(user: AuthenticatedUser, reportId: string, evidenceId: string): Promise<PersistedCompilationResponse> {
@@ -296,17 +336,21 @@ export async function removeSupportingEvidence(user: AuthenticatedUser, reportId
   const updatedResult = refreshEvidenceWorkflow(record.existing, sourceRecords, applyEvidenceMatches(priorResult, evidenceFiles));
   const authoritativeSources = synchronizeEvidenceSourceState(sourceRecords, updatedResult.evidenceFiles || []);
   const now = new Date().toISOString();
-  const summary = summarize(reportId, reportRequest(record.existing, authoritativeSources), updatedResult, String(record.existing.createdAt), now, authoritativeSources.length);
+  const requestLike = reportRequest(record.existing, authoritativeSources);
+  const finalized = withAnalysisManifest(reportId, requestLike, updatedResult, authoritativeSources, now);
+  const summary = summarize(reportId, requestLike, finalized.result, String(record.existing.createdAt), now, authoritativeSources.length);
   const audit = JSON.parse(String(record.existing.auditJson || "[]")) as unknown[];
   await writeDocument(record.accessToken, record.path, {
     ...record.existing,
     ...summary,
-    resultJson: JSON.stringify(updatedResult),
+    resultJson: JSON.stringify(finalized.result),
+    manifestJson: JSON.stringify(finalized.manifest),
     sourcesJson: JSON.stringify(authoritativeSources),
     auditJson: JSON.stringify([...audit, { at: now, actorUid: user.uid, action: "evidence_removed", evidenceId }])
   });
+  await persistAnalysisManifest(record.accessToken, record.path, finalized.manifest, parseAnalysisManifest(record.existing.manifestJson));
   await deleteObject(record.accessToken, removedSource.objectName);
-  return { reportId, report: summary, result: updatedResult, sources: publicSources(authoritativeSources) };
+  return { reportId, report: summary, result: finalized.result, sources: publicSources(authoritativeSources), manifest: finalized.manifest };
 }
 
 export async function confirmEvidenceMatch(user: AuthenticatedUser, reportId: string, evidenceId: string, targetId: string): Promise<PersistedCompilationResponse> {
@@ -333,16 +377,20 @@ export async function confirmEvidenceMatch(user: AuthenticatedUser, reportId: st
   const updatedResult = refreshEvidenceWorkflow(record.existing, updatedSources, applyEvidenceMatches(priorResult, evidenceFiles));
   const authoritativeSources = synchronizeEvidenceSourceState(updatedSources, updatedResult.evidenceFiles || []);
   const now = new Date().toISOString();
-  const summary = summarize(reportId, reportRequest(record.existing, authoritativeSources), updatedResult, String(record.existing.createdAt), now, authoritativeSources.length);
+  const requestLike = reportRequest(record.existing, authoritativeSources);
+  const finalized = withAnalysisManifest(reportId, requestLike, updatedResult, authoritativeSources, now);
+  const summary = summarize(reportId, requestLike, finalized.result, String(record.existing.createdAt), now, authoritativeSources.length);
   const audit = JSON.parse(String(record.existing.auditJson || "[]")) as unknown[];
   await writeDocument(record.accessToken, record.path, {
     ...record.existing,
     ...summary,
-    resultJson: JSON.stringify(updatedResult),
+    resultJson: JSON.stringify(finalized.result),
+    manifestJson: JSON.stringify(finalized.manifest),
     sourcesJson: JSON.stringify(authoritativeSources),
     auditJson: JSON.stringify([...audit, { at: now, actorUid: user.uid, action: "evidence_match_confirmed", evidenceId, targetId }])
   });
-  return { reportId, report: summary, result: updatedResult, sources: publicSources(authoritativeSources) };
+  await persistAnalysisManifest(record.accessToken, record.path, finalized.manifest, parseAnalysisManifest(record.existing.manifestJson));
+  return { reportId, report: summary, result: finalized.result, sources: publicSources(authoritativeSources), manifest: finalized.manifest };
 }
 
 export async function saveGtmDailyScan(scan: DailySocialScan) {
@@ -363,6 +411,127 @@ export async function readGtmDailyScan(): Promise<DailySocialScan | null> {
   const record = decodeFields(document.fields || {});
   if (!record.scanJson) return null;
   return JSON.parse(String(record.scanJson)) as DailySocialScan;
+}
+
+export async function saveReliabilityCanaryResult(result: ReliabilityCanaryResult) {
+  const accessToken = await gcpToken();
+  const record = {
+    runId: result.runId,
+    status: result.status,
+    completedAt: result.completedAt,
+    deploymentRevision: result.deploymentRevision,
+    canaryJson: JSON.stringify(result)
+  };
+  await writeDocument(accessToken, `reliability/canary/runs/${safeDocumentId(result.runId)}`, record);
+  await writeDocument(accessToken, "reliability/canary", record);
+  return result;
+}
+
+export async function saveReliabilityDriftEvents(events: AnalysisDriftEvent[]) {
+  if (!events.length) return [];
+  const accessToken = await gcpToken();
+  const recordedAt = new Date().toISOString();
+  await Promise.all(events.map((event) => writeDocument(accessToken, `reliability/canary/driftEvents/${safeDocumentId(event.id)}`, {
+    id: event.id,
+    level: event.level,
+    field: event.field,
+    recordedAt,
+    eventJson: JSON.stringify(event)
+  })));
+  return events;
+}
+
+export async function readLatestReliabilityCanary(): Promise<ReliabilityCanaryResult | null> {
+  const response = await authorizedFetch(`${firestoreBase}/reliability/canary`, await gcpToken());
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Reliability state could not be loaded (${response.status}).`);
+  const record = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
+  return parseCanaryResult(record.canaryJson);
+}
+
+export async function readReliabilityDashboard(): Promise<ReliabilityDashboardSnapshot> {
+  const accessToken = await gcpToken();
+  const [latest, runs, drift, incidents, lastKnownGood] = await Promise.all([
+    readLatestReliabilityCanary(),
+    queryReliabilityCollection<ReliabilityCanaryResult>(accessToken, "reliability/canary/runs?pageSize=20&orderBy=completedAt%20desc", "canaryJson"),
+    queryReliabilityCollection<AnalysisDriftEvent>(accessToken, "reliability/canary/driftEvents?pageSize=20&orderBy=recordedAt%20desc", "eventJson"),
+    queryReliabilityCollection<ReliabilityIncident>(accessToken, "reliability/canary/incidents?pageSize=50&orderBy=updatedAt%20desc", "incidentJson"),
+    readLastKnownGoodRelease()
+  ]);
+  return {
+    environment: applicationEnvironment(),
+    applicationRevision: applicationRevision(),
+    deploymentRevision: deploymentRevision(),
+    overallHealth: latest?.status || "unknown",
+    latestCanary: latest,
+    lastSuccessfulCanary: runs.find((run) => run.status === "healthy")?.completedAt || null,
+    recentDriftEvents: drift,
+    recentDeployments: [...new Set(runs.map((run) => run.deploymentRevision).filter(Boolean))].slice(0, 10),
+    activeIncidents: incidents.filter((incident) => ["open", "unknown"].includes(incident.finalStatus)),
+    escalatedIncidents: incidents.filter((incident) => incident.finalStatus === "escalated"),
+    lastKnownGood
+  };
+}
+
+export async function saveReliabilityIncident(incident: ReliabilityIncident) {
+  await writeDocument(await gcpToken(), `reliability/canary/incidents/${safeDocumentId(incident.incidentId)}`, {
+    incidentId: incident.incidentId,
+    lifecycle: incident.lifecycle,
+    severity: incident.severity,
+    updatedAt: incident.updatedAt,
+    incidentJson: JSON.stringify(incident)
+  });
+  return incident;
+}
+
+export async function saveLastKnownGoodRelease(release: LastKnownGoodRelease) {
+  await writeDocument(await gcpToken(), "reliability/last-known-good", {
+    recordedAt: release.recordedAt,
+    deploymentRevision: release.deploymentRevision,
+    releaseJson: JSON.stringify(release)
+  });
+  return release;
+}
+
+export async function readLastKnownGoodRelease(): Promise<LastKnownGoodRelease | null> {
+  const response = await authorizedFetch(`${firestoreBase}/reliability/last-known-good`, await gcpToken());
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Last-known-good release could not be loaded (${response.status}).`);
+  const record = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
+  try { return record.releaseJson ? JSON.parse(String(record.releaseJson)) as LastKnownGoodRelease : null; }
+  catch { return null; }
+}
+
+export async function saveReliabilityArtifact(runId: string, kind: string, value: unknown) {
+  const accessToken = await gcpToken();
+  const objectName = `reliability/canary/${safeDocumentId(runId)}/${safeName(kind)}.json`;
+  const body = Buffer.from(`${JSON.stringify(value, null, 2)}\n`);
+  const response = await fetch(`https://storage.googleapis.com/upload/storage/v1/b/${bucket}/o?uploadType=media&name=${encodeURIComponent(objectName)}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body
+  });
+  if (!response.ok) throw new Error(`Reliability diagnostic artifact could not be stored (${response.status}).`);
+  return objectName;
+}
+
+export async function checkReliabilityDependencies() {
+  const startedAt = Date.now();
+  try {
+    const accessToken = await gcpToken();
+    const [firestore, storage] = await Promise.all([
+      authorizedFetch(`${firestoreBase}/reliability/canary`, accessToken),
+      authorizedFetch(`https://storage.googleapis.com/storage/v1/b/${bucket}`, accessToken)
+    ]);
+    return {
+      status: firestore.ok || firestore.status === 404 ? storage.ok ? "healthy" : "unhealthy" : "unhealthy",
+      firestore: firestore.ok || firestore.status === 404 ? "reachable" : `error_${firestore.status}`,
+      storage: storage.ok ? "reachable" : `error_${storage.status}`,
+      durationMs: Date.now() - startedAt
+    };
+  } catch (error) {
+    return { status: "unknown", firestore: "unknown", storage: "unknown", durationMs: Date.now() - startedAt, errorCategory: error instanceof Error ? error.name : "unknown_error" };
+  }
 }
 
 export async function saveGtmAwardScan(scan: AwardDiscoveryScan) {
@@ -432,6 +601,7 @@ export interface StoredSource {
   mimeType: string;
   size: number;
   objectName: string;
+  sha256?: string;
   evidenceId?: string;
   uploadedAt?: string;
   parsingStatus?: SupportingEvidenceFile["parsingStatus"];
@@ -457,6 +627,7 @@ function evidenceSourceRecord(file: CompilerFile, evidence: SupportingEvidenceFi
     mimeType: file.mimeType,
     size: file.size,
     objectName,
+    sha256: sourceFileHash(file),
     evidenceId: evidence.id,
     uploadedAt: evidence.uploadedAt,
     parsingStatus: evidence.parsingStatus,
@@ -479,6 +650,52 @@ function publicSources(sources: StoredSource[]): PersistedReportSource[] {
   }));
 }
 
+function manifestSources(sources: StoredSource[]): AnalysisSourceManifest[] {
+  return sources.map((source) => ({
+    role: source.role,
+    name: source.name,
+    size: source.size,
+    sha256: source.sha256 || createHash("sha256").update(`${source.role}\0${source.objectName}\0${source.size}`).digest("hex"),
+    ...(source.relevance ? { relevance: source.relevance } : {}),
+    ...(source.evidenceMatches?.length ? { evidenceTargetIds: source.evidenceMatches.filter((match) => match.status === "matched" || match.confirmedByUser).map((match) => match.targetId).sort() } : {})
+  }));
+}
+
+function sourceFileHash(file: CompilerFile) {
+  const encoded = file.data.split(",", 2)[1] || "";
+  return createHash("sha256").update(Buffer.from(encoded, "base64")).digest("hex");
+}
+
+function finalizeReliabilityWorkflow(request: CompilationRequest, result: CompilationResult, priorManifest?: AnalysisManifest, sources: StoredSource[] = []) {
+  return applyWorkflowState(request, applyRuntimeIntegrity(result, priorManifest, manifestSources(sources)));
+}
+
+function withAnalysisManifest(reportId: string, request: CompilationRequest, result: CompilationResult, sources: StoredSource[], createdAt: string) {
+  const finalized = finalizeReliabilityWorkflow(request, result, undefined, sources);
+  const manifest = buildAnalysisManifest({ reportId, result: finalized, sources: manifestSources(sources), createdAt });
+  return { result: { ...finalized, analysisManifest: manifest }, manifest };
+}
+
+function parseAnalysisManifest(value: unknown): AnalysisManifest | undefined {
+  try {
+    const parsed = JSON.parse(String(value || "")) as Partial<AnalysisManifest>;
+    return parsed?.analysisId && parsed?.canonicalBusinessStateHash && Array.isArray(parsed.sourceFiles) ? parsed as AnalysisManifest : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function persistAnalysisManifest(accessToken: string, reportPath: string, manifest: AnalysisManifest, prior?: AnalysisManifest) {
+  await writeDocument(accessToken, `${reportPath}/analyses/${safeDocumentId(manifest.analysisId)}`, {
+    analysisId: manifest.analysisId,
+    createdAt: manifest.createdAt,
+    canonicalBusinessStateHash: manifest.canonicalBusinessStateHash,
+    deploymentRevision: manifest.deploymentRevision,
+    manifestJson: JSON.stringify(manifest)
+  });
+  if (prior) await saveReliabilityDriftEvents(compareAnalysisManifests(prior, manifest).events);
+}
+
 export function synchronizeEvidenceSourceState(sources: StoredSource[], evidenceFiles: SupportingEvidenceFile[]) {
   const authoritative = new Map(evidenceFiles.map((file) => [file.id, file]));
   return sources.map((source) => {
@@ -494,7 +711,8 @@ export function synchronizeEvidenceSourceState(sources: StoredSource[], evidence
 }
 
 function refreshEvidenceWorkflow(record: Record<string, unknown>, sources: StoredSource[], result: CompilationResult) {
-  return applyWorkflowState(reportRequest(record, sources), result);
+  const request = reportRequest(record, sources);
+  return finalizeReliabilityWorkflow(request, applyWorkflowState(request, result), undefined, sources);
 }
 
 async function reconcilePersistedResult(record: Record<string, unknown>, result: CompilationResult, accessToken: string) {
@@ -502,7 +720,8 @@ async function reconcilePersistedResult(record: Record<string, unknown>, result:
   const request = reportRequest(record, sources);
   let normalized = normalizeExplicitRequirementStatuses(canonicalizePersistedRequirements(restoreCoreFinancialBaseline(record, result)));
   if (mappingsNeedDeterministicRecovery(normalized)) normalized = await recoverDeterministicFinancialState(request, sources, normalized, accessToken);
-  return applyWorkflowState(request, applyEvidenceMatches(normalized, result.evidenceFiles || []));
+  const reconciled = applyWorkflowState(request, applyEvidenceMatches(normalized, result.evidenceFiles || []));
+  return finalizeReliabilityWorkflow(request, reconciled, parseAnalysisManifest(record.manifestJson), sources);
 }
 
 function canonicalizePersistedRequirements(result: CompilationResult): CompilationResult {
@@ -733,6 +952,27 @@ async function readCachedJson<T>(accessToken: string, path: string, field: strin
   if (record.compilationVersion !== COMPILATION_VERSION || !record[field]) return null;
   try { return JSON.parse(String(record[field])) as T; }
   catch { return null; }
+}
+
+async function queryReliabilityCollection<T>(accessToken: string, path: string, field: string): Promise<T[]> {
+  const response = await authorizedFetch(`${firestoreBase}/${path}`, accessToken);
+  if (response.status === 404) return [];
+  if (!response.ok) throw new Error(`Reliability history could not be loaded (${response.status}).`);
+  const body = await response.json() as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> };
+  return (body.documents || []).flatMap((document) => {
+    const record = decodeFields(document.fields || {});
+    try { return record[field] ? [JSON.parse(String(record[field])) as T] : []; }
+    catch { return []; }
+  });
+}
+
+function parseCanaryResult(value: unknown): ReliabilityCanaryResult | null {
+  try {
+    const parsed = JSON.parse(String(value || "")) as Partial<ReliabilityCanaryResult>;
+    return parsed?.runId && parsed?.status && Array.isArray(parsed.assertions) ? parsed as ReliabilityCanaryResult : null;
+  } catch {
+    return null;
+  }
 }
 
 async function writeDocumentIfAbsent(accessToken: string, path: string, record: Record<string, unknown>) {

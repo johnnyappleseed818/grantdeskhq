@@ -34,6 +34,7 @@ Cloud Run application: [grantdeskhq-prototype-me423s5k5a-uc.a.run.app](https://g
 | `/workspace` | Account-isolated saved report workspace |
 | `/readiness` | Free source-linked Grant Reporting Readiness Audit |
 | `/gtm` | Administrator-only GTM command center, alert queue, source registry, and progress monitor |
+| `/internal/reliability` | Administrator-only reliability canary, integrity, drift, and recovery dashboard |
 | `/sample-report` | Print-ready funder-report review package |
 | `/privacy` | Private-beta and test-file data-handling boundaries |
 | `/pricing` | Essentials, Growth, and Portfolio pricing with secure subscription checkout |
@@ -257,6 +258,12 @@ STRIPE_PRICE_PORTFOLIO_ANNUAL=price_...
 STRIPE_EARLY_ACCESS_COUPON_ID=grantdeskhq_early_access_50_first_year
 GTM_SCHEDULER_SERVICE_ACCOUNT=grantdeskhq-gtm-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com
 GTM_SCHEDULER_AUDIENCE=https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app
+HEALTH_SCHEDULER_SERVICE_ACCOUNT=grantdeskhq-health-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com
+HEALTH_SCHEDULER_AUDIENCE=https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app
+RELIABILITY_CANARY_ORIGIN=https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app
+RELIABILITY_FIREBASE_REFERER=https://grantdeskhq.com
+# Optional private webhook; store its value in Secret Manager, never in Git.
+RELIABILITY_ALERT_WEBHOOK_URL=https://alerts.example.invalid/grantdesk
 ```
 
 `GOOGLE_ANALYTICS_MEASUREMENT_ID` and `CLARITY_PROJECT_ID` are public
@@ -505,6 +512,74 @@ successful results to separate private Firestore records, and preserves the
 last good result if one source is delayed. Social results stay research-only;
 award candidates stay blocked until a named recipient and authoritative role
 and email sources are attached.
+
+## Reliability canary and self-health operations
+
+GrantDeskHQ persists an immutable manifest for each completed report analysis.
+It records the application/deployment, model, verifier, prompt, parser,
+canonicalization and evaluation versions; source hashes; source, evidence,
+ledger, requirement, KPI and action counts; canonical business-state hash;
+readiness; blockers; and stage durations. Runtime deterministic invariants block
+report readiness when ledger population, category totals, indirect-cost math,
+KPI actuals, evidence provenance, approval evidence, persistence, or material
+narrative claims contradict canonical state.
+
+The versioned `northstar-interim1-v1` synthetic canary uses the existing fixture
+and golden structured expectations. It creates a disposable Identity Platform
+account, creates two independent reports, uploads all core and evidence files,
+checks the full financial/KPI/evidence/approval/action state, proves same-report
+idempotency and cross-report determinism, saves private diagnostic artifacts,
+and deletes the reports and disposable identity. Raw customer content is not
+sent to alert channels.
+
+Health levels are explicit: `healthy`, `degraded`, `unhealthy`, and `unknown`.
+A canary that cannot execute is never healthy. The internal dashboard at
+`/internal/reliability` is protected by the same administrator allowlist as the
+GTM dashboard.
+
+Run the canary manually with a scheduler OIDC identity:
+
+```bash
+ORIGIN="https://candidate-tag---grantdeskhq-prototype-me423s5k5a-uc.a.run.app"
+TOKEN="$(gcloud auth print-identity-token \
+  --project=grantdeskhq-proto-ek-2026 \
+  --audiences="${ORIGIN}" \
+  --impersonate-service-account=grantdeskhq-health-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com)"
+GRANTDESK_HEALTH_ID_TOKEN="${TOKEN}" npm run canary:reliability -- "${ORIGIN}" manual
+```
+
+Run the complete post-deployment gate against a zero-traffic candidate. The
+script does not promote traffic unless `GRANTDESK_PROMOTE_VERIFIED_CANDIDATE=1`
+and an exact candidate revision are also supplied:
+
+```bash
+GRANTDESK_CANDIDATE_ORIGIN="${ORIGIN}" ./scripts/post-deploy-reliability-gate.sh
+```
+
+Create or update the daily 05:20 UTC Cloud Scheduler job:
+
+```bash
+GRANTDESK_CANARY_ORIGIN="https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app" \
+GRANTDESK_RELIABILITY_INFRA_CONFIRM=grantdeskhq-proto-ek-2026 \
+./scripts/configure-reliability-scheduler.sh
+```
+
+Inspect, pause, resume, or change its cadence:
+
+```bash
+gcloud scheduler jobs describe grantdeskhq-daily-reliability-canary --project=grantdeskhq-proto-ek-2026 --location=us-central1
+gcloud scheduler jobs pause grantdeskhq-daily-reliability-canary --project=grantdeskhq-proto-ek-2026 --location=us-central1
+gcloud scheduler jobs resume grantdeskhq-daily-reliability-canary --project=grantdeskhq-proto-ek-2026 --location=us-central1
+GRANTDESK_RELIABILITY_SCHEDULE="20 6 * * *" GRANTDESK_CANARY_ORIGIN="https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app" GRANTDESK_RELIABILITY_INFRA_CONFIRM=grantdeskhq-proto-ek-2026 ./scripts/configure-reliability-scheduler.sh
+```
+
+Failed canaries save private JSON artifacts under
+`gs://grantdeskhq-proto-ek-2026-report-files/reliability/canary/<run-id>/`.
+Use the dashboard for current failures, drift, incidents, recovery attempts,
+last-known-good deployment/model/prompt identity, and verification result.
+Automatic recovery is bounded to three attempts and only retries/requeues or
+rebuilds derived state from unchanged sources. It cannot alter uploaded files,
+accounting facts, KPI actuals, ambiguous categories, or approval state.
 
 ## Netlify deployment
 
