@@ -544,6 +544,7 @@ ORIGIN="https://candidate-tag---grantdeskhq-prototype-me423s5k5a-uc.a.run.app"
 TOKEN="$(gcloud auth print-identity-token \
   --project=grantdeskhq-proto-ek-2026 \
   --audiences="${ORIGIN}" \
+  --include-email \
   --impersonate-service-account=grantdeskhq-health-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com)"
 GRANTDESK_HEALTH_ID_TOKEN="${TOKEN}" npm run canary:reliability -- "${ORIGIN}" manual
 ```
