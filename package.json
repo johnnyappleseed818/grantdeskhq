@@ -24,7 +24,8 @@
     "gtm:test": "node scripts/gtm/gtm.test.mjs",
     "gtm:reddit": "node scripts/gtm/scan-reddit-api.mjs",
     "gtm:awards": "node --experimental-strip-types scripts/gtm/scan-usaspending-awards.mjs",
-    "stripe:configure": "node --experimental-strip-types scripts/configure-stripe-pricing.mjs"
+    "stripe:configure": "node --experimental-strip-types scripts/configure-stripe-pricing.mjs",
+    "search:submit": "node scripts/submit-indexnow.mjs"
   },
   "dependencies": {
     "fflate": "^0.8.3",

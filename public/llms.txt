@@ -1,0 +1,21 @@
+# GrantDeskHQ
+
+GrantDeskHQ is AI-powered post-award grant reporting software for nonprofit finance, grants, program, and review teams.
+
+The product turns award agreements, approved budget data, general-ledger exports, program updates, funder forms, and supporting evidence into a source-linked reporting workflow. It extracts reporting obligations, calculates budget-to-actual schedules deterministically, links narrative claims to their sources, reconciles supporting evidence, and surfaces the few decisions that require professional judgment.
+
+GrantDeskHQ does not submit reports to funders or replace accounting, legal, audit, or compliance review.
+
+## Public pages
+
+- Product overview: https://grantdeskhq.com/
+- Interactive demo: https://grantdeskhq.com/demo
+- Synthetic sample report: https://grantdeskhq.com/sample-report
+- Pricing: https://grantdeskhq.com/pricing
+- Free first report: https://grantdeskhq.com/assessment
+- Free readiness audit: https://grantdeskhq.com/readiness
+- Privacy and data handling: https://grantdeskhq.com/privacy
+
+## Audience
+
+Nonprofit organizations and grant-funded teams that manage restricted grants, post-award reporting, financial schedules, program metrics, supporting evidence, and funder compliance.
