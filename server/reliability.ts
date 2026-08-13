@@ -321,13 +321,10 @@ function financialFacts(result: CompilationResult) {
 }
 
 function indirectIntegrityAssertion(result: CompilationResult, included: CompilationResult["mappings"]): ReliabilityAssertion {
-  const rule = result.requirements.map((item) => `${item.requirement} ${item.source.excerpt}`).find((text) => /indirect/i.test(text) && /%/.test(text) && /direct costs?/i.test(text));
+  const rule = extractIndirectRuleTerms(result);
   const control = result.financialAnalysis?.controls.find((item) => item.id === "indirect-cost-limit");
   if (!rule || !control) return notEvaluated("indirect-cost", "financial", "No applicable indirect-cost rule and calculated control were both available.");
-  const indirectClause = isolateIndirectCostClause(rule);
-  const percent = Number((indirectClause.match(/(\d+(?:\.\d+)?)\s*%\s+of\s+(?:total\s+)?direct costs?/i)
-    || indirectClause.match(/(?:indirect costs?).{0,160}?(\d+(?:\.\d+)?)\s*%/i))?.[1]);
-  const fixedCap = Number((indirectClause.match(/\$\s*([\d,]+(?:\.\d+)?)/)?.[1] || "").replaceAll(",", ""));
+  const { percent, fixedCap } = rule;
   if (!Number.isFinite(percent)) return check("indirect-cost", "financial", "critical", false, "The indirect-cost percentage could not be derived from its canonical rule.");
   const direct = money(included.filter((item) => !/indirect/i.test(item.suggestedCategory)).reduce((sum, item) => sum + item.amount, 0));
   const charged = money(included.filter((item) => /indirect/i.test(item.suggestedCategory)).reduce((sum, item) => sum + item.amount, 0));
@@ -435,13 +432,20 @@ function extractFinancialClaimValue(text: string, category: string) {
   return undefined;
 }
 
-function isolateIndirectCostClause(value: string) {
-  const clauses = value.split(/[;\n]|(?<=[.!?])\s+/).map((item) => item.trim()).filter(Boolean);
-  const exact = clauses.find((item) => /indirect/i.test(item) && /\d+(?:\.\d+)?\s*%/.test(item) && /direct costs?/i.test(item));
-  if (exact) return exact;
-  const indirectIndex = value.search(/indirect/i);
-  if (indirectIndex < 0) return value;
-  return value.slice(Math.max(0, indirectIndex - 120), indirectIndex + 260);
+function extractIndirectRuleTerms(result: CompilationResult) {
+  for (const item of result.requirements) {
+    const text = `${item.requirement} ${item.source.excerpt}`;
+    const forward = text.match(/indirect costs?.{0,320}?(?:lesser of\s+)?(?:\$\s*([\d,]+(?:\.\d+)?)\s+(?:or|and)\s+)?(\d+(?:\.\d+)?)\s*%\s+of\s+(?:total\s+)?direct costs?/i);
+    const reverse = text.match(/(\d+(?:\.\d+)?)\s*%\s+of\s+(?:total\s+)?direct costs?.{0,240}?indirect costs?/i);
+    if (!forward && !reverse) continue;
+    const percent = Number((forward?.[2] || reverse?.[1] || "").replaceAll(",", ""));
+    const fixedCapText = forward?.[1]
+      || text.slice(Math.max(0, (forward?.index || reverse?.index || 0) - 160), (forward?.index || reverse?.index || 0) + 360).match(/\$\s*([\d,]+(?:\.\d+)?)/)?.[1]
+      || "";
+    const fixedCap = Number(fixedCapText.replaceAll(",", ""));
+    if (Number.isFinite(percent)) return { percent, fixedCap };
+  }
+  return null;
 }
 
 function check(id: string, area: ReliabilityAssertion["area"], severity: ReliabilityAssertion["severity"], passed: boolean, detail: string, expected?: unknown, actual?: unknown): ReliabilityAssertion {

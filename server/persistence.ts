@@ -521,7 +521,7 @@ export async function checkReliabilityDependencies() {
     const accessToken = await gcpToken();
     const [firestore, storage] = await Promise.all([
       authorizedFetch(`${firestoreBase}/reliability/canary`, accessToken),
-      authorizedFetch(`https://storage.googleapis.com/storage/v1/b/${bucket}`, accessToken)
+      authorizedFetch(`https://storage.googleapis.com/storage/v1/b/${bucket}/o?maxResults=1&fields=kind`, accessToken)
     ]);
     return {
       status: firestore.ok || firestore.status === 404 ? storage.ok ? "healthy" : "unhealthy" : "unhealthy",

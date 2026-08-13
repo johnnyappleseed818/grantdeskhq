@@ -47,7 +47,7 @@ export async function runNorthstarReliabilityCanary(options: NorthstarCanaryOpti
   let analysisPerformance: AnalysisPerformance | undefined;
   const driftEvents: AnalysisDriftEvent[] = [];
   try {
-    const basic = await fetchWithRetry(`${origin}/healthz`, {}, 3);
+    const basic = await fetchWithRetry(`${origin}/api/health`, {}, 3);
     assertions.push(assertion("service-health", "availability", "critical", basic.ok, "The deployed service health endpoint is reachable.", 200, basic.status));
     const dependencies = await checkReliabilityDependencies();
     assertions.push(assertion("dependency-health", "availability", "critical", dependencies.status === "healthy", "Firestore and private source storage are reachable.", "healthy", dependencies.status));
@@ -132,9 +132,9 @@ export async function runNorthstarReliabilityCanary(options: NorthstarCanaryOpti
     let incident = createReliabilityIncident(diagnosis, reportIds);
     if (diagnosis.automaticRecoveryAllowed && diagnosis.recommendedRecoveryAction === "bounded_retry") {
       incident = await attemptAutomaticRecovery(incident, {
-        boundedRetry: async () => { await fetchWithRetry(`${origin}/healthz`, {}, 3); },
+        boundedRetry: async () => { await fetchWithRetry(`${origin}/api/health`, {}, 3); },
         verify: async () => {
-          const response = await fetch(`${origin}/healthz`);
+          const response = await fetch(`${origin}/api/health`);
           return { passed: response.ok, detail: response.ok ? "Service health recovered after bounded retry." : `Service health remained unavailable (${response.status}).` };
         }
       });
