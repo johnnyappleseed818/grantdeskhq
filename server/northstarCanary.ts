@@ -50,7 +50,7 @@ export async function runNorthstarReliabilityCanary(options: NorthstarCanaryOpti
     const basic = await fetchWithRetry(`${origin}/api/health`, {}, 3);
     assertions.push(assertion("service-health", "availability", "critical", basic.ok, "The deployed service health endpoint is reachable.", 200, basic.status));
     const dependencies = await checkReliabilityDependencies();
-    assertions.push(assertion("dependency-health", "availability", "critical", dependencies.status === "healthy", "Firestore and private source storage are reachable.", "healthy", dependencies.status));
+    assertions.push(assertion("dependency-health", "availability", "critical", dependencies.status === "healthy", "Firestore, private source storage, and the configured model provider are reachable.", "healthy", dependencies.status));
 
     identity = await createDisposableIdentity(origin, options.firebaseReferer);
     const request = northstarCanaryRequest(randomUUID());

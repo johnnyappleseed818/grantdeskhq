@@ -519,14 +519,22 @@ export async function checkReliabilityDependencies() {
   const startedAt = Date.now();
   try {
     const accessToken = await gcpToken();
-    const [firestore, storage] = await Promise.all([
+    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    const [firestore, storage, modelProvider] = await Promise.all([
       authorizedFetch(`${firestoreBase}/reliability/canary`, accessToken),
-      authorizedFetch(`https://storage.googleapis.com/storage/v1/b/${bucket}/o?maxResults=1&fields=kind`, accessToken)
+      authorizedFetch(`https://storage.googleapis.com/storage/v1/b/${bucket}/o?maxResults=1&fields=kind`, accessToken),
+      apiKey
+        ? fetch("https://api.openai.com/v1/models", { headers: { Authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(15_000) })
+        : Promise.resolve(null)
     ]);
+    const firestoreReachable = firestore.ok || firestore.status === 404;
+    const storageReachable = storage.ok;
+    const modelReachable = Boolean(modelProvider?.ok);
     return {
-      status: firestore.ok || firestore.status === 404 ? storage.ok ? "healthy" : "unhealthy" : "unhealthy",
-      firestore: firestore.ok || firestore.status === 404 ? "reachable" : `error_${firestore.status}`,
-      storage: storage.ok ? "reachable" : `error_${storage.status}`,
+      status: firestoreReachable && storageReachable && modelReachable ? "healthy" : "unhealthy",
+      firestore: firestoreReachable ? "reachable" : `error_${firestore.status}`,
+      storage: storageReachable ? "reachable" : `error_${storage.status}`,
+      modelProvider: modelProvider ? modelReachable ? "reachable" : `error_${modelProvider.status}` : "not_configured",
       durationMs: Date.now() - startedAt
     };
   } catch (error) {
