@@ -255,8 +255,9 @@ STRIPE_PRICE_AGENCY_MONTHLY=price_...
 STRIPE_FOUNDING_STARTER_COUPON_ID=coupon_...
 STRIPE_FOUNDING_GROWTH_COUPON_ID=coupon_...
 STRIPE_FOUNDING_AGENCY_COUPON_ID=coupon_...
-# Leave unset to disable founding pricing. Set only an approved ISO-8601 end time.
-FOUNDING_PRICING_END_AT=
+# Approved cutoff for new founding-price subscriptions. Existing Stripe
+# subscriptions retain their qualifying coupon while active.
+FOUNDING_PRICING_END_AT=2027-02-14T23:59:59Z
 GTM_SCHEDULER_SERVICE_ACCOUNT=grantdeskhq-gtm-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com
 GTM_SCHEDULER_AUDIENCE=https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app
 HEALTH_SCHEDULER_SERVICE_ACCOUNT=grantdeskhq-health-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com
@@ -487,7 +488,7 @@ gcloud run deploy grantdeskhq-prototype \
   --allow-unauthenticated \
   --service-account=grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com \
   --set-secrets=OPENAI_API_KEY=grantdeskhq-openai-key:latest,FIREBASE_WEB_API_KEY=grantdeskhq-firebase-web-key:latest,STRIPE_SECRET_KEY=grantdeskhq-stripe-secret-key:latest,STRIPE_WEBHOOK_SECRET=grantdeskhq-stripe-webhook-secret:latest \
-  --set-env-vars=OPENAI_MODEL=gpt-5.6-terra,OPENAI_VERIFIER_MODEL=gpt-5.6-luna,OPENAI_GTM_MODEL=gpt-5.5,REPORT_FILES_BUCKET=grantdeskhq-proto-ek-2026-report-files,GTM_ADMIN_EMAILS=owner@example.com,GTM_SCHEDULER_SERVICE_ACCOUNT=grantdeskhq-gtm-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com,GTM_SCHEDULER_AUDIENCE=https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app,STRIPE_PRICE_STARTER_MONTHLY=price_...,STRIPE_PRICE_GROWTH_MONTHLY=price_...,STRIPE_PRICE_AGENCY_MONTHLY=price_...,STRIPE_FOUNDING_STARTER_COUPON_ID=coupon_...,STRIPE_FOUNDING_GROWTH_COUPON_ID=coupon_...,STRIPE_FOUNDING_AGENCY_COUPON_ID=coupon_... \
+  --set-env-vars=OPENAI_MODEL=gpt-5.6-terra,OPENAI_VERIFIER_MODEL=gpt-5.6-luna,OPENAI_GTM_MODEL=gpt-5.5,REPORT_FILES_BUCKET=grantdeskhq-proto-ek-2026-report-files,GTM_ADMIN_EMAILS=owner@example.com,GTM_SCHEDULER_SERVICE_ACCOUNT=grantdeskhq-gtm-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com,GTM_SCHEDULER_AUDIENCE=https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app,STRIPE_PRICE_STARTER_MONTHLY=price_...,STRIPE_PRICE_GROWTH_MONTHLY=price_...,STRIPE_PRICE_AGENCY_MONTHLY=price_...,STRIPE_FOUNDING_STARTER_COUPON_ID=coupon_...,STRIPE_FOUNDING_GROWTH_COUPON_ID=coupon_...,STRIPE_FOUNDING_AGENCY_COUPON_ID=coupon_...,FOUNDING_PRICING_END_AT=2027-02-14T23:59:59Z \
   --memory=1Gi \
   --cpu=1 \
   --timeout=180 \
