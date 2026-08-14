@@ -36,6 +36,12 @@ function subscriptionEvent(type: string, status: string, eventId = "evt_123"): S
 }
 
 describe("Stripe billing controls", () => {
+  it("uses the approved cutoff only for new founding-price Checkouts", () => {
+    const cutoff = "2027-02-14T23:59:59Z";
+    expect(foundingPricingActive(cutoff, Date.parse("2027-02-14T23:59:58.999Z"))).toBe(true);
+    expect(foundingPricingActive(cutoff, Date.parse(cutoff))).toBe(false);
+  });
+
   it("accepts only a single internal plan key and rejects browser price or coupon overrides", () => {
     expect(validateBillingSelection({ plan: "starter" })).toEqual({ plan: "starter" });
     expect(() => validateBillingSelection({ plan: "enterprise" })).toThrow(BillingError);
