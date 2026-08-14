@@ -110,6 +110,55 @@ export async function createCheckoutSession(user: AuthenticatedUser, selection: 
   return { checkoutSessionId: result.id || "", url: result.url };
 }
 
+export async function changeSubscriptionPlan(subscriptionId: string, selection: BillingSelection, foundingPricingApplied: boolean) {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  const priceId = priceIdFor(selection.plan);
+  if (!secretKey || !priceId) throw new BillingError(503, "Billing plan changes are being configured. Please try again shortly.");
+  if (!/^sub_[A-Za-z0-9]+$/.test(subscriptionId)) throw new BillingError(409, "An active Stripe subscription is not available for this account.");
+
+  const currentResponse = await fetch(`${stripeApi}/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+    headers: { Authorization: `Bearer ${secretKey}` }
+  });
+  const current = await currentResponse.json() as Record<string, unknown>;
+  const items = asRecord(current.items);
+  const item = Array.isArray(items?.data) ? asRecord(items.data[0]) : null;
+  const itemId = stringId(item?.id);
+  if (!currentResponse.ok || !itemId) {
+    console.error("Stripe subscription lookup error:", currentResponse.status);
+    throw new BillingError(502, "GrantDeskHQ could not confirm this subscription. Please try again.");
+  }
+
+  const body = new URLSearchParams({
+    "items[0][id]": itemId,
+    "items[0][price]": priceId,
+    "metadata[grantdeskhq_plan_key]": selection.plan,
+    "metadata[grantdeskhq_founding_pricing]": String(foundingPricingApplied),
+    proration_behavior: "create_prorations"
+  });
+  if (foundingPricingApplied) {
+    const couponId = foundingCouponIdFor(selection.plan);
+    if (!couponId) throw new BillingError(503, "The founding plan discount is being configured. Please try again shortly.");
+    body.set("discounts[0][coupon]", couponId);
+  }
+  const response = await fetch(`${stripeApi}/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${secretKey}`, "Content-Type": "application/x-www-form-urlencoded" },
+    body
+  });
+  const result = await response.json() as Record<string, unknown>;
+  if (!response.ok) {
+    console.error("Stripe subscription update error:", response.status);
+    throw new BillingError(502, "GrantDeskHQ could not change this plan. Please try again.");
+  }
+  return {
+    stripeSubscriptionId: stringId(result.id) || subscriptionId,
+    stripePriceId: priceId,
+    planKey: selection.plan,
+    subscriptionStatus: String(result.status || "unknown"),
+    foundingPricingApplied
+  };
+}
+
 export async function createCustomerPortalSession(customerId: string, origin: string) {
   const secretKey = process.env.STRIPE_SECRET_KEY;
   if (!secretKey) throw new BillingError(503, "Billing management is being configured. Please try again shortly.");

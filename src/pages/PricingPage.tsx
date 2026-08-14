@@ -7,12 +7,14 @@ import { currentCampaignAttribution } from "../lib/attribution";
 import { useAuth } from "../lib/auth";
 
 interface BillingConfig { billingConfigured?: boolean; foundingPricingActive?: boolean; }
+interface BillingStatus { planKey: string; subscriptionStatus: string; foundingPricingApplied: boolean; entitlementActive: boolean; }
 
 export function PricingPage() {
   const [startingPlan, setStartingPlan] = useState<PlanId | "">("");
   const [checkoutError, setCheckoutError] = useState("");
   const [billingConfig, setBillingConfig] = useState<BillingConfig | null>(null);
   const { user, token } = useAuth();
+  const [billing, setBilling] = useState<BillingStatus | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const resumedCheckout = useRef(false);
@@ -25,6 +27,13 @@ export function PricingPage() {
       .catch(() => setBillingConfig({ billingConfigured: false, foundingPricingActive: false }));
   }, []);
 
+  useEffect(() => {
+    if (!user) { setBilling(null); return; }
+    token().then((idToken) => apiRequest<{ billing: BillingStatus | null }>("/api/billing/status", idToken))
+      .then((result) => setBilling(result.billing))
+      .catch(() => setBilling(null));
+  }, [token, user]);
+
   const beginCheckout = useCallback(async (plan: PlanId) => {
     setCheckoutError("");
     if (!user) {
@@ -34,6 +43,21 @@ export function PricingPage() {
     setStartingPlan(plan);
     try {
       const idToken = await token();
+      if (billing?.entitlementActive) {
+        if (billing.planKey === plan) {
+          setCheckoutError("This is already your current plan.");
+          setStartingPlan("");
+          return;
+        }
+        const result = await apiRequest<{ billing: Pick<BillingStatus, "planKey" | "subscriptionStatus" | "foundingPricingApplied"> }>("/api/billing/change-plan", idToken, {
+          method: "POST",
+          body: JSON.stringify({ plan })
+        });
+        setBilling({ ...billing, ...result.billing });
+        setCheckoutError("Your plan change has been submitted and will be confirmed securely by Stripe.");
+        setStartingPlan("");
+        return;
+      }
       await apiRequest<{ recorded: boolean }>("/api/lifecycle/checkout-started", idToken, {
         method: "POST",
         body: JSON.stringify({ attribution: currentCampaignAttribution() })
@@ -47,7 +71,7 @@ export function PricingPage() {
       setCheckoutError(error instanceof Error ? error.message : "Secure checkout could not be started.");
       setStartingPlan("");
     }
-  }, [navigate, token, user]);
+  }, [billing, navigate, token, user]);
 
   useEffect(() => {
     if (!user || !billingConfig?.billingConfigured || resumedCheckout.current) return;
@@ -72,6 +96,7 @@ export function PricingPage() {
       {checkoutError && <div className="compiler-error pricing-error" role="alert">{checkoutError}</div>}
       <div className="pricing-grid">{PRICING_PLANS.map((plan) => {
         const displayPrice = foundingPricing ? plan.foundingMonthly : plan.monthly;
+        const currentPlan = billing?.entitlementActive && billing.planKey === plan.id;
         return <article key={plan.id} className={`pricing-card ${plan.featured ? "is-featured" : ""}`}>
           {plan.featured && <div className="pricing-label">Most popular</div>}
           <p className="text-sm font-semibold text-emeraldMuted-700">{plan.name}</p>
@@ -80,7 +105,7 @@ export function PricingPage() {
           <p className="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">Best for</p><p className="mt-1 text-sm font-semibold text-navy-900">{plan.bestFor}</p>
           <p className="mt-5 min-h-[72px] text-sm leading-6 text-slate-600">{plan.description}</p>
           <ul className="mt-7 grid gap-3 text-sm text-slate-700"><Feature>Up to {plan.activeGrants} active grants</Feature><Feature>{plan.reportsPerYear} report packages per year</Feature><Feature>No per-user fees</Feature><Feature>Unlimited archived grants</Feature><Feature>{plan.support}</Feature></ul>
-          {billingConfig?.billingConfigured ? <button type="button" className={`button mt-8 w-full ${plan.featured ? "button-primary" : "button-secondary"}`} disabled={Boolean(startingPlan)} onClick={() => void beginCheckout(plan.id)}>{startingPlan === plan.id ? <><LoaderCircle className="animate-spin" aria-hidden="true" />Opening secure checkout…</> : <>Choose {plan.name}<ArrowRight aria-hidden="true" /></>}</button> : billingConfig ? <Link className={`button mt-8 w-full ${plan.featured ? "button-primary" : "button-secondary"}`} to="/assessment#contact">Analyze your first report free<ArrowRight aria-hidden="true" /></Link> : <button type="button" className="button button-secondary mt-8 w-full" disabled><LoaderCircle className="animate-spin" aria-hidden="true" />Checking secure checkout…</button>}
+          {billingConfig?.billingConfigured ? <button type="button" className={`button mt-8 w-full ${plan.featured ? "button-primary" : "button-secondary"}`} disabled={Boolean(startingPlan) || currentPlan} onClick={() => void beginCheckout(plan.id)}>{startingPlan === plan.id ? <><LoaderCircle className="animate-spin" aria-hidden="true" />Opening secure checkout…</> : currentPlan ? <>Current plan</> : billing?.entitlementActive ? <>Change to {plan.name}<ArrowRight aria-hidden="true" /></> : <>Choose {plan.name}<ArrowRight aria-hidden="true" /></>}</button> : billingConfig ? <Link className={`button mt-8 w-full ${plan.featured ? "button-primary" : "button-secondary"}`} to="/assessment#contact">Analyze your first report free<ArrowRight aria-hidden="true" /></Link> : <button type="button" className="button button-secondary mt-8 w-full" disabled><LoaderCircle className="animate-spin" aria-hidden="true" />Checking secure checkout…</button>}
         </article>;
       })}</div>
       <div className="pricing-comparison" aria-labelledby="plan-comparison-heading"><div className="pricing-comparison-heading"><p className="eyebrow">Compare plans</p><h2 id="plan-comparison-heading">One source-linked workflow, scaled for reporting demand</h2><p>Plan limits are defined once and applied consistently across GrantDeskHQ billing and workspace status.</p></div><div className="pricing-table-wrap" tabIndex={0} aria-label="Scrollable plan comparison"><table><thead><tr><th scope="col">Included</th>{PRICING_PLANS.map((plan) => <th scope="col" key={plan.id}>{plan.name}</th>)}</tr></thead><tbody><ComparisonRow label="Active grants" values={PRICING_PLANS.map((plan) => `Up to ${plan.activeGrants}`)} /><ComparisonRow label="Report packages per year" values={PRICING_PLANS.map((plan) => String(plan.reportsPerYear))} />{INCLUDED_IN_EVERY_PLAN.map((feature) => <ComparisonRow key={feature} label={feature} values={PRICING_PLANS.map(() => "Included")} checkmarks />)}</tbody></table></div></div>
