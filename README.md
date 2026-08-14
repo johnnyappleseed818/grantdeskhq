@@ -509,7 +509,11 @@ LinkedIn search and the official USAspending award scan independently, saves
 successful results to separate private Firestore records, and preserves the
 last good result if one source is delayed. Social results stay research-only;
 award candidates stay blocked until a named recipient and authoritative role
-and email sources are attached.
+and email sources are attached. The same scheduled cycle also writes a private
+`gtm/shadow-status` record: it deduplicates source-backed candidates, exposes
+explainable scoring and suppression counts, proposes source-gated content topics
+on Tuesday and Thursday, and keeps `outboundEnabled` permanently false. No email
+is sent, and live delivery has no enabled code path.
 
 ## Reliability canary and self-health operations
 

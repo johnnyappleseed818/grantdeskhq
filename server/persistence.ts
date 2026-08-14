@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { canGenerateReviewPackage, encodedFileSize, isValidCompilationRequestId, MAX_EVIDENCE_FILE_BYTES, MAX_EVIDENCE_FILES, MAX_EVIDENCE_TOTAL_BYTES } from "../src/lib/prototype.ts";
 import type { CompilationRequest, CompilationResult, CompilerFile, PersistedCompilationResponse, PersistedReportSource, SavedReportSummary, SupportingEvidenceFile } from "../src/types/prototype.ts";
 import type { AwardDiscoveryScan, DailySocialScan } from "../src/lib/gtm.ts";
+import type { ShadowPipelineStatus } from "../src/lib/gtmShadow.ts";
 import type { AuthenticatedUser } from "./auth.ts";
 import { normalizeAttribution, type Attribution, type BillingEventSnapshot } from "./billing.ts";
 import { subscriptionIsEntitled } from "../src/content/pricing.ts";
@@ -561,6 +562,21 @@ export async function readGtmAwardScan(): Promise<AwardDiscoveryScan | null> {
   const record = decodeFields(document.fields || {});
   if (!record.scanJson) return null;
   return JSON.parse(String(record.scanJson)) as AwardDiscoveryScan;
+}
+
+export async function saveGtmShadowStatus(status: ShadowPipelineStatus) {
+  const accessToken = await gcpToken();
+  await writeDocument(accessToken, "gtm/shadow-status", { generatedAt: status.generatedAt, statusJson: JSON.stringify(status) });
+  return status;
+}
+
+export async function readGtmShadowStatus(): Promise<ShadowPipelineStatus | null> {
+  const response = await authorizedFetch(firestoreBase + "/gtm/shadow-status", await gcpToken());
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("GTM shadow status could not be loaded (status " + response.status + ").");
+  const document = await response.json() as { fields?: Record<string, FirestoreValue> };
+  const record = decodeFields(document.fields || {});
+  return record.statusJson ? JSON.parse(String(record.statusJson)) as ShadowPipelineStatus : null;
 }
 
 export type LifecycleEventName = "account_created" | "first_report_started" | "checkout_started" | "subscription_started";
