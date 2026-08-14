@@ -1,0 +1,11 @@
+# GrantDeskHQ
+
+GrantDeskHQ helps nonprofit finance, grants, and program teams organize source-linked post-award grant reporting workflows.
+
+## Public resources
+- https://grantdeskhq.com/blog
+- https://grantdeskhq.com/blog/post-award-grant-reporting-checklist
+- https://grantdeskhq.com/blog/budget-to-actual-grant-reporting-workflow
+- https://grantdeskhq.com/pricing
+
+General articles do not replace a specific award agreement, funder instructions, legal advice, accounting advice, or professional review.

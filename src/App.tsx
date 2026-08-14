@@ -14,6 +14,7 @@ import { WorkspacePage } from "./pages/WorkspacePage";
 import { GtmDashboardPage } from "./pages/GtmDashboardPage";
 import { ReadinessPage } from "./pages/ReadinessPage";
 import { ReliabilityDashboardPage } from "./pages/ReliabilityDashboardPage";
+import { BlogIndexPage, BlogPostPage } from "./pages/BlogPage";
 import { AuthProvider } from "./lib/auth";
 import { AnalyticsManager } from "./lib/analytics";
 
@@ -45,6 +46,8 @@ export default function App() {
           <Route path="sample-report" element={<SampleReportPage />} />
           <Route path="privacy" element={<PrivacyPage />} />
           <Route path="pricing" element={<PricingPage />} />
+          <Route path="blog" element={<BlogIndexPage />} />
+          <Route path="blog/:slug" element={<BlogPostPage />} />
           <Route path="compile" element={<CompilePage />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="workspace" element={<WorkspacePage />} />

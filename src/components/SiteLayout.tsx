@@ -12,6 +12,7 @@ const marketingLinks = [
   ["Sample Output", "/sample-report"],
   ["Security & FAQ", "/#security-faq"],
   ["Pricing", "/pricing"],
+  ["Field guide", "/blog"],
   ["Free First Report", "/assessment"]
 ];
 
@@ -100,6 +101,7 @@ export function SiteLayout() {
               <Link to="/readiness">Free readiness audit</Link>
               <Link to="/sample-report">Synthetic sample report</Link>
               <Link to="/pricing">Pricing</Link>
+              <Link to="/blog">Grant reporting field guide</Link>
               <Link to={user ? "/workspace" : "/login"}>{user ? "My workspace" : "Account sign in"}</Link>
               {gtmAllowed && <Link to="/gtm">GTM Command Center</Link>}
               {gtmAllowed && <Link to="/internal/reliability">Reliability dashboard</Link>}
