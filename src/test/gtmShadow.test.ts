@@ -61,6 +61,8 @@ describe("GTM SHADOW mode", () => {
     const status = buildShadowStatus([lead], [topic], "2026-08-18T12:00:00Z");
     expect(status.outboundEnabled).toBe(false);
     expect(status.scheduledTopics).toHaveLength(1);
+    expect(status.publishedArticles).toHaveLength(1);
+    expect(status.publishedArticles[0].structuredData["@type"]).toBe("Article");
     const article = {
       title: topic.title,
       slug: topic.slug,

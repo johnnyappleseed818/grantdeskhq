@@ -37,7 +37,7 @@ export interface OutreachDraft { sequence: number; subject: string; body: string
 export interface BlogTopic { id: string; title: string; slug: string; query: string; cluster: string; score: number; sources: SignalProvenance[]; status: "candidate" | "scheduled" | "blocked"; }
 export interface BlogArticleDraft { title: string; slug: string; body: string; sources: SignalProvenance[]; metaDescription: string; canonicalUrl: string; cta: string; }
 export interface ContentQualityResult { pass: boolean; blockers: string[]; }
-export interface ShadowPipelineStatus { mode: typeof GTM_MODE; generatedAt: string; leadCount: number; qualifiedCount: number; suppressedCount: number; draftCount: number; scheduledTopics: BlogTopic[]; outboundEnabled: false; }
+export interface ShadowPipelineStatus { mode: typeof GTM_MODE; generatedAt: string; leadCount: number; qualifiedCount: number; suppressedCount: number; draftCount: number; scheduledTopics: BlogTopic[]; publishedArticles: PublishedArticle[]; outboundEnabled: false; }
 
 const caps: LeadScoreInput = { activeGrantVolume: 18, institutionalFunding: 15, financeOrGrantsStaffing: 15, reportingComplexity: 18, organizationSize: 10, signalRecency: 12, fit: 12 };
 
@@ -111,7 +111,7 @@ export function assessContentQuality(article: BlogArticleDraft): ContentQualityR
 export function buildShadowStatus(leads: ShadowLead[], topics: BlogTopic[], generatedAt = new Date().toISOString()): ShadowPipelineStatus {
   const unique = dedupeShadowLeads(leads);
   const scheduledTopics = scheduleEligibleTopics(topics, new Date(generatedAt));
-  return { mode: GTM_MODE, generatedAt, leadCount: unique.length, qualifiedCount: unique.filter((lead) => lead.status === "qualified" || lead.status === "drafted").length, suppressedCount: unique.filter(isSuppressed).length, draftCount: unique.filter((lead) => createShadowOutreach(lead).length > 0).length, scheduledTopics, outboundEnabled: false };
+  return { mode: GTM_MODE, generatedAt, leadCount: unique.length, qualifiedCount: unique.filter((lead) => lead.status === "qualified" || lead.status === "drafted").length, suppressedCount: unique.filter(isSuppressed).length, draftCount: unique.filter((lead) => createShadowOutreach(lead).length > 0).length, scheduledTopics, publishedArticles: publishScheduledTopics(topics, generatedAt), outboundEnabled: false };
 }
 
 function validSource(source: SignalProvenance) { return Boolean(source.source.trim() && source.evidence.trim() && /^https:\/\//.test(source.sourceUrl) && !Number.isNaN(Date.parse(source.observedAt))); }
@@ -186,4 +186,54 @@ export function liveOutreachGate(configuration: { senderIdentity?: string; posta
   if (!configuration.postalAddress?.trim()) blockers.push("Postal address is not configured.");
   if (!configuration.unsubscribeUrl?.startsWith("https://")) blockers.push("A working HTTPS unsubscribe URL is not configured.");
   return { allowed: false as const, blockers };
+}
+
+export interface PublishedArticle {
+  title: string;
+  slug: string;
+  status: "published";
+  publishedAt: string;
+  metaDescription: string;
+  canonicalUrl: string;
+  structuredData: { "@context": "https://schema.org"; "@type": "Article"; headline: string; mainEntityOfPage: string; };
+  sources: SignalProvenance[];
+}
+
+export function generateArticleDraft(topic: BlogTopic): BlogArticleDraft {
+  const sourceLine = topic.sources.map((source) => source.source + " (" + source.sourceUrl + ")").join("; ");
+  const body = [
+    "Post-award reporting becomes manageable when a nonprofit converts the award agreement into an operating checklist before the first reporting deadline. This article provides general workflow guidance; each funder agreement, approved budget, and reporting portal remains the controlling source.",
+    "Start with a single source-of-truth packet. Keep the executed award document, approved budget, amendments, reporting instructions, prior submissions, accounting export, program update, and supporting evidence together. Assign an owner for every required financial schedule, narrative response, outcome metric, certification, and attachment. Record both the evidence needed and the person responsible for producing it.",
+    "Reconcile the financial view before drafting narrative. Map the general ledger to the approved budget categories, document any open mapping decisions, and separate a variance explanation from a variance approval. When finance and program teams disagree, preserve the source, the calculation, and the unresolved question instead of smoothing it over in a draft.",
+    "Build an evidence trail as work happens. A report is stronger when each material statement can point to a dated program record, ledger detail, invoice, payroll allocation, attendance export, deliverable, or approved correspondence. Missing evidence should be visible as a follow-up task, not silently converted into an optimistic narrative.",
+    "Review the draft against the actual award terms before submission. Confirm periods, deadlines, budgets, match requirements, allowable-cost restrictions, amendment conditions, and certifications from the primary documents. General guidance cannot replace funder-specific instructions.",
+    "GrantDeskHQ helps teams organize source-linked post-award reporting and identify incomplete inputs before export. Start self-service with GrantDeskHQ when you are ready to test the workflow on a real report.",
+    "Topic research sources: " + sourceLine
+  ].join("\n\n");
+  return {
+    title: topic.title,
+    slug: topic.slug,
+    body,
+    sources: topic.sources,
+    metaDescription: "Practical, source-linked post-award reporting workflow guidance for nonprofit finance and grants teams.",
+    canonicalUrl: "https://grantdeskhq.com/blog/" + topic.slug,
+    cta: "Start your first GrantDeskHQ report without a sales call."
+  };
+}
+
+export function publishScheduledTopics(topics: BlogTopic[], publishedAt = new Date().toISOString()): PublishedArticle[] {
+  return scheduleEligibleTopics(topics, new Date(publishedAt)).flatMap((topic) => {
+    const article = generateArticleDraft(topic);
+    const quality = assessContentQuality(article);
+    return quality.pass ? [{
+      title: article.title,
+      slug: article.slug,
+      status: "published" as const,
+      publishedAt,
+      metaDescription: article.metaDescription,
+      canonicalUrl: article.canonicalUrl,
+      structuredData: { "@context": "https://schema.org", "@type": "Article", headline: article.title, mainEntityOfPage: article.canonicalUrl },
+      sources: article.sources
+    }] : [];
+  });
 }
