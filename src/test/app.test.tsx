@@ -16,7 +16,7 @@ describe("important routes", () => {
     ["/demo", /Six-Month Progress Report/i],
     ["/sample-report", /See the complete review package/i],
     ["/privacy", /Understand where your data goes and who can access it/i],
-    ["/pricing", /Start with one report\. Keep going only if the workflow saves your team time/i],
+    ["/pricing", /Choose the GrantDeskHQ workflow that fits your reporting portfolio/i],
     ["/assessment", /Let our AI-powered solution prepare your first report draft at no cost/i],
     ["/compile", /Bring what you have\. We’ll help with the rest/i],
     ["/readiness", /Find every reporting requirement before the deadline gets close/i],
@@ -91,32 +91,23 @@ describe("important routes", () => {
     expect(document.body.textContent).not.toMatch(/eli@|Eli Katz/i);
   });
 
-  it("shows the exact subscription pricing and capacity", () => {
+  it("shows the approved self-service monthly pricing and capacity", () => {
     renderRoute("/pricing");
-    for (const plan of ["Essentials", "Growth", "Portfolio"]) {
+    for (const plan of ["Starter Nonprofit", "Growth", "Fractional CFO Agency"]) {
       expect(screen.getAllByText(plan).length).toBeGreaterThanOrEqual(2);
     }
-    for (const amount of ["$199", "$399", "$699"]) {
-      expect(screen.getByText(amount)).toBeInTheDocument();
-    }
+    for (const amount of ["$99", "$199", "$499"]) expect(screen.getByText(amount)).toBeInTheDocument();
     expect(screen.getByText("Up to 5 active grants")).toBeInTheDocument();
     expect(screen.getByText("Up to 20 active grants")).toBeInTheDocument();
     expect(screen.getByText("Up to 50 active grants")).toBeInTheDocument();
     expect(screen.getAllByText("Unlimited archived grants")).toHaveLength(3);
-    expect(screen.getAllByText("No per-user fees").length).toBeGreaterThanOrEqual(3);
-    expect(screen.getByRole("heading", { name: "50% off your first year" })).toBeInTheDocument();
-    expect(screen.getByText("$75/month")).toBeInTheDocument();
-    expect(screen.getByText("$25")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Annual · Save 10%" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Annual/i })).not.toBeInTheDocument();
   });
 
-  it("switches every plan to the exact annual billing amount", async () => {
-    const user = userEvent.setup();
+  it("keeps the normal list prices visible until the server confirms founding eligibility", () => {
     renderRoute("/pricing");
-    await user.click(screen.getByRole("button", { name: "Annual · Save 10%" }));
-    for (const amount of ["$2,149.20", "$4,309.20", "$7,549.20"]) expect(screen.getByText(amount)).toBeInTheDocument();
-    for (const monthlyEquivalent of ["$179.10 per month, billed annually", "$359.10 per month, billed annually", "$629.10 per month, billed annually"]) expect(screen.getByText(monthlyEquivalent)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Annual · Save 10%" })).toHaveAttribute("aria-pressed", "true");
+    for (const amount of ["$49", "$299"]) expect(screen.queryByText(amount)).not.toBeInTheDocument();
+    expect(screen.queryByText(/50% off your first year/i)).not.toBeInTheDocument();
   });
 
   it("walks users through the report compiler one step at a time", async () => {

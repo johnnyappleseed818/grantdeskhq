@@ -3,7 +3,8 @@ import { canGenerateReviewPackage, encodedFileSize, isValidCompilationRequestId,
 import type { CompilationRequest, CompilationResult, CompilerFile, PersistedCompilationResponse, PersistedReportSource, SavedReportSummary, SupportingEvidenceFile } from "../src/types/prototype.ts";
 import type { AwardDiscoveryScan, DailySocialScan } from "../src/lib/gtm.ts";
 import type { AuthenticatedUser } from "./auth.ts";
-import type { BillingEventSnapshot } from "./billing.ts";
+import { normalizeAttribution, type Attribution, type BillingEventSnapshot } from "./billing.ts";
+import { subscriptionIsEntitled } from "../src/content/pricing.ts";
 import { analyzeSupportingEvidence, applyEvidenceMatches, buildEvidenceTargets, normalizeSupportingEvidenceFiles } from "./evidenceReconciliation.ts";
 import { applyDeterministicAccuracyChecks } from "./accuracy.ts";
 import { normalizeCompilationSources } from "./sourceNormalization.ts";
@@ -562,12 +563,60 @@ export async function readGtmAwardScan(): Promise<AwardDiscoveryScan | null> {
   return JSON.parse(String(record.scanJson)) as AwardDiscoveryScan;
 }
 
+export type LifecycleEventName = "account_created" | "first_report_started" | "checkout_started" | "subscription_started";
+
+export async function saveLifecycleEvent(user: AuthenticatedUser, event: LifecycleEventName, attributionInput: unknown = {}) {
+  const accessToken = await gcpToken();
+  const organizationId = `org_${user.uid}`;
+  const attribution = normalizeAttribution(attributionInput);
+  if (Object.keys(attribution).length) {
+    await writeDocument(accessToken, `organizations/${organizationId}/billing/attribution`, { attributionJson: JSON.stringify(attribution), updatedAt: new Date().toISOString() });
+  }
+  await writeDocumentIfAbsent(accessToken, `organizations/${organizationId}/lifecycleEvents/${event}`, {
+    event,
+    uid: user.uid,
+    occurredAt: new Date().toISOString(),
+    attributionJson: JSON.stringify(attribution)
+  });
+  return attribution;
+}
+
+export async function readBillingAttribution(user: AuthenticatedUser): Promise<Attribution> {
+  const response = await authorizedFetch(`${firestoreBase}/organizations/org_${user.uid}/billing/attribution`, await gcpToken());
+  if (response.status === 404) return {};
+  if (!response.ok) throw new Error(`Billing attribution could not be loaded (${response.status}).`);
+  const document = await response.json() as { fields?: Record<string, FirestoreValue> };
+  return storedAttribution(decodeFields(document.fields || {}).attributionJson);
+}
+
+export function shouldApplyBillingEvent(snapshot: BillingEventSnapshot, priorEventId = "", priorEventAt = "") {
+  return snapshot.eventId !== priorEventId && (!priorEventAt || snapshot.stripeEventCreatedAt >= priorEventAt);
+}
+
 export async function saveBillingEvent(snapshot: BillingEventSnapshot) {
   const accessToken = await gcpToken();
   const organizationId = `org_${snapshot.uid}`;
-  const eventId = safeDocumentId(snapshot.eventId);
-  await writeDocument(accessToken, `organizations/${organizationId}/billingEvents/${eventId}`, { ...snapshot });
-  await writeDocument(accessToken, `organizations/${organizationId}/billing/current`, { ...snapshot });
+  const eventPath = `organizations/${organizationId}/billingEvents/${safeDocumentId(snapshot.eventId)}`;
+  const created = await writeDocumentIfAbsent(accessToken, eventPath, billingRecord(snapshot));
+  if (!created) return { duplicate: true, applied: false };
+
+  const currentPath = `organizations/${organizationId}/billing/current`;
+  const currentResponse = await authorizedFetch(`${firestoreBase}/${currentPath}`, accessToken);
+  if (currentResponse.status !== 404 && !currentResponse.ok) throw new Error(`Billing status could not be loaded (${currentResponse.status}).`);
+  const prior = currentResponse.status === 404 ? {} : decodeFields(((await currentResponse.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
+  const priorEventAt = String(prior.stripeEventCreatedAt || "");
+  if (shouldApplyBillingEvent(snapshot, String(prior.eventId || ""), priorEventAt)) {
+    await writeDocument(accessToken, currentPath, billingRecord(mergeBillingSnapshot(prior, snapshot)));
+  }
+  if (snapshot.subscriptionStatus === "active" || snapshot.subscriptionStatus === "trialing") {
+    await writeDocumentIfAbsent(accessToken, `organizations/${organizationId}/lifecycleEvents/subscription_started`, {
+      event: "subscription_started",
+      uid: snapshot.uid,
+      occurredAt: snapshot.updatedAt,
+      attributionJson: JSON.stringify(snapshot.attribution)
+    });
+  }
+  return { duplicate: false, applied: shouldApplyBillingEvent(snapshot, String(prior.eventId || ""), priorEventAt) };
 }
 
 export async function readBillingStatus(user: AuthenticatedUser) {
@@ -576,12 +625,43 @@ export async function readBillingStatus(user: AuthenticatedUser) {
   if (!response.ok) throw new Error(`Billing status could not be loaded (${response.status}).`);
   const document = await response.json() as { fields?: Record<string, FirestoreValue> };
   const record = decodeFields(document.fields || {});
+  const subscriptionStatus = String(record.subscriptionStatus || "");
   return {
-    plan: String(record.plan || ""),
-    interval: String(record.interval || ""),
-    status: String(record.status || ""),
+    stripeCustomerId: String(record.stripeCustomerId || ""),
+    stripeSubscriptionId: String(record.stripeSubscriptionId || ""),
+    stripePriceId: String(record.stripePriceId || ""),
+    planKey: String(record.planKey || ""),
+    subscriptionStatus,
+    foundingPricingApplied: record.foundingPricingApplied === true,
+    currentPeriodStart: String(record.currentPeriodStart || ""),
+    currentPeriodEnd: String(record.currentPeriodEnd || ""),
+    cancelAtPeriodEnd: record.cancelAtPeriodEnd === true,
+    entitlementActive: subscriptionIsEntitled(subscriptionStatus),
     updatedAt: String(record.updatedAt || "")
   };
+}
+
+function billingRecord(snapshot: BillingEventSnapshot) {
+  return { ...snapshot, attributionJson: JSON.stringify(snapshot.attribution) };
+}
+
+function mergeBillingSnapshot(prior: Record<string, unknown>, snapshot: BillingEventSnapshot): BillingEventSnapshot {
+  const invoice = snapshot.eventType.startsWith("invoice.");
+  return {
+    ...snapshot,
+    stripeCustomerId: snapshot.stripeCustomerId || String(prior.stripeCustomerId || ""),
+    stripeSubscriptionId: snapshot.stripeSubscriptionId || String(prior.stripeSubscriptionId || ""),
+    stripePriceId: snapshot.stripePriceId || String(prior.stripePriceId || ""),
+    currentPeriodStart: snapshot.currentPeriodStart || String(prior.currentPeriodStart || ""),
+    currentPeriodEnd: snapshot.currentPeriodEnd || String(prior.currentPeriodEnd || ""),
+    cancelAtPeriodEnd: invoice ? prior.cancelAtPeriodEnd === true : snapshot.cancelAtPeriodEnd,
+    attribution: { ...storedAttribution(prior.attributionJson), ...snapshot.attribution }
+  };
+}
+
+function storedAttribution(value: unknown): Attribution {
+  try { return normalizeAttribution(JSON.parse(String(value || "{}"))); }
+  catch { return {}; }
 }
 
 function summarize(id: string, request: CompilationRequest, result: CompilationResult, createdAt: string, updatedAt: string, sourceCount = request.files.length): SavedReportSummary {

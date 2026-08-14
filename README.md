@@ -37,7 +37,7 @@ Cloud Run application: [grantdeskhq-prototype-me423s5k5a-uc.a.run.app](https://g
 | `/internal/reliability` | Administrator-only reliability canary, integrity, drift, and recovery dashboard |
 | `/sample-report` | Print-ready funder-report review package |
 | `/privacy` | Private-beta and test-file data-handling boundaries |
-| `/pricing` | Essentials, Growth, and Portfolio pricing with secure subscription checkout |
+| `/pricing` | Self-service Starter, Growth, and Agency subscription checkout |
 | `/assessment` | Free-first-report assessment and contact enquiry |
 | `/pilot` | Compatibility redirect to `/assessment` |
 | `*` | Accessible not-found page |
@@ -249,13 +249,14 @@ GOOGLE_ANALYTICS_MEASUREMENT_ID=G-XXXXXXXXXX
 CLARITY_PROJECT_ID=your_clarity_project_id
 STRIPE_SECRET_KEY=your_server_side_stripe_key
 STRIPE_WEBHOOK_SECRET=your_stripe_webhook_signing_secret
-STRIPE_PRICE_ESSENTIALS_MONTHLY=price_...
-STRIPE_PRICE_ESSENTIALS_ANNUAL=price_...
+STRIPE_PRICE_STARTER_MONTHLY=price_...
 STRIPE_PRICE_GROWTH_MONTHLY=price_...
-STRIPE_PRICE_GROWTH_ANNUAL=price_...
-STRIPE_PRICE_PORTFOLIO_MONTHLY=price_...
-STRIPE_PRICE_PORTFOLIO_ANNUAL=price_...
-STRIPE_EARLY_ACCESS_COUPON_ID=grantdeskhq_early_access_50_first_year
+STRIPE_PRICE_AGENCY_MONTHLY=price_...
+STRIPE_FOUNDING_STARTER_COUPON_ID=coupon_...
+STRIPE_FOUNDING_GROWTH_COUPON_ID=coupon_...
+STRIPE_FOUNDING_AGENCY_COUPON_ID=coupon_...
+# Leave unset to disable founding pricing. Set only an approved ISO-8601 end time.
+FOUNDING_PRICING_END_AT=
 GTM_SCHEDULER_SERVICE_ACCOUNT=grantdeskhq-gtm-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com
 GTM_SCHEDULER_AUDIENCE=https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app
 HEALTH_SCHEDULER_SERVICE_ACCOUNT=grantdeskhq-health-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com
@@ -282,38 +283,35 @@ application's filtered manual events.
 
 ## Pricing and Stripe billing
 
-| Plan | Monthly | Annual | Active grants | Report packages/year |
+| Plan | List monthly | Founding monthly* | Active grants | Report packages/year |
 | --- | ---: | ---: | ---: | ---: |
-| Essentials | $199 | $2,149.20 | 5 | 24 |
-| Growth | $399 | $4,309.20 | 20 | 72 |
-| Portfolio | $699 | $7,549.20 | 50 | 200 |
+| Starter Nonprofit | $99 | $49 | 5 | 24 |
+| Growth Nonprofit | $199 | $99 | 20 | 72 |
+| Fractional CFO Agency | $499 | $299 | 50 | 200 |
 
-Annual billing is exactly 10% below twelve monthly payments. The first report
-remains free without a card. A separate early-access coupon
-applies 50% off for the first 12 months; it does not change the published list
-price. Plan selection is validated on the server, and the browser never sends
-a price amount. Stripe creates the subscription through hosted Checkout. Signed
-webhook events are verified within a five-minute tolerance and written
-idempotently to the authenticated account's Firestore organization path.
+The first report remains free without a card. The time-limited founding offer is
+server-controlled and only appears while `FOUNDING_PRICING_END_AT` is configured
+and in the future; its existing Stripe coupon controls how long a qualifying
+subscription keeps the discount. Plan selection is validated on the server: the
+browser sends only `starter`, `growth`, or `agency`, never a price, coupon, or
+dollar amount. Stripe creates subscriptions through hosted Checkout. Signed
+webhook events are verified within a five-minute tolerance and stored
+idempotently in the authenticated account's Firestore organization path.
 
-To create or reconcile only the GrantDeskHQ products and immutable recurring
-prices in a Stripe account, review `scripts/configure-stripe-pricing.mjs`, then
-run:
-
-```bash
-STRIPE_SECRET_KEY=sk_... \
-STRIPE_SETUP_CONFIRM=CREATE_GRANTDESKHQ_PRICING \
-npm run stripe:configure
-```
-
-The script identifies its products with `application=grantdeskhq` metadata and
-stable lookup keys. It refuses to overwrite a conflicting price or coupon. Add
-the six returned price IDs and coupon ID to the Cloud Run configuration. Create
-a Stripe webhook for `https://grantdeskhq.com/api/billing/webhook` (or the
-Cloud Run service URL until the domain routes to Cloud Run), subscribe to
-`checkout.session.completed`, `customer.subscription.updated`, and
-`customer.subscription.deleted`, and store the returned `whsec_...` value only
+`scripts/configure-stripe-pricing.mjs` is a read-only discovery tool. With an
+authorized `STRIPE_SECRET_KEY` supplied only at execution time, it reports the
+existing GrantDeskHQ product, recurring-price, and founding-coupon IDs for Cloud
+Run configuration; it never creates or changes Stripe objects. Configure the
+three `STRIPE_PRICE_*_MONTHLY` values, the three `STRIPE_FOUNDING_*_COUPON_ID`
+values, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and an explicit
+`FOUNDING_PRICING_END_AT` through approved secret/environment mechanisms. Create
+a Stripe webhook for `https://grantdeskhq.com/api/billing/webhook` (or the Cloud
+Run service URL until the domain routes to Cloud Run), subscribed to Checkout,
+subscription, and invoice payment events. Store the webhook signing secret only
 in Secret Manager.
+
+*Founding prices are displayed only after the server confirms that the configured
+founding window is active.
 
 Vite by itself serves the frontend and synthetic demo. Use `vercel dev` or
 `netlify dev` when testing the `/api/compile-report` serverless endpoint
@@ -489,7 +487,7 @@ gcloud run deploy grantdeskhq-prototype \
   --allow-unauthenticated \
   --service-account=grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com \
   --set-secrets=OPENAI_API_KEY=grantdeskhq-openai-key:latest,FIREBASE_WEB_API_KEY=grantdeskhq-firebase-web-key:latest,STRIPE_SECRET_KEY=grantdeskhq-stripe-secret-key:latest,STRIPE_WEBHOOK_SECRET=grantdeskhq-stripe-webhook-secret:latest \
-  --set-env-vars=OPENAI_MODEL=gpt-5.6-terra,OPENAI_VERIFIER_MODEL=gpt-5.6-luna,OPENAI_GTM_MODEL=gpt-5.5,REPORT_FILES_BUCKET=grantdeskhq-proto-ek-2026-report-files,GTM_ADMIN_EMAILS=owner@example.com,GTM_SCHEDULER_SERVICE_ACCOUNT=grantdeskhq-gtm-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com,GTM_SCHEDULER_AUDIENCE=https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app,STRIPE_PRICE_ESSENTIALS_MONTHLY=price_...,STRIPE_PRICE_ESSENTIALS_ANNUAL=price_...,STRIPE_PRICE_GROWTH_MONTHLY=price_...,STRIPE_PRICE_GROWTH_ANNUAL=price_...,STRIPE_PRICE_PORTFOLIO_MONTHLY=price_...,STRIPE_PRICE_PORTFOLIO_ANNUAL=price_...,STRIPE_EARLY_ACCESS_COUPON_ID=grantdeskhq_early_access_50_first_year \
+  --set-env-vars=OPENAI_MODEL=gpt-5.6-terra,OPENAI_VERIFIER_MODEL=gpt-5.6-luna,OPENAI_GTM_MODEL=gpt-5.5,REPORT_FILES_BUCKET=grantdeskhq-proto-ek-2026-report-files,GTM_ADMIN_EMAILS=owner@example.com,GTM_SCHEDULER_SERVICE_ACCOUNT=grantdeskhq-gtm-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com,GTM_SCHEDULER_AUDIENCE=https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app,STRIPE_PRICE_STARTER_MONTHLY=price_...,STRIPE_PRICE_GROWTH_MONTHLY=price_...,STRIPE_PRICE_AGENCY_MONTHLY=price_...,STRIPE_FOUNDING_STARTER_COUPON_ID=coupon_...,STRIPE_FOUNDING_GROWTH_COUPON_ID=coupon_...,STRIPE_FOUNDING_AGENCY_COUPON_ID=coupon_... \
   --memory=1Gi \
   --cpu=1 \
   --timeout=180 \

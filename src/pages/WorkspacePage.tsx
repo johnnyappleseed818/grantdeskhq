@@ -5,10 +5,14 @@ import { apiRequest } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import type { SavedReportSummary } from "../types/prototype";
 
+interface BillingStatus { planKey: string; subscriptionStatus: string; foundingPricingApplied: boolean; cancelAtPeriodEnd: boolean; entitlementActive: boolean; }
+
 export function WorkspacePage() {
   const { user, loading, token, signOut } = useAuth();
   const [reports, setReports] = useState<SavedReportSummary[]>([]);
-  const [billing, setBilling] = useState<{ plan: string; interval: string; status: string } | null>(null);
+  const [billing, setBilling] = useState<BillingStatus | null>(null);
+  const [openingPortal, setOpeningPortal] = useState(false);
+  const [portalError, setPortalError] = useState("");
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState("");
   const location = useLocation();
@@ -17,12 +21,25 @@ export function WorkspacePage() {
     if (!user) return;
     token().then(async (idToken) => Promise.all([
       apiRequest<{ reports: SavedReportSummary[] }>("/api/reports", idToken),
-      apiRequest<{ billing: { plan: string; interval: string; status: string } | null }>("/api/billing/status", idToken)
+      apiRequest<{ billing: BillingStatus | null }>("/api/billing/status", idToken)
     ]))
       .then(([reportBody, billingBody]) => { setReports(reportBody.reports); setBilling(billingBody.billing); })
       .catch((requestError) => setError(requestError instanceof Error ? requestError.message : "Reports could not be loaded."))
       .finally(() => setFetching(false));
   }, [user, token]);
+
+  const openPortal = async () => {
+    if (!user) return;
+    setPortalError("");
+    setOpeningPortal(true);
+    try {
+      const result = await apiRequest<{ url: string }>("/api/billing/portal", await token(), { method: "POST", body: "{}" });
+      window.location.assign(result.url);
+    } catch (requestError) {
+      setPortalError(requestError instanceof Error ? requestError.message : "Billing management could not be opened.");
+      setOpeningPortal(false);
+    }
+  };
 
   if (loading) return <div className="workspace-loading"><LoaderCircle className="animate-spin" aria-hidden="true" />Loading workspace…</div>;
   if (!user) return <Navigate replace to="/login?next=/workspace" />;
@@ -34,7 +51,8 @@ export function WorkspacePage() {
         <div className="workspace-actions"><button type="button" className="button button-secondary" onClick={() => signOut()}><LogOut aria-hidden="true" />Sign out</button><Link className="button button-primary" to="/compile?new=1" reloadDocument><FilePlus2 aria-hidden="true" />New report</Link></div>
       </header>
       {new URLSearchParams(location.search).get("billing") === "success" && <div className="account-notice" role="status"><strong>Checkout completed.</strong> Your subscription is being confirmed securely with Stripe.</div>}
-      {billing?.plan && <div className="workspace-plan"><span>Current plan</span><strong>{billing.plan.charAt(0).toUpperCase() + billing.plan.slice(1)}</strong><small>{billing.interval === "year" ? "Annual billing" : "Monthly billing"}</small></div>}
+      {billing?.planKey && <div className="workspace-plan"><span>Current plan</span><strong>{billing.planKey.charAt(0).toUpperCase() + billing.planKey.slice(1)}</strong><small>{billing.subscriptionStatus === "active" ? "Subscription active" : billing.subscriptionStatus.replaceAll("_", " ")}</small>{billing.foundingPricingApplied && <small>Founding pricing applied</small>}{billing.cancelAtPeriodEnd && <small>Cancellation scheduled at period end</small>}<button type="button" className="button button-secondary mt-3" disabled={openingPortal} onClick={() => void openPortal()}>{openingPortal ? "Opening billing management…" : "Manage billing"}</button></div>}
+      {portalError && <div className="compiler-error" role="alert">{portalError}</div>}
       <div className="workspace-trust"><ShieldCheck aria-hidden="true" /><div><strong>Review the work that needs judgment, not every source from scratch.</strong><p>Output from our AI-powered solution stays connected to its evidence, and your reports, validation findings, and review decisions stay together in your workspace.</p></div></div>
       {error && <div className="compiler-error" role="alert"><AlertTriangle aria-hidden="true" />{error}</div>}
       {fetching ? <div className="workspace-loading"><LoaderCircle className="animate-spin" aria-hidden="true" />Loading saved reports…</div> : reports.length === 0 ?

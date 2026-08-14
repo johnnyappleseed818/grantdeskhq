@@ -286,6 +286,7 @@ export function CompilePage() {
         return;
       }
       const idToken = await token();
+      void apiRequest<{ recorded: boolean }>("/api/lifecycle/first-report-started", idToken, { method: "POST", body: "{}" }).catch(() => undefined);
       const corePayload = { ...payload, files: payload.files.filter((file) => file.role !== "supportingEvidence") };
       const body = await apiRequest<PersistedCompilationResponse>("/api/reports/compile", idToken, { method: "POST", body: JSON.stringify(corePayload) });
       setResult(body.result);

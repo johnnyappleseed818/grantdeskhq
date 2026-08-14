@@ -8,11 +8,11 @@ import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmDailyScan, readLatestReliabilityCanary, readReliabilityDashboard, listReports, removeSupportingEvidence, saveBillingEvent, saveCompilation, saveGtmAwardScan, saveGtmDailyScan, saveReview } from "./persistence.ts";
+import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmDailyScan, readLatestReliabilityCanary, readReliabilityDashboard, listReports, removeSupportingEvidence, saveBillingEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmDailyScan, saveReview } from "./persistence.ts";
 import { runDailySocialScan } from "./gtmDailyScanner.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { requireGtmScheduler, requireHealthScheduler } from "./schedulerAuth.ts";
-import { BillingError, billingSnapshotFromEvent, createCheckoutSession, isBillingConfigured, validateBillingSelection, verifyStripeSignature, type StripeWebhookEvent } from "./billing.ts";
+import { BillingError, billingSnapshotFromEvent, createCheckoutSession, createCustomerPortalSession, foundingPricingActive, isBillingConfigured, validateBillingSelection, verifyStripeSignature, type StripeWebhookEvent } from "./billing.ts";
 import { normalizeCompilationSources } from "./sourceNormalization.ts";
 import { initialOpportunities } from "../src/data/gtmData.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
@@ -43,7 +43,11 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/config") return handleConfig(request, response);
     if (url.pathname === "/api/billing/checkout") return await handleBillingCheckout(request, response);
     if (url.pathname === "/api/billing/status") return await handleBillingStatus(request, response);
+    if (url.pathname === "/api/billing/portal") return await handleBillingPortal(request, response);
     if (url.pathname === "/api/billing/webhook") return await handleBillingWebhook(request, response);
+    if (url.pathname === "/api/lifecycle/account-created") return await handleLifecycleEvent(request, response, "account_created");
+    if (url.pathname === "/api/lifecycle/first-report-started") return await handleLifecycleEvent(request, response, "first_report_started");
+    if (url.pathname === "/api/lifecycle/checkout-started") return await handleLifecycleEvent(request, response, "checkout_started");
     if (url.pathname === "/api/reports/preflight") return await handlePreflight(request, response);
     if (url.pathname === "/api/compile-report" || url.pathname === "/api/reports/compile") return await handleCompiler(request, response);
     if (url.pathname === "/api/readiness-assessment") return await handleReadiness(request, response);
@@ -121,12 +125,25 @@ async function handleBillingCheckout(request: IncomingMessage, response: ServerR
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   const user = await requireUser(request);
   const selection = validateBillingSelection(await readJson(request));
-  return json(response, 200, await createCheckoutSession(user, selection, requestOrigin(request)));
+  return json(response, 200, await createCheckoutSession(user, selection, requestOrigin(request), await readBillingAttribution(user)));
 }
 
 async function handleBillingStatus(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   return json(response, 200, { billing: await readBillingStatus(await requireUser(request)) });
+}
+
+async function handleBillingPortal(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  const billing = await readBillingStatus(await requireUser(request));
+  return json(response, 200, await createCustomerPortalSession(billing?.stripeCustomerId || "", requestOrigin(request)));
+}
+
+async function handleLifecycleEvent(request: IncomingMessage, response: ServerResponse, event: "account_created" | "first_report_started" | "checkout_started") {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  const input = await readJson(request) as { attribution?: unknown };
+  await saveLifecycleEvent(await requireUser(request), event, input?.attribution);
+  return json(response, 202, { recorded: true });
 }
 
 async function handleBillingWebhook(request: IncomingMessage, response: ServerResponse) {
@@ -311,6 +328,7 @@ function handleConfig(request: IncomingMessage, response: ServerResponse) {
     authDomain: "grantdeskhq-proto-ek-2026.firebaseapp.com",
     projectId: "grantdeskhq-proto-ek-2026",
     billingConfigured: isBillingConfigured(),
+    foundingPricingActive: foundingPricingActive(),
     googleAnalyticsMeasurementId: process.env.GOOGLE_ANALYTICS_MEASUREMENT_ID || undefined,
     clarityProjectId: process.env.CLARITY_PROJECT_ID || undefined
   });

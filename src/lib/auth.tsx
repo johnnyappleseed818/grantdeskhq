@@ -13,7 +13,8 @@ import {
   updateProfile,
   type User
 } from "firebase/auth";
-import { apiUrl } from "./api";
+import { apiRequest, apiUrl } from "./api";
+import { currentCampaignAttribution } from "./attribution";
 
 interface AuthContextValue {
   user: User | null;
@@ -76,6 +77,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const credential = await createUserWithEmailAndPassword(getReadyAuth(), email, password);
         await updateProfile(credential.user, { displayName: name.trim() });
         setUser(credential.user);
+        void apiRequest<{ recorded: boolean }>("/api/lifecycle/account-created", await credential.user.getIdToken(), {
+          method: "POST",
+          body: JSON.stringify({ attribution: currentCampaignAttribution() })
+        }).catch(() => undefined);
       } catch (authError) { throw new Error(humanAuthError(authError)); }
     },
     async signOut() { await firebaseSignOut(getReadyAuth()); },

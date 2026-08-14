@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["project", "started_at", "finished_at", "git_branch", "starting_commit", "ending_commit", "tests_run", "passed", "failed", "skipped", "qa_validation", "remaining_blockers", "status"],
+  "properties": {
+    "project": { "type": "string", "minLength": 1 },
+    "started_at": { "type": "string", "minLength": 1 },
+    "finished_at": { "type": "string", "minLength": 1 },
+    "git_branch": { "type": "string", "minLength": 1 },
+    "starting_commit": { "type": "string", "minLength": 7 },
+    "ending_commit": { "type": "string", "minLength": 7 },
+    "tests_run": { "type": "array", "items": { "type": "string" } },
+    "passed": { "type": "array", "items": { "type": "string" } },
+    "failed": { "type": "array", "items": { "type": "string" } },
+    "skipped": { "type": "array", "items": { "type": "string" } },
+    "qa_validation": { "type": "array", "items": { "type": "string" } },
+    "remaining_blockers": { "type": "array", "items": { "type": "string" } },
+    "status": { "enum": ["PASS", "PARTIAL", "FAIL"] }
+  }
+}
