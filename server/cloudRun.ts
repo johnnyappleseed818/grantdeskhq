@@ -12,7 +12,7 @@ import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMat
 import { runDailySocialScan } from "./gtmDailyScanner.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { requireGtmScheduler, requireHealthScheduler } from "./schedulerAuth.ts";
-import { BillingError, billingSnapshotFromEvent, createCheckoutSession, createCustomerPortalSession, foundingPricingActive, isBillingConfigured, validateBillingSelection, verifyStripeSignature, type StripeWebhookEvent } from "./billing.ts";
+import { BillingError, billingSnapshotFromEvent, changeSubscriptionPlan, createCheckoutSession, createCustomerPortalSession, foundingPricingActive, isBillingConfigured, validateBillingSelection, verifyStripeSignature, type StripeWebhookEvent } from "./billing.ts";
 import { normalizeCompilationSources } from "./sourceNormalization.ts";
 import { initialOpportunities } from "../src/data/gtmData.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
@@ -42,6 +42,7 @@ createServer(async (request, response) => {
     }
     if (url.pathname === "/api/config") return handleConfig(request, response);
     if (url.pathname === "/api/billing/checkout") return await handleBillingCheckout(request, response);
+    if (url.pathname === "/api/billing/change-plan") return await handleBillingPlanChange(request, response);
     if (url.pathname === "/api/billing/status") return await handleBillingStatus(request, response);
     if (url.pathname === "/api/billing/portal") return await handleBillingPortal(request, response);
     if (url.pathname === "/api/billing/webhook") return await handleBillingWebhook(request, response);
@@ -126,6 +127,16 @@ async function handleBillingCheckout(request: IncomingMessage, response: ServerR
   const user = await requireUser(request);
   const selection = validateBillingSelection(await readJson(request));
   return json(response, 200, await createCheckoutSession(user, selection, requestOrigin(request), await readBillingAttribution(user)));
+}
+
+async function handleBillingPlanChange(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  const user = await requireUser(request);
+  const selection = validateBillingSelection(await readJson(request));
+  const billing = await readBillingStatus(user);
+  if (!billing?.entitlementActive || !billing.stripeSubscriptionId) throw new BillingError(409, "An active subscription is required before changing plans.");
+  if (billing.planKey === selection.plan) return json(response, 200, { billing });
+  return json(response, 200, { billing: await changeSubscriptionPlan(billing.stripeSubscriptionId, selection, billing.foundingPricingApplied) });
 }
 
 async function handleBillingStatus(request: IncomingMessage, response: ServerResponse) {

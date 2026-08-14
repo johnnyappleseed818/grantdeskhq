@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   BillingError,
   billingSnapshotFromEvent,
+  changeSubscriptionPlan,
   createCheckoutSession,
   createCustomerPortalSession,
   foundingPricingActive,
@@ -76,6 +77,21 @@ describe("Stripe billing controls", () => {
     expect(foundingPricingActive()).toBe(false);
     expect(body.get("line_items[0][price]")).toBe("price_starter_month");
     expect(body.get("discounts[0][coupon]")).toBeNull();
+  });
+
+  it("changes only the stored subscription item and remaps a founding discount server-side", async () => {
+    process.env.STRIPE_SECRET_KEY = "sk_test_grantdesk";
+    process.env.STRIPE_PRICE_GROWTH_MONTHLY = "price_growth_month";
+    process.env.STRIPE_FOUNDING_GROWTH_COUPON_ID = "coupon_growth_100";
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "sub_123", items: { data: [{ id: "si_123" }] } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "sub_123", status: "active" }), { status: 200 }));
+    await expect(changeSubscriptionPlan("sub_123", { plan: "growth" }, true)).resolves.toMatchObject({ stripeSubscriptionId: "sub_123", stripePriceId: "price_growth_month", planKey: "growth", foundingPricingApplied: true });
+    const body = fetchMock.mock.calls[1][1]?.body as URLSearchParams;
+    expect(body.get("items[0][id]")).toBe("si_123");
+    expect(body.get("items[0][price]")).toBe("price_growth_month");
+    expect(body.get("discounts[0][coupon]")).toBe("coupon_growth_100");
+    expect(body.get("metadata[grantdeskhq_plan_key]")).toBe("growth");
   });
 
   it("verifies current Stripe signatures and rejects tampering", () => {
