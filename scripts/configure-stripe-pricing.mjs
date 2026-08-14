@@ -30,7 +30,9 @@ console.log(JSON.stringify(discovered, null, 2));
 function isGrantDeskPlan(candidate, plan) {
   const metadata = candidate.metadata || {};
   const key = String(metadata.plan_key || metadata.planKey || metadata.tier || "").toLowerCase();
-  return metadata.application === "grantdeskhq" && key === plan.key;
+  if (metadata.application === "grantdeskhq" && key === plan.key) return true;
+  const name = String(candidate.name || "");
+  return name === plan.productName || name === "GrantDeskHQ " + plan.productName || name === plan.productName.replace(" Nonprofit", "") + " Discount" || name === plan.key.charAt(0).toUpperCase() + plan.key.slice(1) + " Discount";
 }
 
 function exactlyOne(matches, label) {
