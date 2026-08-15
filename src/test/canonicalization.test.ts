@@ -56,6 +56,25 @@ describe("canonical compilation state", () => {
     input.files[0] = { ...input.files[0], name: "Award.txt", mimeType: "text/plain", size: text.length, data: `data:text/plain;base64,${Buffer.from(text).toString("base64")}` };
     expect(deriveExplicitSourceRequirements(input)).toContainEqual(expect.objectContaining({ requirement: text, confidence: 1, status: "verified" }));
   });
+  it("derives every source-grounded budget line inside an approved-budget section", () => {
+    const lines = [
+      "APPROVED BUDGET",
+      "Personnel: $245,000",
+      "Employee Benefits: $55,000",
+      "Training and Curriculum: $62,000",
+      "Participant Support: $48,000",
+      "Local Travel: $20,000",
+      "Data and Evaluation: $30,000",
+      "Indirect Costs: $20,000",
+      "REPORTING CALENDAR",
+      "Quarter 1 progress and financial report due January 31, 2027."
+    ];
+    const input = request();
+    input.files[0] = { ...input.files[0], name: "Award.txt", mimeType: "text/plain", size: lines.join("\n").length, data: "data:text/plain;base64," + Buffer.from(lines.join("\n")).toString("base64") };
+    const derived = deriveExplicitSourceRequirements(input).map((item) => item.requirement);
+    expect(derived).toEqual(expect.arrayContaining(lines.slice(1, 8)));
+    expect(derived).not.toContain("REPORTING CALENDAR");
+  });
 });
 
 function request(): CompilationRequest {

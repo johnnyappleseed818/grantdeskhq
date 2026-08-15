@@ -104,10 +104,13 @@ export function deriveExplicitSourceRequirements(request: CompilationRequest): C
   const requirements: CompiledRequirement[] = [];
   for (const file of request.files.filter((item) => item.role === "awardAgreement")) {
     const paragraphs = sourceParagraphs(file);
+    let inApprovedBudgetSection = false;
     paragraphs.forEach((paragraph, paragraphIndex) => {
+      if (isApprovedBudgetHeading(paragraph)) { inApprovedBudgetSection = true; return; }
+      if (isSectionHeading(paragraph)) inApprovedBudgetSection = false;
       const clauses = paragraph.split(/(?<=[.;])\s+/).map((item) => item.trim()).filter(Boolean);
       clauses.forEach((clause, clauseIndex) => {
-        if (!isExplicitObligationClause(clause)) return;
+        if (!isExplicitObligationClause(clause) && !(inApprovedBudgetSection && isExplicitApprovedBudgetLine(clause))) return;
         const id = stableId("source-clause", [sourceIdentity(file.name, sourceHashMap(request)), String(paragraphIndex), String(clauseIndex), normalizeText(clause)]);
         requirements.push({
           id,
@@ -137,6 +140,19 @@ function isExplicitObligationClause(value: string) {
     || /\b(?:at least|no fewer than|target(?: of| is|:)?|minimum of)\b.{0,120}\b(?:households?|participants?|clients?|assessments?|placements?|screenings?|responses?|percent|%)\b/i.test(value);
   return (explicitDirective || quantifiedOutcome)
     && !/^\s*(?:grant id|grantee|effective date|grant period|total .*award)\s*:/i.test(value);
+}
+
+function isApprovedBudgetHeading(value: string) {
+  return /^\s*approved(?:\s+grant)?\s+budget\s*:?\s*$/i.test(value);
+}
+
+function isSectionHeading(value: string) {
+  const letters = value.replace(/[^a-z]/gi, "");
+  return letters.length >= 3 && value === value.toUpperCase() && !/[\d$]/.test(value);
+}
+
+function isExplicitApprovedBudgetLine(value: string) {
+  return /^[a-z][a-z0-9 &/()_-]{1,100}:\s*\$\s*[\d,]+(?:\.\d{1,2})?\s*$/i.test(value);
 }
 
 function sourceHashMap(request: CompilationRequest) {
