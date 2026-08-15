@@ -8,8 +8,7 @@ import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmDailyScan, readGtmShadowStatus, readLatestReliabilityCanary, readReliabilityDashboard, listReports, removeSupportingEvidence, saveBillingEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmDailyScan, saveGtmShadowStatus, saveReview } from "./persistence.ts";
-import { runDailySocialScan } from "./gtmDailyScanner.ts";
+import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmDailyScan, readGtmShadowStatus, readLatestReliabilityCanary, readReliabilityDashboard, listReports, removeSupportingEvidence, saveBillingEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmShadowStatus, saveReview } from "./persistence.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { buildShadowStatus, shadowLeadFromOpportunity, suggestedTopicsFromLeads } from "../src/lib/gtmShadow.ts";
 import { requireGtmScheduler, requireHealthScheduler } from "./schedulerAuth.ts";
@@ -223,21 +222,20 @@ async function handleGtmShadowStatus(request: IncomingMessage, response: ServerR
 async function handleGtmDailyScan(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
-  const [socialResult, awardResult] = await Promise.allSettled([
-    runDailySocialScan().then(saveGtmDailyScan),
-    runDailyAwardScan().then(saveGtmAwardScan)
-  ]);
-  if (socialResult.status === "rejected" && awardResult.status === "rejected") throw new Error("Both scheduled GTM scans failed.");
-  const errors = [socialResult, awardResult].flatMap((result) => result.status === "rejected" ? [result.reason instanceof Error ? result.reason.message : "Unknown scan error"] : []);
-  const opportunities = awardResult.status === "fulfilled" ? awardResult.value.opportunities : [];
+  const errors: string[] = [];
+  let awardScan;
+  try { awardScan = await runDailyAwardScan().then(saveGtmAwardScan); }
+  catch (error) { errors.push(error instanceof Error ? error.message : "Award scan failed."); }
+  const opportunities = awardScan?.opportunities || [];
   let shadowStatus;
   try { shadowStatus = await saveGtmShadowStatus(buildShadowStatus(opportunities.map(shadowLeadFromOpportunity), suggestedTopicsFromLeads(opportunities.map(shadowLeadFromOpportunity)))); }
   catch (error) { errors.push(error instanceof Error ? error.message : "GTM shadow status could not be saved."); }
   return json(response, 200, {
     status: errors.length ? "partial" : "completed",
     generatedAt: new Date().toISOString(),
-    socialItemCount: socialResult.status === "fulfilled" ? socialResult.value.items.length : null,
-    awardCandidateCount: awardResult.status === "fulfilled" ? awardResult.value.opportunities.length : null,
+    socialItemCount: null,
+    socialResearchMode: "MANUAL_REVIEW_ONLY",
+    awardCandidateCount: awardScan?.opportunities.length || null,
     shadowMode: "SHADOW",
     shadowStatus: shadowStatus || null,
     errors

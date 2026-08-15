@@ -2,6 +2,15 @@ import { useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BLOG_POSTS, findBlogPost } from "../content/blog";
 
+function setHeadMeta(attribute: "name" | "property", key: string, value: string) {
+  const selector = "meta[" + attribute + "='" + key + "']";
+  const existing = document.querySelector<HTMLMetaElement>(selector);
+  const meta = existing || document.createElement("meta");
+  meta.setAttribute(attribute, key);
+  meta.setAttribute("content", value);
+  if (!existing) document.head.appendChild(meta);
+}
+
 export function BlogIndexPage() {
   return <section className="workspace-page"><div className="site-shell py-12"><p className="eyebrow">GrantDeskHQ field guide</p><h1 className="page-title">Post-award reporting guidance for nonprofit teams</h1><p className="mx-auto max-w-3xl text-lg text-slate-600">Practical workflow guidance for nonprofit finance, grants, and program teams. General guidance never replaces the terms of a specific award.</p><div className="mt-10 grid gap-6 md:grid-cols-2">{BLOG_POSTS.map((post) => <article className="panel p-6" key={post.slug}><p className="eyebrow">{post.readingMinutes} minute read</p><h2 className="mt-3 text-2xl font-bold text-slate-900"><Link className="underline" to={"/blog/" + post.slug}>{post.title}</Link></h2><p className="mt-3 text-slate-600">{post.description}</p><Link className="button button-secondary mt-5" to={"/blog/" + post.slug}>Read article</Link></article>)}</div></div></section>;
 }
@@ -11,11 +20,16 @@ export function BlogPostPage() {
   const post = findBlogPost(slug);
   useEffect(() => {
     if (!post) return;
+    const canonicalUrl = "https://grantdeskhq.com/blog/" + post.slug;
     document.title = post.title + " | GrantDeskHQ";
-    const description = document.querySelector('meta[name="description"]') || document.head.appendChild(Object.assign(document.createElement("meta"), { name: "description" }));
-    description.setAttribute("content", post.description);
-    const canonical = document.querySelector('link[rel="canonical"]') || document.head.appendChild(Object.assign(document.createElement("link"), { rel: "canonical" }));
-    canonical.setAttribute("href", "https://grantdeskhq.com/blog/" + post.slug);
+    setHeadMeta("name", "description", post.description);
+    setHeadMeta("property", "og:type", "article");
+    setHeadMeta("property", "og:title", post.title);
+    setHeadMeta("property", "og:description", post.description);
+    setHeadMeta("property", "og:url", canonicalUrl);
+    setHeadMeta("property", "article:published_time", post.publishedAt);
+    const canonical = document.querySelector("link[rel=canonical]") || document.head.appendChild(Object.assign(document.createElement("link"), { rel: "canonical" }));
+    canonical.setAttribute("href", canonicalUrl);
   }, [post]);
   if (!post) return <section className="workspace-page"><div className="site-shell py-16"><h1 className="page-title">Article not found</h1><Link className="button button-primary mt-6" to="/blog">View the field guide</Link></div></section>;
   const articleSchema = { "@context": "https://schema.org", "@type": "Article", headline: post.title, description: post.description, datePublished: post.publishedAt, mainEntityOfPage: "https://grantdeskhq.com/blog/" + post.slug, publisher: { "@type": "Organization", name: "GrantDeskHQ" } };

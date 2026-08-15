@@ -13,7 +13,6 @@ import {
   FileSearch,
   Handshake,
   LoaderCircle,
-  Mail,
   MailCheck,
   MessageSquareText,
   Radar,
@@ -31,7 +30,6 @@ import { referralChannels, signalSources } from "../data/gtmData";
 import { apiRequest } from "../lib/api";
 import {
   assessOpportunityAccuracy,
-  canMoveToContacted,
   formatOpportunityScore,
   labelForSignal,
   rankGtmOpportunities,
@@ -110,7 +108,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   });
   const readyCount = ranked.filter((item) => assessOpportunityAccuracy(item).readyForAction).length;
   const unresolvedAwardCandidates = ranked.filter((item) => item.signalKind === "grant_award" && !item.primaryContact?.email).length;
-  const contactedCount = Object.values(stages).filter((stage) => ["contacted", "replied", "converted"].includes(stage)).length;
+  const contactedCount = 0;
   const pipelineStages: OpportunityStage[] = ["new", "reviewing", "ready", "contacted", "replied", "converted", "dismissed"];
 
   const updateStage = (id: string, stage: OpportunityStage) => setStages((current) => ({ ...current, [id]: stage }));
@@ -136,7 +134,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
           <Metric icon={BellRing} label="Current alerts" value={ranked.length} detail="verified organizations" />
           <Metric icon={Target} label="Actionable now" value={readyCount} detail="source gate passed" />
           <Metric icon={MessageSquareText} label="Pain signals" value={redditSignals.length + linkedinItems.length + (dailyScan?.items.length || 0)} detail="reviewed + today’s scan" />
-          <Metric icon={MailCheck} label="Contacted" value={contactedCount} detail="marked by you" />
+          <Metric icon={MailCheck} label="Outbound actions" value={contactedCount} detail="locked at zero in SHADOW mode" />
         </div>
       </div>
     </header>
@@ -144,7 +142,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
     <div className="gtm-tab-wrap">
       <div className="site-shell gtm-tabs" role="tablist" aria-label="GTM dashboard sections">
         {([
-          ["hot-list", "Daily hot list"], ["signals", "Reddit & LinkedIn"], ["sources", "Signal engines"], ["partners", "Referral channels"], ["pipeline", "Progress"], ["automation", "Outreach automation"], ["accuracy", "Accuracy controls"]
+          ["hot-list", "Daily hot list"], ["signals", "Manual social research"], ["sources", "Signal engines"], ["partners", "Referral channels"], ["pipeline", "Progress"], ["automation", "Outreach automation"], ["accuracy", "Accuracy controls"]
         ] as Array<[DashboardTab, string]>).map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={activeTab === id} className={activeTab === id ? "is-active" : ""} onClick={() => setActiveTab(id)}>{label}</button>)}
       </div>
     </div>
@@ -169,20 +167,20 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
                 <div className="gtm-opportunity-top"><div className="flex flex-wrap items-center gap-2"><span className="status-badge status-info">{labelForSignal(opportunity.signalKind)}</span>{opportunity.targetTier && <span className="status-badge status-neutral">{opportunity.targetTier} target</span>}<span className={`status-badge ${accuracy.readyForAction ? "status-success" : "status-review"}`}>{accuracy.confidence} confidence</span><span className="status-badge status-neutral">{stage.replaceAll("_", " ")}</span></div><span className="text-xs text-slate-500">Observed {formatDate(opportunity.observedAt)}</span></div>
                 <h3>{opportunity.organization}</h3><p className="gtm-headline">{opportunity.headline}</p>
                 <div className="gtm-facts">{opportunity.amount && <span><CircleDollarSign aria-hidden="true" />{formatMoney(opportunity.amount)}</span>}{opportunity.funder && <span><Building2 aria-hidden="true" />{opportunity.funder}</span>}{opportunity.location && <span><Radar aria-hidden="true" />{opportunity.location}</span>}</div>
-                {opportunity.primaryContact ? <div className="gtm-contact-summary"><Mail aria-hidden="true" /><div><span>Suggested recipient</span><strong>{opportunity.primaryContact.name} · {opportunity.primaryContact.title}</strong><a href={`mailto:${opportunity.primaryContact.email}`}>{opportunity.primaryContact.email}</a></div></div> : <div className="gtm-contact-summary needs-contact"><AlertCircle aria-hidden="true" /><div><span>Contact research needed</span><strong>No verified recipient email is attached to this generated alert.</strong></div></div>}
+                {opportunity.primaryContact ? <div className="gtm-contact-summary"><MailCheck aria-hidden="true" /><div><span>Suggested recipient</span><strong>{opportunity.primaryContact.name} · {opportunity.primaryContact.title}</strong><span>{opportunity.primaryContact.email} (manual review only)</span></div></div> : <div className="gtm-contact-summary needs-contact"><AlertCircle aria-hidden="true" /><div><span>Contact research needed</span><strong>No verified recipient email is attached to this generated alert.</strong></div></div>}
                 {opportunity.fitSignals?.length ? <p className="gtm-why"><strong>Visible fit signals:</strong> {opportunity.fitSignals.join(" · ")}</p> : null}
                 <p className="gtm-why"><strong>Why now:</strong> {opportunity.whyNow}</p>
                 <div className="gtm-actions">
                   <button type="button" className="button button-secondary button-small" onClick={() => { setExpanded(isExpanded ? null : opportunity.id); updateStage(opportunity.id, stage === "new" ? "reviewing" : stage); }}>{isExpanded ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}{isExpanded ? "Hide evidence" : "Review evidence"}</button>
-                  <button type="button" className="button button-secondary button-small" disabled={!accuracy.readyForAction || stage === "dismissed"} onClick={() => updateStage(opportunity.id, "ready")}><ClipboardCheck aria-hidden="true" />Approve for outreach</button>
+                  <button type="button" className="button button-secondary button-small" disabled={!accuracy.readyForAction || stage === "dismissed"} onClick={() => updateStage(opportunity.id, "ready")}><ClipboardCheck aria-hidden="true" />Mark ready for human review</button>
                   <button type="button" className="button button-secondary button-small" disabled={stage !== "ready"} onClick={() => copyDraft(opportunity)}><Copy aria-hidden="true" />{copied === opportunity.id ? "Copied" : "Copy draft"}</button>
-                  {opportunity.primaryContact && stage === "ready" ? <a className="button button-secondary button-small" href={buildEmailHref(opportunity)}><Mail aria-hidden="true" />Open email draft</a> : <button type="button" className="button button-secondary button-small" disabled><Mail aria-hidden="true" />Open email draft</button>}
-                  <button type="button" className="button button-primary button-small" disabled={!canMoveToContacted(stage, accuracy) || stage === "contacted"} onClick={() => updateStage(opportunity.id, "contacted")}><MailCheck aria-hidden="true" />{stage === "contacted" ? "Contacted" : "Mark contacted"}</button>
+                  <button type="button" className="button button-secondary button-small" disabled title="Outbound remains locked in SHADOW mode"><ShieldCheck aria-hidden="true" />Outbound locked</button>
+                  <button type="button" className="button button-primary button-small" disabled title="Outbound remains locked in SHADOW mode"><MailCheck aria-hidden="true" />Outbound locked</button>
                   <button type="button" className="gtm-dismiss" onClick={() => updateStage(opportunity.id, "dismissed")}>Dismiss</button>
                 </div>
                 {isExpanded && <div className="gtm-evidence-panel">
                   <div><p className="eyebrow">Observed evidence</p>{opportunity.evidence.map((source) => <article className="gtm-source-evidence" key={source.id}><a href={source.url} target="_blank" rel="noreferrer">{source.title}<ExternalLink aria-hidden="true" /></a><blockquote>“{source.excerpt}”</blockquote><p>Supports: {source.supports.join(", ")}</p></article>)}</div>
-                  <div><p className="eyebrow">Recipient and draft</p>{opportunity.primaryContact ? <div className="gtm-contact-card"><div><span>{opportunity.primaryContact.emailKind === "direct" ? "Verified direct email" : "Verified organization inbox"}</span><strong>{opportunity.primaryContact.name}</strong><p>{opportunity.primaryContact.title}</p><a href={`mailto:${opportunity.primaryContact.email}`}>{opportunity.primaryContact.email}</a></div><p>{opportunity.primaryContact.note}</p><div className="gtm-contact-sources"><a href={opportunity.primaryContact.roleSourceUrl} target="_blank" rel="noreferrer">Verify role <ExternalLink aria-hidden="true" /></a><a href={opportunity.primaryContact.emailSourceUrl} target="_blank" rel="noreferrer">Verify email <ExternalLink aria-hidden="true" /></a><small>Checked {formatDate(opportunity.primaryContact.verifiedAt)}</small></div></div> : <div className="gtm-caveats"><AlertCircle aria-hidden="true" /><div><strong>Contact not verified</strong><p>Research a named finance or grants leader and confirm the email from an authoritative source before outreach.</p></div></div>}<div className="gtm-interpretation"><strong>Recommended roles</strong><p>{opportunity.recommendedRoles.join(" · ")}</p><strong>Suggested angle</strong><p>{opportunity.recommendedAngle}</p><strong>Email subject</strong><p>{opportunity.emailSubject}</p><strong>Draft for human review</strong><p className="whitespace-pre-line">{opportunity.draftMessage}</p></div>{[...accuracy.blockers, ...accuracy.warnings].length > 0 && <div className="gtm-caveats"><AlertCircle aria-hidden="true" /><div><strong>Before contact</strong><ul>{[...accuracy.blockers, ...accuracy.warnings].map((item) => <li key={item}>{item}</li>)}</ul></div></div>}</div>
+                  <div><p className="eyebrow">Recipient and draft</p>{opportunity.primaryContact ? <div className="gtm-contact-card"><div><span>{opportunity.primaryContact.emailKind === "direct" ? "Verified direct email" : "Verified organization inbox"}</span><strong>{opportunity.primaryContact.name}</strong><p>{opportunity.primaryContact.title}</p><span>{opportunity.primaryContact.email} (manual review only)</span></div><p>{opportunity.primaryContact.note}</p><div className="gtm-contact-sources"><a href={opportunity.primaryContact.roleSourceUrl} target="_blank" rel="noreferrer">Verify role <ExternalLink aria-hidden="true" /></a><a href={opportunity.primaryContact.emailSourceUrl} target="_blank" rel="noreferrer">Verify email <ExternalLink aria-hidden="true" /></a><small>Checked {formatDate(opportunity.primaryContact.verifiedAt)}</small></div></div> : <div className="gtm-caveats"><AlertCircle aria-hidden="true" /><div><strong>Contact not verified</strong><p>Research a named finance or grants leader and confirm the email from an authoritative source before outreach.</p></div></div>}<div className="gtm-interpretation"><strong>Recommended roles</strong><p>{opportunity.recommendedRoles.join(" · ")}</p><strong>Suggested angle</strong><p>{opportunity.recommendedAngle}</p><strong>Email subject</strong><p>{opportunity.emailSubject}</p><strong>Draft for human review</strong><p className="whitespace-pre-line">{opportunity.draftMessage}</p></div>{[...accuracy.blockers, ...accuracy.warnings].length > 0 && <div className="gtm-caveats"><AlertCircle aria-hidden="true" /><div><strong>Before contact</strong><ul>{[...accuracy.blockers, ...accuracy.warnings].map((item) => <li key={item}>{item}</li>)}</ul></div></div>}</div>
                 </div>}
               </div>
             </article>;
@@ -204,14 +202,14 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
 function SignalsPanel({ dailyScan, loading, error }: { dailyScan: DailySocialScan | null; loading: boolean; error: string }) {
   return <section><div className="gtm-section-heading"><div><p className="eyebrow">Voice of the market</p><h2>Public pain signals stay separate from contactable leads</h2><p>Anonymous or unresolved posts help refine positioning. They do not become outreach targets unless the organization and role are independently verified.</p></div></div>
     <div className="gtm-signal-grid">
-      <div className="panel gtm-daily-panel"><div className="panel-heading"><div><p className="eyebrow">Daily Reddit + LinkedIn check</p><h3>{loading ? "Checking the latest saved scan…" : dailyScan ? `${dailyScan.items.length} source-linked result${dailyScan.items.length === 1 ? "" : "s"}` : "Waiting for the first scheduled scan"}</h3></div><span className="status-badge status-success">Once daily</span></div>
+      <div className="panel gtm-daily-panel"><div className="panel-heading"><div><p className="eyebrow">Manual Reddit + LinkedIn research</p><h3>{loading ? "Loading saved manual research…" : dailyScan ? `${dailyScan.items.length} source-linked result${dailyScan.items.length === 1 ? "" : "s"}` : "No manual research has been saved"}</h3></div><span className="status-badge status-success">Manual only</span></div>
         {error && <div className="compiler-error" role="alert"><AlertCircle aria-hidden="true" />{error}</div>}
         {dailyScan && <><p className="gtm-daily-summary">Last completed {formatDateTime(dailyScan.generatedAt)} · {dailyScan.coverage}</p><div className="gtm-feed-list">{dailyScan.items.map((item) => <article key={item.id}>{item.platform === "reddit" ? <MessageSquareText aria-hidden="true" /> : <UsersRound aria-hidden="true" />}<div><div className="flex flex-wrap items-center gap-2"><span className="status-badge status-neutral">{item.platform}</span><span className="status-badge status-review">research only</span></div><a href={item.url} target="_blank" rel="noreferrer">{item.title}<ExternalLink aria-hidden="true" /></a><p>{item.observedPain}</p><small>{item.author !== "unknown" ? `${item.author} · ` : ""}{item.publishedAt !== "unknown" ? item.publishedAt : "publication date needs verification"}</small></div></article>)}</div><details className="gtm-scan-limitations"><summary>Coverage and limitations</summary><ul>{dailyScan.limitations.map((item) => <li key={item}>{item}</li>)}</ul></details></>}
       </div>
-      <div className="panel"><div className="panel-heading"><div><p className="eyebrow">Reddit research</p><h3>{redditSignals.length} reviewed threads</h3></div><span className="status-badge status-success">Daily discovery + manual review</span></div><div className="gtm-feed-list">{redditSignals.slice(0, 6).map((item) => <article key={item.id}><MessageSquareText aria-hidden="true" /><div><a href={item.url} target="_blank" rel="noreferrer">{item.title}<ExternalLink aria-hidden="true" /></a><p>{item.evidenceSummary}</p><small>{item.community} · {item.confidence} confidence</small></div></article>)}</div></div>
+      <div className="panel"><div className="panel-heading"><div><p className="eyebrow">Reddit research</p><h3>{redditSignals.length} reviewed threads</h3></div><span className="status-badge status-success">Manual only</span></div><div className="gtm-feed-list">{redditSignals.slice(0, 6).map((item) => <article key={item.id}><MessageSquareText aria-hidden="true" /><div><a href={item.url} target="_blank" rel="noreferrer">{item.title}<ExternalLink aria-hidden="true" /></a><p>{item.evidenceSummary}</p><small>{item.community} · {item.confidence} confidence</small></div></article>)}</div></div>
       <div className="panel"><div className="panel-heading"><div><p className="eyebrow">LinkedIn review queue</p><h3>{linkedinItems.length} posts and communities</h3></div><span className="status-badge status-neutral">No automated engagement</span></div><div className="gtm-feed-list">{linkedinItems.slice(0, 6).map((item) => <article key={item.url}><UsersRound aria-hidden="true" /><div><a href={item.url} target="_blank" rel="noreferrer">{item.title}<ExternalLink aria-hidden="true" /></a><p>{item.observedPain}</p><small>{item.status.replaceAll("_", " ")} · draft response requires review</small></div></article>)}</div></div>
     </div>
-    <div className="gtm-boundary-note"><ShieldCheck aria-hidden="true" /><div><strong>One bounded discovery check per day—no platform automation.</strong><p>The monitor searches public, indexed results and preserves source links. It does not crawl profiles, discover contact details, post, comment, message, or email anyone.</p></div></div>
+    <div className="gtm-boundary-note"><ShieldCheck aria-hidden="true" /><div><strong>Social research is manual-only.</strong><p>No Reddit or LinkedIn discovery job runs automatically. The workspace preserves previously reviewed public evidence, but does not crawl profiles, discover contacts, post, comment, message, or email anyone.</p></div></div>
   </section>;
 }
 
@@ -230,18 +228,17 @@ function PipelinePanel({ opportunities, stages, stagesOrder, onStageChange }: { 
 function OutreachAutomationPanel({ opportunities, stages }: { opportunities: GtmOpportunity[]; stages: StageState }) {
   const verifiedContacts = opportunities.filter((item) => assessOpportunityAccuracy(item).readyForAction);
   const approved = verifiedContacts.filter((item) => stages[item.id] === "ready");
-  const contacted = verifiedContacts.filter((item) => ["contacted", "replied", "converted"].includes(stages[item.id] || "new"));
   const steps = [
-    ["Daily signal discovery", "Active", "Federal awards plus the bounded Reddit and LinkedIn scan run once per day."],
+    ["Daily signal discovery", "Active", "The bounded USAspending award scan runs once per day. Reddit and LinkedIn stay manual-only."],
     ["Contact enrichment", "Needs provider", "Resolve a current finance or grants leader and verify the address from an authoritative source. Apollo, Clay, or another permissioned provider can fill this lane."],
     ["Personalized draft", "Active", "Each supported lead receives a signal-specific subject and first-touch draft. Unknown details remain blank."],
-    ["Human approval", "Required", "You approve the recipient, evidence, and message before the lead enters the send queue."],
-    ["Email delivery and follow-up", "Not connected", "Connect Resend server-side with suppression, unsubscribe, idempotency, delivery webhooks, and a one-follow-up limit before enabling sends."]
+    ["Human approval", "Required", "A reviewer checks the recipient, evidence, and message. The record remains a SHADOW draft and does not enter a send queue."],
+    ["Outbound delivery", "Disabled", "No Resend, Gmail, SMTP, LinkedIn, Reddit, contact-form, or campaign integration is enabled in SHADOW mode."]
   ];
-  return <section><div className="gtm-section-heading"><div><p className="eyebrow">Approval-based outreach</p><h2>Automate the research and drafting. Keep the send decision with you.</h2><p>The safest first version prepares a small daily queue of relevant, source-backed emails. It does not spray a generic list or contact anyone whose identity and address have not been verified.</p></div><button type="button" className="button button-primary" disabled={!approved.length} onClick={() => downloadApprovedQueue(approved)}><MailCheck aria-hidden="true" />Download approved queue ({approved.length})</button></div>
-    <div className="gtm-automation-metrics"><article><strong>{opportunities.length}</strong><span>research candidates</span></article><article><strong>{verifiedContacts.length}</strong><span>verified contacts</span></article><article><strong>{approved.length}</strong><span>approved drafts</span></article><article><strong>{contacted.length}</strong><span>contacted or beyond</span></article></div>
+  return <section><div className="gtm-section-heading"><div><p className="eyebrow">SHADOW outreach drafting</p><h2>Research and drafts stay reviewable. Delivery stays locked.</h2><p>The workspace prepares source-backed draft language only. It does not contact anyone, hand off an email-client draft, or export a send queue.</p></div><button type="button" className="button button-primary" disabled title="Outbound remains locked in SHADOW mode"><MailCheck aria-hidden="true" />Outbound locked</button></div>
+    <div className="gtm-automation-metrics"><article><strong>{opportunities.length}</strong><span>research candidates</span></article><article><strong>{verifiedContacts.length}</strong><span>verified contacts</span></article><article><strong>{approved.length}</strong><span>drafts awaiting review</span></article><article><strong>0</strong><span>outbound actions sent</span></article></div>
     <div className="gtm-automation-flow">{steps.map(([title, status, detail], index) => <article key={title}><span>{index + 1}</span><div><div className="flex flex-wrap items-center gap-2"><h3>{title}</h3><small className={`status-badge ${status === "Active" ? "status-success" : status === "Required" ? "status-review" : "status-neutral"}`}>{status}</small></div><p>{detail}</p></div></article>)}</div>
-    <div className="gtm-boundary-note"><ShieldCheck aria-hidden="true" /><div><strong>Recommended sending policy</strong><p>Limit automated delivery to U.S. recipients with a verified business role and address, include an accurate sender identity, advertisement disclosure, physical postal address, and working opt-out, suppress every opt-out immediately, and never send more than one automated follow-up. Keep LinkedIn messages and comments manual.</p></div></div>
+    <div className="gtm-boundary-note"><ShieldCheck aria-hidden="true" /><div><strong>Future LIVE gate is disabled</strong><p>Limit automated delivery to U.S. recipients with a verified business role and address, include an accurate sender identity, advertisement disclosure, physical postal address, and working opt-out, suppress every opt-out immediately, and never send more than one automated follow-up. Keep LinkedIn messages and comments manual.</p></div></div>
   </section>;
 }
 
@@ -280,36 +277,6 @@ function formatDate(value: string) {
 
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" }).format(new Date(value));
-}
-
-function buildEmailHref(opportunity: GtmOpportunity) {
-  if (!opportunity.primaryContact) return "#";
-  return `mailto:${opportunity.primaryContact.email}?subject=${encodeURIComponent(opportunity.emailSubject)}&body=${encodeURIComponent(opportunity.draftMessage)}`;
-}
-
-function downloadApprovedQueue(opportunities: GtmOpportunity[]) {
-  const columns = ["organization", "contact_name", "title", "email", "subject", "message", "signal", "source_url"];
-  const rows = opportunities.map((item) => [
-    item.organization,
-    item.primaryContact?.name || "",
-    item.primaryContact?.title || "",
-    item.primaryContact?.email || "",
-    item.emailSubject,
-    item.draftMessage,
-    labelForSignal(item.signalKind),
-    item.evidence[0]?.url || ""
-  ]);
-  const csv = [columns, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
-  const url = URL.createObjectURL(new Blob([`${csv}\n`], { type: "text/csv;charset=utf-8" }));
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `GrantDeskHQ_Approved_Outreach_${new Date().toISOString().slice(0, 10)}.csv`;
-  anchor.click();
-  URL.revokeObjectURL(url);
-}
-
-function csvCell(value: string) {
-  return /[",\n\r]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
 }
 
 function mergeAwardCandidates(candidates: GtmOpportunity[], verified: GtmOpportunity[]) {

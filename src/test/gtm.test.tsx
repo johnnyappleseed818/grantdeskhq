@@ -146,23 +146,15 @@ describe("GTM command center", () => {
     await user.click(screen.getAllByRole("button", { name: "Review evidence" })[0]);
     expect(screen.getByText("Observed evidence")).toBeInTheDocument();
     expect(screen.getAllByText(/Maureen Lister/).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("link", { name: "info@perkins.org" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/info@perkins\.org/).length).toBeGreaterThan(0);
+    expect(document.querySelectorAll("a[href^=\"mailto:\"]")).toHaveLength(0);
   });
 
-  it("requires explicit approval before the contacted action is enabled", async () => {
-    const user = userEvent.setup();
+  it("keeps email-client handoff and external action marking locked in SHADOW mode", () => {
     render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} /></MemoryRouter>);
-    const jaHeading = screen.getByRole("heading", { name: "Junior Achievement of South Florida" });
-    const card = jaHeading.closest("article")!;
-    const contacted = Array.from(card.querySelectorAll("button")).find((button) => button.textContent?.includes("Mark contacted"))!;
-    expect(contacted).toBeDisabled();
-    const approve = Array.from(card.querySelectorAll("button")).find((button) => button.textContent?.includes("Approve for outreach"))!;
-    await user.click(approve);
-    expect(contacted).toBeEnabled();
-    const emailDraft = screen.getByRole("link", { name: "Open email draft" });
-    expect(emailDraft).toHaveAttribute("href", expect.stringMatching(/^mailto:allie\.martinez@jasouthflorida\.org\?/));
-    await user.click(contacted);
-    expect(card.textContent).toMatch(/contacted/i);
+    expect(screen.getAllByRole("button", { name: /outbound locked/i }).length).toBeGreaterThan(0);
+    expect(document.querySelectorAll("a[href^=\"mailto:\"]")).toHaveLength(0);
+    expect(screen.getByText(/locked at zero in shadow mode/i)).toBeInTheDocument();
   });
 
   it("supports keyboard-accessible tab and filter controls", () => {
@@ -179,7 +171,7 @@ describe("GTM command center", () => {
   it("shows the latest daily social scan as research-only evidence", async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} initialDailyScan={dailyScan} /></MemoryRouter>);
-    await user.click(screen.getByRole("tab", { name: "Reddit & LinkedIn" }));
+    await user.click(screen.getByRole("tab", { name: "Manual social research" }));
     expect(screen.getByRole("heading", { name: "1 source-linked result" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Manual grant reporting workflow/i })).toHaveAttribute("href", dailyScan.items[0].url);
     expect(screen.getAllByText("research only").length).toBeGreaterThan(0);
@@ -193,7 +185,7 @@ describe("GTM command center", () => {
     const card = screen.getByRole("heading", { name: "Community Action Network" }).closest("article")!;
     expect(card.textContent).toMatch(/Contact research needed/i);
     await user.click(screen.getByRole("tab", { name: "Outreach automation" }));
-    expect(screen.getByRole("heading", { name: /Automate the research and drafting/i })).toBeInTheDocument();
-    expect(screen.getByText("Email delivery and follow-up").closest("article")?.textContent).toMatch(/Not connected/i);
+    expect(screen.getByRole("heading", { name: /Research and drafts stay reviewable/i })).toBeInTheDocument();
+    expect(screen.getByText("Outbound delivery").closest("article")?.textContent).toMatch(/Disabled/i);
   });
 });

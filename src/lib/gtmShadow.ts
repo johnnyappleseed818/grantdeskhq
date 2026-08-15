@@ -1,4 +1,7 @@
 export const GTM_MODE = "SHADOW" as const;
+export const SOCIAL_RESEARCH_MODE = "MANUAL_REVIEW_ONLY" as const;
+export const CONTENT_PUBLICATION_MODE = "HUMAN_REVIEW_REQUIRED" as const;
+export const DEFAULT_CONTENT_SCHEDULE_DAYS = [2, 4] as const;
 export const MAX_OUTREACH_MESSAGES = 3;
 export const REQUIRED_ATTRIBUTION_FIELDS = ["lead_id", "campaign_id", "utm_source", "utm_medium", "utm_campaign", "utm_content"] as const;
 
@@ -37,7 +40,7 @@ export interface OutreachDraft { sequence: number; subject: string; body: string
 export interface BlogTopic { id: string; title: string; slug: string; query: string; cluster: string; score: number; sources: SignalProvenance[]; status: "candidate" | "scheduled" | "blocked"; }
 export interface BlogArticleDraft { title: string; slug: string; body: string; sources: SignalProvenance[]; metaDescription: string; canonicalUrl: string; cta: string; }
 export interface ContentQualityResult { pass: boolean; blockers: string[]; }
-export interface ShadowPipelineStatus { mode: typeof GTM_MODE; generatedAt: string; leadCount: number; qualifiedCount: number; suppressedCount: number; draftCount: number; scheduledTopics: BlogTopic[]; publishedArticles: PublishedArticle[]; outboundEnabled: false; }
+export interface ShadowPipelineStatus { mode: typeof GTM_MODE; generatedAt: string; leadCount: number; qualifiedCount: number; suppressedCount: number; draftCount: number; scheduledTopics: BlogTopic[]; preparedArticles: PreparedArticle[]; outboundEnabled: false; automaticPublicationEnabled: false; socialResearchMode: typeof SOCIAL_RESEARCH_MODE; }
 
 const caps: LeadScoreInput = { activeGrantVolume: 18, institutionalFunding: 15, financeOrGrantsStaffing: 15, reportingComplexity: 18, organizationSize: 10, signalRecency: 12, fit: 12 };
 
@@ -91,10 +94,20 @@ export function createBlogTopic(title: string, query: string, cluster: string, s
   return { id: "topic_" + normalize(title).slice(0, 64), title, slug: normalize(title).slice(0, 80), query, cluster, score, sources, status: score >= 65 ? "candidate" : "blocked" };
 }
 
-export function scheduleEligibleTopics(topics: BlogTopic[], date = new Date()): BlogTopic[] {
+export function dedupeBlogTopics(topics: BlogTopic[]) {
+  const seen = new Set<string>();
+  return topics.filter((topic) => {
+    const key = normalize(topic.slug || topic.title);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export function scheduleEligibleTopics(topics: BlogTopic[], date = new Date(), publishingDays: readonly number[] = DEFAULT_CONTENT_SCHEDULE_DAYS): BlogTopic[] {
   const day = date.getUTCDay();
-  if (day !== 2 && day !== 4) return [];
-  return topics.filter((topic) => topic.status === "candidate").sort((a, b) => b.score - a.score || a.title.localeCompare(b.title)).slice(0, 2).map((topic) => ({ ...topic, status: "scheduled" }));
+  if (!publishingDays.includes(day)) return [];
+  return dedupeBlogTopics(topics).filter((topic) => topic.status === "candidate").sort((a, b) => b.score - a.score || a.title.localeCompare(b.title)).slice(0, 2).map((topic) => ({ ...topic, status: "scheduled" }));
 }
 
 export function assessContentQuality(article: BlogArticleDraft): ContentQualityResult {
@@ -111,7 +124,7 @@ export function assessContentQuality(article: BlogArticleDraft): ContentQualityR
 export function buildShadowStatus(leads: ShadowLead[], topics: BlogTopic[], generatedAt = new Date().toISOString()): ShadowPipelineStatus {
   const unique = dedupeShadowLeads(leads);
   const scheduledTopics = scheduleEligibleTopics(topics, new Date(generatedAt));
-  return { mode: GTM_MODE, generatedAt, leadCount: unique.length, qualifiedCount: unique.filter((lead) => lead.status === "qualified" || lead.status === "drafted").length, suppressedCount: unique.filter(isSuppressed).length, draftCount: unique.filter((lead) => createShadowOutreach(lead).length > 0).length, scheduledTopics, publishedArticles: publishScheduledTopics(topics, generatedAt), outboundEnabled: false };
+  return { mode: GTM_MODE, generatedAt, leadCount: unique.length, qualifiedCount: unique.filter((lead) => lead.status === "qualified" || lead.status === "drafted").length, suppressedCount: unique.filter(isSuppressed).length, draftCount: unique.filter((lead) => createShadowOutreach(lead).length > 0).length, scheduledTopics, preparedArticles: prepareScheduledTopics(topics, generatedAt), outboundEnabled: false, automaticPublicationEnabled: false, socialResearchMode: SOCIAL_RESEARCH_MODE };
 }
 
 function validSource(source: SignalProvenance) { return Boolean(source.source.trim() && source.evidence.trim() && /^https:\/\//.test(source.sourceUrl) && !Number.isNaN(Date.parse(source.observedAt))); }
@@ -188,10 +201,17 @@ export function liveOutreachGate(configuration: { senderIdentity?: string; posta
   return { allowed: false as const, blockers };
 }
 
-export interface PublishedArticle {
+export function contentPublicationGate() {
+  return {
+    allowed: false as const,
+    blockers: ["Content remains a source-linked SHADOW draft until a human approves publication.", "Automatic public publication is disabled."]
+  };
+}
+
+export interface PreparedArticle {
   title: string;
   slug: string;
-  status: "published";
+  status: "SHADOW_DRAFT_REQUIRES_REVIEW";
   publishedAt: string;
   metaDescription: string;
   canonicalUrl: string;
@@ -221,15 +241,15 @@ export function generateArticleDraft(topic: BlogTopic): BlogArticleDraft {
   };
 }
 
-export function publishScheduledTopics(topics: BlogTopic[], publishedAt = new Date().toISOString()): PublishedArticle[] {
-  return scheduleEligibleTopics(topics, new Date(publishedAt)).flatMap((topic) => {
+export function prepareScheduledTopics(topics: BlogTopic[], preparedAt = new Date().toISOString()): PreparedArticle[] {
+  return scheduleEligibleTopics(topics, new Date(preparedAt)).flatMap((topic) => {
     const article = generateArticleDraft(topic);
     const quality = assessContentQuality(article);
     return quality.pass ? [{
       title: article.title,
       slug: article.slug,
-      status: "published" as const,
-      publishedAt,
+      status: "SHADOW_DRAFT_REQUIRES_REVIEW" as const,
+      publishedAt: preparedAt,
       metaDescription: article.metaDescription,
       canonicalUrl: article.canonicalUrl,
       structuredData: { "@context": "https://schema.org", "@type": "Article", headline: article.title, mainEntityOfPage: article.canonicalUrl },

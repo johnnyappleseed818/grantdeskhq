@@ -1,15 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
+  CONTENT_PUBLICATION_MODE,
+  DEFAULT_CONTENT_SCHEDULE_DAYS,
   GTM_MODE,
   MAX_OUTREACH_MESSAGES,
+  SOCIAL_RESEARCH_MODE,
   applyConversionSuppression,
   assessContentQuality,
   buildShadowStatus,
   createBlogTopic,
   createShadowOutreach,
+  dedupeBlogTopics,
   dedupeShadowLeads,
+  scheduleEligibleTopics,
   scoreShadowLead,
   classifyReply,
+  contentPublicationGate,
   liveOutreachGate,
   type ShadowLead
 } from "../lib/gtmShadow";
@@ -29,6 +35,7 @@ const lead: ShadowLead = {
 describe("GTM SHADOW mode", () => {
   it("keeps the pipeline permanently SHADOW and drafts at most three source-specific messages", () => {
     expect(GTM_MODE).toBe("SHADOW");
+    expect(SOCIAL_RESEARCH_MODE).toBe("MANUAL_REVIEW_ONLY");
     const drafts = createShadowOutreach(lead);
     expect(drafts).toHaveLength(MAX_OUTREACH_MESSAGES);
     expect(drafts.every((draft) => draft.status === "SHADOW_DRAFT")).toBe(true);
@@ -60,9 +67,15 @@ describe("GTM SHADOW mode", () => {
     const topic = createBlogTopic("How to build a post-award reporting checklist", "post-award grant reporting checklist", "post-award reporting", [provenance], { icpRelevance: 20, commercialIntent: 18, searchIntent: 19, freshness: 10, authority: 18, differentiation: 15 });
     const status = buildShadowStatus([lead], [topic], "2026-08-18T12:00:00Z");
     expect(status.outboundEnabled).toBe(false);
+    expect(DEFAULT_CONTENT_SCHEDULE_DAYS).toEqual([2, 4]);
     expect(status.scheduledTopics).toHaveLength(1);
-    expect(status.publishedArticles).toHaveLength(1);
-    expect(status.publishedArticles[0].structuredData["@type"]).toBe("Article");
+    expect(scheduleEligibleTopics([topic, { ...topic, id: "duplicate-topic" }], new Date("2026-08-18T12:00:00Z"))).toHaveLength(1);
+    expect(dedupeBlogTopics([topic, { ...topic, id: "duplicate-topic" }])).toHaveLength(1);
+    expect(CONTENT_PUBLICATION_MODE).toBe("HUMAN_REVIEW_REQUIRED");
+    expect(status.preparedArticles).toHaveLength(1);
+    expect(status.preparedArticles[0]).toMatchObject({ status: "SHADOW_DRAFT_REQUIRES_REVIEW", structuredData: { "@type": "Article" } });
+    expect(status.automaticPublicationEnabled).toBe(false);
+    expect(contentPublicationGate()).toMatchObject({ allowed: false });
     const article = {
       title: topic.title,
       slug: topic.slug,

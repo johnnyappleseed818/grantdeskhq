@@ -21,6 +21,16 @@ describe("public GrantDeskHQ blog", () => {
     expect(screen.getByRole("link", { name: /uniform administrative requirements/i })).toHaveAttribute("href", expect.stringMatching(/^https:\/\//));
   });
 
+  it("sets canonical, OpenGraph, and Article metadata per article", () => {
+    render(<MemoryRouter initialEntries={["/blog/budget-to-actual-grant-reporting-workflow"]}><Routes><Route path="/blog/:slug" element={<BlogPostPage />} /></Routes></MemoryRouter>);
+    const property = (name: string) => Array.from(document.querySelectorAll<HTMLMetaElement>("meta[property]")).find((element) => element.getAttribute("property") === name)?.getAttribute("content");
+    expect(document.title).toMatch(/budget-to-actual grant reporting/i);
+    expect(property("og:type")).toBe("article");
+    expect(property("og:url")).toBe("https://grantdeskhq.com/blog/budget-to-actual-grant-reporting-workflow");
+    expect(property("article:published_time")).toBe("2026-08-21");
+    expect(document.querySelector("link[rel=canonical]")?.getAttribute("href")).toBe("https://grantdeskhq.com/blog/budget-to-actual-grant-reporting-workflow");
+  });
+
   it("renders both articles on the public index", () => {
     render(<MemoryRouter><BlogIndexPage /></MemoryRouter>);
     expect(screen.getAllByRole("link", { name: /read article/i })).toHaveLength(2);
