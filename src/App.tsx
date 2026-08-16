@@ -15,6 +15,7 @@ import { GtmDashboardPage } from "./pages/GtmDashboardPage";
 import { ReadinessPage } from "./pages/ReadinessPage";
 import { ReliabilityDashboardPage } from "./pages/ReliabilityDashboardPage";
 import { BlogIndexPage, BlogPostPage } from "./pages/BlogPage";
+import { ResourcesPage } from "./pages/ResourcesPage";
 import { AuthProvider } from "./lib/auth";
 import { AnalyticsManager } from "./lib/analytics";
 
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="privacy" element={<PrivacyPage />} />
           <Route path="pricing" element={<PricingPage />} />
           <Route path="blog" element={<BlogIndexPage />} />
+          <Route path="resources" element={<ResourcesPage />} />
           <Route path="blog/:slug" element={<BlogPostPage />} />
           <Route path="compile" element={<CompilePage />} />
           <Route path="login" element={<LoginPage />} />
