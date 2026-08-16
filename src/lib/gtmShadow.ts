@@ -1,4 +1,4 @@
-import { FREE_FIRST_AWARD_CTA, INTRODUCTORY_GROWTH_OFFER } from "./contactEnrichment";
+import { FREE_FIRST_AWARD_CTA, INTRODUCTORY_GROWTH_OFFER } from "./contactEnrichment.ts";
 
 export const GTM_MODE = "SHADOW" as const;
 export const SOCIAL_RESEARCH_MODE = "MANUAL_REVIEW_ONLY" as const;
