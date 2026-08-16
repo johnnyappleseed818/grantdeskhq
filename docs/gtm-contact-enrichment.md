@@ -31,11 +31,11 @@ Secrets must be attached as runtime secret environment variables; they must neve
 - `READY_FOR_HUMAN_APPROVAL` requires a current role source, a verified business email matching the organization domain, and a `CLEAR` suppression lookup.
 - No application code generates an email from a pattern. Provider results that do not match the verified organization domain are discarded.
 
-Contact results are stored at `gtm/contact-enrichments/{contact-key}`. Usage counters are stored at `gtm/contact-enrichment-usage/current`. Suppression records use a SHA-256 email hash as their document ID rather than storing the address in the path.
+Contact results are stored at `gtm/contact-enrichments/records/{contact-key}`. Usage counters are stored at `gtm/contact-enrichment-usage/records/current`. Suppression records use a SHA-256 email hash as their document ID rather than storing the address in the path.
 
 ## Suppression/history coverage
 
-The runtime checks the hashed `gtm/contact-suppressions` record and the existing `organizations.ownerEmail` account record. A history-read failure remains `UNKNOWN`, which blocks readiness. Future unsubscribe, bounce, complaint, DNC, prior-outreach, duplicate, and customer-state writers must call the same suppression record function rather than bypassing this gate.
+The runtime checks the hashed `gtm/contact-suppressions/records` record and the existing `organizations.ownerEmail` account record. A history-read failure remains `UNKNOWN`, which blocks readiness. Future unsubscribe, bounce, complaint, DNC, prior-outreach, duplicate, and customer-state writers must call the same suppression record function rather than bypassing this gate.
 
 ## Cost controls
 

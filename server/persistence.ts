@@ -582,7 +582,7 @@ export async function readGtmShadowStatus(): Promise<ShadowPipelineStatus | null
 
 export async function saveGtmContactEnrichment(record: ContactEnrichmentRecord) {
   const accessToken = await gcpToken();
-  await writeDocument(accessToken, `gtm/contact-enrichments/${safeGtmContactDocumentId(record.id)}`, {
+  await writeDocument(accessToken, `gtm/contact-enrichments/records/${safeGtmContactDocumentId(record.id)}`, {
     updatedAt: record.updatedAt,
     recordJson: JSON.stringify(record)
   });
@@ -591,7 +591,7 @@ export async function saveGtmContactEnrichment(record: ContactEnrichmentRecord) 
 
 export async function readGtmContactEnrichment(id: string): Promise<ContactEnrichmentRecord | null> {
   const accessToken = await gcpToken();
-  const response = await authorizedFetch(`${firestoreBase}/gtm/contact-enrichments/${safeGtmContactDocumentId(id)}`, accessToken);
+  const response = await authorizedFetch(`${firestoreBase}/gtm/contact-enrichments/records/${safeGtmContactDocumentId(id)}`, accessToken);
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`GTM contact enrichment could not be loaded (${response.status}).`);
   const document = await response.json() as { fields?: Record<string, FirestoreValue> };
@@ -602,7 +602,7 @@ export async function readGtmContactEnrichment(id: string): Promise<ContactEnric
 
 export async function saveGtmEnrichmentUsage(usage: EnrichmentUsage) {
   const accessToken = await gcpToken();
-  await writeDocument(accessToken, "gtm/contact-enrichment-usage/current", {
+  await writeDocument(accessToken, "gtm/contact-enrichment-usage/records/current", {
     updatedAt: usage.updatedAt,
     usageJson: JSON.stringify(usage)
   });
@@ -611,7 +611,7 @@ export async function saveGtmEnrichmentUsage(usage: EnrichmentUsage) {
 
 export async function readGtmEnrichmentUsage(): Promise<EnrichmentUsage | null> {
   const accessToken = await gcpToken();
-  const response = await authorizedFetch(`${firestoreBase}/gtm/contact-enrichment-usage/current`, accessToken);
+  const response = await authorizedFetch(`${firestoreBase}/gtm/contact-enrichment-usage/records/current`, accessToken);
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`GTM contact-enrichment usage could not be loaded (${response.status}).`);
   const document = await response.json() as { fields?: Record<string, FirestoreValue> };
@@ -628,15 +628,15 @@ export async function readGtmContactSuppression(email: string): Promise<Suppress
   }
   try {
     const accessToken = await gcpToken();
-    const response = await authorizedFetch(`${firestoreBase}/gtm/contact-suppressions/${contactSuppressionDocumentId(normalizedEmail)}`, accessToken);
+    const response = await authorizedFetch(`${firestoreBase}/gtm/contact-suppressions/records/${contactSuppressionDocumentId(normalizedEmail)}`, accessToken);
     if (!response.ok && response.status !== 404) throw new Error(`Suppression document status ${response.status}`);
     const document = response.status === 404 ? null : await response.json() as { fields?: Record<string, FirestoreValue> };
     const record = document ? decodeFields(document.fields || {}) : {};
     const suppressionReasons = parseSuppressionReasons(record.reasonsJson);
-    if (suppressionReasons.length) return { status: "BLOCKED", reasons: suppressionReasons, checkedAt, sourcesChecked: ["gtm/contact-suppressions"] };
+    if (suppressionReasons.length) return { status: "BLOCKED", reasons: suppressionReasons, checkedAt, sourcesChecked: ["gtm/contact-suppressions/records"] };
     const existingSignup = await organizationExistsForEmail(accessToken, normalizedEmail);
-    if (existingSignup) return { status: "BLOCKED", reasons: ["existing signup or customer record"], checkedAt, sourcesChecked: ["gtm/contact-suppressions", "organizations.ownerEmail"] };
-    return { status: "CLEAR", reasons: [], checkedAt, sourcesChecked: ["gtm/contact-suppressions", "organizations.ownerEmail"] };
+    if (existingSignup) return { status: "BLOCKED", reasons: ["existing signup or customer record"], checkedAt, sourcesChecked: ["gtm/contact-suppressions/records", "organizations.ownerEmail"] };
+    return { status: "CLEAR", reasons: [], checkedAt, sourcesChecked: ["gtm/contact-suppressions/records", "organizations.ownerEmail"] };
   } catch {
     return { status: "UNKNOWN", reasons: ["GTM suppression and contact history could not be read safely."], checkedAt, sourcesChecked: [] };
   }
@@ -647,14 +647,14 @@ export async function recordGtmContactSuppression(email: string, reasons: string
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail)) return;
   const accessToken = await gcpToken();
   const documentId = contactSuppressionDocumentId(normalizedEmail);
-  const existingResponse = await authorizedFetch(`${firestoreBase}/gtm/contact-suppressions/${documentId}`, accessToken);
+  const existingResponse = await authorizedFetch(`${firestoreBase}/gtm/contact-suppressions/records/${documentId}`, accessToken);
   if (!existingResponse.ok && existingResponse.status !== 404) throw new Error(`GTM suppression record could not be read (${existingResponse.status}).`);
   const existing = existingResponse.status === 404
     ? []
     : parseSuppressionReasons(decodeFields(((await existingResponse.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}).reasonsJson);
   const allowed = new Set(["unsubscribe", "opt_out", "do_not_contact", "complaint", "hard_bounce", "prior_outreach", "existing_signup", "existing_customer", "duplicate_contact"]);
   const merged = [...new Set([...existing, ...reasons.map((reason) => reason.trim().toLowerCase()).filter((reason) => allowed.has(reason))])];
-  await writeDocument(accessToken, `gtm/contact-suppressions/${documentId}`, {
+  await writeDocument(accessToken, `gtm/contact-suppressions/records/${documentId}`, {
     emailHash: documentId,
     reasonsJson: JSON.stringify(merged),
     source: source.slice(0, 160),
