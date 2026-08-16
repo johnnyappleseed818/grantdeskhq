@@ -40,7 +40,8 @@ describe("GTM SHADOW mode", () => {
     expect(drafts).toHaveLength(MAX_OUTREACH_MESSAGES);
     expect(drafts.every((draft) => draft.status === "SHADOW_DRAFT")).toBe(true);
     expect(drafts[0].body).toMatch(/USAspending/);
-    expect(drafts[0].body).toMatch(/no sales call/i);
+    expect(drafts[0].body).toContain("We're offering introductory Growth pricing to 25 nonprofit customers at $99/month, normally $199/month.");
+    expect(drafts[0].body).toContain("Would you be open to trying it with one award for free?");
   });
 
   it("dedupes organization research and suppresses converted contacts immediately", () => {

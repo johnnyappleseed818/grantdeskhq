@@ -1,3 +1,5 @@
+import { FREE_FIRST_AWARD_CTA, INTRODUCTORY_GROWTH_OFFER } from "./contactEnrichment";
+
 export const GTM_MODE = "SHADOW" as const;
 export const SOCIAL_RESEARCH_MODE = "MANUAL_REVIEW_ONLY" as const;
 export const CONTENT_PUBLICATION_MODE = "HUMAN_REVIEW_REQUIRED" as const;
@@ -75,7 +77,7 @@ export function createShadowOutreach(lead: ShadowLead): OutreachDraft[] {
   if (isSuppressed(lead) || !lead.contact?.name || !lead.contact.email || lead.contact.confidence !== "high" || !lead.provenance.length) return [];
   const signal = lead.provenance[0];
   const firstName = lead.contact.name.split(/\s+/)[0];
-  const base = "Hi " + firstName + ",\n\nI found " + lead.organization + " through " + signal.source + ": " + signal.evidence + " GrantDeskHQ helps nonprofit finance and grants teams turn award terms, accounting data, program updates, and evidence into a source-linked post-award reporting workflow.\n\nYou can start self-service at GrantDeskHQ; no sales call is required.\n\nBest,\nGrantDeskHQ";
+  const base = "Hi " + firstName + ",\n\nWe built GrantDeskHQ to take repetitive post-award reporting work off nonprofit finance and grants teams. Our AI-powered workflow turns the grant agreement, accounting data, program updates, and supporting evidence into a reviewable funder-report draft, while your team keeps control of review and submission.\n\nI saw " + lead.organization + " through " + signal.source + ": " + signal.evidence + "\n\n" + INTRODUCTORY_GROWTH_OFFER + " " + FREE_FIRST_AWARD_CTA + "\n\nBest,\nEli";
   return [1, 2, 3].map((sequence) => ({
     sequence,
     subject: sequence === 1 ? "A source-linked grant reporting workflow for " + lead.organization : "Following up on " + lead.organization + " reporting workflow",

@@ -11,6 +11,8 @@ import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
 import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmDailyScan, readGtmShadowStatus, readLatestReliabilityCanary, readReliabilityDashboard, listReports, removeSupportingEvidence, saveBillingEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmShadowStatus, saveReview } from "./persistence.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { buildShadowStatus, shadowLeadFromOpportunity, suggestedTopicsFromLeads } from "../src/lib/gtmShadow.ts";
+import { enrichGtmContactInShadow } from "./contactEnrichment.ts";
+import type { EnrichmentTarget } from "../src/lib/contactEnrichment.ts";
 import { requireGtmScheduler, requireHealthScheduler } from "./schedulerAuth.ts";
 import { BillingError, billingSnapshotFromEvent, changeSubscriptionPlan, createCheckoutSession, createCustomerPortalSession, foundingPricingActive, isBillingConfigured, validateBillingSelection, verifyStripeSignature, type StripeWebhookEvent } from "./billing.ts";
 import { normalizeCompilationSources } from "./sourceNormalization.ts";
@@ -57,6 +59,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/daily-signals") return await handleGtmDailySignals(request, response);
     if (url.pathname === "/api/gtm/award-signals") return await handleGtmAwardSignals(request, response);
     if (url.pathname === "/api/gtm/shadow-status") return await handleGtmShadowStatus(request, response);
+    if (url.pathname === "/api/gtm/contact-enrichment") return await handleGtmContactEnrichment(request, response);
     if (url.pathname === "/api/gtm/daily-scan") return await handleGtmDailyScan(request, response);
     if (url.pathname === "/api/internal/reliability/access") return await handleReliabilityAccess(request, response);
     if (url.pathname === "/api/internal/reliability/summary") return await handleReliabilitySummary(request, response);
@@ -217,6 +220,26 @@ async function handleGtmShadowStatus(request: IncomingMessage, response: ServerR
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   requireGtmAdmin(await requireUser(request));
   return json(response, 200, { status: await readGtmShadowStatus() });
+}
+
+async function handleGtmContactEnrichment(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  requireGtmAdmin(await requireUser(request));
+  const target = await readJson(request) as EnrichmentTarget;
+  const errors = validateContactEnrichmentTarget(target);
+  if (errors.length) return json(response, 400, { error: errors.join(" ") });
+  return json(response, 200, { record: await enrichGtmContactInShadow(target) });
+}
+
+export function validateContactEnrichmentTarget(target: Partial<EnrichmentTarget> | null | undefined) {
+  const errors: string[] = [];
+  if (!target || !target.organization?.trim()) errors.push("An organization is required.");
+  if (!target?.organizationDomain || !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(target.organizationDomain.trim())) errors.push("A verified organization domain is required.");
+  if (!target?.domainSourceUrl || !/^https:\/\//.test(target.domainSourceUrl)) errors.push("A verified organization-domain source URL is required.");
+  const person = target?.person;
+  if (!person?.firstName?.trim() || !person.lastName?.trim() || !person.fullName?.trim()) errors.push("A named current contact is required.");
+  if (!person?.currentTitle?.trim() || !person.titleSourceUrl || !/^https:\/\//.test(person.titleSourceUrl)) errors.push("A current contact title and authoritative source URL are required.");
+  return errors;
 }
 
 async function handleGtmDailyScan(request: IncomingMessage, response: ServerResponse) {
