@@ -47,7 +47,7 @@ export function LoginPage() {
       <div className="account-value">
         <p className="eyebrow">Private beta workspace</p>
         <h1>Spend less time building grant reports from scattered files.</h1>
-        <p>{CORE_VALUE_PROPOSITION} Keep your accounting system, and let our AI-powered solution handle the repetitive first pass.</p>
+        <p>{CORE_VALUE_PROPOSITION} Keep your accounting system, and let our AI-powered solution handle the repetitive work.</p>
         <div className="account-benefits">
           <span><ShieldCheck aria-hidden="true" />Reduce spreadsheet rebuilding</span>
           <span><CheckCircle2 aria-hidden="true" />Find missing support before it delays review</span>

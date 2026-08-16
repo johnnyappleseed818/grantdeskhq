@@ -1,10 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { PREFLIGHT_SYSTEM_PROMPT } from "../../server/preflightCompiler";
 import { sanitizeSetupDecisions } from "../../server/persistence";
 import { remainingSetupConflicts } from "../lib/agreementSetup";
 import { normalizeWorkflowObligations } from "../lib/obligationApplicability";
-import { AgreementSetupCard, ReportingSchedule, ReportWorkflow } from "../pages/CompilePage";
+import { AgreementSetupCard, ReportingSchedule, ReportWorkflow, SetupConflictBlocker } from "../pages/CompilePage";
 import type { CompilationPreflightResult, GrantReportingPeriod, GrantWorkflowObligation } from "../types/prototype";
 
 const source = {
@@ -102,6 +103,50 @@ describe("agreement-driven report setup", () => {
     expect(screen.getByText("Not yet applicable · only if an unspent balance remains")).toBeInTheDocument();
     expect(screen.getAllByText("Source verified").length).toBeGreaterThan(0);
     expect(screen.queryByText(/^Verified$/)).not.toBeInTheDocument();
+  });
+
+  it("makes the setup-conflict blocker dynamic, clickable, and keyboard accessible", async () => {
+    const user = userEvent.setup();
+    const review = vi.fn();
+    const { rerender } = render(<SetupConflictBlocker count={2} onReview={review} />);
+    const blocker = screen.getByRole("button", { name: "Resolve 2 setup conflicts to continue" });
+    expect(blocker).toHaveAttribute("aria-controls", "recommended-setup");
+    await user.click(blocker);
+    blocker.focus();
+    await user.keyboard("{Enter}");
+    expect(review).toHaveBeenCalledTimes(2);
+
+    rerender(<SetupConflictBlocker count={1} onReview={review} />);
+    expect(screen.getByRole("button", { name: "Resolve 1 setup conflict to continue" })).toBeInTheDocument();
+
+    rerender(<SetupConflictBlocker count={0} onReview={review} />);
+    expect(screen.queryByRole("button", { name: /Resolve .* setup conflict/ })).not.toBeInTheDocument();
+  });
+
+  it("opens and focuses the first unresolved Northstar setup conflict when review is requested", async () => {
+    const scrollIntoView = vi.fn();
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
+    const conflicts: CompilationPreflightResult["setupConflicts"] = [
+      { ...preflight.setupConflicts[0], id: "setup-organization-identity", type: "organization_identity", title: "Organization details do not match", enteredValue: "yomama", sourceValue: "BridgeWorks Family Services" },
+      { ...preflight.setupConflicts[0], id: "setup-grant-identity", type: "grant_identity", title: "Grant details do not match", enteredValue: "yomama", sourceValue: "Northstar Community Fund — Family Stability & Housing Navigation Program" }
+    ];
+    try {
+      const { rerender } = render(<AgreementSetupCard preflight={{ ...preflight, setupConflicts: conflicts }} onApply={vi.fn()} reviewRequest={0} />);
+      const reviewDetails = screen.getByText("Review what will change").closest("details") as HTMLDetailsElement;
+      expect(reviewDetails).not.toHaveAttribute("open");
+
+      rerender(<AgreementSetupCard preflight={{ ...preflight, setupConflicts: conflicts }} onApply={vi.fn()} reviewRequest={1} />);
+      await waitFor(() => expect(reviewDetails).toHaveAttribute("open"));
+      const firstConflict = screen.getByRole("article", { name: "Setup conflict: Organization details do not match" });
+      await waitFor(() => expect(firstConflict).toHaveFocus());
+      expect(firstConflict).toHaveClass("setup-conflict-highlight");
+      expect(scrollIntoView).toHaveBeenCalled();
+      expect(screen.getByText("BridgeWorks Family Services")).toBeInTheDocument();
+      expect(screen.getAllByText("Northstar Community Fund — Family Stability & Housing Navigation Program")).toHaveLength(2);
+    } finally {
+      Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: originalScrollIntoView });
+    }
   });
 
   it("treats extension requests as conditional while keeping unspent-funds closeout future-facing", () => {

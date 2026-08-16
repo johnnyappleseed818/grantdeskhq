@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
@@ -66,6 +66,7 @@ export function CompilePage() {
   const [preflightKey, setPreflightKey] = useState("");
   const [setupDecisions, setSetupDecisions] = useState<SetupDecision[]>([]);
   const [setupNotice, setSetupNotice] = useState("");
+  const [setupConflictReviewRequest, setSetupConflictReviewRequest] = useState(0);
   const [guideOpen, setGuideOpen] = useState(true);
   const [fileRoleSuggestions, setFileRoleSuggestions] = useState<Partial<Record<SourceRole, FileRoleSuggestion>>>({});
   const [acceptedFileRoles, setAcceptedFileRoles] = useState<string[]>([]);
@@ -488,6 +489,10 @@ export function CompilePage() {
     window.requestAnimationFrame(() => document.querySelector(".compile-form")?.scrollIntoView({ block: "start" }));
   };
 
+  const reviewSetupConflicts = () => {
+    setSetupConflictReviewRequest((request) => request + 1);
+  };
+
   const moveSourceFile = (suggestion: FileRoleSuggestion) => {
     if (files[suggestion.suggestedRole]) {
       setError(`${sourceLabel(suggestion.suggestedRole)} already contains a file. Remove or replace that file before moving ${suggestion.fileName}.`);
@@ -617,7 +622,7 @@ export function CompilePage() {
             </section>)}
             {preflighting && <div className="setup-checking" role="status"><LoaderCircle className="animate-spin" aria-hidden="true" /><div><strong>Checking the award details</strong><p>GrantDeskHQ is comparing the funder, grant, and reporting period before drafting begins.</p></div></div>}
             {setupNotice && <div className="setup-notice" role="status"><CheckCircle2 aria-hidden="true" /><div><strong>Report setup updated</strong><p>{setupNotice}</p></div></div>}
-            {preflight && preflight.setupConflicts.length > 0 && <AgreementSetupCard preflight={preflight} onApply={applyAgreementWorkflow} onReplaceAgreement={replaceAwardAgreement} onEditSetup={() => returnToSetup("compiler-organization")} />}
+            {preflight && preflight.setupConflicts.length > 0 && <AgreementSetupCard preflight={preflight} onApply={applyAgreementWorkflow} onReplaceAgreement={replaceAwardAgreement} onEditSetup={() => returnToSetup("compiler-organization")} reviewRequest={setupConflictReviewRequest} />}
             {preflight && preflight.setupConflicts.length === 0 && <div className="setup-match"><CheckCircle2 aria-hidden="true" /><div><strong>Award details match this report setup</strong><p>GrantDeskHQ checked the grant identity and reporting period before moving forward.</p></div></div>}
             {preflight && preflight.reportingPeriods.some((period) => period.status === "verified") && <ReportingSchedule periods={preflight.reportingPeriods} selectedPeriodId={preflight.referencePeriodId} onSelect={selectReportingPeriod} />}
             {preflight && preflight.workflowObligations.length > 0 && <ReportWorkflow obligations={preflight.workflowObligations} referencePeriod={preflight.reportingPeriods.find((period) => period.id === preflight.referencePeriodId)} availableSources={selectedFiles.map(([role]) => role)} />}
@@ -657,7 +662,7 @@ export function CompilePage() {
           {error && <div className="compiler-error" role="alert"><AlertTriangle aria-hidden="true" /><span>{error}</span></div>}
           <div className="wizard-actions">
             <button type="button" className="button button-secondary" onClick={() => moveWizard(-1)} disabled={wizardStep === 1 || compiling}>Back</button>
-            {wizardStep === 2 && preflight && preflight.setupConflicts.length > 0 && <p className="wizard-blocker-note">Resolve the {preflight.setupConflicts.length} setup {preflight.setupConflicts.length === 1 ? "conflict" : "conflicts"} to continue.</p>}
+            {wizardStep === 2 && preflight && <SetupConflictBlocker count={preflight.setupConflicts.length} onReview={reviewSetupConflicts} />}
             {wizardStep < 4 && <button type="button" className="button button-primary" onClick={() => moveWizard(1)} disabled={preflighting || (wizardStep === 2 && (Boolean(preflight?.setupConflicts.length) || activeFileRoleSuggestions.length > 0))}>{preflighting ? "Checking award…" : "Continue"} {!preflighting && <ArrowRight aria-hidden="true" />}</button>}
           </div>
         </form>
@@ -1129,12 +1134,40 @@ function ReviewLabel({ status }: { status: ReviewState }) {
   return <span className={`status-badge ${className}`}>{label}</span>;
 }
 
-export function AgreementSetupCard({ preflight, onApply, onReplaceAgreement, onEditSetup }: { preflight: CompilationPreflightResult; onApply(): void; onReplaceAgreement?(): void; onEditSetup?(): void }) {
+export function SetupConflictBlocker({ count, onReview }: { count: number; onReview(): void }) {
+  if (!count) return null;
+  return <button type="button" className="wizard-blocker-action" aria-controls="recommended-setup" onClick={onReview}>
+    Resolve {count} setup {count === 1 ? "conflict" : "conflicts"} to continue <ArrowRight aria-hidden="true" />
+  </button>;
+}
+
+export function AgreementSetupCard({ preflight, onApply, onReplaceAgreement, onEditSetup, reviewRequest = 0 }: { preflight: CompilationPreflightResult; onApply(): void; onReplaceAgreement?(): void; onEditSetup?(): void; reviewRequest?: number }) {
   const setup = agreementSetup(preflight);
-  if (!setup.grantName) return null;
   const changes = preflight.setupConflicts;
+  const sectionRef = useRef<HTMLElement>(null);
+  const firstConflictRef = useRef<HTMLElement>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [highlightedConflictId, setHighlightedConflictId] = useState("");
+
+  useEffect(() => {
+    if (!reviewRequest || !changes.length) return;
+    setReviewOpen(true);
+    setHighlightedConflictId(changes[0].id);
+    const frame = window.requestAnimationFrame(() => {
+      const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+      sectionRef.current?.scrollIntoView({ block: "center", behavior: reducedMotion ? "auto" : "smooth" });
+      firstConflictRef.current?.focus({ preventScroll: true });
+    });
+    const timeout = window.setTimeout(() => setHighlightedConflictId(""), 2400);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
+    };
+  }, [changes, reviewRequest]);
+
+  if (!setup.grantName) return null;
   const hasIdentityChange = changes.some((conflict) => conflict.type === "organization_identity" || conflict.type === "grant_identity");
-  return <section className="agreement-setup-card" aria-labelledby="agreement-setup-title">
+  return <section id="recommended-setup" ref={sectionRef} className="agreement-setup-card" aria-labelledby="agreement-setup-title">
     <div className="agreement-setup-heading">
       <div><p className="eyebrow">Recommended setup</p><h3 id="agreement-setup-title">{hasIdentityChange ? "We found a different grant in your award agreement" : "The reporting period does not match the award agreement"}</h3><p>{setup.period ? "We can update the organization, grant, and reporting period automatically." : "We can update the organization and grant automatically. Choose a reporting period after the update."}</p></div>
       <ShieldCheck aria-hidden="true" />
@@ -1151,14 +1184,14 @@ export function AgreementSetupCard({ preflight, onApply, onReplaceAgreement, onE
     </dl>
     <button type="button" className="button button-primary" onClick={onApply}>{setup.period ? "Use agreement setup" : "Use verified grant details"} <ArrowRight aria-hidden="true" /></button>
     <small>The previous manual setup will remain in the report’s audit history.</small>
-    <details className="agreement-change-review">
+    <details className="agreement-change-review" open={reviewOpen} onToggle={(event) => setReviewOpen(event.currentTarget.open)}>
       <summary><span>Review what will change</span><small>{changes.length} {changes.length === 1 ? "update" : "updates"}</small></summary>
       <div className="agreement-change-list">
-        {changes.map((conflict) => <article key={conflict.id}>
+        {changes.map((conflict, index) => <article key={conflict.id} id={"setup-conflict-" + conflict.id} data-setup-conflict-id={conflict.id} tabIndex={-1} ref={index === 0 ? firstConflictRef : undefined} className={highlightedConflictId === conflict.id ? "setup-conflict-highlight" : undefined} aria-label={"Setup conflict: " + conflict.title}>
           <div><strong>{conflict.title}</strong><small>Source: Award agreement · {cleanSourceLocator(conflict.source.locator)}</small></div>
           <dl>
             <div><dt>Current setup</dt><dd>{conflict.enteredValue}</dd></div>
-            <div><dt>From award agreement</dt><dd>{conflict.type === "reporting_period" && conflict.suggestedValue ? `${conflict.suggestedLabel || "First reporting period"}: ${conflict.suggestedValue}${conflict.suggestedDueDate ? ` · Due ${conflict.suggestedDueDate}` : ""}` : conflict.sourceValue}</dd></div>
+            <div><dt>From award agreement</dt><dd>{conflict.type === "reporting_period" && conflict.suggestedValue ? (conflict.suggestedLabel || "First reporting period") + ": " + conflict.suggestedValue + (conflict.suggestedDueDate ? " · Due " + conflict.suggestedDueDate : "") : conflict.sourceValue}</dd></div>
           </dl>
         </article>)}
       </div>

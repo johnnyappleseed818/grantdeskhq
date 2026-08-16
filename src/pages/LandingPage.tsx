@@ -51,7 +51,7 @@ export function LandingPage() {
         <div className="hero-shape hero-shape-two" aria-hidden="true" />
         <div className="site-shell relative z-10 grid items-center gap-12 py-16 lg:grid-cols-[1.02fr_.98fr] lg:py-24">
           <div>
-            <div className="prototype-pill"><span aria-hidden="true" /> AI-powered reporting after the award</div>
+            <div className="prototype-pill"><span aria-hidden="true" /> Post award AI powered workflow management</div>
             <h1 className="hero-title">Finish grant reports faster, <span className="hero-highlight">without messy spreadsheets.</span></h1>
             <p className="hero-copy">
               {CORE_VALUE_PROPOSITION} Built for nonprofit finance teams, our AI-powered solution organizes the funder's requirements, prepares the financial schedules and narrative, and flags missing or conflicting information before final review.

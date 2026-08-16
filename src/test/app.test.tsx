@@ -26,6 +26,15 @@ describe("important routes", () => {
     expect(screen.getAllByRole("heading", { name: heading }).length).toBeGreaterThan(0);
   });
 
+  it("shows the approved homepage badge and accounting copy", () => {
+    const landing = renderRoute("/");
+    expect(screen.getByText("Post award AI powered workflow management")).toBeInTheDocument();
+    landing.unmount();
+
+    renderRoute("/login");
+    expect(screen.getByText(/Keep your accounting system, and let our AI-powered solution handle the repetitive work\./)).toBeInTheDocument();
+  });
+
   it("offers managed account access without collecting source files on the sign-in screen", () => {
     renderRoute("/login");
     expect(screen.getByRole("tab", { name: "Create account" })).toHaveAttribute("aria-selected", "true");
