@@ -8,7 +8,7 @@ import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmDailyScan, readGtmShadowStatus, readLatestReliabilityCanary, readReliabilityDashboard, listReports, removeSupportingEvidence, saveBillingEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmShadowStatus, saveReview } from "./persistence.ts";
+import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmContactSuppression, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmShadowStatus, readLatestReliabilityCanary, readReliabilityDashboard, listReports, removeSupportingEvidence, saveBillingEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveReview } from "./persistence.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { buildShadowStatus, shadowLeadFromOpportunity, suggestedTopicsFromLeads } from "../src/lib/gtmShadow.ts";
 import { enrichGtmContactInShadow } from "./contactEnrichment.ts";
@@ -17,6 +17,8 @@ import { requireGtmScheduler, requireHealthScheduler } from "./schedulerAuth.ts"
 import { BillingError, billingSnapshotFromEvent, changeSubscriptionPlan, createCheckoutSession, createCustomerPortalSession, foundingPricingActive, isBillingConfigured, validateBillingSelection, verifyStripeSignature, type StripeWebhookEvent } from "./billing.ts";
 import { normalizeCompilationSources } from "./sourceNormalization.ts";
 import { initialOpportunities } from "../src/data/gtmData.ts";
+import { reconcileControlPlaneQueue } from "../src/lib/gtmControlPlaneQueue.ts";
+import type { GtmOpportunity } from "../src/lib/gtm.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
 
@@ -58,6 +60,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/opportunities") return await handleGtmOpportunities(request, response);
     if (url.pathname === "/api/gtm/daily-signals") return await handleGtmDailySignals(request, response);
     if (url.pathname === "/api/gtm/award-signals") return await handleGtmAwardSignals(request, response);
+    if (url.pathname === "/api/gtm/control-plane-queue") return await handleGtmControlPlaneQueue(request, response);
     if (url.pathname === "/api/gtm/shadow-status") return await handleGtmShadowStatus(request, response);
     if (url.pathname === "/api/gtm/contact-enrichment") return await handleGtmContactEnrichment(request, response);
     if (url.pathname === "/api/gtm/daily-scan") return await handleGtmDailyScan(request, response);
@@ -216,6 +219,12 @@ async function handleGtmAwardSignals(request: IncomingMessage, response: ServerR
   return json(response, 200, { scan: await readGtmAwardScan() });
 }
 
+async function handleGtmControlPlaneQueue(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  requireGtmAdmin(await requireUser(request));
+  return json(response, 200, { reconciliation: await readGtmControlPlaneReconciliation() });
+}
+
 async function handleGtmShadowStatus(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   requireGtmAdmin(await requireUser(request));
@@ -250,6 +259,11 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
   try { awardScan = await runDailyAwardScan().then(saveGtmAwardScan); }
   catch (error) { errors.push(error instanceof Error ? error.message : "Award scan failed."); }
   const opportunities = awardScan?.opportunities || [];
+  let reconciliation;
+  if (awardScan) {
+    try { reconciliation = await reconcileAndSaveControlPlane([...initialOpportunities, ...opportunities]); }
+    catch (error) { errors.push(error instanceof Error ? error.message : "GTM Control Plane reconciliation could not be saved."); }
+  }
   let shadowStatus;
   try { shadowStatus = await saveGtmShadowStatus(buildShadowStatus(opportunities.map(shadowLeadFromOpportunity), suggestedTopicsFromLeads(opportunities.map(shadowLeadFromOpportunity)))); }
   catch (error) { errors.push(error instanceof Error ? error.message : "GTM shadow status could not be saved."); }
@@ -259,10 +273,24 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
     socialItemCount: null,
     socialResearchMode: "MANUAL_REVIEW_ONLY",
     awardCandidateCount: awardScan?.opportunities.length || null,
+    controlPlaneCardCount: reconciliation?.cards.length || null,
+    controlPlaneUniqueOrganizationCount: reconciliation?.uniqueOrganizations || null,
     shadowMode: "SHADOW",
     shadowStatus: shadowStatus || null,
     errors
   });
+}
+
+async function reconcileAndSaveControlPlane(opportunities: GtmOpportunity[]) {
+  const directEmails = [...new Set(opportunities.flatMap((opportunity) => opportunity.primaryContact?.emailKind === "direct" ? [opportunity.primaryContact.email.toLowerCase()] : []))];
+  const checks = await Promise.all(directEmails.map(async (email) => [email, await readGtmContactSuppression(email)] as const));
+  const suppressionByEmail = Object.fromEntries(checks.map(([email, check]) => [email, check.status]));
+  const reconciliation = reconcileControlPlaneQueue({
+    cards: opportunities,
+    suppressionByEmail,
+    draftOrganizations: opportunities.filter((opportunity) => opportunity.emailSubject.trim() && opportunity.draftMessage.trim()).map((opportunity) => opportunity.organization)
+  });
+  return saveGtmControlPlaneReconciliation(reconciliation);
 }
 
 async function handleReliabilityAccess(request: IncomingMessage, response: ServerResponse) {

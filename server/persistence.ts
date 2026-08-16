@@ -3,6 +3,7 @@ import { canGenerateReviewPackage, encodedFileSize, isValidCompilationRequestId,
 import type { CompilationRequest, CompilationResult, CompilerFile, PersistedCompilationResponse, PersistedReportSource, SavedReportSummary, SupportingEvidenceFile } from "../src/types/prototype.ts";
 import type { AwardDiscoveryScan, DailySocialScan } from "../src/lib/gtm.ts";
 import type { ShadowPipelineStatus } from "../src/lib/gtmShadow.ts";
+import type { ControlPlaneQueueReconciliation } from "../src/lib/gtmControlPlaneQueue.ts";
 import type { ContactEnrichmentRecord, EnrichmentUsage, SuppressionCheck } from "../src/lib/contactEnrichment.ts";
 import type { AuthenticatedUser } from "./auth.ts";
 import { normalizeAttribution, type Attribution, type BillingEventSnapshot } from "./billing.ts";
@@ -563,6 +564,26 @@ export async function readGtmAwardScan(): Promise<AwardDiscoveryScan | null> {
   const record = decodeFields(document.fields || {});
   if (!record.scanJson) return null;
   return JSON.parse(String(record.scanJson)) as AwardDiscoveryScan;
+}
+
+export async function saveGtmControlPlaneReconciliation(reconciliation: ControlPlaneQueueReconciliation) {
+  const accessToken = await gcpToken();
+  await writeDocument(accessToken, "gtm/control-plane-reconciliation", {
+    generatedAt: new Date().toISOString(),
+    cardCount: reconciliation.cards.length,
+    uniqueOrganizationCount: reconciliation.uniqueOrganizations,
+    reconciliationJson: JSON.stringify(reconciliation)
+  });
+  return reconciliation;
+}
+
+export async function readGtmControlPlaneReconciliation(): Promise<ControlPlaneQueueReconciliation | null> {
+  const response = await authorizedFetch(firestoreBase + "/gtm/control-plane-reconciliation", await gcpToken());
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("GTM Control Plane reconciliation could not be loaded (" + response.status + ").");
+  const record = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
+  try { return record.reconciliationJson ? JSON.parse(String(record.reconciliationJson)) as ControlPlaneQueueReconciliation : null; }
+  catch { return null; }
 }
 
 export async function saveGtmShadowStatus(status: ShadowPipelineStatus) {
