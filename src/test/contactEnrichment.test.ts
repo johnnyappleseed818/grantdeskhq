@@ -98,7 +98,7 @@ describe("provider adapters", () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: { email: "jordan.finance@example.org", score: 92, sources: [{ uri: "https://example.org/leadership", last_seen_on: "2026-08-16" }] } }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: { status: "valid", score: 100, smtp_check: true, accept_all: false, sources: [{ uri: "https://example.org/leadership", last_seen_on: "2026-08-16" }] } }), { status: 200 }));
-    const provider = createHunterProvider({ enabled: true, apiKey: "test-key", lookupLimit: 1, lookupsUsed: 0, fetcher });
+    const provider = createHunterProvider({ enabled: true, apiKey: " test-key\n", lookupLimit: 1, lookupsUsed: 0, fetcher });
     const discovered = await provider.discover(target);
     expect(discovered.status).toBe("VERIFIED");
     expect(discovered.email).toBe("jordan.finance@example.org");
@@ -110,7 +110,7 @@ describe("provider adapters", () => {
 
   it("keeps Apollo as a secondary, business-email-only fallback", async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ person: { email: "jordan.finance@example.org", email_status: "verified" } }), { status: 200 }));
-    const provider = createApolloProvider({ enabled: true, apiKey: "test-key", lookupLimit: 1, lookupsUsed: 0, fetcher });
+    const provider = createApolloProvider({ enabled: true, apiKey: " test-key\n", lookupLimit: 1, lookupsUsed: 0, fetcher });
     const discovered = await provider.discover(target);
     expect(discovered.status).toBe("VERIFIED");
     const [, init] = fetcher.mock.calls[0];

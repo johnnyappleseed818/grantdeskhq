@@ -49,15 +49,15 @@ export async function enrichGtmContactInShadow(target: EnrichmentTarget, environ
   const usage = await readGtmEnrichmentUsage();
   const hunter = createHunterProvider({
     enabled: configuration.providerCallsEnabled,
-    apiKey: environment.HUNTER_API_KEY,
+    apiKey: environment.HUNTER_API_KEY?.trim(),
     lookupLimit: configuration.hunter.lookupLimit,
-    lookupsUsed: usage?.hunterLookups || 0
+    lookupsUsed: 0
   });
   const apollo = createApolloProvider({
     enabled: configuration.providerCallsEnabled,
-    apiKey: environment.APOLLO_API_KEY,
+    apiKey: environment.APOLLO_API_KEY?.trim(),
     lookupLimit: configuration.apollo.lookupLimit,
-    lookupsUsed: usage?.apolloLookups || 0
+    lookupsUsed: 0
   });
   const attempts = await runProviderWaterfall(target, { hunter: () => hunter.discover(target), apollo: () => apollo.discover(target) });
   const verifiedEmail = attempts.find((attempt) => attempt.status === "VERIFIED")?.email;

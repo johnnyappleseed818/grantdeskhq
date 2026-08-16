@@ -20,6 +20,7 @@ export interface ApolloProviderConfiguration extends ProviderRuntimeLimits {
 
 export function createHunterProvider(configuration: HunterProviderConfiguration) {
   const fetcher = configuration.fetcher || fetch;
+  const apiKey = configuration.apiKey?.trim() || "";
   return {
     name: "hunter" as const,
     async discover(target: EnrichmentTarget): Promise<ProviderLookupResult> {
@@ -30,7 +31,7 @@ export function createHunterProvider(configuration: HunterProviderConfiguration)
         finderUrl.searchParams.set("domain", normalizeBusinessDomain(target.organizationDomain));
         finderUrl.searchParams.set("first_name", target.person.firstName);
         finderUrl.searchParams.set("last_name", target.person.lastName);
-        finderUrl.searchParams.set("api_key", configuration.apiKey || "");
+        finderUrl.searchParams.set("api_key", apiKey);
         const finderResponse = await fetcher(finderUrl, { signal: AbortSignal.timeout(12_000) });
         if (!finderResponse.ok) return providerFailure("hunter", finderResponse.status);
         const finder = await parseJson(finderResponse);
@@ -39,7 +40,7 @@ export function createHunterProvider(configuration: HunterProviderConfiguration)
 
         const verifierUrl = new URL("https://api.hunter.io/v2/email-verifier");
         verifierUrl.searchParams.set("email", candidate);
-        verifierUrl.searchParams.set("api_key", configuration.apiKey || "");
+        verifierUrl.searchParams.set("api_key", apiKey);
         const verifierResponse = await fetcher(verifierUrl, { signal: AbortSignal.timeout(12_000) });
         if (!verifierResponse.ok) return providerFailure("hunter", verifierResponse.status, { email: candidate, providerMetadata: { verifierCalled: true } });
         const verifier = await parseJson(verifierResponse);
@@ -61,6 +62,7 @@ export function createHunterProvider(configuration: HunterProviderConfiguration)
 
 export function createApolloProvider(configuration: ApolloProviderConfiguration) {
   const fetcher = configuration.fetcher || fetch;
+  const apiKey = configuration.apiKey?.trim() || "";
   return {
     name: "apollo" as const,
     async discover(target: EnrichmentTarget): Promise<ProviderLookupResult> {
@@ -72,7 +74,7 @@ export function createApolloProvider(configuration: ApolloProviderConfiguration)
           headers: {
             "Content-Type": "application/json",
             "Cache-Control": "no-cache",
-            "X-Api-Key": configuration.apiKey || ""
+            "X-Api-Key": apiKey
           },
           body: JSON.stringify({ first_name: target.person.firstName, last_name: target.person.lastName, organization_name: target.organization, domain: normalizeBusinessDomain(target.organizationDomain), reveal_personal_emails: false, reveal_phone_number: false }),
           signal: AbortSignal.timeout(12_000)
