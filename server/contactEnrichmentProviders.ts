@@ -54,7 +54,7 @@ export function createHunterProvider(configuration: HunterProviderConfiguration)
           providerMetadata: { finderCalled: true, verifierCalled: true, smtpCheck: booleanAt(verifier, ["data", "smtp_check"]) ?? false }
         });
       } catch (error) {
-        return providerResult("hunter", "UNAVAILABLE", { attempted: true, errorCategory: isAbort(error) ? "network" : "provider_error", providerMetadata: { finderCalled: true } });
+        return providerResult("hunter", "UNAVAILABLE", { attempted: true, errorCategory: isAbort(error) ? "network" : isInvalidResponse(error) ? "invalid_response" : "provider_error", providerMetadata: { finderCalled: true } });
       }
     }
   };
@@ -93,7 +93,7 @@ export function createApolloProvider(configuration: ApolloProviderConfiguration)
           providerMetadata: { peopleMatchCalled: true, emailStatus: typeof person?.email_status === "string" ? person.email_status : "unavailable", revealedPersonalEmail: false, revealedPhone: false }
         });
       } catch (error) {
-        return providerResult("apollo", "UNAVAILABLE", { attempted: true, errorCategory: isAbort(error) ? "network" : "provider_error", providerMetadata: { peopleMatchCalled: true } });
+        return providerResult("apollo", "UNAVAILABLE", { attempted: true, errorCategory: isAbort(error) ? "network" : isInvalidResponse(error) ? "invalid_response" : "provider_error", providerMetadata: { peopleMatchCalled: true } });
       }
     }
   };
@@ -207,4 +207,8 @@ function booleanAt(value: unknown, path: string[]) {
 
 function isAbort(error: unknown) {
   return error instanceof Error && (error.name === "AbortError" || /timeout/i.test(error.message));
+}
+
+function isInvalidResponse(error: unknown) {
+  return error instanceof Error && error.message === "invalid_provider_response";
 }

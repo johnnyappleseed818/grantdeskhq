@@ -3,6 +3,7 @@ import {
   INTRODUCTORY_GROWTH_OFFER,
   accumulateEnrichmentUsage,
   buildContactEnrichmentRecord,
+  createPartnerShadowDraft,
   createTopicalShadowDraft,
   isVerifiedBusinessEmail,
   runProviderWaterfall,
@@ -91,6 +92,15 @@ describe("SHADOW contact enrichment", () => {
     expect(wordCount).toBeGreaterThanOrEqual(70);
     expect(wordCount).toBeLessThanOrEqual(110);
   });
+  it("keeps partner drafts separate from end-customer pricing and delivery", () => {
+    const draft = createPartnerShadowDraft({ firstName: "Tosha", organization: "Example Nonprofit CFO", partnerType: "nonprofit CFO advisory firm", whySelected: "Your public services include nonprofit finance and grant reporting." });
+    expect(draft.status).toBe("SHADOW_DRAFT");
+    expect(draft.subject).toContain("Example Nonprofit CFO");
+    expect(draft.body).toContain("one nonprofit client or award");
+    expect(draft.body).not.toContain("$99");
+    expect(draft.body).not.toContain("Outbound locked");
+  });
+
 });
 
 describe("provider adapters", () => {
@@ -117,5 +127,33 @@ describe("provider adapters", () => {
     expect(init.body).toContain("reveal_personal_emails");
     expect(init.body).toContain("false");
     expect(init.body).toContain("reveal_phone_number");
+  });
+
+  it("fails closed for Hunter authentication, rate-limit, and malformed responses", async () => {
+    const auth = createHunterProvider({ enabled: true, apiKey: "test-key", lookupLimit: 1, lookupsUsed: 0, fetcher: vi.fn().mockResolvedValue(new Response("{}", { status: 401 })) });
+    const rate = createHunterProvider({ enabled: true, apiKey: "test-key", lookupLimit: 1, lookupsUsed: 0, fetcher: vi.fn().mockResolvedValue(new Response("{}", { status: 429 })) });
+    const malformed = createHunterProvider({ enabled: true, apiKey: "test-key", lookupLimit: 1, lookupsUsed: 0, fetcher: vi.fn().mockResolvedValue(new Response("not-json", { status: 200 })) });
+    await expect(auth.discover(target)).resolves.toMatchObject({ status: "UNAVAILABLE", attempted: true, errorCategory: "authentication" });
+    await expect(rate.discover(target)).resolves.toMatchObject({ status: "UNAVAILABLE", attempted: true, errorCategory: "rate_limited" });
+    await expect(malformed.discover(target)).resolves.toMatchObject({ status: "UNAVAILABLE", attempted: true, errorCategory: "invalid_response" });
+  });
+
+  it("does not call a provider with missing credentials or an exhausted bounded lookup limit", async () => {
+    const fetcher = vi.fn();
+    const missing = createHunterProvider({ enabled: true, apiKey: "", lookupLimit: 1, lookupsUsed: 0, fetcher });
+    const limited = createHunterProvider({ enabled: true, apiKey: "test-key", lookupLimit: 2, lookupsUsed: 2, fetcher });
+    await expect(missing.discover(target)).resolves.toMatchObject({ status: "UNAVAILABLE", attempted: false, errorCategory: "not_configured" });
+    await expect(limited.discover(target)).resolves.toMatchObject({ status: "UNAVAILABLE", attempted: false, errorCategory: "limit_reached" });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("keeps accept-all, invalid, and explicit suppression outcomes out of human approval", () => {
+    const acceptAll = buildContactEnrichmentRecord(target, [result("hunter", "ACCEPT_ALL", "jordan.finance@example.org")], clear, "2026-08-16T00:00:00.000Z");
+    const invalid = buildContactEnrichmentRecord(target, [result("hunter", "INVALID", "jordan.finance@example.org")], clear, "2026-08-16T00:00:00.000Z");
+    const unsubscribed = buildContactEnrichmentRecord(target, [result("hunter", "VERIFIED", "jordan.finance@example.org")], { ...clear, status: "BLOCKED", reasons: ["unsubscribe", "prior outreach"] }, "2026-08-16T00:00:00.000Z");
+    expect(acceptAll.readyForHumanApproval).toBe(false);
+    expect(invalid.readyForHumanApproval).toBe(false);
+    expect(unsubscribed).toMatchObject({ readiness: "SUPPRESSED", readyForHumanApproval: false });
+    expect(unsubscribed.blockers.join(" ")).toContain("unsubscribe");
   });
 });

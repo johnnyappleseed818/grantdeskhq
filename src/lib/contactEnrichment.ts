@@ -1,4 +1,6 @@
 export const CONTACT_ENRICHMENT_MODE = "SHADOW" as const;
+export const PROSPECT_CHANNELS = ["DIRECT_NONPROFIT", "PARTNER_FRACTIONAL_CFO", "PARTNER_ACCOUNTING", "PARTNER_GRANT_ADVISOR", "PARTNER_NONPROFIT_ADVISOR", "PARTNER_TECH_ADVISOR"] as const;
+export type ProspectChannel = typeof PROSPECT_CHANNELS[number];
 export const INTRODUCTORY_GROWTH_OFFER = "We're offering introductory Growth pricing to 25 nonprofit customers at $99/month, normally $199/month.";
 export const FREE_FIRST_AWARD_CTA = "Would you be open to trying it with one award for free?";
 
@@ -8,6 +10,7 @@ export type SuppressionStatus = "CLEAR" | "BLOCKED" | "UNKNOWN";
 export type ContactEnrichmentProviderName = "hunter" | "apollo";
 
 export interface EnrichmentTarget {
+  prospectChannel?: ProspectChannel;
   organization: string;
   organizationDomain: string;
   domainSourceUrl: string;
@@ -183,6 +186,30 @@ export function createTopicalShadowDraft(input: ShadowAwardDraftInput) {
   return { subject, body, status: "SHADOW_DRAFT" as const };
 }
 
+export interface PartnerShadowDraftInput {
+  firstName: string;
+  organization: string;
+  partnerType: string;
+  whySelected: string;
+}
+
+export function createPartnerShadowDraft(input: PartnerShadowDraftInput) {
+  const subject = "A post-award reporting workflow for " + input.organization + " nonprofit clients";
+  const body = [
+    "Hi " + input.firstName + ",",
+    "",
+    "I noticed " + input.organization + " work as a " + input.partnerType + " serving nonprofits. " + input.whySelected,
+    "",
+    "GrantDeskHQ is an AI-powered post-award workflow that turns a grant agreement, accounting data, program updates, and supporting evidence into a reviewable funder-report draft. It can help advisory teams standardize repetitive assembly work across client awards while the advisor and client retain review and submission control.",
+    "",
+    "Would you be open to seeing whether it could be useful with one nonprofit client or award?",
+    "",
+    "Best,",
+    "Eli"
+  ].join("\n");
+  return { subject, body, status: "SHADOW_DRAFT" as const };
+}
+
 function normalizeProviderResult(result: ProviderLookupResult, domain: string): ProviderLookupResult {
   const { email: rawEmail, ...withoutEmail } = result;
   const email = rawEmail?.trim().toLowerCase();
@@ -198,6 +225,7 @@ function normalizeProviderResult(result: ProviderLookupResult, domain: string): 
 function normalizedTarget(target: EnrichmentTarget): EnrichmentTarget {
   return {
     ...target,
+    ...(target.prospectChannel ? { prospectChannel: target.prospectChannel } : {}),
     organization: target.organization.trim(),
     organizationDomain: normalizeBusinessDomain(target.organizationDomain),
     domainSourceUrl: target.domainSourceUrl.trim(),
