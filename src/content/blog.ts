@@ -15,7 +15,7 @@ export const BLOG_POSTS: BlogPost[] = [
     slug: "post-award-grant-reporting-checklist",
     title: "A practical post-award grant reporting checklist for nonprofit finance teams",
     description: "Turn an award agreement, approved budget, accounting export, program update, and evidence into a reviewable grant-reporting workflow.",
-    publishedAt: "2026-08-18",
+    publishedAt: "2026-08-16",
     readingMinutes: 6,
     resourceCategory: "checklist",
     sources: [
@@ -45,7 +45,7 @@ export const BLOG_POSTS: BlogPost[] = [
     slug: "budget-to-actual-grant-reporting-workflow",
     title: "How to make budget-to-actual grant reporting reviewable",
     description: "A practical workflow for mapping accounting data to approved grant budgets, explaining variances, and preserving evidence for funder reporting.",
-    publishedAt: "2026-08-21",
+    publishedAt: "2026-08-16",
     readingMinutes: 5,
     resourceCategory: "guide",
     sources: [

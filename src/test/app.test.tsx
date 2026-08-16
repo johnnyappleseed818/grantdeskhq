@@ -70,6 +70,7 @@ describe("important routes", () => {
     renderRoute("/");
     const navigation = screen.getByRole("navigation", { name: "Primary navigation" });
     const resources = navigation.querySelector<HTMLAnchorElement>("a[href=\"/resources\"]");
+    expect(Array.from(navigation.querySelectorAll("a.nav-link")).slice(0, 6).map((link) => link.textContent)).toEqual(["How It Works", "Sample Output", "Resources", "Security & FAQ", "Pricing", "Free First Report"]);
     expect(resources).toHaveTextContent("Resources");
     expect(screen.queryByRole("link", { name: "GTM Command Center" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Reliability" })).not.toBeInTheDocument();
@@ -89,6 +90,15 @@ describe("important routes", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     fireEvent.keyDown(document, { key: "Escape" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("opens Resources from mobile navigation", async () => {
+    const user = userEvent.setup();
+    renderRoute("/");
+    await user.click(screen.getByRole("button", { name: "Open navigation" }));
+    const navigation = screen.getByRole("navigation", { name: "Primary navigation" });
+    await user.click(navigation.querySelector<HTMLAnchorElement>("a[href=\"/resources\"]")!);
+    expect(await screen.findByRole("heading", { name: /Practical resources for post-award grant reporting/i })).toBeInTheDocument();
   });
 
   it("provides a labelled contact form without exposing a personal address", () => {
