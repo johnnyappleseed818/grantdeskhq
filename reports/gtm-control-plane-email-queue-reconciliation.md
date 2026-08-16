@@ -66,7 +66,7 @@ The four preserved target-email candidates are Project Oceanology, Junior Achiev
 
 The new deterministic `reconcileControlPlaneQueue` state machine uses one of the requested states for every card, deduplicates organization variants, retains public direct routes, and fails closed on suppression. The existing daily award scan now calls it with both seeded and fresh award candidates, writes the result to the private `gtm/control-plane-reconciliation` document, and exposes it only through the existing GTM-admin authorization gate. It cannot send, schedule, or contact anyone.
 
-The private Cloud Run Job deployment was attempted to run the reconciliation under the runtime service account, but no Job resource was created or listed. No production traffic, Stripe data, or outbound action changed. The source implementation is tested locally and is ready for a zero-traffic deployment after the normal deployment lane is available.
+The private Cloud Run Job grantdeskhq-control-plane-reconciliation is now provisioned with the existing runtime service account and no public endpoint. Its first execution, grantdeskhq-control-plane-reconciliation-l46bk, was created but was still awaiting Cloud Run task scheduling at the time of this report; it had not produced a reconciliation result yet. No production traffic, Stripe data, or outbound action changed. The source implementation is tested locally; the existing daily award scan calls the same deterministic reconciliation only after a successful scan, so it cannot erase the prior queue when award discovery fails. Activating that new service code for the production scheduler remains a separate zero-traffic/candidate deployment decision.
 
 ## Exact access gap
 
