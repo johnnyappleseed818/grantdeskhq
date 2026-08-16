@@ -6,6 +6,7 @@ region="us-central1"
 service="grantdeskhq-prototype"
 origin="${GRANTDESK_CANDIDATE_ORIGIN:-}"
 service_account="${HEALTH_SCHEDULER_SERVICE_ACCOUNT:-grantdeskhq-health-scheduler@${project}.iam.gserviceaccount.com}"
+scheduler_audience="${HEALTH_SCHEDULER_AUDIENCE:-${origin%/}}"
 
 rollback_if_allowed() {
   local reason="$1"
@@ -25,7 +26,7 @@ rollback_if_allowed() {
   echo "Traffic restored to validated revision ${GRANTDESK_LAST_KNOWN_GOOD_REVISION}; failed revision was not deleted. Reason: ${reason}" >&2
   local lkg_origin="${GRANTDESK_LAST_KNOWN_GOOD_ORIGIN:-https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app}"
   local lkg_token
-  lkg_token="$(gcloud auth print-identity-token --project="${project}" --audiences="${lkg_origin%/}" --include-email --impersonate-service-account="${service_account}")"
+  lkg_token="$(gcloud auth print-identity-token --project="${project}" --audiences="${scheduler_audience%/}" --include-email --impersonate-service-account="${service_account}")"
   if ! GRANTDESK_HEALTH_ID_TOKEN="${lkg_token}" node scripts/run-reliability-canary.mjs "${lkg_origin}" manual; then
     echo "Post-rollback canary did not verify healthy state; operator escalation is required." >&2
   fi
@@ -44,7 +45,7 @@ if ! npm run test:grantdesk-regression -- "${origin%/}"; then
   rollback_if_allowed "complete regression release gate failed"
   exit 1
 fi
-token="$(gcloud auth print-identity-token --project="${project}" --audiences="${origin%/}" --include-email --impersonate-service-account="${service_account}")"
+token="$(gcloud auth print-identity-token --project="${project}" --audiences="${scheduler_audience%/}" --include-email --impersonate-service-account="${service_account}")"
 if ! GRANTDESK_HEALTH_ID_TOKEN="${token}" GRANTDESK_BROWSER_API_CONSISTENCY=pass node scripts/run-reliability-canary.mjs "${origin}" post_deploy; then
   rollback_if_allowed "synthetic Northstar canary failed"
   exit 1
