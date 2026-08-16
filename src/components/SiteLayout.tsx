@@ -10,9 +10,9 @@ import { openAnalyticsPreferences } from "../lib/analytics";
 const marketingLinks = [
   ["How It Works", "/#how-it-works"],
   ["Sample Output", "/sample-report"],
+  ["Resources", "/resources"],
   ["Security & FAQ", "/#security-faq"],
   ["Pricing", "/pricing"],
-  ["Field guide", "/blog"],
   ["Free First Report", "/assessment"]
 ];
 
@@ -94,6 +94,7 @@ export function SiteLayout() {
               <Link to="/readiness">Free readiness audit</Link>
               <Link to="/sample-report">Synthetic sample report</Link>
               <Link to="/pricing">Pricing</Link>
+              <Link to="/resources">Resources</Link>
               <Link to="/blog">Grant reporting field guide</Link>
               <Link to={user ? "/workspace" : "/login"}>{user ? "My workspace" : "Account sign in"}</Link>
               {gtmAllowed && <Link to="/gtm">GTM Command Center</Link>}

@@ -20,6 +20,7 @@ describe("important routes", () => {
     ["/assessment", /Let our AI-powered solution prepare your first report draft at no cost/i],
     ["/compile", /Bring what you have\. We’ll help with the rest/i],
     ["/readiness", /Find every reporting requirement before the deadline gets close/i],
+    ["/resources", /Practical resources for post-award grant reporting/i],
     ["/login", /Spend less time building grant reports from scattered files/i]
   ])("renders %s", (route, heading) => {
     renderRoute(route);
@@ -63,6 +64,20 @@ describe("important routes", () => {
     expect(document.body.textContent).toMatch(/GrantDeskHQ turns your grant agreement, accounting data, and program updates into a funder-specific report draft with the sources attached/i);
     expect(document.body.textContent).not.toMatch(/outsourced finance teams/i);
     expect(document.body.textContent).not.toMatch(/Catch more before review|production AI service|deterministic synthetic data/i);
+  });
+
+  it("adds Resources to public navigation without exposing internal destinations", () => {
+    renderRoute("/");
+    const navigation = screen.getByRole("navigation", { name: "Primary navigation" });
+    const resources = navigation.querySelector<HTMLAnchorElement>("a[href=\"/resources\"]");
+    expect(resources).toHaveTextContent("Resources");
+    expect(screen.queryByRole("link", { name: "GTM Command Center" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Reliability" })).not.toBeInTheDocument();
+  });
+
+  it("publishes the Resources hub in static crawl controls", () => {
+    expect(fs.readFileSync(path.resolve("public/sitemap.xml"), "utf8")).toContain("https://grantdeskhq.com/resources");
+    expect(fs.readFileSync(path.resolve("scripts/create-spa-routes.js"), "utf8")).toContain("\"resources\"");
   });
 
   it("opens and closes mobile navigation with both click and Escape", async () => {
