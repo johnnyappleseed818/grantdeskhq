@@ -10,6 +10,8 @@ GrantDeskHQ core product and production-readiness checkpoint are frozen. The val
 
 This package is deliberately a review artifact, not a campaign. It does not create, authorize, schedule, or deliver email, partner outreach, social activity, content publication, or contact-form submissions. A classification of `SEND-CANDIDATE` means that the source-grounded draft merits founder review; it is never an instruction or authorization to send.
 
+Detailed six-prospect review: [SEND-CANDIDATE human review](./gtm-send-candidates-review.md). It is review-only and confirms true send readiness is zero until each candidate has a legitimate permitted contact route and completes suppression/compliance checks.
+
 ### First-10-customer decision rule
 
 The immediate milestone is **10 paying nonprofit customers**, then **4 new paying customers per week**. Optimize for attributed signup, first report started, checkout, subscription, and retained use—not opens, impressions, or raw lead count. The starting channel mix remains a hypothesis: recent-award research 45%, organic/AI search 30%, partners/referrals 15%, Reddit/community 7%, and LinkedIn 3%.
