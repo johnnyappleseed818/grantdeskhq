@@ -5,6 +5,7 @@ export interface BlogPost {
   description: string;
   publishedAt: string;
   readingMinutes: number;
+  resourceCategory: "guide" | "checklist";
   sources: BlogSource[];
   sections: Array<{ heading: string; paragraphs: string[] }>;
 }
@@ -16,6 +17,7 @@ export const BLOG_POSTS: BlogPost[] = [
     description: "Turn an award agreement, approved budget, accounting export, program update, and evidence into a reviewable grant-reporting workflow.",
     publishedAt: "2026-08-18",
     readingMinutes: 6,
+    resourceCategory: "checklist",
     sources: [
       { title: "Uniform Administrative Requirements, Cost Principles, and Audit Requirements for Federal Awards (2 CFR Part 200)", url: "https://www.ecfr.gov/current/title-2/subtitle-A/chapter-II/part-200" },
       { title: "Grants.gov applicant resources", url: "https://www.grants.gov/applicants/applicant-resources" }
@@ -45,6 +47,7 @@ export const BLOG_POSTS: BlogPost[] = [
     description: "A practical workflow for mapping accounting data to approved grant budgets, explaining variances, and preserving evidence for funder reporting.",
     publishedAt: "2026-08-21",
     readingMinutes: 5,
+    resourceCategory: "guide",
     sources: [
       { title: "Uniform Administrative Requirements, Cost Principles, and Audit Requirements for Federal Awards (2 CFR Part 200)", url: "https://www.ecfr.gov/current/title-2/subtitle-A/chapter-II/part-200" },
       { title: "U.S. Department of Health and Human Services grants policy resources", url: "https://www.hhs.gov/grants/grants/grants-policies-regulations/index.html" }
