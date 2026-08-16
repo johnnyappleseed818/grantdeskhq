@@ -26,4 +26,27 @@ describe("comprehensive obligation coverage evaluation", () => {
     };
     expect(evaluateComprehensiveRequirementCoverage(result)).toEqual({ score: 100, passed: 29, total: 29, missing: [] });
   });
+
+  it("recognizes the complete budget set when canonical requirement ordering differs from source order", () => {
+    const categories = [
+      "Indirect Costs: $20,000",
+      "Data and Evaluation: $30,000",
+      "Local Travel: $20,000",
+      "Participant Support: $48,000",
+      "Training and Curriculum: $62,000",
+      "Employee Benefits: $55,000",
+      "Personnel: $245,000"
+    ];
+    const result = {
+      ...prototypeFixture,
+      requirements: categories.map((requirement, index) => ({
+        id: `BUDGET-${index}`,
+        requirement,
+        source: { sourceName: "Comprehensive_Grant_Agreement.txt", locator: `Source clause ${index + 1}`, excerpt: requirement },
+        confidence: 1,
+        status: "verified" as const
+      }))
+    };
+    expect(evaluateComprehensiveRequirementCoverage(result).missing).not.toContain("Seven budget categories");
+  });
 });

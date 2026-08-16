@@ -56,6 +56,26 @@ describe("canonical compilation state", () => {
     input.files[0] = { ...input.files[0], name: "Award.txt", mimeType: "text/plain", size: text.length, data: `data:text/plain;base64,${Buffer.from(text).toString("base64")}` };
     expect(deriveExplicitSourceRequirements(input)).toContainEqual(expect.objectContaining({ requirement: text, confidence: 1, status: "verified" }));
   });
+  it("derives concrete narrative and variance prompts expressed as describe or explain instructions", () => {
+    const text = "Describe activities completed during the reporting period. Explain progress toward each KPI. Describe material challenges and corrective actions. Explain every budget category that differs by more than 10% from the approved period plan.";
+    const input = request();
+    input.files[0] = { ...input.files[0], name: "Award.txt", mimeType: "text/plain", size: text.length, data: `data:text/plain;base64,${Buffer.from(text).toString("base64")}` };
+    const derived = deriveExplicitSourceRequirements(input).map((item) => item.requirement);
+    expect(derived).toEqual(expect.arrayContaining([
+      "Describe activities completed during the reporting period.",
+      "Explain progress toward each KPI.",
+      "Describe material challenges and corrective actions.",
+      "Explain every budget category that differs by more than 10% from the approved period plan."
+    ]));
+  });
+  it("does not turn all-caps section headings into obligations", () => {
+    const text = "REQUIRED SUPPORT\nFinancial reports must include receipts.";
+    const input = request();
+    input.files[0] = { ...input.files[0], name: "Award.txt", mimeType: "text/plain", size: text.length, data: `data:text/plain;base64,${Buffer.from(text).toString("base64")}` };
+    const derived = deriveExplicitSourceRequirements(input).map((item) => item.requirement);
+    expect(derived).toContain("Financial reports must include receipts.");
+    expect(derived).not.toContain("REQUIRED SUPPORT");
+  });
   it("derives every source-grounded budget line inside an approved-budget section", () => {
     const lines = [
       "APPROVED BUDGET",

@@ -34,13 +34,13 @@ export function evaluateComprehensiveRequirementCoverage(result: CompilationResu
     ["Paid work KPI", /120.{0,120}(paid work|work experience)|(paid work|work experience).{0,120}120/],
     ["Completion KPI", /85\s*%.{0,100}completion|completion.{0,100}85\s*%/],
     ["Placement KPI", /70\s*%.{0,160}(employment|education|placement)|(employment|education|placement).{0,160}70\s*%/],
-    ["Narrative questions", /activities.{0,220}(challenge|corrective action)|(challenge|corrective action).{0,220}activities/],
+    ["Narrative questions", /(?=[\s\S]*activities)(?=[\s\S]*(?:challenge|corrective action))/],
     ["Signed certification", /sign(ed|ature)?.{0,100}certification|certification.{0,100}sign(ed|ature)?/],
     ["Five-year retention", /five years.{0,120}(record|documentation)|(record|documentation).{0,120}five years/],
     ["Data and privacy requirement", /(participant information|identifier).{0,180}(minimum|disclosure)|(minimum|disclosure).{0,180}(participant information|identifier)/],
     ["Ten-business-day notice", /ten business days.{0,180}material|material.{0,180}ten business days/],
     ["Reporting recipient", /grants@communitypathways\.example|grants administration office/],
-    ["Seven budget categories", /personnel.{0,500}employee benefits.{0,500}training.{0,500}participant support.{0,500}local travel.{0,500}(data|evaluation).{0,500}indirect/]
+    ["Seven budget categories", /(?=[\s\S]*personnel)(?=[\s\S]*employee benefits)(?=[\s\S]*training)(?=[\s\S]*participant support)(?=[\s\S]*local travel)(?=[\s\S]*(?:data|evaluation))(?=[\s\S]*indirect)/]
   ];
   const missing = checks.filter(([, pattern]) => !pattern.test(corpus)).map(([label]) => label);
   const passed = checks.length - missing.length;

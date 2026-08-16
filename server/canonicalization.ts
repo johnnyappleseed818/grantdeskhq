@@ -136,9 +136,16 @@ function sourceParagraphs(file: CompilationRequest["files"][number]) {
 
 function isExplicitObligationClause(value: string) {
   const explicitDirective = /\b(?:must|shall|required|requires?|may not|cannot exceed|prohibited|allowable costs?|due|retain(?:ed)?|notify|submit(?:ted)?|include|limited to|released only after)\b/i.test(value);
+  // Award templates often phrase required report prompts as "Describe" or
+  // "Explain" rather than "must". Preserve those clauses verbatim only when
+  // they name a concrete reporting subject, so a model omission cannot erase a
+  // source-backed narrative or variance instruction.
+  const reportingInstruction = /\b(?:describe|explain)\b/i.test(value)
+    && /\b(?:activities?|progress|challenges?|corrective actions?|variances?|budget|kpis?|report(?:ing)?|narrative)\b/i.test(value);
   const quantifiedOutcome = /\b(?:serve|complete|secure|place|screen|assess|retain|house|deliver|enroll|provide|achieve)\b.{0,120}\b(?:at least|no fewer than|target(?: of| is|:)?|minimum of)\b/i.test(value)
     || /\b(?:at least|no fewer than|target(?: of| is|:)?|minimum of)\b.{0,120}\b(?:households?|participants?|clients?|assessments?|placements?|screenings?|responses?|percent|%)\b/i.test(value);
-  return (explicitDirective || quantifiedOutcome)
+  return (explicitDirective || reportingInstruction || quantifiedOutcome)
+    && !isSectionHeading(value)
     && !/^\s*(?:grant id|grantee|effective date|grant period|total .*award)\s*:/i.test(value);
 }
 
