@@ -7,12 +7,15 @@ import { ResourcesPage } from "../pages/ResourcesPage";
 
 describe("public GrantDeskHQ blog", () => {
   it("publishes two substantive, source-linked launch articles", () => {
-    expect(BLOG_POSTS).toHaveLength(2);
+    expect(BLOG_POSTS).toHaveLength(6);
     for (const post of BLOG_POSTS) {
       expect(blogWordCount(post)).toBeGreaterThan(250);
       expect(post.description.length).toBeGreaterThan(60);
       expect(post.sources.every((source) => source.url.startsWith("https://"))).toBe(true);
     }
+    const overnightPages = BLOG_POSTS.filter((post) => ["turn-grant-agreement-into-reporting-plan", "grant-progress-report-workflow", "grant-closeout-checklist", "post-award-grant-management-software"].includes(post.slug));
+    expect(overnightPages).toHaveLength(4);
+    expect(overnightPages.every((post) => blogWordCount(post) > 400)).toBe(true);
   });
 
   it("renders a discoverable article with source links and a self-service CTA", () => {
@@ -47,6 +50,6 @@ describe("public GrantDeskHQ blog", () => {
 
   it("renders both articles on the public index", () => {
     render(<MemoryRouter><BlogIndexPage /></MemoryRouter>);
-    expect(screen.getAllByRole("link", { name: /read article/i })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: /read article/i })).toHaveLength(6);
   });
 });
