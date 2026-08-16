@@ -38,6 +38,7 @@ Cloud Run application: [grantdeskhq-prototype-me423s5k5a-uc.a.run.app](https://g
 | `/sample-report` | Print-ready funder-report review package |
 | `/privacy` | Private-beta and test-file data-handling boundaries |
 | `/pricing` | Self-service Starter, Growth, and Agency subscription checkout |
+| `/resources` | Public guides, articles, and checklists for post-award grant reporting |
 | `/blog` | Source-linked post-award grant reporting field guide |
 | `/blog/:slug` | Public article with canonical metadata, sources, and self-service CTA |
 | `/assessment` | Free-first-report assessment and contact enquiry |

@@ -20,6 +20,7 @@ describe("public GrantDeskHQ blog", () => {
     expect(screen.getByRole("heading", { name: /post-award grant reporting checklist/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /view self-service plans/i })).toHaveAttribute("href", "/pricing");
     expect(screen.getByRole("link", { name: /uniform administrative requirements/i })).toHaveAttribute("href", expect.stringMatching(/^https:\/\//));
+    expect(screen.getByRole("link", { name: "All resources" })).toHaveAttribute("href", "/resources");
   });
 
   it("sets canonical, OpenGraph, and Article metadata per article", () => {
@@ -28,7 +29,7 @@ describe("public GrantDeskHQ blog", () => {
     expect(document.title).toMatch(/budget-to-actual grant reporting/i);
     expect(property("og:type")).toBe("article");
     expect(property("og:url")).toBe("https://grantdeskhq.com/blog/budget-to-actual-grant-reporting-workflow");
-    expect(property("article:published_time")).toBe("2026-08-21");
+    expect(property("article:published_time")).toBe("2026-08-16");
     expect(document.querySelector("link[rel=canonical]")?.getAttribute("href")).toBe("https://grantdeskhq.com/blog/budget-to-actual-grant-reporting-workflow");
   });
 
