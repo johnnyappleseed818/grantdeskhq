@@ -1,36 +1,17 @@
 {
-  "project": "overnight-acquisition-qa-20260817",
-  "started_at": "2026-08-17T19:27:31.537Z",
-  "finished_at": "2026-08-17T19:40:00Z",
-  "git_branch": "feature/outreach-feedback-tracking",
-  "starting_commit": "4045c5cb51b7f53ef0d5b569d4073db99ac3cca6",
-  "ending_commit": "working-tree-uncommitted",
-  "tests_run": [
-    "targeted acquisition, analytics, SEO, workspace, contact, pricing, blog, and mocked Stripe Vitest suite: 64 passed",
-    "major src/test Vitest suite: 346 passed, 4 skipped",
-    "queue controller Node-native suite: 42 passed",
-    "focused app regression after repairs: 30 passed",
+  "status": "PASS",
+  "tests": [
+    "npm exec vitest -- run src/test/gtmIntelligence.test.ts src/test/gtmConversion.test.ts src/test/gtmOutreach.test.ts --disableConsoleIntercept (10 passed)",
     "npm run lint",
-    "TypeScript/Vite/static-route build",
-    "npm run audit:stripe-pci (184 files, 0 violations)",
-    "secret-pattern scan"
+    "npm run build",
+    "git diff --check"
   ],
-  "passed": [
-    "direct /contact static route generated",
-    "Cloud Run unknown static paths return 404.html with HTTP 404 on the candidate",
-    "robots, sitemap, structured-data, responsive route, analytics, signup/workspace contracts, and Stripe static controls validated",
-    "no payment, Stripe call, form submission, account creation, outbound action, or production traffic change"
+  "artifacts": [
+    "reports/gtm-five-engine-architecture.md",
+    "src/lib/gtmConversion.ts",
+    "server/persistence.ts"
   ],
-  "failed": [],
-  "skipped": [
-    "live deployment validation; deployment and traffic changes were out of scope",
-    "field Core Web Vitals; repeatable build and read-only HTTP timing evidence was collected"
-  ],
-  "qa_validation": [
-    "reports/overnight-acquisition-qa-20260817.md",
-    "git diff --check",
-    "generated candidate artifacts verified"
-  ],
-  "remaining_blockers": [],
-  "status": "PASS"
+  "blocker": "",
+  "result_summary": "Added private human-review-only reply, objection, and win/loss learning records with deterministic classification, durable Firestore helpers, suppression-first status resolution, and no response or send path.",
+  "commit_sha": ""
 }

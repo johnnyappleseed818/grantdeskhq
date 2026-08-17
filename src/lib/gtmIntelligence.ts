@@ -9,5 +9,36 @@ export const clamp = (value: number) => Math.max(0, Math.min(10, Math.round(valu
 export function aggregateBuyerLanguage(observations: BuyerLanguageObservation[]) { const themes = new Map(); for (const item of observations) { if (!item.phrase.trim() || !/^https:\/\//.test(item.sourceUrl)) continue; const key = item.phrase.trim().toLowerCase() + "|" + item.segment.trim().toLowerCase(); const prior = themes.get(key); themes.set(key, prior ? { ...prior, evidenceCount: prior.evidenceCount + 1, relevance: Math.max(prior.relevance, clamp(item.relevance)), lastObserved: prior.lastObserved > item.observedAt ? prior.lastObserved : item.observedAt } : { ...item, phrase: item.phrase.trim(), relevance: clamp(item.relevance), evidenceCount: 1, lastObserved: item.observedAt }); } return [...themes.values()].sort((a, b) => b.evidenceCount - a.evidenceCount || b.relevance - a.relevance || b.lastObserved.localeCompare(a.lastObserved)); }
 export function scoreProspect(input: ProspectScoreInput): ProspectScore { const factors = { fit: clamp(input.fit), intent: clamp(input.intent), timing: clamp(input.timing), contactability: clamp(input.contactability), procurementFriction: clamp(input.procurementFriction) }; const total = factors.fit * 3 + factors.intent * 3 + factors.timing * 2 + factors.contactability * 2 - factors.procurementFriction; return { total: Math.max(0, Math.min(100, total)), factors, explanation: ["fit " + factors.fit + "/10", "intent " + factors.intent + "/10", "timing " + factors.timing + "/10", "contactability " + factors.contactability + "/10", "procurement friction -" + factors.procurementFriction + "/10"] }; }
 export function classifyPartnerRelationship(input: { scalesService: boolean; helpsClients: boolean; automatesBillableWork: boolean }): PartnerRelationship { if (input.scalesService) return "A"; if (input.helpsClients && !input.automatesBillableWork) return "B"; if (input.automatesBillableWork) return "C"; return "D"; }
-export function classifyConversionReply(text: string) { const value = text.toLowerCase(); if (/unsubscribe|remove me|do not contact/.test(value)) return "UNSUBSCRIBE"; if (/security|soc ?2|privacy/.test(value)) return "SECURITY_CONCERN"; if (/price|budget|expensive/.test(value)) return "TOO_EXPENSIVE"; if (/procurement|vendor/.test(value)) return "PROCUREMENT_CONCERN"; if (/already use|instrumentl|alternative/.test(value)) return "ALREADY_HAVE_SOLUTION"; if (/interested|try.*award|send.*information/.test(value)) return "TRIAL_INTEREST"; if (/wrong person/.test(value)) return "WRONG_PERSON"; return "OTHER"; }
+export type ConversionReplyClassification = "UNSUBSCRIBE" | "SECURITY_CONCERN" | "TOO_EXPENSIVE" | "PROCUREMENT_CONCERN" | "ALREADY_HAVE_SOLUTION" | "TRIAL_INTEREST" | "WRONG_PERSON" | "OTHER";
+export type ConversionObjection = Exclude<ConversionReplyClassification, "UNSUBSCRIBE" | "TRIAL_INTEREST" | "WRONG_PERSON" | "OTHER">;
+export type ConversionOutcome = "OPEN" | "WON" | "LOST" | "UNKNOWN";
+export type ConversionLearningStatus = "HUMAN_REVIEW_REQUIRED" | "OPEN" | "WON" | "LOST" | "SUPPRESSED";
+export type ConversionSuppressionStatus = "CLEAR" | "BLOCKED" | "UNKNOWN";
+
+/** Deterministic labeling is only a review aid; it never authorizes a response. */
+export function classifyConversionReply(text: string): ConversionReplyClassification {
+  const value = text.toLowerCase();
+  // A suppression request always wins over otherwise-positive language.
+  if (/unsubscribe|remove me|do not contact|opt[ -]?out/.test(value)) return "UNSUBSCRIBE";
+  if (/security|soc ?2|privacy/.test(value)) return "SECURITY_CONCERN";
+  if (/price|budget|expensive/.test(value)) return "TOO_EXPENSIVE";
+  if (/procurement|vendor/.test(value)) return "PROCUREMENT_CONCERN";
+  if (/already use|instrumentl|alternative/.test(value)) return "ALREADY_HAVE_SOLUTION";
+  if (/interested|try.*award|send.*information/.test(value)) return "TRIAL_INTEREST";
+  if (/wrong person/.test(value)) return "WRONG_PERSON";
+  return "OTHER";
+}
+
+export function conversionObjections(classification: ConversionReplyClassification): ConversionObjection[] {
+  return classification === "SECURITY_CONCERN" || classification === "TOO_EXPENSIVE" || classification === "PROCUREMENT_CONCERN" || classification === "ALREADY_HAVE_SOLUTION" ? [classification] : [];
+}
+
+/** Suppression is terminal and dominates outcomes, including a mistakenly recorded win. */
+export function resolveConversionLearningStatus(input: { suppressionStatus: ConversionSuppressionStatus; classification: ConversionReplyClassification; outcome: ConversionOutcome; humanReviewed: boolean }): ConversionLearningStatus {
+  if (input.suppressionStatus === "BLOCKED" || input.classification === "UNSUBSCRIBE") return "SUPPRESSED";
+  if (!input.humanReviewed) return "HUMAN_REVIEW_REQUIRED";
+  if (input.outcome === "WON") return "WON";
+  if (input.outcome === "LOST") return "LOST";
+  return "OPEN";
+}
 export function dueFollowUps(records: FollowUpRecord[], current = new Date().toISOString()) { return records.filter((record) => !record.suppressed && record.status === "SENT" && record.dueAt <= current).sort((a,b) => a.dueAt.localeCompare(b.dueAt)); }

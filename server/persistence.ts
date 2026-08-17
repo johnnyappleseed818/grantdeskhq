@@ -8,6 +8,7 @@ import type { ContactEnrichmentRecord, EnrichmentUsage, SuppressionCheck } from 
 import type { FeedbackSubmission } from "../src/lib/feedback.ts";
 import type { OutreachRecord } from "../src/lib/gtmOutreach.ts";
 import { mergeOutreachRecords } from "../src/lib/gtmOutreach.ts";
+import { isConversionLearningRecord, type ConversionLearningRecord } from "../src/lib/gtmConversion.ts";
 import type { AuthenticatedUser } from "./auth.ts";
 import { normalizeAttribution, type Attribution, type BillingEventSnapshot } from "./billing.ts";
 import { subscriptionIsEntitled } from "../src/content/pricing.ts";
@@ -67,6 +68,31 @@ export async function reconcileGtmOutreachLedger(confirmed: OutreachRecord[]): P
   const reconciled = mergeOutreachRecords(imported, confirmed);
   await Promise.all(confirmed.map((record) => writeDocument(accessToken, collection + "/" + safeOutreachDocumentId(record.id), { ...record, email: record.email || "", canonicalOpportunityId: record.canonicalOpportunityId || "", whyNowSignal: record.whyNowSignal || "", signalSource: record.signalSource || "", followUpDueAt: record.followUpDueAt || "" })));
   return reconciled;
+}
+
+/** Private, human-review-only storage. This module exposes no send or auto-response operation. */
+export async function saveGtmConversionLearning(record: ConversionLearningRecord): Promise<ConversionLearningRecord> {
+  if (!isConversionLearningRecord(record)) throw new Error("Invalid conversion learning record.");
+  const accessToken = await gcpToken();
+  await writeDocument(accessToken, `gtm/conversion-learning/records/${safeConversionLearningDocumentId(record.id)}`, {
+    updatedAt: record.updatedAt,
+    recordJson: JSON.stringify(record)
+  });
+  return record;
+}
+
+export async function readGtmConversionLearning(id: string): Promise<ConversionLearningRecord | null> {
+  const accessToken = await gcpToken();
+  const response = await authorizedFetch(`${firestoreBase}/gtm/conversion-learning/records/${safeConversionLearningDocumentId(id)}`, accessToken);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`GTM conversion learning could not be loaded (${response.status}).`);
+  const record = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
+  try {
+    const parsed = JSON.parse(String(record.recordJson || "")) as unknown;
+    return isConversionLearningRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 export async function saveCompilation(user: AuthenticatedUser, request: CompilationRequest, result: CompilationResult) {
   const now = new Date().toISOString();
@@ -1303,6 +1329,11 @@ function safeFeedbackDocumentId(value: string) {
 
 function safeOutreachDocumentId(value: string) {
   if (!/^outreach_(direct|partner)_[a-z0-9_]+$/.test(value)) throw new Error("Invalid GTM outreach identifier.");
+  return value;
+}
+
+function safeConversionLearningDocumentId(value: string) {
+  if (!/^conversion_[a-z0-9_]+$/.test(value)) throw new Error("Invalid GTM conversion learning identifier.");
   return value;
 }
 

@@ -14,7 +14,7 @@ Signal-aware, human-review-only drafts select the opening from verified award, h
 
 ## 4. Conversion
 
-The design supports structured reply classification, objections, trial intent, win/loss, and response recommendations for human review. No response is sent automatically.
+Private conversion-learning records retain the received reply, deterministic classification, extracted objection category, suppression result, and a human-recorded open/won/lost outcome. Deterministic labels are suggestions only: a reviewer must complete review before an outcome leaves the review queue. `NO_AUTO_RESPONSE` is a model invariant, and this implementation exposes no send or response endpoint. A blocked suppression result or unsubscribe classification produces `SUPPRESSED` regardless of any recorded win/loss state.
 
 ## 5. Acquisition optimization
 
