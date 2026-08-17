@@ -122,10 +122,10 @@ BOUNDED PUBLIC EXPANSION CANDIDATES — 2026-08-17
 A read-only USAspending scan checked 400 recent records and returned 140 nonprofit-recipient candidates. This is public-source research only; it did not write Firestore, run enrichment, create a contact record, or initiate outbound.
 
 NEXT FOUR CANONICAL-RECONCILIATION CANDIDATES:
-1. A Safe Place Empowerment Network INC — ,000,000 Substance Abuse and Mental Health Services Administration award; start 2026-09-30; source https://www.usaspending.gov/award/ASST_NON_H79SM090773_075/
-2. American Youthworks — ,478,000 Corporation for National and Community Service award; start 2027-01-01; source https://www.usaspending.gov/award/ASST_NON_26EDGTX001_485/
-3. Cope Community Services, INC. — ,499,682 Substance Abuse and Mental Health Services Administration award; start 2026-09-30; source https://www.usaspending.gov/award/ASST_NON_H79SM090778_075/
-4. Greene Lamp — ,685,667 Administration for Children and Families award; start 2026-09-01; source https://www.usaspending.gov/award/ASST_NON_04HP000704_075/
+1. A Safe Place Empowerment Network INC — $1,000,000 Substance Abuse and Mental Health Services Administration award; start 2026-09-30; source https://www.usaspending.gov/award/ASST_NON_H79SM090773_075/
+2. American Youthworks — $3,478,000 Corporation for National and Community Service award; start 2027-01-01; source https://www.usaspending.gov/award/ASST_NON_26EDGTX001_485/
+3. Cope Community Services, INC. — $1,499,682 Substance Abuse and Mental Health Services Administration award; start 2026-09-30; source https://www.usaspending.gov/award/ASST_NON_H79SM090778_075/
+4. Greene Lamp — $1,685,667 Administration for Children and Families award; start 2026-09-01; source https://www.usaspending.gov/award/ASST_NON_04HP000704_075/
 
 STATUS:
 These are DISCOVERED, not yet canonical QUALIFIED records. They must be deduplicated against the private 106-card ledger and passed through the existing runtime reconciliation before moving into the direct queue. The source records establish an award and timing only; they do not establish reporting pain, a person, an email, or send readiness.
