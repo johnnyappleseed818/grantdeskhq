@@ -132,7 +132,7 @@ for attempt in 1 2; do
   printf "\nPrior attempt exited nonzero. Inspect its log at %s, repair only safe in-scope issues, then complete the project.\n" "$attempt_log" >> "$agent_prompt"
 done
 
-if ! valid_result ""; then
+if ! valid_result "$result"; then
   finished="$(rtk date -u +%FT%TZ)"
   end_commit="$(rtk git -C "$worktree" rev-parse HEAD)"
   rtk jq -n --arg project "$project" --arg started_at "$start_time" --arg finished_at "$finished" --arg git_branch "$branch" --arg starting_commit "$start_commit" --arg ending_commit "$end_commit" --argjson exit_code "$exit_code" '
@@ -140,7 +140,7 @@ if ! valid_result ""; then
   ' > "$result"
 fi
 
-valid_result ""
+valid_result "$result"
 rtk ln -sfn "$run_dir" "$project_base/latest"
 [[ -f "$report" ]] || printf "Codex completed without a final report; see attempt logs.\n" > "$report"
 [[ "$(rtk jq -r .status "$result")" == "PASS" && "$exit_code" == "0" ]]

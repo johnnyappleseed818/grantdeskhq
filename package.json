@@ -25,7 +25,12 @@
     "gtm:test": "node scripts/gtm/gtm.test.mjs",
     "gtm:reddit": "node scripts/gtm/scan-reddit-api.mjs",
     "gtm:awards": "node --experimental-strip-types scripts/gtm/scan-usaspending-awards.mjs",
-    "stripe:configure": "node --experimental-strip-types scripts/configure-stripe-pricing.mjs"
+    "stripe:configure": "node --experimental-strip-types scripts/configure-stripe-pricing.mjs",
+    "codex:queue:status": "node scripts/codex-project-runner/queue.mjs status",
+    "codex:queue:run": "node scripts/codex-project-runner/queue.mjs run",
+    "codex:queue:stop": "node scripts/codex-project-runner/queue.mjs stop",
+    "codex:queue:blockers": "node scripts/codex-project-runner/queue.mjs blockers",
+    "test:codex-queue": "node --test scripts/codex-project-runner/queue.test.mjs"
   },
   "dependencies": {
     "fflate": "^0.8.3",

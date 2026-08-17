@@ -1,0 +1,443 @@
+{
+  "version": 1,
+  "updated_at": "2026-08-17T00:00:00Z",
+  "tasks": [
+    {
+      "id": "direct-prospect-queue",
+      "title": "Persist canonical direct nonprofit prospect inventory",
+      "category": "DIRECT_PROSPECT_QUEUE",
+      "priority": 10,
+      "status": "QUEUED",
+      "created_at": "2026-08-17T00:00:00Z",
+      "updated_at": "2026-08-17T00:00:00Z",
+      "description": "Make Control Plane reconciliation the durable direct-prospect source with replenishment thresholds and no bulk enrichment.",
+      "acceptance_criteria": [
+        "Canonical record model and reconciliation are tested.",
+        "No outreach path is added."
+      ],
+      "dependencies": [],
+      "blocked_by": [],
+      "attempt_count": 0,
+      "max_attempts": 2,
+      "estimated_scope": "bounded",
+      "allowed_actions": [
+        "inspect",
+        "edit",
+        "test",
+        "commit",
+        "push",
+        "zero-traffic QA"
+      ],
+      "forbidden_actions": [
+        "production traffic",
+        "outbound",
+        "purchases",
+        "live Stripe charges",
+        "force push"
+      ],
+      "artifacts_expected": [
+        "reports/gtm-direct-prospect-queue.md"
+      ],
+      "tests_expected": [
+        "focused tests",
+        "lint",
+        "build"
+      ],
+      "branch": null,
+      "commit_sha": null,
+      "started_at": null,
+      "completed_at": null,
+      "blocker": "",
+      "result_summary": ""
+    },
+    {
+      "id": "partner-pipeline",
+      "title": "Persist partner acquisition pipeline",
+      "category": "PARTNER_ENGINE",
+      "priority": 20,
+      "status": "QUEUED",
+      "created_at": "2026-08-17T00:00:00Z",
+      "updated_at": "2026-08-17T00:00:00Z",
+      "description": "Create the canonical partner stages and factual counts from research; do not contact partners.",
+      "acceptance_criteria": [
+        "Partner states, A/B/C/D classification, and suppression gate are tested.",
+        "No partner delivery integration exists."
+      ],
+      "dependencies": [],
+      "blocked_by": [],
+      "attempt_count": 0,
+      "max_attempts": 2,
+      "estimated_scope": "bounded",
+      "allowed_actions": [
+        "inspect",
+        "edit",
+        "test",
+        "commit",
+        "push",
+        "zero-traffic QA"
+      ],
+      "forbidden_actions": [
+        "production traffic",
+        "outbound",
+        "purchases",
+        "live Stripe charges",
+        "force push"
+      ],
+      "artifacts_expected": [
+        "reports/gtm-partner-engine-design.md"
+      ],
+      "tests_expected": [
+        "focused tests",
+        "lint",
+        "build"
+      ],
+      "branch": null,
+      "commit_sha": null,
+      "started_at": null,
+      "completed_at": null,
+      "blocker": "",
+      "result_summary": ""
+    },
+    {
+      "id": "buyer-language",
+      "title": "Aggregate buyer-language intelligence",
+      "category": "BUYER_LANGUAGE",
+      "priority": 30,
+      "status": "QUEUED",
+      "created_at": "2026-08-17T00:00:00Z",
+      "updated_at": "2026-08-17T00:00:00Z",
+      "description": "Turn source-backed public research into auditable recurring wording and theme intelligence.",
+      "acceptance_criteria": [
+        "Observed wording remains source-backed.",
+        "No production copy changes occur automatically."
+      ],
+      "dependencies": [],
+      "blocked_by": [],
+      "attempt_count": 0,
+      "max_attempts": 2,
+      "estimated_scope": "bounded",
+      "allowed_actions": [
+        "inspect",
+        "edit",
+        "test",
+        "commit",
+        "push",
+        "zero-traffic QA"
+      ],
+      "forbidden_actions": [
+        "production traffic",
+        "outbound",
+        "purchases",
+        "live Stripe charges",
+        "force push"
+      ],
+      "artifacts_expected": [
+        "reports/gtm-buyer-language-intelligence.md"
+      ],
+      "tests_expected": [
+        "focused tests",
+        "lint",
+        "build"
+      ],
+      "branch": null,
+      "commit_sha": null,
+      "started_at": null,
+      "completed_at": null,
+      "blocker": "",
+      "result_summary": ""
+    },
+    {
+      "id": "seo-instrumentl",
+      "title": "Complete public Instrumentl SEO intelligence",
+      "category": "SEO_INSTRUMENTL",
+      "priority": 40,
+      "status": "QUEUED",
+      "created_at": "2026-08-17T00:00:00Z",
+      "updated_at": "2026-08-17T00:00:00Z",
+      "description": "Complete public-only competitor inventory and keyword/page map without copied content or invented search volume.",
+      "acceptance_criteria": [
+        "Observed and inferred claims are separated.",
+        "No comparison page is published without validation."
+      ],
+      "dependencies": [],
+      "blocked_by": [],
+      "attempt_count": 0,
+      "max_attempts": 2,
+      "estimated_scope": "bounded",
+      "allowed_actions": [
+        "inspect",
+        "edit",
+        "test",
+        "commit",
+        "push",
+        "zero-traffic QA"
+      ],
+      "forbidden_actions": [
+        "production traffic",
+        "outbound",
+        "purchases",
+        "live Stripe charges",
+        "force push"
+      ],
+      "artifacts_expected": [
+        "reports/seo-instrumentl-competitive-intelligence.md",
+        "reports/seo-keyword-page-map.md"
+      ],
+      "tests_expected": [
+        "focused tests",
+        "lint",
+        "build"
+      ],
+      "branch": null,
+      "commit_sha": null,
+      "started_at": null,
+      "completed_at": null,
+      "blocker": "",
+      "result_summary": ""
+    },
+    {
+      "id": "seo-content",
+      "title": "Build validated post-award resource candidates",
+      "category": "SEO_CONTENT",
+      "priority": 50,
+      "status": "QUEUED",
+      "created_at": "2026-08-17T00:00:00Z",
+      "updated_at": "2026-08-17T00:00:00Z",
+      "description": "Build only the high-quality resource pages supported by the completed SEO research on a candidate branch.",
+      "acceptance_criteria": [
+        "Each page is original, crawlable, sourced where needed, and internally linked.",
+        "No production traffic promotion."
+      ],
+      "dependencies": [],
+      "blocked_by": [],
+      "attempt_count": 0,
+      "max_attempts": 2,
+      "estimated_scope": "bounded",
+      "allowed_actions": [
+        "inspect",
+        "edit",
+        "test",
+        "commit",
+        "push",
+        "zero-traffic QA"
+      ],
+      "forbidden_actions": [
+        "production traffic",
+        "outbound",
+        "purchases",
+        "live Stripe charges",
+        "force push"
+      ],
+      "artifacts_expected": [
+        "reports/seo-90-day-content-plan.md"
+      ],
+      "tests_expected": [
+        "focused tests",
+        "lint",
+        "build"
+      ],
+      "branch": null,
+      "commit_sha": null,
+      "started_at": null,
+      "completed_at": null,
+      "blocker": "",
+      "result_summary": ""
+    },
+    {
+      "id": "conversion-engine",
+      "title": "Persist reply, objection, and win/loss learning",
+      "category": "CONVERSION_ENGINE",
+      "priority": 60,
+      "status": "QUEUED",
+      "created_at": "2026-08-17T00:00:00Z",
+      "updated_at": "2026-08-17T00:00:00Z",
+      "description": "Add human-review-only conversion data model and deterministic reply classification.",
+      "acceptance_criteria": [
+        "Suppression dominates every status.",
+        "No auto-response or send path."
+      ],
+      "dependencies": [],
+      "blocked_by": [],
+      "attempt_count": 0,
+      "max_attempts": 2,
+      "estimated_scope": "bounded",
+      "allowed_actions": [
+        "inspect",
+        "edit",
+        "test",
+        "commit",
+        "push",
+        "zero-traffic QA"
+      ],
+      "forbidden_actions": [
+        "production traffic",
+        "outbound",
+        "purchases",
+        "live Stripe charges",
+        "force push"
+      ],
+      "artifacts_expected": [
+        "reports/gtm-five-engine-architecture.md"
+      ],
+      "tests_expected": [
+        "focused tests",
+        "lint",
+        "build"
+      ],
+      "branch": null,
+      "commit_sha": null,
+      "started_at": null,
+      "completed_at": null,
+      "blocker": "",
+      "result_summary": ""
+    },
+    {
+      "id": "optimization-engine",
+      "title": "Add transparent acquisition recommendations",
+      "category": "OPTIMIZATION_ENGINE",
+      "priority": 70,
+      "status": "QUEUED",
+      "created_at": "2026-08-17T00:00:00Z",
+      "updated_at": "2026-08-17T00:00:00Z",
+      "description": "Create evidence-bound recommendation logic that emits no recommendation without real outcomes.",
+      "acceptance_criteria": [
+        "All recommendations explain data and confidence.",
+        "No automatic scoring or messaging changes."
+      ],
+      "dependencies": [],
+      "blocked_by": [],
+      "attempt_count": 0,
+      "max_attempts": 2,
+      "estimated_scope": "bounded",
+      "allowed_actions": [
+        "inspect",
+        "edit",
+        "test",
+        "commit",
+        "push",
+        "zero-traffic QA"
+      ],
+      "forbidden_actions": [
+        "production traffic",
+        "outbound",
+        "purchases",
+        "live Stripe charges",
+        "force push"
+      ],
+      "artifacts_expected": [
+        "reports/gtm-five-engine-architecture.md"
+      ],
+      "tests_expected": [
+        "focused tests",
+        "lint",
+        "build"
+      ],
+      "branch": null,
+      "commit_sha": null,
+      "started_at": null,
+      "completed_at": null,
+      "blocker": "",
+      "result_summary": ""
+    },
+    {
+      "id": "ga4-release",
+      "title": "Integrate validated GA4 collection fix into exact deployment provenance",
+      "category": "GA4",
+      "priority": 80,
+      "status": "BLOCKED",
+      "created_at": "2026-08-17T00:00:00Z",
+      "updated_at": "2026-08-17T00:00:00Z",
+      "description": "Cherry-pick/integrate the consented gtag collection fix into the current deploy source and validate a zero-traffic candidate.",
+      "acceptance_criteria": [
+        "Production config remains unchanged until candidate validation.",
+        "Manual SPA page_view duplication is avoided."
+      ],
+      "dependencies": [],
+      "blocked_by": [
+        "GA4 Enhanced Measurement page-history setting requires human verification before promotion."
+      ],
+      "attempt_count": 0,
+      "max_attempts": 2,
+      "estimated_scope": "bounded",
+      "allowed_actions": [
+        "inspect",
+        "edit",
+        "test",
+        "commit",
+        "push",
+        "zero-traffic QA"
+      ],
+      "forbidden_actions": [
+        "production traffic",
+        "outbound",
+        "purchases",
+        "live Stripe charges",
+        "force push"
+      ],
+      "artifacts_expected": [
+        "/home/eli_katz/grantdeskhq-ga4-readiness.txt"
+      ],
+      "tests_expected": [
+        "focused tests",
+        "lint",
+        "build"
+      ],
+      "branch": null,
+      "commit_sha": null,
+      "started_at": null,
+      "completed_at": null,
+      "blocker": "GA4 Enhanced Measurement page-history setting requires human verification before promotion.",
+      "result_summary": ""
+    },
+    {
+      "id": "stripe-live",
+      "title": "Enable and certify LIVE Stripe configuration",
+      "category": "COMMERCIAL_READINESS",
+      "priority": 90,
+      "status": "BLOCKED",
+      "created_at": "2026-08-17T00:00:00Z",
+      "updated_at": "2026-08-17T00:00:00Z",
+      "description": "Configure only approved LIVE Stripe secrets, prices, coupons, and webhook mappings then perform non-charging candidate validation.",
+      "acceptance_criteria": [
+        "No live customer charge.",
+        "Test and live object isolation passes."
+      ],
+      "dependencies": [],
+      "blocked_by": [
+        "Active LIVE Stripe credentials, live product/price/coupon IDs, and matching webhook secret are not provisioned."
+      ],
+      "attempt_count": 0,
+      "max_attempts": 2,
+      "estimated_scope": "bounded",
+      "allowed_actions": [
+        "inspect",
+        "edit",
+        "test",
+        "commit",
+        "push",
+        "zero-traffic QA"
+      ],
+      "forbidden_actions": [
+        "production traffic",
+        "outbound",
+        "purchases",
+        "live Stripe charges",
+        "force push"
+      ],
+      "artifacts_expected": [
+        "/home/eli_katz/grantdeskhq-commercial-readiness.txt"
+      ],
+      "tests_expected": [
+        "focused tests",
+        "lint",
+        "build"
+      ],
+      "branch": null,
+      "commit_sha": null,
+      "started_at": null,
+      "completed_at": null,
+      "blocker": "Active LIVE Stripe credentials, live product/price/coupon IDs, and matching webhook secret are not provisioned.",
+      "result_summary": ""
+    }
+  ]
+}
