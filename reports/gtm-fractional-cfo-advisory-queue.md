@@ -8,8 +8,8 @@ CONTACT FORMS: 0
 INVENTORY
 RESEARCHED: 50 public-source organizations
 HIGH FIT: 20 (fit ≥8)
-CONTACT-IDENTIFIED: 7 official public named leaders
-ENRICHMENT READY: 7 after Hunter credential repair; remaining candidates require current named-person research
+CONTACT-IDENTIFIED: 8 official public named leaders
+ENRICHMENT READY: 8 after Hunter credential repair; remaining candidates require current named-person research
 VERIFIED EMAILS: 0
 HUMAN-REVIEW / OUTREACH READY: 0
 
@@ -217,24 +217,24 @@ Eli
 WEBSITE: https://www.nfoyourcfo.com/
 PARTNER TYPE: PARTNER_FRACTIONAL_CFO
 SOURCE: https://www.nfoyourcfo.com/
-WHY SELECTED: Fractional CFO and fiscal grant-management support
+WHY SELECTED: NFO publicly describes fractional CFO services, fiscal grant management, nonprofit financial reporting, and audit support.
 PARTNER FIT: 9/10
 PARTNER / COMPETITOR RELATIONSHIP: A — likely productivity multiplier; advisor retains client judgment, review, and service.
-RECOMMENDED CONTACT: NOT ESTABLISHED
-TITLE: Founder or managing partner
-TITLE SOURCE: https://www.nfoyourcfo.com/
+RECOMMENDED CONTACT: Scott Kriete
+TITLE: Chief Executive Officer
+TITLE SOURCE: https://www.nfoyourcfo.com/our-team
 DIRECT EMAIL: NOT ESTABLISHED
 EMAIL STATUS: CONTACT_NOT_ESTABLISHED — no address guessed and no paid enrichment used.
 SUPPRESSION STATUS: UNKNOWN — requires a verified direct business email.
-READY FOR ENRICHMENT: NO — named-person research required
+READY FOR ENRICHMENT: YES — named current leader and official domain are established.
 READY FOR HUMAN APPROVAL: NO
-SUBJECT: A post-award reporting workflow for NFO Nonprofit Financial Outsourcing nonprofit clients
+SUBJECT: A post-award reporting workflow for NFO nonprofit clients
 FULL PERSONALIZED EMAIL:
-Hello NFO team,
+Hi Scott,
 
-I saw that NFO supports nonprofits with fractional CFO and fiscal grant-management work.
+I saw NFO's public work in fractional CFO services, fiscal grant management, financial reporting, and audit support for nonprofits.
 
-GrantDeskHQ is an AI-powered post-award workflow that turns a grant agreement, accounting data, program updates, and supporting evidence into a reviewable funder-report draft. It can help advisory teams standardize repetitive assembly across client awards while the advisor and client retain review and submission control.
+GrantDeskHQ turns grant agreements, accounting data, program updates, and supporting evidence into reviewable funder-report drafts. It could give your team a focused way to standardize repetitive post-award assembly across client awards while you retain the financial judgment, review, and client-service role.
 
 Would you be open to seeing whether it could be useful with one nonprofit client or award?
 
@@ -378,8 +378,8 @@ The following 25 additional U.S.-oriented organizations are backed by their publ
 CURRENT PARTNER INVENTORY:
 RESEARCHED: 50
 HIGH FIT: 20 (the existing top 20 retain their source-backed 8-plus fit threshold)
-CONTACT IDENTIFIED: 7
-ENRICHMENT READY: 7
+CONTACT IDENTIFIED: 8
+ENRICHMENT READY: 8
 VERIFIED EMAIL: 0
 HUMAN-REVIEW READY: 0
 TOP 5: The Charity CFO; Kiwi Partners; YPTC; Array Accounting; Integra Nonprofit Financial Management.
@@ -410,15 +410,16 @@ No email discovery was called. Each person below is a public-role research recor
 | c3 by Design | Scott Turner | Founder and CEO | https://www.c3bydesign.com/about | c3bydesign.com | DIRECT EMAIL: NOT ESTABLISHED | UNKNOWN; ENRICHMENT_READY |
 | Altruic Advisors | Ryan Hagan, CPA, CFE | Founder & Managing Partner | https://altruic.com/ryan-hagan | altruic.com | DIRECT EMAIL: NOT ESTABLISHED | UNKNOWN; ENRICHMENT_READY |
 | JMT Consulting | Jacqueline M. Tiso | Founder & Chief Executive Officer | https://jmtconsulting.com/blog/nonprofit-ai-adoption-leadership-capacity-change/ | jmtconsulting.com | DIRECT EMAIL: NOT ESTABLISHED | UNKNOWN; ENRICHMENT_READY |
+| NFO Nonprofit Financial Outsourcing | Scott Kriete | Chief Executive Officer | https://www.nfoyourcfo.com/our-team | nfoyourcfo.com | DIRECT EMAIL: NOT ESTABLISHED | UNKNOWN; ENRICHMENT_READY |
 
 UPDATED PARTNER STAGES:
 RESEARCHED: 50
 HIGH FIT: 20
-CONTACT IDENTIFIED: 7
-ENRICHMENT READY: 7
+CONTACT IDENTIFIED: 8
+ENRICHMENT READY: 8
 VERIFIED EMAILS: 0
 HUMAN-REVIEW READY: 0
-TOP CONTACTS WORTH BOUNDED FUTURE ENRICHMENT: Tosha Anderson; Ken Hafner; Jennifer Alleva; Danielle L. Wright; Scott Turner; Ryan Hagan; Jacqueline M. Tiso.
+TOP CONTACTS WORTH BOUNDED FUTURE ENRICHMENT: Tosha Anderson; Ken Hafner; Jennifer Alleva; Danielle L. Wright; Scott Turner; Ryan Hagan; Jacqueline M. Tiso; Scott Kriete.
 
 SAFETY:
 No provider lookup, email verification, suppression lookup, email, schedule, form submission, or social action was performed for these research records.
