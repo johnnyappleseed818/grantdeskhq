@@ -1,7 +1,7 @@
 {
   "status": "PASS",
-  "tests": ["npx vitest run src/test/gtm.test.tsx src/test/gtmOverview.test.ts src/test/gtmOutreach.test.ts src/test/pricing.test.ts src/test/workspaceReports.test.tsx src/test/app.test.tsx src/test/billing.test.ts --disableConsoleIntercept (69 passed)", "npm run lint", "npm run build", "git diff --check", "public terminology, outbound-safety, and secret-pattern audits"],
-  "artifacts": ["reports/gtm-founder-dashboard-validation.md"],
+  "tests": ["Tagged Cloud Run candidate grantdeskhq-prototype-foundergtm0817 Ready with zero traffic", "Candidate /api/health, /pricing, and /resources checks", "Unauthenticated GTM API protection and /gtm login redirect", "Playwright pricing terminology and 390px navigation check", "npx vitest run src/test/gtm.test.tsx src/test/gtmOverview.test.ts src/test/gtmOutreach.test.ts src/test/pricing.test.ts src/test/workspaceReports.test.tsx src/test/app.test.tsx src/test/billing.test.ts --disableConsoleIntercept (69 passed)", "npm run lint", "git diff --check", "non-secret candidate/live runtime configuration comparison"],
+  "artifacts": ["reports/gtm-founder-dashboard-candidate-validation.md"],
   "blocker": "",
-  "result_summary": "Founder dashboard and public-copy validation passed: confirmed manual sends reconcile to 5 direct, 5 partner, and 10 total with zero missing; public implementation explanations are absent, automated GTM outbound remains locked, and no secret-pattern regression was found."
+  "result_summary": "Tagged zero-traffic candidate grantdeskhq-prototype-foundergtm0817 passed health, public-route, terminology, GTM-protection, responsive-navigation, manual-ledger, automation-lock, and non-secret configuration checks. Live rollback target grantdeskhq-prototype-00164-dug remains at 100% traffic."
 }
