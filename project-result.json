@@ -1,28 +1,31 @@
 {
-  "project": "contact-feedback-experience",
-  "status": "PASS",
-  "completed_at": "2026-08-17T12:53:00.000Z",
-  "summary": "Built public contact and authenticated feedback submission, persisted lifecycle records, a GTM-admin review route, safe analytics, and an explicitly unconfigured notification boundary.",
-  "artifacts": [
-    "src/lib/feedback.ts",
-    "src/pages/ContactFeedbackPage.tsx",
-    "src/pages/GtmFeedbackPage.tsx",
-    "reports/contact-feedback-implementation.md"
-  ],
-  "tests": [
-    "npx tsc --noEmit",
-    "npx vitest run src/test/feedback.test.ts (3 passing)",
-    "targeted eslint",
+  "project": "outreach-feedback-qa-report",
+  "started_at": "2026-08-17T12:53:27.990Z",
+  "finished_at": "2026-08-17T12:57:30.000Z",
+  "git_branch": "feature/outreach-feedback-tracking",
+  "starting_commit": "9cf23cf",
+  "ending_commit": "9cf23cf",
+  "tests_run": [
+    "focused contact-feedback, analytics, and outreach tests",
+    "npm run gtm:test",
+    "npm run lint",
+    "npm run build",
     "git diff --check",
-    "non-disclosing diff secret scan"
+    "non-disclosing Git-tracked secret-pattern scan"
   ],
-  "safety": {
-    "customer_production_changed": false,
-    "stripe_changed": false,
-    "outbound_actions": 0,
-    "purchases": 0,
-    "paid_enrichment": 0,
-    "force_pushes": 0
-  },
-  "blocker": ""
+  "passed": [
+    "Focused contact-feedback, analytics, and outreach suite: 14 tests passed",
+    "GTM safety regression: 5 tests passed",
+    "Lint, TypeScript check, production build, SPA route generation, whitespace check, and secret-pattern scan passed",
+    "CONTACT_FEEDBACK_EMAIL is absent and notifications are deliberately NOT_CONFIGURED; no notification delivery was fabricated"
+  ],
+  "failed": [],
+  "skipped": ["Deployment and live notification delivery were intentionally out of scope"],
+  "qa_validation": [
+    "No production traffic change, outbound send, Stripe action, purchase, or paid enrichment was performed",
+    "Outreach ledger remains read-only with five direct, five partner, and ten total sent; replies, trials, and customers remain zero",
+    "The separate Resend broadcast utility defaults to preview mode and was not invoked"
+  ],
+  "remaining_blockers": [],
+  "status": "PASS"
 }
