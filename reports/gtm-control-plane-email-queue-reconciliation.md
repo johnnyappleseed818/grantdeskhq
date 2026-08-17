@@ -1,75 +1,60 @@
 # GTM Control Plane email-queue reconciliation
 
-Generated 2026-08-16. This is a SHADOW / human-review-only reconciliation. It creates no delivery, schedule, contact-form, social, or paid-enrichment action.
+Generated 2026-08-17 from the private runtime-owned Firestore reconciliation. This is strictly SHADOW / human-review-only work: it creates no delivery, email schedule, contact-form, social, paid-enrichment, Stripe, or production-traffic action.
 
-## Sources and coverage
+## Runtime evidence and scope
 
-- **Used:** the six seeded `initialOpportunities` Control Plane cards and the twelve source-backed records in `public/gtm/award-signals.json`.
-- **Compared with:** the direct prospect and 20-prospect reports, enrichment targets, top-two shadow result, and the no-send target-email state machine. None of the readable Control Plane organizations appears in the prior 20-prospect cohort or top-two enrichment queue.
-- **Unavailable or limited:** the VM identity received `403 PERMISSION_DENIED` when reading the authoritative live Firestore document `gtm/daily-awards`. The live-only Aug. 16 scan therefore could not be enumerated from this VM. This report is exhaustive for the 18 readable cards, not a claim that the private Firestore scan has no additional cards.
-- **Suppression:** no direct address was advanced. The VM cannot read live suppression/customer-history data, so every preserved direct route remains `SUPPRESSION_CHECK_REQUIRED`.
+- Authoritative source: Firestore gtm/daily-awards, scanned at 2026-08-16T13:35:04.406Z, combined with the seeded Control Plane opportunities.
+- Enumeration: private Cloud Run Job grantdeskhq-control-plane-reconciliation, execution grantdeskhq-control-plane-reconciliation-7rrxx, completed successfully at 2026-08-17T04:46:22.666190Z under the runtime identity. It saved the card-level ledger to private Firestore document gtm/control-plane-reconciliation.
+- Direct VM access: remains correctly denied (PERMISSION_DENIED) and was not broadened. The runtime job is the least-privilege reader for the current Firestore-only scan.
+- Method: every card is deduplicated by canonical organization and assigned exactly one mutually exclusive state. The state counts below sum to all 106 current cards.
 
-## Reconciliation result
+## Final reconciliation - real counts
 
-```text
-CONTROL PLANE CARDS: 18
-UNIQUE ORGANIZATIONS: 15
-QUALIFIED: 15 (evidence-qualified organizations before contact/suppression gates)
-ALREADY IN TARGET EMAIL QUEUE: 0
-NEWLY ADDED TO TARGET QUEUE: 0 (four direct public routes are queued for suppression confirmation; no live queue write was possible from the VM)
-CONTACT RESEARCH REQUIRED: 9
+CONTROL PLANE CARDS: 106
+UNIQUE ORGANIZATIONS: 96
+QUALIFIED: 0
+ALREADY IN TARGET EMAIL QUEUE: 4
+NEWLY ADDED TO TARGET QUEUE: 0
+CONTACT RESEARCH REQUIRED: 90
 ENRICHMENT REQUIRED: 2
-READY FOR HUMAN REVIEW: 0
+EMAIL VERIFICATION REQUIRED: 0
+SUPPRESSION CHECK REQUIRED: 0
+DRAFT REQUIRED: 0
+READY FOR HUMAN REVIEW: 4
+ALREADY CONTACTED: 0
+CUSTOMERS: 0
 DISQUALIFIED: 0
-DUPLICATES: 3
-MISSING / UNACCOUNTED FOR: 0 (across the 18 readable cards)
+DUPLICATES: 10
+MISSING / UNACCOUNTED FOR: 0
 REAL EMAILS SENT: 0
-```
 
-The four preserved target-email candidates are Project Oceanology, Junior Achievement of South Florida, Rodale Institute, and University of Nebraska at Omaha. Their direct business routes are already public in the seeded Control Plane source, so the reconciliation deliberately did **not** call Hunter again. They need only canonical suppression/customer-history confirmation before they can move to a reviewed draft state.
+QUALIFIED is a queue state, not a count of source-qualified organizations. All 96 canonical organizations have an evidence-backed award signal; 90 need current finance/grants contact research, two have a current person but no established direct business address, and four have a preserved direct business route plus a source-grounded draft and a CLEAR runtime suppression result. Those four are retained only as READY_FOR_HUMAN_REVIEW; no delivery is enabled.
 
-## Card ledger — exactly one state per card
+## Required high-intent opportunities
 
-| Organization / card | State | Canonical record or reason |
+| Organization | Current reconciled state | Handling |
 | --- | --- | --- |
-| Perkins School for the Blind | ENRICHMENT_READY | Named finance contact has only an organization inbox. |
-| Project Oceanology | SUPPRESSION_CHECK_REQUIRED | Published direct business route preserved; suppression is not confirmed. |
-| Junior Achievement of South Florida | SUPPRESSION_CHECK_REQUIRED | Published direct business route preserved; suppression is not confirmed. |
-| Sustainable Food Center | ENRICHMENT_READY | Named grants contact has only an organization inbox. |
-| Rodale Institute | SUPPRESSION_CHECK_REQUIRED | Published direct business route preserved; suppression is not confirmed. |
-| University of Nebraska at Omaha | SUPPRESSION_CHECK_REQUIRED | Published direct business route preserved; suppression is not confirmed. |
-| City Island Oyster Reef | CONTACT_RESEARCH_REQUIRED | Recent official award source, but no current contact attached. |
-| Interdistrict Committee for Project Oceanology Corporation | DUPLICATE | Merged with the Project Oceanology Control Plane record. |
-| Sealaska Heritage Institute | CONTACT_RESEARCH_REQUIRED | Recent official award source, but no current contact attached. |
-| Collective Oyster Recycling & Restoration Foundation | CONTACT_RESEARCH_REQUIRED | Recent official award source, but no current contact attached. |
-| Trout Unlimited — first card | CONTACT_RESEARCH_REQUIRED | Recent official award source, but no current contact attached. |
-| Trout Unlimited — repeated card | DUPLICATE | Repeated organization signal retained under the first Trout Unlimited record. |
-| Perkins School for the Blind — award-signal mirror | DUPLICATE | Merged with the seeded Perkins Control Plane record. |
-| Ducks Unlimited | CONTACT_RESEARCH_REQUIRED | Recent official award source, but no current contact attached. |
-| Dena Nena Henash | CONTACT_RESEARCH_REQUIRED | Recent official award source, but no current contact attached. |
-| Northkey Community Care | CONTACT_RESEARCH_REQUIRED | Recent official award source, but no current contact attached. |
-| Texas Health Resources | CONTACT_RESEARCH_REQUIRED | Recent official award source, but no current contact attached. |
-| Seattle Indian Health Board | CONTACT_RESEARCH_REQUIRED | Recent official award source, but no current contact attached. |
-
-## Required high-intent review
-
-| Opportunity | State | Reconciliation finding |
-| --- | --- | --- |
-| Junior Achievement of South Florida | SUPPRESSION_CHECK_REQUIRED | Retains its published finance route; do not spend Hunter credit again. |
-| Rodale Institute | SUPPRESSION_CHECK_REQUIRED | Retains its published finance route; do not spend Hunter credit again. |
-| Sustainable Food Center | ENRICHMENT_READY | Current grants persona is known but no direct business email is established. |
-| Project Oceanology | SUPPRESSION_CHECK_REQUIRED | Direct public route preserved; the award-signal mirror is deduplicated. |
-| Perkins School for the Blind | ENRICHMENT_READY | Finance persona is known but only an organization inbox is attached. |
-| Live-only newer Aug. 16 awards | BLOCKED FROM VM ENUMERATION | Firestore `gtm/daily-awards` returned 403 to the VM identity; runtime reconciliation will include them when deployed. |
+| Junior Achievement of South Florida | READY_FOR_HUMAN_REVIEW | Preserved existing direct business route; no Hunter re-lookup. |
+| Rodale Institute | READY_FOR_HUMAN_REVIEW | Preserved existing direct business route; no Hunter re-lookup. |
+| Project Oceanology | READY_FOR_HUMAN_REVIEW | Alias/deduplication merges the Interdistrict Committee source record; direct route is preserved. |
+| Perkins School for the Blind | ENRICHMENT_READY | Relevant contact is known, but no established direct business email. |
+| Sustainable Food Center | ENRICHMENT_READY | Relevant contact is known, but no established direct business email. |
+| Newer Aug. 16 award signals | CONTACT_RESEARCH_REQUIRED unless represented above | Included in the 106-card runtime scan; source evidence is retained in the private card-level ledger. |
 
 ## Automatic forward path
 
-The new deterministic `reconcileControlPlaneQueue` state machine uses one of the requested states for every card, deduplicates organization variants, retains public direct routes, and fails closed on suppression. The existing daily award scan now calls it with both seeded and fresh award candidates, writes the result to the private `gtm/control-plane-reconciliation` document, and exposes it only through the existing GTM-admin authorization gate. It cannot send, schedule, or contact anyone.
+The deterministic reconciliation is already implemented in the daily award-scan path and is stored in the private GTM Control Plane ledger. A separate Cloud Scheduler trigger for the private job could not be created by the VM service account because it lacks only cloudscheduler.jobs.create on projects/grantdeskhq-proto-ek-2026/locations/us-central1. No IAM was broadened and no scheduler was created. If an independent private schedule is required, a project administrator can grant the VM service account a narrowly scoped custom role containing only cloudscheduler.jobs.create (and, for future managed updates, cloudscheduler.jobs.get and cloudscheduler.jobs.update) on that Cloud Scheduler location. This is not required to retain the current canonical reconciliation, and no outbound path exists either way.
 
-The private Cloud Run Job grantdeskhq-control-plane-reconciliation is now provisioned with the existing runtime service account and no public endpoint. Its first execution, grantdeskhq-control-plane-reconciliation-l46bk, was created but was still awaiting Cloud Run task scheduling at the time of this report; it had not produced a reconciliation result yet. No production traffic, Stripe data, or outbound action changed. The source implementation is tested locally; the existing daily award scan calls the same deterministic reconciliation only after a successful scan, so it cannot erase the prior queue when award discovery fails. Activating that new service code for the production scheduler remains a separate zero-traffic/candidate deployment decision.
+## Safety confirmation
 
-## Exact access gap
-
-The current VM principal cannot call Firestore `documents.get` on `projects/grantdeskhq-proto-ek-2026/databases/(default)/documents/gtm/daily-awards`; the API returned `403 PERMISSION_DENIED`. If direct VM inspection is necessary, the least broad predefined role is `roles/datastore.viewer` for `grantdeskhq-dev-vm@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com` on project `grantdeskhq-proto-ek-2026`. The preferred operational path is the tested runtime-owned reconciliation, because it keeps Firestore access in the existing runtime service account.
+REAL PROSPECT EMAILS SENT: 0
+PARTNER EMAILS SENT: 0
+EMAILS SCHEDULED: 0
+CONTACT FORMS SUBMITTED: 0
+LINKEDIN ACTIONS: 0
+REDDIT ACTIONS: 0
+PRODUCTION TRAFFIC CHANGED: NO
+LIVE STRIPE CHARGES: 0
 
 Do not run any credit-consuming search, export, enrichment, or personal-contact access without the user's prior explicit approval.
