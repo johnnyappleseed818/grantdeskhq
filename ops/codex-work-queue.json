@@ -567,8 +567,8 @@
     },
     {
       "created_at": "2026-08-17T12:27:04.055Z",
-      "updated_at": "2026-08-17T12:41:15.608Z",
-      "status": "PARTIAL",
+      "updated_at": "2026-08-17T13:17:32.804Z",
+      "status": "PASS",
       "blocked_by": [],
       "attempt_count": 1,
       "max_attempts": 3,
@@ -592,8 +592,8 @@
       "commit_sha": "ef366093072b6b65f26b455277ad34bc8db0d154",
       "started_at": "2026-08-17T12:30:20.259Z",
       "completed_at": "2026-08-17T12:41:15.608Z",
-      "blocker": "Repository-wide TypeScript check is blocked by pre-existing syntax errors in untracked src/lib/feedback.ts, outside this task.",
-      "result_summary": "Implemented ten read-only human-confirmed outreach records (5 direct, 5 partner), factual sent/awaiting-response metrics, explicit Control Plane link states, dashboard contact history, and focused regression tests. No send or delivery path was added.",
+      "blocker": "",
+      "result_summary": "The initial focused implementation completed. The final integrated run later passed typecheck, 62 focused tests, GTM safety, lint, build, and secret-safety checks; the prior worktree-only TypeScript blocker is resolved.",
       "task_type": "GTM_UI",
       "risk_level": "MODERATE",
       "selected_tier": "STANDARD",
@@ -606,7 +606,7 @@
       "escalation_count": 0,
       "max_escalations": 1,
       "route_step": 0,
-      "validation_status": "PARTIAL",
+      "validation_status": "PASS",
       "exceptional_escalation_approved": false,
       "id": "human-confirmed-outreach-tracking",
       "title": "Record confirmed direct and partner outreach in the canonical GTM ledger",
@@ -842,7 +842,7 @@
       "priority": 5,
       "status": "PASS",
       "created_at": "2026-08-17T13:11:09.043Z",
-      "updated_at": "2026-08-17T13:13:00.000Z",
+      "updated_at": "2026-08-17T13:17:32.804Z",
       "description": "Perform final normal repository integration validation for the confirmed outreach ledger and Contact and Feedback functionality. Clean only disposable generated build artifacts, run the relevant test suite, lint, build, GTM safety checks, a non-disclosing tracked-file secret scan, and review the public, workspace, and admin routes. Update the machine-readable project result with truthful status. Commit the remaining queue-router safety fixes and durable task checkpoint only when validation passes. Do not deploy, send, change paid-plan flows, or change service configuration.",
       "acceptance_criteria": [
         "Focused outreach, feedback, route, analytics, and GTM safety tests pass.",
@@ -883,18 +883,18 @@
         "secret scan"
       ],
       "branch": "feature/outreach-feedback-tracking",
-      "commit_sha": "164613516a9c4df014d279eed2759459b84b1085",
+      "commit_sha": "948d868",
       "started_at": "2026-08-17T13:11:09.347Z",
-      "completed_at": "2026-08-17T13:13:00.000Z",
+      "completed_at": "2026-08-17T13:16:33.920Z",
       "blocker": "",
-      "result_summary": "Final validation passed: 62 focused outreach, feedback, route, and analytics tests; 5 GTM safety tests; 8 queue safety tests; and 24 routing safety tests passed. Lint, build, diff check, and the non-disclosing tracked-file secret scan passed. The factual ledger remains five direct, five partner, and ten total confirmed sends with no downstream outcomes. Notifications remain NOT_CONFIGURED; generated sample artifacts were restored and no outbound, paid-plan, service-configuration, deployment, or production-traffic action occurred.",
+      "result_summary": "Validated public, workspace, and GTM-admin feedback routes. Ledger remains 5 direct, 5 partner, 10 total confirmed sends with no downstream outcomes; notifications remain NOT_CONFIGURED. Restored generated sample artifacts and committed validation plus checkpoint.",
       "task_type": "TESTING",
       "risk_level": "MODERATE",
       "selected_tier": "STANDARD",
       "selected_model": "gpt-5.6-terra",
       "reasoning_level": "medium",
       "why_selected": "Normal repository implementation or test work with no high-risk indicators.",
-      "runtime_ms": 300000,
+      "runtime_ms": 324564,
       "fallback_reason": null,
       "escalation_reason": null,
       "escalation_count": 0,
@@ -902,7 +902,8 @@
       "route_step": 0,
       "validation_status": "PASS",
       "exceptional_escalation_approved": false,
-      "max_runtime_minutes": 45
+      "max_runtime_minutes": 45,
+      "run_dir": "/home/eli_katz/grantdesk-project-runs/codex-queue/runs/outreach-feedback-final-integration/2026-08-17T13-11-09-348Z"
     }
   ]
 }
