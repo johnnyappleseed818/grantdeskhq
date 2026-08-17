@@ -1,31 +1,15 @@
 {
-  "project": "outreach-feedback-qa-report",
-  "started_at": "2026-08-17T12:53:27.990Z",
-  "finished_at": "2026-08-17T12:57:30.000Z",
-  "git_branch": "feature/outreach-feedback-tracking",
-  "starting_commit": "9cf23cf",
-  "ending_commit": "9cf23cf",
-  "tests_run": [
-    "focused contact-feedback, analytics, and outreach tests",
-    "npm run gtm:test",
-    "npm run lint",
-    "npm run build",
-    "git diff --check",
-    "non-disclosing Git-tracked secret-pattern scan"
+  "project": "canonical-outreach-feedback-workflow",
+  "status": "PASS",
+  "tests": [
+    "npx tsc --noEmit",
+    "focused Vitest workflow suite: 10 passed",
+    "ESLint on modified workflow files",
+    "git diff --check"
   ],
-  "passed": [
-    "Focused contact-feedback, analytics, and outreach suite: 14 tests passed",
-    "GTM safety regression: 5 tests passed",
-    "Lint, TypeScript check, production build, SPA route generation, whitespace check, and secret-pattern scan passed",
-    "CONTACT_FEEDBACK_EMAIL is absent and notifications are deliberately NOT_CONFIGURED; no notification delivery was fabricated"
+  "artifacts": [
+    "reports/canonical-outreach-feedback-workflow.md"
   ],
-  "failed": [],
-  "skipped": ["Deployment and live notification delivery were intentionally out of scope"],
-  "qa_validation": [
-    "No production traffic change, outbound send, Stripe action, purchase, or paid enrichment was performed",
-    "Outreach ledger remains read-only with five direct, five partner, and ten total sent; replies, trials, and customers remain zero",
-    "The separate Resend broadcast utility defaults to preview mode and was not invoked"
-  ],
-  "remaining_blockers": [],
-  "status": "PASS"
+  "blocker": "",
+  "result_summary": "Durable idempotent GTM outreach reconciliation, authorized feedback status and admin-note updates, and Security/FAQ Contact and feedback navigation are complete. Notifications remain NOT_CONFIGURED; no sending or paid-plan behavior changed."
 }

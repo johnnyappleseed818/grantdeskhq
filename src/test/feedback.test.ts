@@ -18,3 +18,9 @@ describe("feedback input validation", () => {
     expect(validateFeedbackInput({ ...valid, website: "https://spam.example" }).value.website).toBe("https://spam.example");
   });
 });
+
+  it("accepts only the documented review lifecycle and bounded admin notes", async () => {
+    const { validateFeedbackReviewInput } = await import("../lib/feedback");
+    for (const status of ["NEW", "REVIEWED", "PLANNED", "RESOLVED", "CLOSED"]) expect(validateFeedbackReviewInput({ status, adminNotes: "Reviewed by GTM." }).errors).toEqual([]);
+    expect(validateFeedbackReviewInput({ status: "SENT", adminNotes: "x".repeat(5001) }).errors).toEqual(expect.arrayContaining(["Choose a valid feedback review status.", "Admin notes must be 5,000 characters or fewer."]));
+  });

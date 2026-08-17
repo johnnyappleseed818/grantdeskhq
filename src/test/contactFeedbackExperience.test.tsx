@@ -63,6 +63,11 @@ describe("contact and feedback experience", () => {
     expect(server).toContain('if (url.pathname === "/api/feedback") return await handleFeedback');
     expect(server).toContain("requireGtmAdmin(await requireUser(request))");
     expect(server).toContain('notificationStatus: "NOT_CONFIGURED"');
+    expect(server).toContain('if (request.method !== "PATCH")');
+    expect(server).toContain("requireGtmAdmin(await requireUser(request))");
+    expect(server).toContain("reconcileGtmOutreachLedger");
+    const landing = fs.readFileSync(path.resolve("src/pages/LandingPage.tsx"), "utf8");
+    expect(landing).toContain('to="/contact">Contact and feedback');
     expect(persistence).toContain("export async function saveFeedback");
     expect(persistence).toContain("feedback/records/submissions");
     expect(styles).toContain(".contact-feedback-shell");

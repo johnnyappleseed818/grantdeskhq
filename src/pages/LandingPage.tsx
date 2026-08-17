@@ -216,6 +216,7 @@ function SecurityFaq() {
           <h2 id="security-faq-title" className="mt-3 text-3xl font-semibold tracking-tight text-navy-950 md:text-4xl">Straight answers about your data and how GrantDeskHQ fits into your workflow.</h2>
           <p className="mt-5 leading-7 text-slate-600">Grant reporting involves sensitive financial and program information. These answers explain what the product does today, how our AI-powered workflow processes selected information, and where professional review still matters.</p>
           <Link className="button button-secondary mt-7" to="/privacy">Read the full data-handling policy <ArrowRight aria-hidden="true" /></Link>
+          <Link className="button button-secondary mt-3" to="/contact">Contact and feedback</Link>
         </div>
         <div className="border-t border-slate-300">
           <FaqItem question="What does GrantDeskHQ actually do?">

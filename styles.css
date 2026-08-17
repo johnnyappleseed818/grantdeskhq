@@ -3304,6 +3304,7 @@
 .contact-feedback-success > svg { width: 2.5rem; height: 2.5rem; color: #286444; }
 .feedback-admin-list { display: grid; gap: .85rem; margin-top: 2rem; }
 .feedback-admin-message { max-width: 70ch; color: #37475a; white-space: pre-wrap; }
+.feedback-review-editor { display: grid; gap: .75rem; margin-top: 1rem; max-width: 42rem; }
 
 @media (min-width: 720px) {
   .analytics-consent { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }

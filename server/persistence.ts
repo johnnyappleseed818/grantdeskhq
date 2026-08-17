@@ -6,6 +6,8 @@ import type { ShadowPipelineStatus } from "../src/lib/gtmShadow.ts";
 import type { ControlPlaneQueueReconciliation } from "../src/lib/gtmControlPlaneQueue.ts";
 import type { ContactEnrichmentRecord, EnrichmentUsage, SuppressionCheck } from "../src/lib/contactEnrichment.ts";
 import type { FeedbackSubmission } from "../src/lib/feedback.ts";
+import type { OutreachRecord } from "../src/lib/gtmOutreach.ts";
+import { mergeOutreachRecords } from "../src/lib/gtmOutreach.ts";
 import type { AuthenticatedUser } from "./auth.ts";
 import { normalizeAttribution, type Attribution, type BillingEventSnapshot } from "./billing.ts";
 import { subscriptionIsEntitled } from "../src/content/pricing.ts";
@@ -42,6 +44,30 @@ export async function listFeedback(limit = 100): Promise<FeedbackSubmission[]> {
   return (body.documents || []).map((document) => feedbackFromRecord(decodeFields(document.fields || {}))).filter((record): record is FeedbackSubmission => Boolean(record)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+export async function updateFeedbackReview(id: string, review: Pick<FeedbackSubmission, "status" | "adminNotes">): Promise<FeedbackSubmission> {
+  const accessToken = await gcpToken();
+  const path = "feedback/records/submissions/" + safeFeedbackDocumentId(id);
+  const response = await authorizedFetch(firestoreBase + "/" + path, accessToken);
+  if (response.status === 404) throw new Error("Feedback submission was not found.");
+  if (!response.ok) throw new Error("Feedback submission could not be loaded (" + response.status + ").");
+  const existing = feedbackFromRecord(decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}));
+  if (!existing) throw new Error("Feedback submission is invalid.");
+  const updated = { ...existing, status: review.status, adminNotes: review.adminNotes };
+  await writeDocument(accessToken, path, { ...updated, userId: updated.userId || "", linkedCustomerId: updated.linkedCustomerId || "" });
+  return updated;
+}
+
+export async function reconcileGtmOutreachLedger(confirmed: OutreachRecord[]): Promise<OutreachRecord[]> {
+  const accessToken = await gcpToken();
+  const collection = "gtm/outreach-ledger/records";
+  const response = await authorizedFetch(firestoreBase + "/" + collection + "?pageSize=100", accessToken);
+  if (response.status !== 404 && !response.ok) throw new Error("GTM outreach ledger could not be loaded (" + response.status + ").");
+  const existing = response.status === 404 ? [] : ((await response.json()) as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> }).documents || [];
+  const imported = existing.map((document) => outreachFromRecord(decodeFields(document.fields || {}))).filter((record): record is OutreachRecord => Boolean(record));
+  const reconciled = mergeOutreachRecords(imported, confirmed);
+  await Promise.all(confirmed.map((record) => writeDocument(accessToken, collection + "/" + safeOutreachDocumentId(record.id), { ...record, email: record.email || "", canonicalOpportunityId: record.canonicalOpportunityId || "", whyNowSignal: record.whyNowSignal || "", signalSource: record.signalSource || "", followUpDueAt: record.followUpDueAt || "" })));
+  return reconciled;
+}
 export async function saveCompilation(user: AuthenticatedUser, request: CompilationRequest, result: CompilationResult) {
   const now = new Date().toISOString();
   const organizationId = `org_${user.uid}`;
@@ -1267,6 +1293,19 @@ function safeGtmContactDocumentId(value: string) {
 function safeFeedbackDocumentId(value: string) {
   if (!/^feedback_[a-f0-9]{32}$/.test(value)) throw new Error("Invalid feedback identifier.");
   return value;
+}
+
+function safeOutreachDocumentId(value: string) {
+  if (!/^outreach_(direct|partner)_[a-z0-9_]+$/.test(value)) throw new Error("Invalid GTM outreach identifier.");
+  return value;
+}
+
+function outreachFromRecord(record: Record<string, unknown>): OutreachRecord | null {
+  const id = String(record.id || "");
+  const type = String(record.type || "");
+  if (!/^outreach_(direct|partner)_[a-z0-9_]+$/.test(id) || (type !== "DIRECT_NONPROFIT" && type !== "PARTNER")) return null;
+  const parsed = { ...record, email: String(record.email || "") || null, canonicalOpportunityId: String(record.canonicalOpportunityId || "") || null, whyNowSignal: String(record.whyNowSignal || "") || null, signalSource: String(record.signalSource || "") || null, followUpDueAt: String(record.followUpDueAt || "") || null } as OutreachRecord;
+  return parsed.source === "HUMAN_CONFIRMED_OUTREACH" && parsed.status === "SENT" && parsed.email === null ? parsed : null;
 }
 
 function feedbackFromRecord(record: Record<string, unknown>): FeedbackSubmission | null {

@@ -21,3 +21,10 @@ describe("human-confirmed GTM outreach ledger", () => {
     expect(links.filter((link) => link.status === "PENDING_CANONICAL_LEAD_LINK")).toHaveLength(9);
   });
 });
+
+  it("reconciles a repeat import by immutable id and restores canonical factual fields", () => {
+    const stale = { ...confirmedHumanOutreach[3], canonicalOpportunityId: null, canonicalRecordStatus: "PENDING_CANONICAL_LEAD_LINK" as const };
+    const reconciled = mergeOutreachRecords([stale], confirmedHumanOutreach);
+    expect(reconciled).toHaveLength(10);
+    expect(reconciled.find((record) => record.id === stale.id)?.canonicalOpportunityId).toBe("job-sustainable-food-center-2026");
+  });

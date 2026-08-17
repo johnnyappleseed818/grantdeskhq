@@ -11,6 +11,9 @@ import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
 import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmContactSuppression, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmEnrichmentUsage, readGtmShadowStatus, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveReview } from "./persistence.ts";
 import { validateFeedbackInput, type FeedbackSubmission } from "../src/lib/feedback.ts";
+import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
+import { confirmedHumanOutreach } from "../src/lib/gtmOutreach.ts";
+import { reconcileGtmOutreachLedger, updateFeedbackReview } from "./persistence.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { buildShadowStatus, shadowLeadFromOpportunity, suggestedTopicsFromLeads } from "../src/lib/gtmShadow.ts";
 import { enrichGtmContactInShadow } from "./contactEnrichment.ts";
@@ -59,6 +62,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/lifecycle/checkout-started") return await handleLifecycleEvent(request, response, "checkout_started");
     if (url.pathname === "/api/reports/preflight") return await handlePreflight(request, response);
     if (url.pathname === "/api/compile-report" || url.pathname === "/api/reports/compile") return await handleCompiler(request, response);
+    if (url.pathname === "/api/gtm/outreach") return await handleGtmOutreach(request, response);
     if (url.pathname === "/api/readiness-assessment") return await handleReadiness(request, response);
     if (url.pathname === "/api/feedback") return await handleFeedback(request, response);
     if (url.pathname === "/api/gtm/feedback") return await handleGtmFeedback(request, response);
@@ -228,9 +232,20 @@ async function handleFeedback(request: IncomingMessage, response: ServerResponse
 }
 
 async function handleGtmFeedback(request: IncomingMessage, response: ServerResponse) {
+  requireGtmAdmin(await requireUser(request));
+  if (request.method === "GET") return json(response, 200, { feedback: await listFeedback() });
+  if (request.method !== "PATCH") return json(response, 405, { error: "Method not allowed." });
+  const body = await readJson(request) as { id?: unknown; status?: unknown; adminNotes?: unknown };
+  const review = validateFeedbackReviewInput(body);
+  if (review.errors.length) return json(response, 400, { error: review.errors.join(" ") });
+  return json(response, 200, { feedback: await updateFeedbackReview(String(body.id || ""), review.value) });
+}
+
+async function handleGtmOutreach(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   requireGtmAdmin(await requireUser(request));
-  return json(response, 200, { feedback: await listFeedback() });
+  try { return json(response, 200, { outreach: await reconcileGtmOutreachLedger(confirmedHumanOutreach), durable: true }); }
+  catch { return json(response, 200, { outreach: confirmedHumanOutreach, durable: false }); }
 }
 
 function allowFeedbackAttempt(source: string) {

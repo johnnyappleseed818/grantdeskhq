@@ -80,6 +80,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   const [overview, setOverview] = useState<GtmOverview | null>(initialOverview);
   const [signalsLoading, setSignalsLoading] = useState(Boolean(dailySignalToken));
   const [signalsError, setSignalsError] = useState("");
+  const [outreach, setOutreach] = useState<OutreachRecord[]>(confirmedHumanOutreach);
 
   useEffect(() => {
     if (!dailySignalToken) return;
@@ -106,6 +107,13 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   }, [dailySignalToken]);
 
   useEffect(() => {
+    if (!dailySignalToken) return;
+    let active = true;
+    dailySignalToken().then((idToken) => apiRequest<{ outreach: OutreachRecord[] }>("/api/gtm/outreach", idToken)).then((body) => { if (active && body.outreach.length) setOutreach(body.outreach); }).catch(() => { /* Retain the factual local no-data fallback. */ });
+    return () => { active = false; };
+  }, [dailySignalToken]);
+
+  useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(stages)); } catch { /* Browser storage can be unavailable. */ }
   }, [stages]);
 
@@ -117,7 +125,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   });
   const readyCount = ranked.filter((item) => assessOpportunityAccuracy(item).readyForAction).length;
   const unresolvedAwardCandidates = ranked.filter((item) => item.signalKind === "grant_award" && !item.primaryContact?.email).length;
-  const outreachMetrics = summarizeOutreach(confirmedHumanOutreach);
+  const outreachMetrics = summarizeOutreach(outreach);
   const pipelineStages: OpportunityStage[] = ["new", "reviewing", "ready", "contacted", "replied", "converted", "dismissed"];
 
   const updateStage = (id: string, stage: OpportunityStage) => setStages((current) => ({ ...current, [id]: stage }));
@@ -201,7 +209,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
       </section>}
 
       {activeTab === "control-plane" && <ControlPlanePanel reconciliation={controlPlane} />}
-      {activeTab === "outreach-history" && <OutreachHistoryPanel records={confirmedHumanOutreach} canonicalOpportunityIds={controlPlane?.cards.map((card) => card.canonicalCardId) || ranked.map((opportunity) => opportunity.id)} />}
+      {activeTab === "outreach-history" && <OutreachHistoryPanel records={outreach} canonicalOpportunityIds={controlPlane?.cards.map((card) => card.canonicalCardId) || ranked.map((opportunity) => opportunity.id)} />}
       {activeTab === "signals" && <SignalsPanel dailyScan={dailyScan} loading={signalsLoading} error={signalsError} />}
       {activeTab === "sources" && <SourcesPanel />}
       {activeTab === "partners" && <PartnersPanel />}

@@ -47,7 +47,9 @@ export const confirmedHumanOutreach: OutreachRecord[] = [
 
 export function mergeOutreachRecords(existing: OutreachRecord[], incoming: OutreachRecord[]) {
   const byId = new Map(existing.map((item) => [item.id, item]));
-  for (const item of incoming) if (!byId.has(item.id)) byId.set(item.id, item);
+  // The supplied ledger is the canonical record of a human-confirmed event.
+  // Replaying it repairs incomplete prior imports without fuzzy matching.
+  for (const item of incoming) byId.set(item.id, item);
   return [...byId.values()].sort((left, right) => left.sentAt.localeCompare(right.sentAt) || left.id.localeCompare(right.id));
 }
 
