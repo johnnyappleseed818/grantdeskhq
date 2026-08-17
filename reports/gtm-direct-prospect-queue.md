@@ -132,3 +132,37 @@ These are DISCOVERED, not yet canonical QUALIFIED records. They must be deduplic
 
 NO HUNTER OR APOLLO CREDIT WAS USED.
 REAL EMAILS SENT: 0
+
+
+==================================================
+PUBLIC ROLE REFRESH — HIGH-PRIORITY DIRECT RECORDS
+==================================================
+
+This bounded public-source refresh improves identity accuracy only. It did not use Hunter, Apollo, any email-pattern inference, or an outbound action. It does not overwrite the private canonical Control Plane reconciliation until the next runtime scan.
+
+1. Alaska Native Tribal Health Consortium
+- Current person: Dwain Stilson
+- Current title: Executive Vice President and Chief Financial Officer
+- Official source: https://anthc.org/who-we-are/
+- Status: Current finance leader confirmed; remains an appropriate future enrichment candidate. DIRECT EMAIL: NOT ESTABLISHED.
+
+2. Conservation Legacy
+- Prior suggested person: Erin Healy
+- Current official title: Chair & Treasurer (board)
+- Official source: https://conservationlegacy.org/staff
+- Status: Do not treat a board officer as the default operational finance/grants owner. Move this record to CONTACT_RESEARCH_REQUIRED for an executive finance or grants leader. DIRECT EMAIL: NOT ESTABLISHED.
+
+3. Capital Area Community Services, INC.
+- Prior suggested record: Christine Shutters
+- Source scope: organization-hosted 2022 Form 990/public disclosure lists books-and-records contact information.
+- Official source: https://cacs-inc.org/2022-cacs-public-disclosure-copy/
+- Status: The source is historical and does not establish a current finance title. Keep CONTACT_RESEARCH_REQUIRED; do not enrich on the older record. DIRECT EMAIL: NOT ESTABLISHED.
+
+4. Reading & Math, INC.
+- Bounded official-source search did not establish a current finance/grants leader.
+- Status: CONTACT_RESEARCH_REQUIRED. DIRECT EMAIL: NOT ESTABLISHED.
+
+SAFETY:
+NO HUNTER OR APOLLO LOOKUPS
+NO EMAIL ADDRESSES GUESSED
+REAL EMAILS SENT: 0
