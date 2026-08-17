@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { initialOpportunities } from "../data/gtmData";
 import { GtmDashboardContent } from "../pages/GtmDashboardPage";
 import type { ControlPlaneQueueReconciliation } from "../lib/gtmControlPlaneQueue";
+import type { GtmOverview } from "../lib/gtmOverview";
 import {
   assessOpportunityAccuracy,
   canMoveToContacted,
@@ -217,13 +218,28 @@ describe("GTM command center", () => {
     expect(screen.getAllByText("pending canonical link").length).toBeGreaterThan(0);
     expect(document.querySelectorAll("a[href^=\"mailto:\"]")).toHaveLength(0);
   });
-  it("derives founder commercial counts and filters the confirmed manual ledger", async () => {
+  it("keeps the Overview commercial-first and filters the confirmed manual ledger", async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} /></MemoryRouter>);
     expect(screen.getByLabelText("Commercial funnel")).toHaveTextContent("10Sent10Awaiting reply0Replies0Positive replies0Trials or Free First Awards0Paid");
     expect(screen.getByLabelText("Commercial funnel")).toHaveTextContent("MRR");
-    expect(screen.getByLabelText("Direct funnel")).toHaveTextContent(/Qualified.*Ready to send.*5Sent.*0Replies.*0Positive replies.*0Free First Award.*Award uploaded.*Report generated.*0Paid/);
-    expect(screen.getByLabelText("Partner funnel")).toHaveTextContent(/High fit.*Ready to send.*5Sent.*0Replies.*0Positive replies.*Active conversations.*0Trial with client or award.*Active partners.*Customers influenced.*0Paid customers influenced/);
+    expect(screen.getByLabelText("Direct funnel")).toHaveTextContent(/5Sent.*0Replies.*0Positive replies.*0Free First Award.*0Paid/);
+    expect(screen.getByLabelText("Partner funnel")).toHaveTextContent(/5Sent.*0Replies.*0Positive replies.*0Trial with client or award.*0Paid customers influenced/);
+    expect(screen.queryByText(/NOT_INSTRUMENTED/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Not instrumented/i)).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "View in Outreach" })).toHaveLength(10);
+    await user.click(screen.getAllByRole("button", { name: "View in Outreach" })[0]);
+    expect(screen.getByRole("heading", { name: /Contact history is factual and read-only/i })).toBeInTheDocument();
+  });
+  it("uses canonical actual-target inventory and deduplicated manual sends", async () => {
+    const user = userEvent.setup();
+    const overview = { direct: { metrics: { qualified: { actual: 13, target: 100, gap: 87 }, humanReview: { actual: 2, target: 25, gap: 23 }, sent: { actual: 5, target: null, gap: null } } }, partner: { metrics: { researched: { actual: 50, target: 50, gap: 0 }, highFit: { actual: 20, target: 20, gap: 0 }, humanReview: { actual: 0, target: 5, gap: 5 }, contacted: { actual: 5, target: null, gap: null } } } } as unknown as GtmOverview;
+    render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} initialOverview={overview} /></MemoryRouter>);
+    await user.click(screen.getByRole("tab", { name: "Leads" }));
+    expect(screen.getByLabelText("Direct lead inventory")).toHaveTextContent("13Qualified / 100 target2Ready to send / 25 target5Manual sent");
+    await user.click(screen.getByRole("tab", { name: "Partners" }));
+    expect(screen.getByLabelText("Partner inventory")).toHaveTextContent("50Researched / 50 target20High fit / 20 target0Ready to send / 5 target5Manual sent");
+    await user.click(screen.getByRole("tab", { name: "Outreach" }));
     await user.click(screen.getByRole("tab", { name: "Outreach" }));
     await user.selectOptions(screen.getByLabelText("Filter outreach type"), "partner");
     expect(screen.getAllByText("Partner", { selector: "td" })).toHaveLength(5);

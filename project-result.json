@@ -1,7 +1,7 @@
 {
   "status": "PASS",
-  "tests": ["npm run test:agent-routing", "git diff --check"],
-  "artifacts": ["reports/router-category-precedence-validation.md"],
+  "tests": ["npx vitest run src/test/gtm.test.tsx src/test/gtmOverview.test.ts --disableConsoleIntercept (21 passed)", "npm run build", "npm run lint", "git diff --check"],
+  "artifacts": ["reports/gtm-founder-overview-hierarchy-validation.md"],
   "blocker": "",
-  "result_summary": "Explicit standard categories now take precedence over broad routine category matches; GTM_UI, UI, and FRONTEND route to Terra medium while GTM_RECONCILIATION remains Luna low."
+  "result_summary": "Overview is commercial-first and recorded-only; canonical inventory appears on Leads and Partners, manual sends remain deduplicated, and grounded Next Actions open Outreach."
 }
