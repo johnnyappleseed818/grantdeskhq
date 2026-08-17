@@ -8,8 +8,8 @@ CONTACT FORMS: 0
 INVENTORY
 RESEARCHED: 50 public-source organizations
 HIGH FIT: 20 (fit ≥8)
-CONTACT-IDENTIFIED: 8 official public named leaders
-ENRICHMENT READY: 8 after Hunter credential repair; remaining candidates require current named-person research
+CONTACT-IDENTIFIED: 10 official public named leaders
+ENRICHMENT READY: 10 after Hunter credential repair; remaining candidates require current named-person research
 VERIFIED EMAILS: 0
 HUMAN-REVIEW / OUTREACH READY: 0
 
@@ -378,8 +378,8 @@ The following 25 additional U.S.-oriented organizations are backed by their publ
 CURRENT PARTNER INVENTORY:
 RESEARCHED: 50
 HIGH FIT: 20 (the existing top 20 retain their source-backed 8-plus fit threshold)
-CONTACT IDENTIFIED: 8
-ENRICHMENT READY: 8
+CONTACT IDENTIFIED: 10
+ENRICHMENT READY: 10
 VERIFIED EMAIL: 0
 HUMAN-REVIEW READY: 0
 TOP 5: The Charity CFO; Kiwi Partners; YPTC; Array Accounting; Integra Nonprofit Financial Management.
@@ -411,15 +411,17 @@ No email discovery was called. Each person below is a public-role research recor
 | Altruic Advisors | Ryan Hagan, CPA, CFE | Founder & Managing Partner | https://altruic.com/ryan-hagan | altruic.com | DIRECT EMAIL: NOT ESTABLISHED | UNKNOWN; ENRICHMENT_READY |
 | JMT Consulting | Jacqueline M. Tiso | Founder & Chief Executive Officer | https://jmtconsulting.com/blog/nonprofit-ai-adoption-leadership-capacity-change/ | jmtconsulting.com | DIRECT EMAIL: NOT ESTABLISHED | UNKNOWN; ENRICHMENT_READY |
 | NFO Nonprofit Financial Outsourcing | Scott Kriete | Chief Executive Officer | https://www.nfoyourcfo.com/our-team | nfoyourcfo.com | DIRECT EMAIL: NOT ESTABLISHED | UNKNOWN; ENRICHMENT_READY |
+| Strategic Nonprofit Finance | Larry Bomback | Founder and CEO | https://www.strategicnonprofitfinance.com/about | strategicnonprofitfinance.com | DIRECT EMAIL: NOT ESTABLISHED | UNKNOWN; ENRICHMENT_READY |
+| 100 Degrees Consulting | Stephanie Skryzowski | Founder & CEO | https://100degreesconsulting.com/our-team/ | 100degreesconsulting.com | DIRECT EMAIL: NOT ESTABLISHED | UNKNOWN; ENRICHMENT_READY |
 
 UPDATED PARTNER STAGES:
 RESEARCHED: 50
 HIGH FIT: 20
-CONTACT IDENTIFIED: 8
-ENRICHMENT READY: 8
+CONTACT IDENTIFIED: 10
+ENRICHMENT READY: 10
 VERIFIED EMAILS: 0
 HUMAN-REVIEW READY: 0
-TOP CONTACTS WORTH BOUNDED FUTURE ENRICHMENT: Tosha Anderson; Ken Hafner; Jennifer Alleva; Danielle L. Wright; Scott Turner; Ryan Hagan; Jacqueline M. Tiso; Scott Kriete.
+TOP CONTACTS WORTH BOUNDED FUTURE ENRICHMENT: Tosha Anderson; Ken Hafner; Jennifer Alleva; Danielle L. Wright; Scott Turner; Ryan Hagan; Jacqueline M. Tiso; Scott Kriete; Larry Bomback; Stephanie Skryzowski.
 
 SAFETY:
 No provider lookup, email verification, suppression lookup, email, schedule, form submission, or social action was performed for these research records.
