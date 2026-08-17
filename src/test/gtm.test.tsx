@@ -222,11 +222,11 @@ describe("GTM command center", () => {
     render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} /></MemoryRouter>);
     expect(screen.getByLabelText("Commercial funnel")).toHaveTextContent("10Sent10Awaiting reply0Replies0Positive replies0Trials or Free First Awards0Paid");
     expect(screen.getByLabelText("Commercial funnel")).toHaveTextContent("MRR");
-    expect(screen.getByText("Direct funnel").parentElement).toHaveTextContent("5Sent0Replies0Trials0Paid");
-    expect(screen.getByText("Partner funnel").parentElement).toHaveTextContent("5Sent0Replies0Trials0Paid");
+    expect(screen.getByLabelText("Direct funnel")).toHaveTextContent(/Qualified.*Ready to send.*5Sent.*0Replies.*0Positive replies.*0Free First Award.*Award uploaded.*Report generated.*0Paid/);
+    expect(screen.getByLabelText("Partner funnel")).toHaveTextContent(/High fit.*Ready to send.*5Sent.*0Replies.*0Positive replies.*Active conversations.*0Trial with client or award.*Active partners.*Customers influenced.*0Paid customers influenced/);
     await user.click(screen.getByRole("tab", { name: "Outreach" }));
-    await user.selectOptions(screen.getByLabelText("Filter outreach type"), "PARTNER");
-    expect(screen.getAllByText("PARTNER")).toHaveLength(5);
+    await user.selectOptions(screen.getByLabelText("Filter outreach type"), "partner");
+    expect(screen.getAllByText("Partner", { selector: "td" })).toHaveLength(5);
     await user.type(screen.getByLabelText("Search outreach history"), "Vault Consulting");
     expect(screen.getByText("Vault Consulting")).toBeInTheDocument();
     expect(screen.queryByText("Goldin Group")).not.toBeInTheDocument();
