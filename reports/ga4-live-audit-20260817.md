@@ -36,3 +36,8 @@ Added a CSP at the Cloud Run application layer. It permits scripts only from the
 ## Remaining operational prerequisite
 
 GA4 Enhanced Measurement's Page changes based on browser history events must be disabled in the Google Analytics web data-stream console before any traffic promotion. This is an external console setting requiring a human with GA4 access; it was not changed in this audit. No Stripe, billing, email, or outbound behavior was changed.
+
+
+## Zero-traffic Cloud Run candidate
+
+Two project-scoped gcloud run deploy --source . --no-traffic --tag ga4-audit-0817 attempts reached source upload but exited before Cloud Build or a new revision was created. The two newest Cloud Build entries were empty and the newest ready Cloud Run revision remained grantdeskhq-prototype-foundergtm0817. Therefore no cloud candidate URL was available to validate, and no traffic changed. This is recorded as an environmental deployment-control-plane blocker; the built local candidate validation above passed.
