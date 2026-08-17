@@ -1,7 +1,6 @@
 import type { EnrichmentUsage } from "./contactEnrichment";
 import type { ControlPlaneLeadState, ControlPlaneQueueReconciliation } from "./gtmControlPlaneQueue";
 import type { ShadowPipelineStatus } from "./gtmShadow";
-import { partnerPipelineSnapshot } from "../data/gtmPartnerPipeline.ts";
 
 export type GtmHealth = "HEALTHY" | "STALE" | "BLOCKED" | "NEEDS_REPLENISHMENT" | "NOT_INSTRUMENTED";
 export interface GtmMetric { actual: number | null; target: number | null; gap: number | null; }
@@ -17,6 +16,12 @@ export interface GtmOverview {
 export interface GtmOverviewInput { reconciliation: ControlPlaneQueueReconciliation | null; shadowStatus: ShadowPipelineStatus | null; usage: EnrichmentUsage | null; now?: string; hunterLookupLimit?: number; }
 const directTargets = { qualified: 100, contactIdentified: 50, enrichmentReady: 50, emailVerified: 25, humanReview: 25 };
 const partnerTargets: Record<string, number> = { researched: 50, highFit: 20, enrichmentReady: 10, humanReview: 5 };
+const partnerPipelineSnapshot = {
+  generatedAt: "2026-08-17T04:46:22.666Z",
+  source: "public-source partner research snapshot",
+  metrics: { researched: 50, highFit: 20, contactIdentified: 10, enrichmentReady: 10, emailVerified: 0, draftReady: 10, humanReview: 0, approved: 0, contacted: 0, replies: 0, activeConversations: 0, activatedPartners: 0, customersInfluenced: 0, paidCustomersInfluenced: 0, arrInfluenced: 0 },
+  candidates: ["The Charity CFO", "Kiwi Partners", "Altruic Advisors", "JMT Consulting", "NFO Nonprofit Financial Outsourcing"]
+} as const;
 const contactStates: ControlPlaneLeadState[] = ["ENRICHMENT_READY", "EMAIL_VERIFICATION_REQUIRED", "SUPPRESSION_CHECK_REQUIRED", "DRAFT_REQUIRED", "READY_FOR_HUMAN_REVIEW", "ALREADY_CONTACTED", "CUSTOMER", "QUALIFIED"];
 const emailStates: ControlPlaneLeadState[] = ["SUPPRESSION_CHECK_REQUIRED", "DRAFT_REQUIRED", "READY_FOR_HUMAN_REVIEW", "ALREADY_CONTACTED", "CUSTOMER", "QUALIFIED"];
 const clearStates: ControlPlaneLeadState[] = ["DRAFT_REQUIRED", "READY_FOR_HUMAN_REVIEW", "ALREADY_CONTACTED", "CUSTOMER", "QUALIFIED"];
@@ -39,7 +44,7 @@ export function buildGtmOverview({ reconciliation, shadowStatus, usage, now = ne
   return {
     generatedAt: now,
     direct: { health: directHealth, metrics: { controlPlaneLeads: metric(reconciliation?.cards.length ?? null), uniqueOrganizations: metric(reconciliation?.uniqueOrganizations ?? null), qualified: metric(qualified, directTargets.qualified), contactIdentified: metric(contactIdentified, directTargets.contactIdentified), enrichmentReady: metric(reconciliation ? count(reconciliation, "ENRICHMENT_READY") : null, directTargets.enrichmentReady), emailVerified: metric(emailVerified, directTargets.emailVerified), suppressionClear: metric(suppressionClear), draftReady: metric(humanReview), humanReview: metric(humanReview, directTargets.humanReview), approved: metric(0), sent: metric(count(reconciliation, "ALREADY_CONTACTED")), replies: metric(0), freeFirstAward: metric(0), activated: metric(0), paid: metric(count(reconciliation, "CUSTOMER")) }, topNextEnrichmentCandidates: reconciliation?.cards.filter((card) => card.state === "ENRICHMENT_READY").map((card) => card.organization).slice(0, 10) || [] },
-    partner: { health: partnerHealth, metrics: partnerMetrics, sourceNote: "Public-source partner research is surfaced from the reviewed research snapshot. Email verification remains blocked until a provider returns a verified business address and suppression clears; no partner delivery path exists.", lastUpdated: partnerPipelineSnapshot.generatedAt, source: partnerPipelineSnapshot.source, topNextEnrichmentCandidates: partnerPipelineSnapshot.candidates.filter((candidate) => candidate.enrichmentReady).map((candidate) => candidate.organization).slice(0, 10) },
+    partner: { health: partnerHealth, metrics: partnerMetrics, sourceNote: "Public-source partner research is surfaced from the reviewed research snapshot. Email verification remains blocked until a provider returns a verified business address and suppression clears; no partner delivery path exists.", lastUpdated: partnerPipelineSnapshot.generatedAt, source: partnerPipelineSnapshot.source, topNextEnrichmentCandidates: partnerPipelineSnapshot.candidates },
     controlPlane: { health: controlHealth, lastRefresh: reconciliation?.generatedAt || null, cards: reconciliation?.cards.length ?? null, uniqueOrganizations: reconciliation?.uniqueOrganizations ?? null, duplicates: reconciliation ? count(reconciliation, "DUPLICATE") : null, disqualified: reconciliation ? count(reconciliation, "DISQUALIFIED") : null, missingOrUnaccounted: reconciliation ? 0 : null },
     enrichment: { health: !usage ? "BLOCKED" : stale(usage.updatedAt, now) ? "STALE" : "HEALTHY", hunterLookups: usage?.hunterLookups ?? null, hunterLookupLimit, hunterVerifications: usage?.hunterVerifications ?? null, apolloLookups: usage?.apolloLookups ?? null, verifiedEmails: usage?.emailsVerified ?? null, notFound: usage?.contactsNotFound ?? null, acceptAll: null, unknown: null, suppressed: reconciliation ? count(reconciliation, "DISQUALIFIED") : null, contactNotEstablished: reconciliation ? count(reconciliation, "ENRICHMENT_READY") : null, lastRun: shadowStatus?.generatedAt || usage?.updatedAt || null },
     funnel: { outreachApproved: metric(humanReview), sent: metric(count(reconciliation, "ALREADY_CONTACTED")), replies: metric(0), positiveReplies: metric(0), freeFirstAwardTrials: metric(0), activatedOrganizations: metric(0), paidCustomers: metric(count(reconciliation, "CUSTOMER")), mrr: metric(0), arr: metric(0) },
