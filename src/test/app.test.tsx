@@ -77,9 +77,14 @@ describe("important routes", () => {
     expect(screen.queryByRole("link", { name: "Reliability" })).not.toBeInTheDocument();
   });
 
-  it("publishes the Resources hub in static crawl controls", () => {
+  it("publishes the Resources hub in static crawl controls and direct-loads public contact", () => {
     expect(fs.readFileSync(path.resolve("public/sitemap.xml"), "utf8")).toContain("https://grantdeskhq.com/resources");
-    expect(fs.readFileSync(path.resolve("scripts/create-spa-routes.js"), "utf8")).toContain("\"resources\"");
+    const directLoadRoutes = fs.readFileSync(path.resolve("scripts/create-spa-routes.js"), "utf8");
+    expect(directLoadRoutes).toContain("\"resources\"");
+    expect(directLoadRoutes).toContain("\"contact\"");
+    const cloudRun = fs.readFileSync(path.resolve("server/cloudRun.ts"), "utf8");
+    expect(cloudRun).toContain("filePath = path.join(root, \"404.html\");");
+    expect(cloudRun).toContain("response.statusCode = statusCode;");
   });
 
   it("opens and closes mobile navigation with both click and Escape", async () => {

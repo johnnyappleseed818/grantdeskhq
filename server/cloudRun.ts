@@ -504,15 +504,17 @@ async function serveStatic(urlPath: string, headOnly: boolean, response: ServerR
   const candidate = path.resolve(root, `.${decoded}`);
   const safeCandidate = candidate.startsWith(`${root}${path.sep}`) || candidate === root ? candidate : root;
   let filePath = safeCandidate;
+  let statusCode = 200;
   try {
     const info = await stat(filePath);
     if (info.isDirectory()) filePath = path.join(filePath, "index.html");
     await stat(filePath);
   } catch {
-    filePath = path.join(root, "index.html");
+    filePath = path.join(root, "404.html");
+    statusCode = 404;
   }
   const body = await readFile(filePath);
-  response.statusCode = 200;
+  response.statusCode = statusCode;
   response.setHeader("Content-Type", mime(filePath));
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
