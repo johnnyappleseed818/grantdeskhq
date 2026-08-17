@@ -228,6 +228,10 @@ describe("GTM command center", () => {
     expect(screen.queryByText(/NOT_INSTRUMENTED/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Not instrumented/i)).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "View in Outreach" })).toHaveLength(10);
+    expect(screen.getByText("REVIEW_FEEDBACK")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open feedback review" }));
+    expect(screen.getByRole("heading", { name: "Feedback review" })).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Overview" }));
     await user.click(screen.getAllByRole("button", { name: "View in Outreach" })[0]);
     expect(screen.getByRole("heading", { name: /Contact history is factual and read-only/i })).toBeInTheDocument();
   });
