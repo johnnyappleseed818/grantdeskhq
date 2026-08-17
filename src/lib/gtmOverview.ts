@@ -1,7 +1,7 @@
 import type { EnrichmentUsage } from "./contactEnrichment";
 import type { ControlPlaneLeadState, ControlPlaneQueueReconciliation } from "./gtmControlPlaneQueue";
 import type { ShadowPipelineStatus } from "./gtmShadow";
-import { partnerPipelineSnapshot } from "../data/gtmPartnerPipeline";
+import { partnerPipelineSnapshot } from "../data/gtmPartnerPipeline.ts";
 
 export type GtmHealth = "HEALTHY" | "STALE" | "BLOCKED" | "NEEDS_REPLENISHMENT" | "NOT_INSTRUMENTED";
 export interface GtmMetric { actual: number | null; target: number | null; gap: number | null; }
