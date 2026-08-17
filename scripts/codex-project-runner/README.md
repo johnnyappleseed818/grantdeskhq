@@ -11,7 +11,7 @@ Each run is serialized per project and saved under
 contains the prompt, JSONL execution logs, final agent output, `final-report.txt`,
 and machine-readable `project-result.json`. A `latest` symlink points to the
 newest run. The runner uses the documented `codex exec --sandbox
-workspace-write --approve-for-me --json` mode, makes at most one retry after a
+workspace-write --json` mode, makes at most one retry after a
 nonzero exit, converts recoverable nonzero exits and TERM/INT/HUP interruptions
 into a durable `FAIL` completion record, and exits zero only when both Codex and
 the completion record report `PASS`.

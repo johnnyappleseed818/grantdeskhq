@@ -36,6 +36,12 @@ test("the legacy bounded runner validates the actual result path", () => {
   const source = readFileSync(new URL("./run-project.sh", import.meta.url), "utf8"); assert.match(source, /valid_result "\$result"/); assert.doesNotMatch(source, /valid_result ""/);
 });
 
+test("queue retry routing retains worker error evidence", () => {
+  const source = readFileSync(new URL("./queue-lib.mjs", import.meta.url), "utf8");
+  assert.match(source, /eventDetails = existsSync\(execution\.eventFile\)/);
+  assert.match(source, /eventDetails/);
+});
+
 test("model-aware queue invocation preserves safety gates and no approval bypass", () => {
   const source = readFileSync(new URL("./queue-lib.mjs", import.meta.url), "utf8"); assert.match(source, /CODEX_QUEUE_NO_PRODUCTION: "1"/); assert.match(source, /CODEX_QUEUE_NO_OUTBOUND: "1"/); assert.match(source, /CODEX_QUEUE_NO_PURCHASES: "1"/); assert.match(source, /CODEX_QUEUE_NO_FORCE_PUSH: "1"/); assert.match(source, /"-m", task\.selected_model/); assert.match(source, /model_reasoning_effort=/); assert.doesNotMatch(source, /"--approve-for-me"/);
 });

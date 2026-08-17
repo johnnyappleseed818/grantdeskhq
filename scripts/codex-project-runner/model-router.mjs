@@ -15,11 +15,24 @@ function normalize(value) {
 }
 
 function taskContext(task) {
-  return [task.id, task.title, task.description, task.category, task.task_type, task.risk_level, ...(task.allowed_actions || []), ...(task.forbidden_actions || []), ...(task.acceptance_criteria || []), ...(task.artifacts_expected || []), ...(task.tests_expected || []), ...(task.resource_paths || []), ...(task.commands || [])].filter(Boolean).join(" ").toLowerCase();
+  // Safety constraints such as \"no production traffic\" describe what a task must not do; they are not evidence that the task itself changes production.
+  // Excluding them keeps routine tasks from being routed as high risk solely because the operating policy is strict.
+  return [task.id, task.title, task.description, task.category, task.task_type, task.risk_level, ...(task.allowed_actions || []), ...(task.acceptance_criteria || []), ...(task.artifacts_expected || []), ...(task.tests_expected || []), ...(task.resource_paths || []), ...(task.commands || [])].filter(Boolean).join(" ").toLowerCase();
 }
 
 function includesAny(text, values) {
   return values.filter((value) => { const needle = value.toLowerCase(); return needle === "prod" || needle === "iam" ? new RegExp("\\b" + needle + "\\b", "i").test(text) : text.includes(needle); });
+}
+
+function isNegatedSignal(text, signal) {
+  const needle = signal.toLowerCase(); let position = -1; let found = false;
+  while ((position = text.indexOf(needle, position + 1)) >= 0) {
+    found = true;
+    const sentenceStart = Math.max(text.lastIndexOf(".", position), text.lastIndexOf("!", position), text.lastIndexOf("?", position), text.lastIndexOf(";", position)) + 1;
+    const clause = text.slice(sentenceStart, position);
+    if (!/\b(do not|don.t|never|no|without|forbidden|forbid)\b/i.test(clause)) return false;
+  }
+  return found;
 }
 
 function categoryMatches(category, values) {
@@ -30,7 +43,7 @@ function categoryMatches(category, values) {
 
 export function classifyTask(task, policy) {
   const context = taskContext(task);
-  const highSignals = includesAny(context, policy.classification.high_risk_indicators);
+  const highSignals = includesAny(context, policy.classification.high_risk_indicators).filter((signal) => !isNegatedSignal(context, signal));
   const complexSignals = includesAny(context, policy.classification.complex_indicators);
   const explicitRisk = normalize(task.risk_level);
   const protectedAction = (task.allowed_actions || []).some((item) => /production|stripe|iam|secret|credential|customer data|database/i.test(item));

@@ -44,6 +44,18 @@ test("environment, permissions, dependencies, and fixtures never trigger model e
   for (const failure of ["IAM permission denied", "missing dependency", "malformed fixture", "rate limit", "service unavailable", "configuration missing"]) assert.equal(nextRoutingDecision(task, failure, policy).action, "RETRY");
 });
 
+test("negated billing and checkout constraints remain standard repository work", () => {
+  const selected = route({ title: "Build contact feedback form", category: "FRONTEND", description: "Implement a public contact form. Do not change billing, checkout, or any paid-plan flow." });
+  assert.equal(selected.selected_tier, "STANDARD");
+  assert.equal(selected.reasoning_level, "medium");
+});
+
+test("forbidden safety constraints do not inflate a routine task to high risk", () => {
+  const selected = route({ title: "Reconcile outreach ledger", category: "RECONCILIATION", forbidden_actions: ["production traffic", "live Stripe charges", "outbound"] });
+  assert.equal(selected.selected_tier, "ROUTINE");
+  assert.equal(selected.selected_model, "gpt-5.6-luna");
+});
+
 test("Sol is an explicit exceptional high-risk escalation only", () => {
   const normal = route({ title: "Stripe webhook", description: "Stripe webhook handling." }); assert.equal(normal.selected_model, "gpt-5.6-terra");
   const exceptional = route({ title: "Stripe webhook", description: "Stripe webhook handling.", route_step: 1, exceptional_escalation_approved: true, escalation_reason: "Terra xhigh failed with reproducible high-risk defect." }); assert.equal(exceptional.selected_model, "gpt-5.6-sol"); assert.equal(exceptional.reasoning_level, "xhigh");

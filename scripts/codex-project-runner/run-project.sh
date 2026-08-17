@@ -123,7 +123,7 @@ for attempt in 1 2; do
   set +e
   (
     cd "$worktree"
-    rtk codex exec --sandbox workspace-write --approve-for-me --json       --output-schema "$schema" --output-last-message "$final_message"       "$(rtk cat "$agent_prompt")"
+    rtk codex exec --sandbox workspace-write --json       --output-schema "$schema" --output-last-message "$final_message"       "$(rtk cat "$agent_prompt")"
   ) > "$attempt_log" 2>&1
   exit_code=$?
   set -e
