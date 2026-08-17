@@ -8,8 +8,8 @@ CONTACT FORMS: 0
 INVENTORY
 RESEARCHED: 50 public-source organizations
 HIGH FIT: 20 (fit ≥8)
-CONTACT-IDENTIFIED: 5 official public named leaders
-ENRICHMENT READY: 5 after Hunter credential repair; remaining candidates require current named-person research
+CONTACT-IDENTIFIED: 7 official public named leaders
+ENRICHMENT READY: 7 after Hunter credential repair; remaining candidates require current named-person research
 VERIFIED EMAILS: 0
 HUMAN-REVIEW / OUTREACH READY: 0
 
@@ -105,24 +105,24 @@ Eli
 WEBSITE: https://altruic.com/
 PARTNER TYPE: PARTNER_ACCOUNTING
 SOURCE: https://altruic.com/nonprofit-accounting-services
-WHY SELECTED: Nonprofit accounting, grant tracking, audit support, CFO solutions
+WHY SELECTED: Public CFO Solutions details grant tracking, remote nonprofit accounting, financial statements, and audit support.
 PARTNER FIT: 9/10
 PARTNER / COMPETITOR RELATIONSHIP: A — likely productivity multiplier; advisor retains client judgment, review, and service.
-RECOMMENDED CONTACT: NOT ESTABLISHED
-TITLE: Nonprofit practice leader
-TITLE SOURCE: https://altruic.com/nonprofit-accounting-services
+RECOMMENDED CONTACT: Ryan Hagan, CPA, CFE
+TITLE: Founder & Managing Partner
+TITLE SOURCE: https://altruic.com/ryan-hagan
 DIRECT EMAIL: NOT ESTABLISHED
 EMAIL STATUS: CONTACT_NOT_ESTABLISHED — no address guessed and no paid enrichment used.
 SUPPRESSION STATUS: UNKNOWN — requires a verified direct business email.
-READY FOR ENRICHMENT: NO — named-person research required
+READY FOR ENRICHMENT: YES — named current leader and official domain are established.
 READY FOR HUMAN APPROVAL: NO
 SUBJECT: A post-award reporting workflow for Altruic Advisors nonprofit clients
 FULL PERSONALIZED EMAIL:
-Hi there,
+Hi Ryan,
 
-I noticed Altruic Advisors work in nonprofit finance and advisory. Nonprofit accounting, grant tracking, audit support, CFO solutions
+I saw that Altruic Advisors' nonprofit CFO Solutions work includes grant tracking, financial statements, and audit support.
 
-GrantDeskHQ is an AI-powered post-award workflow that turns a grant agreement, accounting data, program updates, and supporting evidence into a reviewable funder-report draft. It can help advisory teams standardize repetitive assembly across client awards while the advisor and client retain review and submission control.
+GrantDeskHQ turns grant agreements, accounting data, program updates, and supporting evidence into reviewable funder-report drafts. It could help your team standardize the repetitive assembly work across client awards while retaining the professional judgment, review, and submission control your clients rely on.
 
 Would you be open to seeing whether it could be useful with one nonprofit client or award?
 
@@ -133,24 +133,24 @@ Eli
 WEBSITE: https://jmtconsulting.com/
 PARTNER TYPE: PARTNER_TECH_ADVISOR
 SOURCE: https://jmtconsulting.com/services/grants-management/
-WHY SELECTED: Nonprofit grant-management and accounting-system consulting
+WHY SELECTED: JMT publicly supports nonprofit financial systems, budget-to-actual reporting, grant management, and workflow improvement.
 PARTNER FIT: 9/10
 PARTNER / COMPETITOR RELATIONSHIP: C — potential service overlap; treat as complementary only after human review.
-RECOMMENDED CONTACT: NOT ESTABLISHED
-TITLE: Nonprofit grant-management practice leader
-TITLE SOURCE: https://jmtconsulting.com/services/grants-management/
+RECOMMENDED CONTACT: Jacqueline M. Tiso
+TITLE: Founder & Chief Executive Officer
+TITLE SOURCE: https://jmtconsulting.com/blog/nonprofit-ai-adoption-leadership-capacity-change/
 DIRECT EMAIL: NOT ESTABLISHED
 EMAIL STATUS: CONTACT_NOT_ESTABLISHED — no address guessed and no paid enrichment used.
 SUPPRESSION STATUS: UNKNOWN — requires a verified direct business email.
-READY FOR ENRICHMENT: NO — named-person research required
+READY FOR ENRICHMENT: YES — named current leader and official domain are established.
 READY FOR HUMAN APPROVAL: NO
 SUBJECT: A post-award reporting workflow for JMT Consulting nonprofit clients
 FULL PERSONALIZED EMAIL:
-Hi there,
+Hi Jacqueline,
 
-I noticed JMT Consulting work in nonprofit finance and advisory. Nonprofit grant-management and accounting-system consulting
+I saw JMT's public work helping nonprofit finance teams with financial systems, grant management, and reporting workflows.
 
-GrantDeskHQ is an AI-powered post-award workflow that turns a grant agreement, accounting data, program updates, and supporting evidence into a reviewable funder-report draft. It can help advisory teams standardize repetitive assembly across client awards while the advisor and client retain review and submission control.
+GrantDeskHQ is a post-award workflow that prepares reviewable funder-report drafts from the award agreement, accounting data, program updates, and supporting evidence. It may be complementary where a client needs a focused reporting layer; your team would continue to guide systems decisions, review, and client delivery.
 
 Would you be open to seeing whether it could be useful with one nonprofit client or award?
 
@@ -174,9 +174,9 @@ READY FOR ENRICHMENT: NO — named-person research required
 READY FOR HUMAN APPROVAL: NO
 SUBJECT: A post-award reporting workflow for Snap Advisory nonprofit clients
 FULL PERSONALIZED EMAIL:
-Hi there,
+Hello Snap Advisory team,
 
-I noticed Snap Advisory work in nonprofit finance and advisory. Fractional CFO, grant reporting, and audit support for nonprofits
+I saw Snap Advisory's nonprofit practice includes fractional CFO support, grant reporting, and audit support.
 
 GrantDeskHQ is an AI-powered post-award workflow that turns a grant agreement, accounting data, program updates, and supporting evidence into a reviewable funder-report draft. It can help advisory teams standardize repetitive assembly across client awards while the advisor and client retain review and submission control.
 
@@ -202,9 +202,9 @@ READY FOR ENRICHMENT: NO — named-person research required
 READY FOR HUMAN APPROVAL: NO
 SUBJECT: A post-award reporting workflow for GreenPoint NFP nonprofit clients
 FULL PERSONALIZED EMAIL:
-Hi there,
+Hello GreenPoint NFP team,
 
-I noticed GreenPoint NFP work in nonprofit finance and advisory. Grant, board, spend-down reporting and fractional CFO services
+I saw GreenPoint NFP's nonprofit services include financial reporting, grant and board packs, and fractional CFO leadership.
 
 GrantDeskHQ is an AI-powered post-award workflow that turns a grant agreement, accounting data, program updates, and supporting evidence into a reviewable funder-report draft. It can help advisory teams standardize repetitive assembly across client awards while the advisor and client retain review and submission control.
 
@@ -230,9 +230,9 @@ READY FOR ENRICHMENT: NO — named-person research required
 READY FOR HUMAN APPROVAL: NO
 SUBJECT: A post-award reporting workflow for NFO Nonprofit Financial Outsourcing nonprofit clients
 FULL PERSONALIZED EMAIL:
-Hi there,
+Hello NFO team,
 
-I noticed NFO Nonprofit Financial Outsourcing work in nonprofit finance and advisory. Fractional CFO and fiscal grant-management support
+I saw that NFO supports nonprofits with fractional CFO and fiscal grant-management work.
 
 GrantDeskHQ is an AI-powered post-award workflow that turns a grant agreement, accounting data, program updates, and supporting evidence into a reviewable funder-report draft. It can help advisory teams standardize repetitive assembly across client awards while the advisor and client retain review and submission control.
 
@@ -258,9 +258,9 @@ READY FOR ENRICHMENT: NO — named-person research required
 READY FOR HUMAN APPROVAL: NO
 SUBJECT: A post-award reporting workflow for Northpoint CFO Group nonprofit clients
 FULL PERSONALIZED EMAIL:
-Hi there,
+Hello Northpoint CFO Group team,
 
-I noticed Northpoint CFO Group work in nonprofit finance and advisory. Fractional CFO, grant compliance, audit readiness, funder reporting
+I saw Northpoint's public materials describe fractional CFO support spanning grant compliance, audit readiness, and funder reporting.
 
 GrantDeskHQ is an AI-powered post-award workflow that turns a grant agreement, accounting data, program updates, and supporting evidence into a reviewable funder-report draft. It can help advisory teams standardize repetitive assembly across client awards while the advisor and client retain review and submission control.
 
@@ -286,9 +286,9 @@ READY FOR ENRICHMENT: NO — named-person research required
 READY FOR HUMAN APPROVAL: NO
 SUBJECT: A post-award reporting workflow for CorePath CFO Advisory nonprofit clients
 FULL PERSONALIZED EMAIL:
-Hi there,
+Hello CorePath CFO Advisory team,
 
-I noticed CorePath CFO Advisory work in nonprofit finance and advisory. Nonprofit fractional CFO, grant compliance, board reporting
+I saw CorePath's nonprofit fractional CFO advisory work includes grant compliance and board reporting.
 
 GrantDeskHQ is an AI-powered post-award workflow that turns a grant agreement, accounting data, program updates, and supporting evidence into a reviewable funder-report draft. It can help advisory teams standardize repetitive assembly across client awards while the advisor and client retain review and submission control.
 
@@ -314,9 +314,9 @@ READY FOR ENRICHMENT: NO — named-person research required
 READY FOR HUMAN APPROVAL: NO
 SUBJECT: A post-award reporting workflow for Acclarity nonprofit clients
 FULL PERSONALIZED EMAIL:
-Hi there,
+Hello Acclarity team,
 
-I noticed Acclarity work in nonprofit finance and advisory. Outsourced accounting, fractional leadership, grant and compliance support
+I saw Acclarity's nonprofit services include outsourced accounting, fractional leadership, and grant/compliance support.
 
 GrantDeskHQ is an AI-powered post-award workflow that turns a grant agreement, accounting data, program updates, and supporting evidence into a reviewable funder-report draft. It can help advisory teams standardize repetitive assembly across client awards while the advisor and client retain review and submission control.
 
@@ -378,8 +378,8 @@ The following 25 additional U.S.-oriented organizations are backed by their publ
 CURRENT PARTNER INVENTORY:
 RESEARCHED: 50
 HIGH FIT: 20 (the existing top 20 retain their source-backed 8-plus fit threshold)
-CONTACT IDENTIFIED: 2
-ENRICHMENT READY: 2
+CONTACT IDENTIFIED: 7
+ENRICHMENT READY: 7
 VERIFIED EMAIL: 0
 HUMAN-REVIEW READY: 0
 TOP 5: The Charity CFO; Kiwi Partners; YPTC; Array Accounting; Integra Nonprofit Financial Management.
@@ -408,15 +408,17 @@ No email discovery was called. Each person below is a public-role research recor
 | YPTC | Jennifer Alleva | Chief Executive Officer | https://www.yptc.com/ceo-jennifer-alleva/ | yptc.com | DIRECT EMAIL: NOT ESTABLISHED | UNKNOWN; ENRICHMENT_READY |
 | Array Accounting | Danielle L. Wright, CPA | Founder, Array Accounting & Consulting | https://arrayaccounting.com/about-fractional-cfo-nonprofit-accounting-consulting-services/ | arrayaccounting.com | DIRECT EMAIL: NOT ESTABLISHED | UNKNOWN; ENRICHMENT_READY |
 | c3 by Design | Scott Turner | Founder and CEO | https://www.c3bydesign.com/about | c3bydesign.com | DIRECT EMAIL: NOT ESTABLISHED | UNKNOWN; ENRICHMENT_READY |
+| Altruic Advisors | Ryan Hagan, CPA, CFE | Founder & Managing Partner | https://altruic.com/ryan-hagan | altruic.com | DIRECT EMAIL: NOT ESTABLISHED | UNKNOWN; ENRICHMENT_READY |
+| JMT Consulting | Jacqueline M. Tiso | Founder & Chief Executive Officer | https://jmtconsulting.com/blog/nonprofit-ai-adoption-leadership-capacity-change/ | jmtconsulting.com | DIRECT EMAIL: NOT ESTABLISHED | UNKNOWN; ENRICHMENT_READY |
 
 UPDATED PARTNER STAGES:
 RESEARCHED: 50
 HIGH FIT: 20
-CONTACT IDENTIFIED: 5
-ENRICHMENT READY: 5
+CONTACT IDENTIFIED: 7
+ENRICHMENT READY: 7
 VERIFIED EMAILS: 0
 HUMAN-REVIEW READY: 0
-TOP CONTACTS WORTH BOUNDED FUTURE ENRICHMENT: Tosha Anderson; Ken Hafner; Jennifer Alleva; Danielle L. Wright; Scott Turner.
+TOP CONTACTS WORTH BOUNDED FUTURE ENRICHMENT: Tosha Anderson; Ken Hafner; Jennifer Alleva; Danielle L. Wright; Scott Turner; Ryan Hagan; Jacqueline M. Tiso.
 
 SAFETY:
 No provider lookup, email verification, suppression lookup, email, schedule, form submission, or social action was performed for these research records.
