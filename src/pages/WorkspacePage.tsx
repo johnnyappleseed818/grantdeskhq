@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, ArrowRight, FilePlus2, FolderCheck, LoaderCircle, LogOut, ShieldCheck } from "lucide-react";
 import { Link, Navigate, useLocation } from "react-router-dom";
 import { apiRequest } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { trackAnalyticsEvent } from "../lib/analytics";
 import type { SavedReportSummary } from "../types/prototype";
 
 export function WorkspacePage() {
@@ -12,6 +13,7 @@ export function WorkspacePage() {
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState("");
   const location = useLocation();
+  const subscriptionTracked = useRef(false);
 
   useEffect(() => {
     if (!user) return;
@@ -23,6 +25,12 @@ export function WorkspacePage() {
       .catch((requestError) => setError(requestError instanceof Error ? requestError.message : "Reports could not be loaded."))
       .finally(() => setFetching(false));
   }, [user, token]);
+
+  useEffect(() => {
+    if (subscriptionTracked.current || new URLSearchParams(location.search).get("billing") !== "success" || billing?.status !== "active") return;
+    subscriptionTracked.current = true;
+    trackAnalyticsEvent("subscription_started");
+  }, [billing?.status, location.search]);
 
   if (loading) return <div className="workspace-loading"><LoaderCircle className="animate-spin" aria-hidden="true" />Loading workspace…</div>;
   if (!user) return <Navigate replace to="/login?next=/workspace" />;

@@ -14,6 +14,7 @@ import {
 } from "../content/pricing";
 import { apiRequest, apiUrl } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { trackAnalyticsEvent } from "../lib/analytics";
 
 export function PricingPage() {
   const [interval, setInterval] = useState<BillingInterval>("month");
@@ -24,6 +25,10 @@ export function PricingPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const resumedCheckout = useRef(false);
+
+  useEffect(() => {
+    trackAnalyticsEvent("pricing_view", { page_type: "pricing" });
+  }, []);
 
   useEffect(() => {
     fetch(apiUrl("/api/config"))
@@ -41,6 +46,7 @@ export function PricingPage() {
     }
     setStartingPlan(plan);
     try {
+      trackAnalyticsEvent("checkout_started", { plan_key: plan });
       const result = await apiRequest<{ url: string }>("/api/billing/checkout", await token(), {
         method: "POST",
         body: JSON.stringify({ plan, interval: billingInterval })
@@ -110,9 +116,9 @@ export function PricingPage() {
                 <button type="button" className={`button mt-8 w-full ${plan.featured ? "button-primary" : "button-secondary"}`} disabled={Boolean(startingPlan)} onClick={() => void beginCheckout(plan.id)}>
                   {startingPlan === plan.id ? <><LoaderCircle className="animate-spin" aria-hidden="true" />Opening secure checkout…</> : <>Choose {plan.name} <ArrowRight aria-hidden="true" /></>}
                 </button>
-                <Link className="pricing-free-link" to="/assessment#contact">Or analyze your first report free</Link>
+                <Link className="pricing-free-link" to="/assessment#contact" onClick={() => trackAnalyticsEvent("free_first_report_click", { surface: "pricing" })}>Or analyze your first report free</Link>
               </> : billingConfigured === false ? <>
-                <Link className={`button mt-8 w-full ${plan.featured ? "button-primary" : "button-secondary"}`} to="/assessment#contact">Analyze your first report free <ArrowRight aria-hidden="true" /></Link>
+                <Link className={`button mt-8 w-full ${plan.featured ? "button-primary" : "button-secondary"}`} to="/assessment#contact" onClick={() => trackAnalyticsEvent("free_first_report_click", { surface: "pricing" })}>Analyze your first report free <ArrowRight aria-hidden="true" /></Link>
                 <span className="pricing-free-link no-underline">Choose a paid plan after your free report</span>
               </> : <button type="button" className="button button-secondary mt-8 w-full" disabled><LoaderCircle className="animate-spin" aria-hidden="true" />Checking secure checkout…</button>}
             </article>
@@ -164,7 +170,7 @@ export function PricingPage() {
             <h2 className="text-3xl font-semibold text-navy-900">See the value on a report your team already knows.</h2>
             <p className="mt-3 max-w-2xl text-slate-600">Use synthetic or appropriately redacted test files, compare the source-linked output with your current process, and continue only if it reduces meaningful manual work.</p>
           </div>
-          <Link className="button button-primary button-large shrink-0" to="/assessment#contact">Request your free first report <ArrowRight aria-hidden="true" /></Link>
+          <Link className="button button-primary button-large shrink-0" to="/assessment#contact" onClick={() => trackAnalyticsEvent("free_first_report_click", { surface: "pricing" })}>Request your free first report <ArrowRight aria-hidden="true" /></Link>
         </div>
       </section>
     </div>

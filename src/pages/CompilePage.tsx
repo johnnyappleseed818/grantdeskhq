@@ -24,6 +24,7 @@ import { agreementSetup, remainingSetupConflicts } from "../lib/agreementSetup";
 import { futureWorkflowStatus, normalizeWorkflowObligations } from "../lib/obligationApplicability";
 import { apiRequest } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { trackAnalyticsEvent } from "../lib/analytics";
 import type { CompilationPreflightResult, CompilationRequest, CompilationResult, CompilerFile, GrantReportingPeriod, GrantWorkflowObligation, ObligationApplicability, PersistedCompilationResponse, ReviewState, SetupDecision, SourceRole } from "../types/prototype";
 
 const sourceFields: Array<{ role: SourceRole; label: string; help: string; accept: string; required: boolean }> = [
@@ -84,6 +85,7 @@ export function CompilePage() {
     if (!file) return;
     setFiles((current) => ({ ...current, [role]: file }));
     inspectSelectedFile(role, file);
+    if (role === "awardAgreement") trackAnalyticsEvent("award_uploaded");
     setResult(null);
     if (role === "awardAgreement") {
       setPreflight(null);
@@ -110,6 +112,7 @@ export function CompilePage() {
     for (const [role, file] of Object.entries(assigned) as Array<[SourceRole, File]>) inspectSelectedFile(role, file);
     setResult(null);
     if (assigned.awardAgreement) {
+      trackAnalyticsEvent("award_uploaded");
       setPreflight(null);
       setPreflightKey("");
       setSetupDecisions([]);
@@ -202,9 +205,11 @@ export function CompilePage() {
         setError(errors.join(" "));
         return;
       }
+      trackAnalyticsEvent("report_started");
       const body = await apiRequest<PersistedCompilationResponse>("/api/reports/compile", await token(), { method: "POST", body: JSON.stringify(payload) });
       setResult(body.result);
       setReportId(body.reportId);
+      trackAnalyticsEvent("report_generated");
       setActiveTab("overview");
       window.requestAnimationFrame(() => document.getElementById("compiler-results")?.focus());
     } catch (compileError) {

@@ -3,6 +3,7 @@ import { CheckCircle2, KeyRound, LoaderCircle, ShieldCheck } from "lucide-react"
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { CORE_VALUE_PROPOSITION } from "../content/positioning";
 import { useAuth } from "../lib/auth";
+import { trackAnalyticsEvent } from "../lib/analytics";
 
 export function LoginPage() {
   const { user, loading, error: setupError, signIn, signUp, resetPassword } = useAuth();
@@ -25,8 +26,11 @@ export function LoginPage() {
     setError("");
     setNotice("");
     try {
-      if (mode === "signup") await signUp(name, email, password);
-      else await signIn(email, password);
+      if (mode === "signup") {
+        trackAnalyticsEvent("signup_start", { surface: "account" });
+        await signUp(name, email, password);
+        trackAnalyticsEvent("signup_complete", { surface: "account" });
+      } else await signIn(email, password);
       navigate(next, { replace: true });
     } catch (authError) {
       setError(authError instanceof Error ? authError.message : "Account request failed.");
