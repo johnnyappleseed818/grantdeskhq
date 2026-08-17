@@ -1,9 +1,15 @@
 {
-  "status": "PASS",
-  "task_id": "overnight-award-signal-audit-20260817",
-  "tests": ["npm exec vitest run src/test/gtmAwardScanner.test.ts src/test/gtm.test.tsx"],
-  "artifacts": ["reports/overnight-grant-award-signal-audit-20260817.md"],
-  "blocker": "",
-  "result_summary": "Award scan freshness, source, new-award, duplicate, and error audit fields are deterministic and persisted; empty successful scans are distinguished from scanner failures.",
-  "commit_sha": ""
+  "project": "overnight-partner-intelligence-20260817",
+  "started_at": "2026-08-17T19:18:04.796Z",
+  "finished_at": "2026-08-17T19:32:00Z",
+  "git_branch": "feature/outreach-feedback-tracking",
+  "starting_commit": "4045c5cb51b7f53ef0d5b569d4073db99ac3cca6",
+  "ending_commit": "working-tree-uncommitted",
+  "tests_run": ["manual deterministic data validation"],
+  "passed": ["10 public-source records with fit, multiplier, classification, and source status", "no emails, enrichment, contact, or outreach"],
+  "failed": [],
+  "skipped": ["automated validator unavailable for this markdown-only artifact"],
+  "qa_validation": ["Report reviewed for required evidence and classification fields"],
+  "remaining_blockers": [],
+  "status": "PASS"
 }
