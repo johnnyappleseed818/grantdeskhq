@@ -1,21 +1,13 @@
 {
   "status": "PASS",
   "tests": [
-    "Tagged Cloud Run candidate grantdeskhq-prototype-foundergtm0817 Ready with zero traffic",
-    "Candidate /api/health, /pricing, and /resources checks",
-    "Unauthenticated GTM API protection and /gtm login redirect",
-    "Playwright pricing terminology and 390px navigation check",
-    "npx vitest run src/test/gtm.test.tsx src/test/gtmOverview.test.ts src/test/gtmOutreach.test.ts src/test/pricing.test.ts src/test/workspaceReports.test.tsx src/test/app.test.tsx src/test/billing.test.ts --disableConsoleIntercept (69 passed)",
-    "npm run lint",
-    "git diff --check",
-    "non-secret candidate/live runtime configuration comparison",
-    "Authorized exact-candidate promotion to 100% traffic",
-    "Live health, public route, pricing terminology, responsive navigation, and GTM protection smoke checks"
+    "node --check scripts/codex-project-runner/queue.mjs",
+    "node --test scripts/codex-project-runner/queue.test.mjs scripts/codex-project-runner/model-router.test.mjs (42 passing)",
+    "git diff --check"
   ],
   "artifacts": [
-    "reports/gtm-founder-dashboard-candidate-validation.md",
-    "reports/gtm-founder-dashboard-production-validation.md"
+    "reports/codex-overnight-supervisor-validation.md"
   ],
   "blocker": "",
-  "result_summary": "The exact validated zero-traffic candidate grantdeskhq-prototype-foundergtm0817 was promoted to 100% production traffic after all gates passed. Live health, public routes, pricing terminology, mobile Resources navigation, and GTM protection passed. Direct 5, partner 5, and total 10 human-confirmed sends reconcile with zero missing/unaccounted records; automated outbound remains locked. Stripe was not changed. Rollback revision grantdeskhq-prototype-00164-dug is preserved."
+  "result_summary": "Hardened the existing queue controller with five-minute durable active-task status heartbeats, timing and task fields, and a bounded 20-minute no-progress watchdog. One scoped retry is attempted before recording a continuable PARTIAL outcome; no external systems were accessed."
 }
