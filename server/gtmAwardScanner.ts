@@ -51,27 +51,32 @@ export async function runDailyAwardScan(now = new Date()): Promise<AwardDiscover
   }
 
   const seen = new Set<string>();
+  let duplicateCount = 0;
   const opportunities = records
     .filter((award) => isUsableAward(award, criteria.minimumAward))
     .filter((award) => {
       const key = String(award.generated_internal_id);
-      if (seen.has(key)) return false;
+      if (seen.has(key)) { duplicateCount += 1; return false; }
       seen.add(key);
       return true;
     })
     .map((award) => toOpportunity(award, scanDate))
     .sort(compareOpportunityResearchValue)
     .slice(0, criteria.maxCandidates);
-
-  if (!opportunities.length) throw new Error("USAspending returned no usable nonprofit award records. The last verified scan remains available.");
+ 
 
   return {
     generatedAt: now.toISOString(),
     source: ENDPOINT,
+    scanStatus: opportunities.length ? "success" : "no_new_awards",
+    lastSuccessfulScanAt: now.toISOString(),
     criteria,
     recordsChecked: records.length,
     pagesChecked,
-    coverage: `${records.length} recent federal grant records were checked across ${pagesChecked} page${pagesChecked === 1 ? "" : "s"}; ${opportunities.length} nonprofit candidates passed the research criteria. Candidates still require contact and workflow verification before outreach.`,
+    newAwardCount: opportunities.length,
+    duplicateCount,
+    errorCount: 0,
+    coverage: records.length + " recent federal grant records were checked across " + pagesChecked + " page(s); " + opportunities.length + " new nonprofit candidates passed the research criteria and " + duplicateCount + " duplicates were excluded. " + (opportunities.length ? "Candidates still require contact and workflow verification before outreach." : "No new awards matched; this was a successful empty scan, not a scanner failure."),
     opportunities,
     limitations: [
       "USAspending covers federal assistance, not private-foundation or state and local awards that are not reported there.",

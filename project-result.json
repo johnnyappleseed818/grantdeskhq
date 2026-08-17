@@ -1,1 +1,9 @@
-{"status":"PASS","tests":["npm exec vitest -- run src/test/app.test.tsx src/test/blog.test.tsx src/test/pricing.test.ts --disableConsoleIntercept (42 passing)","npm run lint","npm run build","git diff --check"],"artifacts":["reports/overnight-conversion-audit-20260817.md"],"blocker":"","result_summary":"Audited the public acquisition conversion path and normalized the anonymous primary CTA to Free First Award, routing it to the existing assessment path. Preserved approved pricing and proof copy; no form submission, outbound email, Stripe action, or production traffic change was made.","commit_sha":""}
+{
+  "status": "PASS",
+  "task_id": "overnight-award-signal-audit-20260817",
+  "tests": ["npm exec vitest run src/test/gtmAwardScanner.test.ts src/test/gtm.test.tsx"],
+  "artifacts": ["reports/overnight-grant-award-signal-audit-20260817.md"],
+  "blocker": "",
+  "result_summary": "Award scan freshness, source, new-award, duplicate, and error audit fields are deterministic and persisted; empty successful scans are distinguished from scanner failures.",
+  "commit_sha": ""
+}

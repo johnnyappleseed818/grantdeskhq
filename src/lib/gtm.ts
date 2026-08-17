@@ -43,9 +43,14 @@ export interface AwardDiscoveryCriteria {
 export interface AwardDiscoveryScan {
   generatedAt: string;
   source: string;
+  scanStatus: "success" | "no_new_awards";
+  lastSuccessfulScanAt: string;
   criteria: AwardDiscoveryCriteria;
   recordsChecked: number;
   pagesChecked: number;
+  newAwardCount: number;
+  duplicateCount: number;
+  errorCount: number;
   coverage: string;
   opportunities: GtmOpportunity[];
   limitations: string[];

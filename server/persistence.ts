@@ -593,6 +593,12 @@ export async function saveGtmAwardScan(scan: AwardDiscoveryScan) {
   await writeDocument(accessToken, "gtm/daily-awards", {
     generatedAt: scan.generatedAt,
     itemCount: scan.opportunities.length,
+    scanStatus: scan.scanStatus,
+    lastSuccessfulScanAt: scan.lastSuccessfulScanAt,
+    source: scan.source,
+    newAwardCount: scan.newAwardCount,
+    duplicateCount: scan.duplicateCount,
+    errorCount: scan.errorCount,
     scanJson: JSON.stringify(scan)
   });
   return scan;
