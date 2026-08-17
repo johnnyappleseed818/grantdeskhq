@@ -26,7 +26,7 @@ const metric = (actual: number | null, target: number | null = null): GtmMetric 
 const stale = (value: string | undefined, now: string) => { const then = Date.parse(value || ""); return !Number.isFinite(then) || Date.parse(now) - then > 36 * 60 * 60 * 1000; };
 
 export function buildGtmOverview({ reconciliation, shadowStatus, usage, now = new Date().toISOString(), hunterLookupLimit = 2 }: GtmOverviewInput): GtmOverview {
-  const qualified = reconciliation ? reconciliation.uniqueOrganizations - count(reconciliation, "DISQUALIFIED") - count(reconciliation, "DUPLICATE") : null;
+  const qualified = reconciliation ? reconciliation.uniqueOrganizations - count(reconciliation, "DISQUALIFIED") : null;
   const contactIdentified = reconciliation ? sum(reconciliation, contactStates) : null;
   const emailVerified = reconciliation ? sum(reconciliation, emailStates) : null;
   const suppressionClear = reconciliation ? sum(reconciliation, clearStates) : null;
