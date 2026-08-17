@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "created": "2026-08-17",
+  "purpose": "Repeatable editorial and answer-engine readiness review; not a placement or citation claim.",
+  "queries": [
+    {
+      "query": "post-award grant reporting workflow",
+      "target_page": "/blog/post-award-grant-reporting-checklist",
+      "readiness": "ready",
+      "gap": "Review target copy and factual support before each rerun."
+    },
+    {
+      "query": "grant reporting checklist for nonprofits",
+      "target_page": "/",
+      "readiness": "ready",
+      "gap": "Review target copy and factual support before each rerun."
+    },
+    {
+      "query": "budget to actual grant reporting",
+      "target_page": "/",
+      "readiness": "ready",
+      "gap": "Review target copy and factual support before each rerun."
+    },
+    {
+      "query": "how to turn a grant agreement into a reporting plan",
+      "target_page": "/",
+      "readiness": "ready",
+      "gap": "Review target copy and factual support before each rerun."
+    },
+    {
+      "query": "grant progress report workflow",
+      "target_page": "/blog/post-award-grant-reporting-checklist",
+      "readiness": "ready",
+      "gap": "Review target copy and factual support before each rerun."
+    },
+    {
+      "query": "grant closeout checklist",
+      "target_page": "/",
+      "readiness": "ready",
+      "gap": "Review target copy and factual support before each rerun."
+    },
+    {
+      "query": "post-award grant management software",
+      "target_page": "/",
+      "readiness": "ready",
+      "gap": "Review target copy and factual support before each rerun."
+    },
+    {
+      "query": "AI grant reporting software",
+      "target_page": "/",
+      "readiness": "partial",
+      "gap": "Review target copy and factual support before each rerun."
+    },
+    {
+      "query": "source-linked grant report draft",
+      "target_page": "/",
+      "readiness": "ready",
+      "gap": "Review target copy and factual support before each rerun."
+    },
+    {
+      "query": "nonprofit funder report preparation",
+      "target_page": "/",
+      "readiness": "ready",
+      "gap": "Review target copy and factual support before each rerun."
+    },
+    {
+      "query": "grant reporting financial data and program updates",
+      "target_page": "/",
+      "readiness": "ready",
+      "gap": "Review target copy and factual support before each rerun."
+    },
+    {
+      "query": "grant agreement compliance reporting workflow",
+      "target_page": "/blog/post-award-grant-reporting-checklist",
+      "readiness": "partial",
+      "gap": "Review target copy and factual support before each rerun."
+    },
+    {
+      "query": "funder reporting template workflow",
+      "target_page": "/blog/post-award-grant-reporting-checklist",
+      "readiness": "ready",
+      "gap": "Review target copy and factual support before each rerun."
+    },
+    {
+      "query": "nonprofit grant budget tracking and reporting",
+      "target_page": "/",
+      "readiness": "ready",
+      "gap": "Review target copy and factual support before each rerun."
+    },
+    {
+      "query": "grant reporting evidence review",
+      "target_page": "/",
+      "readiness": "ready",
+      "gap": "Review target copy and factual support before each rerun."
+    },
+    {
+      "query": "grant report missing information follow up",
+      "target_page": "/",
+      "readiness": "ready",
+      "gap": "Review target copy and factual support before each rerun."
+    },
+    {
+      "query": "grant reporting for nonprofit finance teams",
+      "target_page": "/",
+      "readiness": "ready",
+      "gap": "Review target copy and factual support before each rerun."
+    },
+    {
+      "query": "grant reporting tool for program teams",
+      "target_page": "/",
+      "readiness": "ready",
+      "gap": "Review target copy and factual support before each rerun."
+    },
+    {
+      "query": "what does GrantDeskHQ do",
+      "target_page": "/",
+      "readiness": "ready",
+      "gap": "Review target copy and factual support before each rerun."
+    },
+    {
+      "query": "GrantDeskHQ grant reporting",
+      "target_page": "/",
+      "readiness": "ready",
+      "gap": "Review target copy and factual support before each rerun."
+    }
+  ]
+}\n
