@@ -155,7 +155,7 @@ describe("GTM command center", () => {
     render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} /></MemoryRouter>);
     expect(screen.getAllByRole("button", { name: /outbound locked/i }).length).toBeGreaterThan(0);
     expect(document.querySelectorAll("a[href^=\"mailto:\"]")).toHaveLength(0);
-    expect(screen.getByText(/locked at zero in shadow mode/i)).toBeInTheDocument();
+    expect(screen.getByText(/awaiting response.*read-only ledger/i)).toBeInTheDocument();
   });
 
   it("supports keyboard-accessible tab and filter controls", () => {
@@ -204,5 +204,15 @@ describe("GTM command center", () => {
     await user.click(screen.getByRole("tab", { name: "Outreach automation" }));
     expect(screen.getByRole("heading", { name: /Research and drafts stay reviewable/i })).toBeInTheDocument();
     expect(screen.getByText("Outbound delivery").closest("article")?.textContent).toMatch(/Disabled/i);
+  });
+
+  it("renders the ten-entry read-only outreach history without a delivery action", async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} /></MemoryRouter>);
+    await user.click(screen.getByRole("tab", { name: "Outreach history" }));
+    expect(screen.getByRole("heading", { name: /Contact history is factual and read-only/i })).toBeInTheDocument();
+    expect(screen.getByLabelText("Outreach ledger summary")).toHaveTextContent("10sent5direct nonprofit5partner10awaiting response");
+    expect(screen.getAllByText("pending canonical link").length).toBeGreaterThan(0);
+    expect(document.querySelectorAll("a[href^=\"mailto:\"]")).toHaveLength(0);
   });
 });

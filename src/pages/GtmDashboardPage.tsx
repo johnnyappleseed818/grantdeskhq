@@ -42,8 +42,9 @@ import {
 import { useAuth } from "../lib/auth";
 import type { ControlPlaneLeadState, ControlPlaneQueueReconciliation } from "../lib/gtmControlPlaneQueue";
 import type { GtmOverview, GtmMetric } from "../lib/gtmOverview";
+import { confirmedHumanOutreach, reconcileOutreachControlPlane, summarizeOutreach, type OutreachRecord } from "../lib/gtmOutreach";
 
-type DashboardTab = "overview" | "hot-list" | "control-plane" | "signals" | "sources" | "partners" | "pipeline" | "automation" | "accuracy";
+type DashboardTab = "overview" | "hot-list" | "control-plane" | "outreach-history" | "signals" | "sources" | "partners" | "pipeline" | "automation" | "accuracy";
 type StageState = Record<string, OpportunityStage>;
 
 const STORAGE_KEY = "grantdeskhq:gtm-stages:v1";
@@ -116,7 +117,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   });
   const readyCount = ranked.filter((item) => assessOpportunityAccuracy(item).readyForAction).length;
   const unresolvedAwardCandidates = ranked.filter((item) => item.signalKind === "grant_award" && !item.primaryContact?.email).length;
-  const contactedCount = 0;
+  const outreachMetrics = summarizeOutreach(confirmedHumanOutreach);
   const pipelineStages: OpportunityStage[] = ["new", "reviewing", "ready", "contacted", "replied", "converted", "dismissed"];
 
   const updateStage = (id: string, stage: OpportunityStage) => setStages((current) => ({ ...current, [id]: stage }));
@@ -142,7 +143,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
           <Metric icon={BellRing} label="Current alerts" value={ranked.length} detail="verified organizations" />
           <Metric icon={Target} label="Actionable now" value={readyCount} detail="source gate passed" />
           <Metric icon={MessageSquareText} label="Pain signals" value={redditSignals.length + linkedinItems.length + (dailyScan?.items.length || 0)} detail="reviewed + today’s scan" />
-          <Metric icon={MailCheck} label="Outbound actions" value={contactedCount} detail="locked at zero in SHADOW mode" />
+          <Metric icon={MailCheck} label="Human-confirmed sends" value={outreachMetrics.totalSent} detail={`${outreachMetrics.awaitingResponse} awaiting response · read-only ledger`} />
         </div>
         <OverviewPanel overview={overview} />
       </div>
@@ -151,7 +152,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
     <div className="gtm-tab-wrap">
       <div className="site-shell gtm-tabs" role="tablist" aria-label="GTM dashboard sections">
         {([
-          ["overview", "Overview"], ["hot-list", "Daily hot list"], ["control-plane", "Canonical queue"], ["signals", "Manual social research"], ["sources", "Signal engines"], ["partners", "Referral channels"], ["pipeline", "Progress"], ["automation", "Outreach automation"], ["accuracy", "Accuracy controls"]
+          ["overview", "Overview"], ["hot-list", "Daily hot list"], ["control-plane", "Canonical queue"], ["outreach-history", "Outreach history"], ["signals", "Manual social research"], ["sources", "Signal engines"], ["partners", "Referral channels"], ["pipeline", "Progress"], ["automation", "Outreach automation"], ["accuracy", "Accuracy controls"]
         ] as Array<[DashboardTab, string]>).map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={activeTab === id} className={activeTab === id ? "is-active" : ""} onClick={() => setActiveTab(id)}>{label}</button>)}
       </div>
     </div>
@@ -200,6 +201,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
       </section>}
 
       {activeTab === "control-plane" && <ControlPlanePanel reconciliation={controlPlane} />}
+      {activeTab === "outreach-history" && <OutreachHistoryPanel records={confirmedHumanOutreach} canonicalOpportunityIds={controlPlane?.cards.map((card) => card.canonicalCardId) || ranked.map((opportunity) => opportunity.id)} />}
       {activeTab === "signals" && <SignalsPanel dailyScan={dailyScan} loading={signalsLoading} error={signalsError} />}
       {activeTab === "sources" && <SourcesPanel />}
       {activeTab === "partners" && <PartnersPanel />}
@@ -325,3 +327,21 @@ function mergeAwardCandidates(candidates: GtmOpportunity[], verified: GtmOpportu
   const candidateIds = new Set(candidates.map((item) => item.id));
   return [...candidates, ...verified.filter((item) => !candidateIds.has(item.id))];
 }
+function OutreachHistoryPanel({ records, canonicalOpportunityIds }: { records: OutreachRecord[]; canonicalOpportunityIds: readonly string[] }) {
+  const metrics = summarizeOutreach(records);
+  const links = new Map(reconcileOutreachControlPlane(records, canonicalOpportunityIds).map((link) => [link.recordId, link]));
+  return <section aria-labelledby="outreach-history-heading">
+    <div className="gtm-section-heading"><div><p className="eyebrow">Canonical human-confirmed activity</p><h2 id="outreach-history-heading">Contact history is factual and read-only</h2><p>These entries record only the ten human-confirmed sends on August 17, 2026. No email address, provider delivery, reply, trial, conversion, or follow-up has been inferred.</p></div><span className="status-badge status-neutral">NO SEND CONTROLS</span></div>
+    <div className="gtm-automation-metrics" aria-label="Outreach ledger summary"><article><strong>{metrics.totalSent}</strong><span>sent</span></article><article><strong>{metrics.directSent}</strong><span>direct nonprofit</span></article><article><strong>{metrics.partnerSent}</strong><span>partner</span></article><article><strong>{metrics.awaitingResponse}</strong><span>awaiting response</span></article></div>
+    <div className="panel panel-flush mt-6"><div className="table-scroll"><table className="data-table gtm-pipeline-table"><thead><tr><th>Contact</th><th>Organization</th><th>Type</th><th>Sent</th><th>Signal / provenance</th><th>Canonical link</th><th>Outcome</th></tr></thead><tbody>{records.map((record) => {
+      const link = links.get(record.id)!;
+      return <tr key={record.id}><th>{record.contact}<small className="block font-normal text-slate-500">{record.persona}</small></th><td>{record.organization}</td><td>{record.type.replaceAll("_", " ")}</td><td>{formatHistoryDate(record.sentAt)}<small className="block font-normal text-slate-500">date confirmed</small></td><td>{record.whyNowSignal ? <>{record.whyNowSignal}<small className="block font-normal text-slate-500">{record.signalSource}</small></> : <small>{record.source.replaceAll("_", " ").toLowerCase()}</small>}</td><td><span className={`status-badge ${link.status === "LINKED" ? "status-success" : "status-review"}`}>{link.status === "LINKED" ? "linked" : "pending canonical link"}</span>{link.canonicalOpportunityId ? <small className="block font-normal text-slate-500">{link.canonicalOpportunityId}</small> : null}</td><td>Awaiting response<small className="block font-normal text-slate-500">No reply, trial, or conversion recorded</small></td></tr>;
+    })}</tbody></table></div></div>
+    <div className="gtm-boundary-note"><ShieldCheck aria-hidden="true" /><div><strong>Read-only record of human activity</strong><p>Records without source-backed Control Plane IDs remain pending. They are not matched by name, and this view has no email, delivery, or outreach action.</p></div></div>
+  </section>;
+}
+
+function formatHistoryDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(new Date(value));
+}
+
