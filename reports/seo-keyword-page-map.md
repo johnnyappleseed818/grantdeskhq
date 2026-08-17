@@ -2,6 +2,8 @@
 
 **Search volume:** NOT VERIFIED. This is a canonical information architecture, not a ranking or traffic forecast. “Observed” describes public terminology found in the bounded Instrumentl audit. “Inferred” describes a focused post-award opportunity for GrantDeskHQ.
 
+**Validation date:** 2026-08-17 UTC. “Observed” means the term or page subject was seen on a public Instrumentl page during the dated audit; it does not mean search demand, ranking, or conversion has been measured. “Inferred” is a GrantDeskHQ content hypothesis.
+
 ## Canonical live and planned pages
 
 | Primary term | Status | Intent | Canonical URL | Page type | Buyer stage | Internal links from | Internal links to | CTA |

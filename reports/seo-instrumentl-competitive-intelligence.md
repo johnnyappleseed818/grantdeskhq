@@ -1,6 +1,6 @@
 # Instrumentl public SEO competitive intelligence
 
-**Research date:** 2026-08-17  
+**Research date:** 2026-08-17 (public pages checked 2026-08-17 UTC)
 **Scope:** public Instrumentl pages only. No restricted scraping, private tooling, measured search volume, or copied competitor prose. **OBSERVED FACT** comes from URLs, headings, public pricing, help content, or page structure. **INFERENCE** is an evidence-based strategy judgment, not a demand or ranking claim.
 
 ## Executive readout
@@ -10,6 +10,14 @@
 **INFERENCE:** GrantDeskHQ should not compete on every grants query. Its credible organic wedge is the reporting handoff after an award: agreement → obligations → reporting plan → financial and program inputs → evidence → reviewable draft → human review → closeout.
 
 **RECOMMENDATION:** publish source-linked operational resources for nonprofit finance and grants teams. Explain how to make reporting inputs reviewable without claiming to replace accounting systems, funder instructions, or human approval.
+
+## Freshness and evidence boundary
+
+This is a dated snapshot, not a standing product or pricing claim. The public pricing page currently shows Full Lifecycle at $999/month paid annually or $1,159/month paid monthly, with post-award spend tracking, accounting integrations, planned expenses, budget-vs-actual reports, and over/under notifications. Those details can change and must be rechecked before any public comparison or product-marketing use. [Instrumentl pricing](https://www.instrumentl.com/pricing)
+
+The public post-award article is Instrumentl-authored and self-identifies as recommending Instrumentl; treat its product descriptions as the publisher's claims, not independent validation. It describes awards, payments, next report dates, tasks, documents, and lifecycle coverage. [Instrumentl post-award software article](https://www.instrumentl.com/blog/post-award-grant-management-software)
+
+The public help article uses budget-vs-actuals, grant identifiers, GL mappings, accounting source of truth, and CSV export terminology. This supports vocabulary discovery only; it does not establish GrantDeskHQ feature parity or user demand. [Instrumentl Budget vs. Actuals help](https://help.instrumentl.com/en/articles/14782696-budget-vs-actuals-report)
 
 ## Public content inventory
 
@@ -96,7 +104,7 @@
 
 ## Commercial and conquest posture
 
-**OBSERVED FACT:** Instrumentl lists Full Lifecycle at $1,159 monthly or $999 per month paid annually when reviewed, and describes it as a broad platform that includes discovery, pre-award capability, post-award spend tracking, accounting connections, budget-vs-actual reports, and alerts. [Pricing](https://www.instrumentl.com/pricing)
+**OBSERVED FACT:** Instrumentl's pricing page showed Full Lifecycle at $1,159 monthly or $999 per month paid annually on the research date, and describes it as a broad platform that includes discovery, pre-award capability, post-award spend tracking, accounting connections, budget-vs-actual reports, and alerts. [Pricing](https://www.instrumentl.com/pricing)
 
 **INFERENCE:** A comparison audience may include teams that already have awards and primarily need a focused reporting workflow rather than discovery and application tooling.
 
