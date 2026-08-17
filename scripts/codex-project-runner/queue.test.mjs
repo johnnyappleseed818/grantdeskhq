@@ -29,7 +29,7 @@ test("PASS requires recorded tests, no blocker, and every expected artifact", ()
 });
 
 test("dry run checkpoints a selected task without invoking Codex", async () => {
-  const { dir, queuePath, policyPath, schemaPath } = fixture(); const queue = { tasks: [task("first", 1), task("blocked", 2, "BLOCKED")] }; writeJson(queuePath, queue); const statusFile = join(dir, "status.txt"); const result = await runQueue({ queuePath, policyPath, schemaPath, root: dir, stateDir: join(dir, "state"), statusFile, dryRun: true, maxTasks: 1, maxRuntimeHours: 1 }); assert.equal(result.tasks[0].status, "PARTIAL"); assert.equal(result.tasks[1].status, "BLOCKED"); assert.match(readFileSync(statusFile, "utf8"), /LAST COMPLETED TASK: first/);
+  const { dir, queuePath, policyPath, schemaPath } = fixture(); const queue = { tasks: [task("first", 1), task("blocked", 2, "BLOCKED")] }; writeJson(queuePath, queue); const statusFile = join(dir, "status.txt"); const result = await runQueue({ queuePath, policyPath, schemaPath, root: dir, stateDir: join(dir, "state"), statusFile, dryRun: true, maxTasks: 1, maxRuntimeHours: 1 }); assert.equal(result.tasks[0].status, "PARTIAL"); assert.equal(result.tasks[1].status, "BLOCKED"); assert.match(readFileSync(statusFile, "utf8"), /LAST COMPLETED TASK: first/); assert.match(readFileSync(join("/home/eli_katz/grantdeskhq-overnight-summary.txt"), "utf8"), /TASKS REMAINING/);
 });
 
 test("the legacy bounded runner validates the actual result path", () => {

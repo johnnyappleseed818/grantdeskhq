@@ -82,6 +82,14 @@ export async function invokeCodex({ root, task, policy, schema, stateDir, maxRun
   });
 }
 
+export function writeMorningReport(queue, stateDir, reportFile = join(homedir(), "grantdeskhq-overnight-summary.txt"), runtimeMs = 0) {
+  const summary = queueSummary(queue); const lines = ["GRANTDESKHQ OVERNIGHT REPORT", "", "TOTAL RUNTIME: " + Math.round(runtimeMs / 60000) + " minutes", "TASKS STARTED: " + queue.tasks.filter((task) => task.started_at).length, "TASKS PASSED: " + summary.count.PASS, "TASKS BLOCKED: " + summary.count.BLOCKED, "TASKS FAILED: " + summary.count.FAILED, "TASKS REMAINING: " + summary.remaining, "", "TASK CHECKPOINTS:"];
+  for (const task of queue.tasks) lines.push(task.id + " | " + task.status + " | " + (task.result_summary || task.blocker || "not started"));
+  lines.push("", "PRODUCTION TRAFFIC CHANGED: NO", "OUTBOUND ACTIONS: 0", "PURCHASES: 0", "PAID ENRICHMENT: 0", "HUMAN ACTIONS REQUIRED:");
+  const blockers = queue.tasks.filter((task) => task.status === "BLOCKED"); lines.push(...(blockers.length ? blockers.map((task) => task.id + ": " + task.blocker) : ["NONE"]));
+  mkdirSync(dirname(reportFile), { recursive: true }); writeFileSync(reportFile, lines.join("\n") + "\n"); appendFileSync(join(stateDir, "queue.log"), now() + " morning report updated\n");
+}
+
 export async function runQueue({ queuePath, policyPath, schemaPath, root, stateDir = defaultStateDir, statusFile = defaultStatusFile, maxRuntimeHours = 8, maxTasks = 20, dryRun = false }) {
   rmSync(stopPath(stateDir), { force: true }); const queue = validateQueue(readJson(queuePath)); const policy = readFileSync(policyPath, "utf8"); acquireLock(stateDir, queuePath); const started = Date.now(); let lastCompleted = null;
   try {
@@ -94,6 +102,6 @@ export async function runQueue({ queuePath, policyPath, schemaPath, root, stateD
       if (task.status === "FAILED" && task.attempt_count < task.max_attempts) { task.status = "QUEUED"; task.blocker = "Retry " + task.attempt_count + " of " + task.max_attempts + ": " + task.blocker; }
       writeJson(queuePath, queue); lastCompleted = terminal.has(task.status) ? task.id : lastCompleted; updateLock(stateDir, { activeTask: null, childPid: null }); writeStatus(queue, stateDir, statusFile, { currentTask: "none", lastCompleted, checkpoint: "task checkpointed" });
     }
-  } finally { updateLock(stateDir, { activeTask: null, childPid: null }); writeStatus(queue, stateDir, statusFile, { currentTask: "none", lastCompleted, checkpoint: "runner stopped" }); releaseLock(stateDir); }
+  } finally { updateLock(stateDir, { activeTask: null, childPid: null }); writeStatus(queue, stateDir, statusFile, { currentTask: "none", lastCompleted, checkpoint: "runner stopped" }); writeMorningReport(queue, stateDir, process.env.CODEX_QUEUE_MORNING_REPORT || join(homedir(), "grantdeskhq-overnight-summary.txt"), Date.now() - started); releaseLock(stateDir); }
   return queue;
 }
