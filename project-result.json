@@ -1,7 +1,21 @@
 {
   "status": "PASS",
-  "tests": ["Tagged Cloud Run candidate grantdeskhq-prototype-foundergtm0817 Ready with zero traffic", "Candidate /api/health, /pricing, and /resources checks", "Unauthenticated GTM API protection and /gtm login redirect", "Playwright pricing terminology and 390px navigation check", "npx vitest run src/test/gtm.test.tsx src/test/gtmOverview.test.ts src/test/gtmOutreach.test.ts src/test/pricing.test.ts src/test/workspaceReports.test.tsx src/test/app.test.tsx src/test/billing.test.ts --disableConsoleIntercept (69 passed)", "npm run lint", "git diff --check", "non-secret candidate/live runtime configuration comparison"],
-  "artifacts": ["reports/gtm-founder-dashboard-candidate-validation.md"],
+  "tests": [
+    "Tagged Cloud Run candidate grantdeskhq-prototype-foundergtm0817 Ready with zero traffic",
+    "Candidate /api/health, /pricing, and /resources checks",
+    "Unauthenticated GTM API protection and /gtm login redirect",
+    "Playwright pricing terminology and 390px navigation check",
+    "npx vitest run src/test/gtm.test.tsx src/test/gtmOverview.test.ts src/test/gtmOutreach.test.ts src/test/pricing.test.ts src/test/workspaceReports.test.tsx src/test/app.test.tsx src/test/billing.test.ts --disableConsoleIntercept (69 passed)",
+    "npm run lint",
+    "git diff --check",
+    "non-secret candidate/live runtime configuration comparison",
+    "Authorized exact-candidate promotion to 100% traffic",
+    "Live health, public route, pricing terminology, responsive navigation, and GTM protection smoke checks"
+  ],
+  "artifacts": [
+    "reports/gtm-founder-dashboard-candidate-validation.md",
+    "reports/gtm-founder-dashboard-production-validation.md"
+  ],
   "blocker": "",
-  "result_summary": "Tagged zero-traffic candidate grantdeskhq-prototype-foundergtm0817 passed health, public-route, terminology, GTM-protection, responsive-navigation, manual-ledger, automation-lock, and non-secret configuration checks. Live rollback target grantdeskhq-prototype-00164-dug remains at 100% traffic."
+  "result_summary": "The exact validated zero-traffic candidate grantdeskhq-prototype-foundergtm0817 was promoted to 100% production traffic after all gates passed. Live health, public routes, pricing terminology, mobile Resources navigation, and GTM protection passed. Direct 5, partner 5, and total 10 human-confirmed sends reconcile with zero missing/unaccounted records; automated outbound remains locked. Stripe was not changed. Rollback revision grantdeskhq-prototype-00164-dug is preserved."
 }

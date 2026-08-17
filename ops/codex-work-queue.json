@@ -1428,7 +1428,7 @@
       "priority": 6,
       "status": "PASS",
       "created_at": "2026-08-17T15:28:22.829Z",
-      "updated_at": "2026-08-17T15:37:19Z",
+      "updated_at": "2026-08-17T15:41:13.936Z",
       "description": "Use the documented GrantDeskHQ source deployment procedure to create a tagged zero-traffic candidate from the current validated feature branch. Preserve the current live revision and all existing service configuration. Validate candidate health, public pricing route, public resource route, public terminology bundle, private GTM route protection, responsive component coverage, manual 5 direct plus 5 partner plus 10 total commercial totals, automation lock, and no unrelated commercial configuration change. Do not allocate production traffic or perform an external delivery action. Record revision, candidate URL, exact checks, rollback revision, and candidate readiness.",
       "acceptance_criteria": [
         "A tagged candidate revision receives zero traffic.",
@@ -1465,17 +1465,17 @@
         "GTM route protection"
       ],
       "branch": "feature/outreach-feedback-tracking",
-      "commit_sha": "640f7a9",
+      "commit_sha": "b933c36c6161d3038bce422c19bfb057f054d3da",
       "started_at": "2026-08-17T15:28:23.032Z",
-      "completed_at": "2026-08-17T15:37:19Z",
+      "completed_at": "2026-08-17T15:41:13.936Z",
       "blocker": "",
-      "result_summary": "Tagged zero-traffic candidate grantdeskhq-prototype-foundergtm0817 passed health, public-route, pricing terminology, GTM route protection, responsive coverage, 5 direct + 5 partner + 10 total manual-ledger, automation-lock, and non-secret configuration checks. Live rollback target grantdeskhq-prototype-00164-dug remains at 100% traffic.",
+      "result_summary": "Created tagged candidate grantdeskhq-prototype-foundergtm0817 at https://founder-gtm-0817---grantdeskhq-prototype-me423s5k5a-uc.a.run.app with 0% traffic. Live rollback target grantdeskhq-prototype-00164-dug remains at 100%. No outreach, commercial configuration, or production traffic change occurred.",
       "risk_level": "MODERATE",
       "selected_tier": "STANDARD",
       "selected_model": "gpt-5.6-terra",
       "reasoning_level": "medium",
       "why_selected": "Normal repository implementation or test work with no high-risk indicators.",
-      "runtime_ms": null,
+      "runtime_ms": 770888,
       "fallback_reason": null,
       "escalation_reason": null,
       "escalation_count": 0,
@@ -1483,7 +1483,8 @@
       "route_step": 0,
       "validation_status": "PASS",
       "exceptional_escalation_approved": false,
-      "max_runtime_minutes": 45
+      "max_runtime_minutes": 45,
+      "run_dir": "/home/eli_katz/grantdesk-project-runs/codex-queue/runs/founder-gtm-zero-traffic-candidate-20260817/2026-08-17T15-28-23-034Z"
     }
   ]
 }
