@@ -20,7 +20,6 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
-  Target,
   UsersRound
 } from "lucide-react";
 import { Link, Navigate } from "react-router-dom";
@@ -44,7 +43,7 @@ import type { ControlPlaneLeadState, ControlPlaneQueueReconciliation } from "../
 import type { GtmOverview, GtmMetric } from "../lib/gtmOverview";
 import { confirmedHumanOutreach, reconcileOutreachControlPlane, summarizeOutreach, type OutreachRecord } from "../lib/gtmOutreach";
 
-type DashboardTab = "overview" | "hot-list" | "control-plane" | "outreach-history" | "signals" | "sources" | "partners" | "pipeline" | "automation" | "accuracy";
+type DashboardTab = "overview" | "outreach" | "leads" | "partners" | "feedback" | "system-health";
 type StageState = Record<string, OpportunityStage>;
 
 const STORAGE_KEY = "grantdeskhq:gtm-stages:v1";
@@ -67,7 +66,7 @@ export function GtmDashboardPage() {
 }
 
 export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null, initialAwardScan = null, initialControlPlane = null, initialOverview = null, seedOpportunities = [] }: { dailySignalToken?: () => Promise<string>; initialDailyScan?: DailySocialScan | null; initialAwardScan?: AwardDiscoveryScan | null; initialControlPlane?: ControlPlaneQueueReconciliation | null; initialOverview?: GtmOverview | null; seedOpportunities?: GtmOpportunity[] } = {}) {
-  const [activeTab, setActiveTab] = useState<DashboardTab>("hot-list");
+  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
   const [filter, setFilter] = useState<"all" | SignalKind>("all");
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<string | null>(seedOpportunities[0]?.id || null);
@@ -81,6 +80,8 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   const [signalsLoading, setSignalsLoading] = useState(Boolean(dailySignalToken));
   const [signalsError, setSignalsError] = useState("");
   const [outreach, setOutreach] = useState<OutreachRecord[]>(confirmedHumanOutreach);
+  const [outreachType, setOutreachType] = useState<"all" | OutreachRecord["type"]>("all");
+  const [outreachQuery, setOutreachQuery] = useState("");
 
   useEffect(() => {
     if (!dailySignalToken) return;
@@ -123,7 +124,6 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
     const haystack = `${opportunity.organization} ${opportunity.headline} ${opportunity.funder || ""}`.toLowerCase();
     return matchesFilter && haystack.includes(query.trim().toLowerCase());
   });
-  const readyCount = ranked.filter((item) => assessOpportunityAccuracy(item).readyForAction).length;
   const unresolvedAwardCandidates = ranked.filter((item) => item.signalKind === "grant_award" && !item.primaryContact?.email).length;
   const outreachMetrics = summarizeOutreach(outreach);
   const pipelineStages: OpportunityStage[] = ["new", "reviewing", "ready", "contacted", "replied", "converted", "dismissed"];
@@ -143,31 +143,27 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   return <div className="gtm-page">
     <header className="gtm-header">
       <div className="site-shell py-9 lg:py-12">
-        <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
-          <div><div className="prototype-pill"><span aria-hidden="true" /> Private GTM workspace · human approval required</div><p className="eyebrow mt-6">Grant-reporting pain detection</p><h1>Find the few organizations worth acting on today.</h1><p>GrantDeskHQ combines recent grant awards, hiring signals, public workflow pain, competitor intent, and partner opportunities into one source-backed action queue. Nothing is posted or emailed automatically.</p></div>
-          <Link className="button button-primary button-large" to="/readiness"><FileSearch aria-hidden="true" />Open readiness audit</Link>
+        <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end"><div><div className="prototype-pill"><span aria-hidden="true" /> Private founder console · human approval required</div><p className="eyebrow mt-6">Commercial operating view</p><h1>Founder GTM Command Center</h1><p>Confirmed manual outreach and canonical pipeline records only. Nothing is posted or emailed automatically.</p></div><span className="status-badge status-neutral">AUTOMATED OUTBOUND LOCKED</span></div>
+        <div className="gtm-metrics" aria-label="Commercial KPIs">
+          <Metric icon={MailCheck} label="Manual sent" value={outreachMetrics.totalSent} detail={outreachMetrics.directSent + " direct · " + outreachMetrics.partnerSent + " partner"} />
+          <Metric icon={MessageSquareText} label="Awaiting reply" value={outreachMetrics.awaitingResponse} detail="derived from no recorded response" />
+          <Metric icon={CheckCircle2} label="Replies" value={outreachMetrics.replied} detail="recorded outcomes only" />
+          <Metric icon={CircleDollarSign} label="Paid / MRR" value={outreachMetrics.customers} detail={"0 paid · " + String.fromCharCode(36) + "0 MRR"} />
         </div>
-        <div className="gtm-metrics" aria-label="GTM summary">
-          <Metric icon={BellRing} label="Current alerts" value={ranked.length} detail="verified organizations" />
-          <Metric icon={Target} label="Actionable now" value={readyCount} detail="source gate passed" />
-          <Metric icon={MessageSquareText} label="Pain signals" value={redditSignals.length + linkedinItems.length + (dailyScan?.items.length || 0)} detail="reviewed + today’s scan" />
-          <Metric icon={MailCheck} label="Human-confirmed sends" value={outreachMetrics.totalSent} detail={`${outreachMetrics.awaitingResponse} awaiting response · read-only ledger`} />
-        </div>
-        <OverviewPanel overview={overview} />
       </div>
     </header>
 
     <div className="gtm-tab-wrap">
       <div className="site-shell gtm-tabs" role="tablist" aria-label="GTM dashboard sections">
         {([
-          ["overview", "Overview"], ["hot-list", "Daily hot list"], ["control-plane", "Canonical queue"], ["outreach-history", "Outreach history"], ["signals", "Manual social research"], ["sources", "Signal engines"], ["partners", "Referral channels"], ["pipeline", "Progress"], ["automation", "Outreach automation"], ["accuracy", "Accuracy controls"]
+          ["overview", "Overview"], ["outreach", "Outreach"], ["leads", "Leads"], ["partners", "Partners"], ["feedback", "Feedback"], ["system-health", "System Health"]
         ] as Array<[DashboardTab, string]>).map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={activeTab === id} className={activeTab === id ? "is-active" : ""} onClick={() => setActiveTab(id)}>{label}</button>)}
       </div>
     </div>
 
     <div className="site-shell py-8 lg:py-12">
-      {activeTab === "overview" && <OverviewPanel overview={overview} inMain />}
-      {activeTab === "hot-list" && <section aria-labelledby="hot-list-heading">
+      {activeTab === "overview" && <FounderOverview records={outreach} onOpenOutreach={() => setActiveTab("outreach")} />}
+      {activeTab === "leads" && <section aria-labelledby="hot-list-heading">
         <div className="gtm-section-heading"><div><p className="eyebrow">Today’s review queue</p><h2 id="hot-list-heading">Prioritized by pain, timing, fit, and potential value</h2><p>A high score never replaces evidence. Every row shows what is known, what is inferred, and what still needs confirmation.</p></div><div className="status-badge status-success"><RefreshCw aria-hidden="true" /> Award feed scheduled daily</div></div>
         <div className="gtm-toolbar">
           <label className="gtm-search"><Search aria-hidden="true" /><span className="sr-only">Search opportunities</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search organizations or funders" /></label>
@@ -208,17 +204,25 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
         </div>
       </section>}
 
-      {activeTab === "control-plane" && <ControlPlanePanel reconciliation={controlPlane} />}
-      {activeTab === "outreach-history" && <OutreachHistoryPanel records={outreach} canonicalOpportunityIds={controlPlane?.cards.map((card) => card.canonicalCardId) || ranked.map((opportunity) => opportunity.id)} />}
-      {activeTab === "signals" && <SignalsPanel dailyScan={dailyScan} loading={signalsLoading} error={signalsError} />}
-      {activeTab === "sources" && <SourcesPanel />}
+      {activeTab === "leads" && <ControlPlanePanel reconciliation={controlPlane} />}
+      {activeTab === "outreach" && <OutreachHistoryPanel records={outreach} canonicalOpportunityIds={controlPlane?.cards.map((card) => card.canonicalCardId) || ranked.map((opportunity) => opportunity.id)} typeFilter={outreachType} query={outreachQuery} onTypeFilter={setOutreachType} onQuery={setOutreachQuery} />}
       {activeTab === "partners" && <PartnersPanel />}
-      {activeTab === "pipeline" && <PipelinePanel opportunities={ranked} stages={stages} stagesOrder={pipelineStages} onStageChange={updateStage} />}
-      {activeTab === "automation" && <OutreachAutomationPanel opportunities={ranked} stages={stages} />}
-      {activeTab === "accuracy" && <AccuracyPanel />}
+      {activeTab === "feedback" && <FeedbackPanel />}
+      {activeTab === "system-health" && <><OverviewPanel overview={overview} inMain /><div className="mt-8"><SignalsPanel dailyScan={dailyScan} loading={signalsLoading} error={signalsError} /></div><div className="mt-8"><SourcesPanel /></div><div className="mt-8"><PipelinePanel opportunities={ranked} stages={stages} stagesOrder={pipelineStages} onStageChange={updateStage} /></div><div className="mt-8"><OutreachAutomationPanel opportunities={ranked} stages={stages} /></div><div className="mt-8"><AccuracyPanel /></div></>}
     </div>
   </div>;
 }
+
+function FounderOverview({ records, onOpenOutreach }: { records: OutreachRecord[]; onOpenOutreach(): void }) {
+  const metrics = summarizeOutreach(records);
+  const positiveReplies = records.filter((record) => record.replySentiment === "POSITIVE").length;
+  const awaiting = records.filter((record) => record.nextAction === "AWAIT_RESPONSE" && !record.replied);
+  return <section aria-labelledby="founder-overview-heading"><div className="gtm-section-heading"><div><p className="eyebrow">Commercial performance</p><h2 id="founder-overview-heading">Manual outreach is the operating truth</h2><p>Only the confirmed manual ledger contributes to commercial counts. Automated outbound remains locked and is not part of these results.</p></div><button type="button" className="button button-secondary" onClick={onOpenOutreach}>Open outreach ledger</button></div><div className="gtm-automation-metrics" aria-label="Commercial funnel"><article><strong>{metrics.totalSent}</strong><span>Sent</span></article><article><strong>{metrics.awaitingResponse}</strong><span>Awaiting reply</span></article><article><strong>{metrics.replied}</strong><span>Replies</span></article><article><strong>{positiveReplies}</strong><span>Positive replies</span></article><article><strong>{metrics.trials}</strong><span>Trials or Free First Awards</span></article><article><strong>{metrics.customers}</strong><span>Paid</span></article><article><strong>{String.fromCharCode(36)}0</strong><span>MRR</span></article></div><div className="grid gap-6 lg:grid-cols-2 mt-6"><FunnelCard title="Direct funnel" sent={metrics.directSent} records={records.filter((record) => record.type === "DIRECT_NONPROFIT")} /><FunnelCard title="Partner funnel" sent={metrics.partnerSent} records={records.filter((record) => record.type === "PARTNER")} /></div><div className="panel mt-6"><div className="panel-heading"><div><p className="eyebrow">Next actions</p><h3>Await a recorded response</h3></div><span className="status-badge status-neutral">NO FOLLOW-UP DATE IN LEDGER</span></div><p className="text-sm text-slate-600">No arbitrary follow-up date has been created. These contacts have a canonical next action but no response recorded.</p><ul className="mt-4 grid gap-2 sm:grid-cols-2">{awaiting.map((record) => <li className="border-b border-slate-100 pb-2 text-sm" key={record.id}><strong>{record.organization}</strong><span className="block text-slate-500">{record.contact} · await response</span></li>)}</ul></div></section>;
+}
+
+function FunnelCard({ title, sent, records }: { title: string; sent: number; records: OutreachRecord[] }) { const replies = records.filter((record) => record.replied).length; const trials = records.filter((record) => record.trial).length; const paid = records.filter((record) => record.customer).length; return <div className="panel"><p className="eyebrow">{title}</p><div className="gtm-automation-metrics mt-4"><article><strong>{sent}</strong><span>Sent</span></article><article><strong>{replies}</strong><span>Replies</span></article><article><strong>{trials}</strong><span>Trials</span></article><article><strong>{paid}</strong><span>Paid</span></article></div></div>; }
+
+function FeedbackPanel() { return <section aria-labelledby="feedback-heading"><div className="gtm-section-heading"><div><p className="eyebrow">Voice of customer</p><h2 id="feedback-heading">Feedback review</h2><p>Feedback is stored and reviewed in its dedicated, authenticated workflow. No notifications or downstream actions are inferred here.</p></div><Link className="button button-secondary" to="/gtm/feedback">Open feedback review</Link></div><div className="panel mt-6"><MessageSquareText aria-hidden="true" /><h3 className="mt-4">Use the existing feedback queue</h3><p className="mt-2 text-sm text-slate-600">Review submission status and notes in the existing route without duplicating or fabricating feedback records in the command center.</p></div></section>; }
 
 function OverviewPanel({ overview, inMain = false }: { overview: GtmOverview | null; inMain?: boolean }) {
   if (!overview) return <section className={inMain ? "gtm-overview-panel" : "gtm-overview-panel mt-8"} aria-label="GTM overview"><div className="gtm-boundary-note"><AlertCircle aria-hidden="true" /><div><strong>Founder overview is waiting for protected GTM data.</strong><p>Counts are intentionally not estimated. The dashboard will show BLOCKED until the canonical reconciliation and enrichment usage can be read.</p></div></div></section>;
@@ -335,13 +339,15 @@ function mergeAwardCandidates(candidates: GtmOpportunity[], verified: GtmOpportu
   const candidateIds = new Set(candidates.map((item) => item.id));
   return [...candidates, ...verified.filter((item) => !candidateIds.has(item.id))];
 }
-function OutreachHistoryPanel({ records, canonicalOpportunityIds }: { records: OutreachRecord[]; canonicalOpportunityIds: readonly string[] }) {
+function OutreachHistoryPanel({ records, canonicalOpportunityIds, typeFilter, query, onTypeFilter, onQuery }: { records: OutreachRecord[]; canonicalOpportunityIds: readonly string[]; typeFilter: "all" | OutreachRecord["type"]; query: string; onTypeFilter(value: "all" | OutreachRecord["type"]): void; onQuery(value: string): void }) {
   const metrics = summarizeOutreach(records);
+  const filteredRecords = records.filter((record) => (typeFilter === "all" || record.type === typeFilter) && [record.contact, record.organization, record.persona].join(" ").toLowerCase().includes(query.trim().toLowerCase()));
   const links = new Map(reconcileOutreachControlPlane(records, canonicalOpportunityIds).map((link) => [link.recordId, link]));
   return <section aria-labelledby="outreach-history-heading">
     <div className="gtm-section-heading"><div><p className="eyebrow">Canonical human-confirmed activity</p><h2 id="outreach-history-heading">Contact history is factual and read-only</h2><p>These entries record only the ten human-confirmed sends on August 17, 2026. No email address, provider delivery, reply, trial, conversion, or follow-up has been inferred.</p></div><span className="status-badge status-neutral">NO SEND CONTROLS</span></div>
     <div className="gtm-automation-metrics" aria-label="Outreach ledger summary"><article><strong>{metrics.totalSent}</strong><span>sent</span></article><article><strong>{metrics.directSent}</strong><span>direct nonprofit</span></article><article><strong>{metrics.partnerSent}</strong><span>partner</span></article><article><strong>{metrics.awaitingResponse}</strong><span>awaiting response</span></article></div>
-    <div className="panel panel-flush mt-6"><div className="table-scroll"><table className="data-table gtm-pipeline-table"><thead><tr><th>Contact</th><th>Organization</th><th>Type</th><th>Sent</th><th>Signal / provenance</th><th>Canonical link</th><th>Outcome</th></tr></thead><tbody>{records.map((record) => {
+    <div className="gtm-toolbar"><label className="gtm-search"><Search aria-hidden="true" /><span className="sr-only">Search outreach history</span><input aria-label="Search outreach history" value={query} onChange={(event) => onQuery(event.target.value)} placeholder="Search contact or organization" /></label><label className="field-label">Outreach type<select className="form-control" aria-label="Filter outreach type" value={typeFilter} onChange={(event) => onTypeFilter(event.target.value as "all" | OutreachRecord["type"])}><option value="all">All outreach</option><option value="DIRECT_NONPROFIT">Direct</option><option value="PARTNER">Partner</option></select></label></div>
+    <div className="panel panel-flush mt-6"><div className="table-scroll"><table className="data-table gtm-pipeline-table"><thead><tr><th>Contact</th><th>Organization</th><th>Type</th><th>Sent</th><th>Signal / provenance</th><th>Canonical link</th><th>Outcome</th></tr></thead><tbody>{filteredRecords.map((record) => {
       const link = links.get(record.id)!;
       return <tr key={record.id}><th>{record.contact}<small className="block font-normal text-slate-500">{record.persona}</small></th><td>{record.organization}</td><td>{record.type.replaceAll("_", " ")}</td><td>{formatHistoryDate(record.sentAt)}<small className="block font-normal text-slate-500">date confirmed</small></td><td>{record.whyNowSignal ? <>{record.whyNowSignal}<small className="block font-normal text-slate-500">{record.signalSource}</small></> : <small>{record.source.replaceAll("_", " ").toLowerCase()}</small>}</td><td><span className={`status-badge ${link.status === "LINKED" ? "status-success" : "status-review"}`}>{link.status === "LINKED" ? "linked" : "pending canonical link"}</span>{link.canonicalOpportunityId ? <small className="block font-normal text-slate-500">{link.canonicalOpportunityId}</small> : null}</td><td>Awaiting response<small className="block font-normal text-slate-500">No reply, trial, or conversion recorded</small></td></tr>;
     })}</tbody></table></div></div>
