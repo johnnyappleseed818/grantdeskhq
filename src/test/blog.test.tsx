@@ -3,7 +3,7 @@ import path from "node:path";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it } from "vitest";
-import { BLOG_POSTS, blogWordCount } from "../content/blog";
+import { BLOG_POSTS, blogWordCount, findBlogPost } from "../content/blog";
 import { BlogIndexPage, BlogPostPage } from "../pages/BlogPage";
 import { ResourcesPage } from "../pages/ResourcesPage";
 
@@ -25,6 +25,7 @@ describe("public GrantDeskHQ blog", () => {
   it("renders a discoverable article with source links and a self-service CTA", () => {
     render(<MemoryRouter initialEntries={["/blog/post-award-grant-reporting-checklist"]}><Routes><Route path="/blog/:slug" element={<BlogPostPage />} /><Route path="/pricing" element={<div>Pricing</div>} /></Routes></MemoryRouter>);
     expect(screen.getByRole("heading", { name: /post-award grant reporting checklist/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /try one award for free/i })).toHaveAttribute("href", "/assessment");
     expect(screen.getByRole("link", { name: /view self-service plans/i })).toHaveAttribute("href", "/pricing");
     expect(screen.getByRole("link", { name: /uniform administrative requirements/i })).toHaveAttribute("href", expect.stringMatching(/^https:\/\//));
     expect(screen.getByRole("link", { name: "All resources" })).toHaveAttribute("href", "/resources");
@@ -38,6 +39,20 @@ describe("public GrantDeskHQ blog", () => {
     expect(property("og:url")).toBe("https://grantdeskhq.com/blog/budget-to-actual-grant-reporting-workflow");
     expect(property("article:published_time")).toBe("2026-08-16");
     expect(document.querySelector("link[rel=canonical]")?.getAttribute("href")).toBe("https://grantdeskhq.com/blog/budget-to-actual-grant-reporting-workflow");
+  });
+
+  it.each([
+    ["turn-grant-agreement-into-reporting-plan", /turn a grant agreement into a practical reporting plan/i],
+    ["grant-progress-report-workflow", /grant progress report workflow/i],
+    ["grant-closeout-checklist", /grant closeout checklist/i],
+    ["post-award-grant-management-software", /post-award grant management software/i]
+  ])("publishes the candidate route %s with unique metadata and internal links", (slug, heading) => {
+    render(<MemoryRouter initialEntries={["/blog/" + slug]}><Routes><Route path="/blog/:slug" element={<BlogPostPage />} /></Routes></MemoryRouter>);
+    expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument();
+    expect(document.querySelector('meta[name="description"]')?.getAttribute("content")).toBe(findBlogPost(slug)?.description);
+    expect(document.querySelector("link[rel=canonical]")?.getAttribute("href")).toBe("https://grantdeskhq.com/blog/" + slug);
+    expect(screen.getByRole("link", { name: "All resources" })).toHaveAttribute("href", "/resources");
+    expect(screen.getByRole("link", { name: /try one award for free/i })).toHaveAttribute("href", "/assessment");
   });
 
   it("renders only published resources on the public Resources hub", () => {
