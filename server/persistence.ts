@@ -5,6 +5,7 @@ import type { AwardDiscoveryScan, DailySocialScan } from "../src/lib/gtm.ts";
 import type { ShadowPipelineStatus } from "../src/lib/gtmShadow.ts";
 import type { ControlPlaneQueueReconciliation } from "../src/lib/gtmControlPlaneQueue.ts";
 import type { ContactEnrichmentRecord, EnrichmentUsage, SuppressionCheck } from "../src/lib/contactEnrichment.ts";
+import type { FeedbackSubmission } from "../src/lib/feedback.ts";
 import type { AuthenticatedUser } from "./auth.ts";
 import { normalizeAttribution, type Attribution, type BillingEventSnapshot } from "./billing.ts";
 import { subscriptionIsEntitled } from "../src/content/pricing.ts";
@@ -25,6 +26,21 @@ const bucket = process.env.REPORT_FILES_BUCKET || "grantdeskhq-proto-ek-2026-rep
 const firestoreBase = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
 export const COMPILATION_VERSION = CANONICAL_ANALYSIS_VERSION;
 let tokenCache: { token: string; expiresAt: number } | null = null;
+
+export async function saveFeedback(submission: FeedbackSubmission) {
+  const accessToken = await gcpToken();
+  await writeDocument(accessToken, `feedback/records/submissions/${safeFeedbackDocumentId(submission.id)}`, { ...submission, userId: submission.userId || "", linkedCustomerId: submission.linkedCustomerId || "" });
+  return submission;
+}
+
+export async function listFeedback(limit = 100): Promise<FeedbackSubmission[]> {
+  const accessToken = await gcpToken();
+  const response = await authorizedFetch(`${firestoreBase}/feedback/records/submissions?pageSize=${Math.min(Math.max(limit, 1), 100)}`, accessToken);
+  if (response.status === 404) return [];
+  if (!response.ok) throw new Error(`Feedback records could not be loaded (${response.status}).`);
+  const body = await response.json() as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> };
+  return (body.documents || []).map((document) => feedbackFromRecord(decodeFields(document.fields || {}))).filter((record): record is FeedbackSubmission => Boolean(record)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
 
 export async function saveCompilation(user: AuthenticatedUser, request: CompilationRequest, result: CompilationResult) {
   const now = new Date().toISOString();
@@ -1246,6 +1262,19 @@ function safeGtmContactDocumentId(value: string) {
   const safe = value.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 180);
   if (!/^contact_[a-zA-Z0-9_-]+$/.test(safe)) throw new Error("Invalid GTM contact enrichment identifier.");
   return safe;
+}
+
+function safeFeedbackDocumentId(value: string) {
+  if (!/^feedback_[a-f0-9]{32}$/.test(value)) throw new Error("Invalid feedback identifier.");
+  return value;
+}
+
+function feedbackFromRecord(record: Record<string, unknown>): FeedbackSubmission | null {
+  const categories = ["PRODUCT_FEEDBACK", "FEATURE_REQUEST", "PROBLEM_BUG", "BILLING_ACCOUNT", "SALES", "PARTNERSHIP", "OTHER"];
+  const statuses = ["NEW", "REVIEWED", "PLANNED", "RESOLVED", "CLOSED"];
+  const id = String(record.id || "");
+  if (!/^feedback_[a-f0-9]{32}$/.test(id) || !categories.includes(String(record.category)) || !statuses.includes(String(record.status))) return null;
+  return { id, createdAt: String(record.createdAt || ""), userId: String(record.userId || "") || null, name: String(record.name || ""), email: String(record.email || ""), organization: String(record.organization || ""), category: String(record.category) as FeedbackSubmission["category"], message: String(record.message || ""), sourcePage: String(record.sourcePage || ""), status: String(record.status) as FeedbackSubmission["status"], adminNotes: String(record.adminNotes || ""), linkedCustomerId: String(record.linkedCustomerId || "") || null, notificationStatus: record.notificationStatus === "SENT" || record.notificationStatus === "FAILED" ? record.notificationStatus : "NOT_CONFIGURED" };
 }
 
 function contactSuppressionDocumentId(email: string) {

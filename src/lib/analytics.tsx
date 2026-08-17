@@ -12,9 +12,9 @@ const queuedAnalyticsEvents: Array<[AnalyticsEventName, AnalyticsEventProperties
 
 type AnalyticsConsent = "granted" | "denied";
 type ClarityFunction = ((...args: unknown[]) => void) & { q?: unknown[][] };
-export type AnalyticsEventName = "free_first_report_click" | "signup_start" | "signup_complete" | "report_started" | "award_uploaded" | "report_generated" | "pricing_view" | "checkout_started" | "subscription_started";
+export type AnalyticsEventName = "free_first_report_click" | "signup_start" | "signup_complete" | "report_started" | "award_uploaded" | "report_generated" | "pricing_view" | "checkout_started" | "subscription_started" | "contact_opened" | "feedback_started" | "feedback_submitted";
 type AnalyticsEventProperties = {
-  surface?: "header" | "footer" | "pricing" | "resources" | "account" | "assessment";
+  surface?: "header" | "footer" | "pricing" | "resources" | "account" | "assessment" | "contact" | "workspace";
   page_type?: "pricing";
   plan_key?: "starter" | "growth" | "agency";
 };

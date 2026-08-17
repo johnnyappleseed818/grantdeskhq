@@ -70,6 +70,7 @@ export function SiteLayout() {
               <NavLink key={label} to={href} className="nav-link" onClick={() => { if (label === "Free First Report") trackAnalyticsEvent("free_first_report_click", { surface: "header" }); }}>{label}</NavLink>
             ))}
             {gtmAllowed && <Link className="nav-link admin-nav-link" to="/gtm">GTM Command Center</Link>}
+            {gtmAllowed && <Link className="nav-link admin-nav-link" to="/gtm/feedback">Feedback review</Link>}
             {gtmAllowed && <Link className="nav-link admin-nav-link" to="/internal/reliability">Reliability</Link>}
             <Link className="nav-link account-nav-link" to={user ? "/workspace" : "/login"}>{user ? "My workspace" : "Sign in"}</Link>
             <Link
@@ -115,7 +116,7 @@ export function SiteLayout() {
               <Link to="/privacy">Privacy and data handling</Link>
               <Link to="/#security-faq">Security and FAQ</Link>
               <button type="button" className="footer-link-button" onClick={openAnalyticsPreferences}>Cookie settings</button>
-              <Link to="/assessment#contact">Contact us</Link>
+              <Link to="/contact">Contact and feedback</Link>
               <span className="text-slate-500">© {new Date().getFullYear()} GrantDeskHQ</span>
             </div>
           </div>

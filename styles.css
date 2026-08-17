@@ -3293,6 +3293,17 @@
 .analytics-consent-actions .button { min-height: 42px; }
 .footer-link-button { width: fit-content; color: inherit; text-align: left; }
 .footer-link-button:hover { color: #fff; }
+.contact-feedback-page { min-height: 70vh; background: #f7f8f5; }
+.contact-feedback-shell { display: grid; gap: 2rem; max-width: 900px; padding-block: 4rem; }
+.contact-feedback-shell header h1, .contact-feedback-success h1 { margin-top: .5rem; color: #10233f; font-size: clamp(2rem, 4vw, 3.2rem); letter-spacing: -.035em; }
+.contact-feedback-shell header > p:last-child, .contact-feedback-success p { margin-top: .75rem; color: #5a6879; line-height: 1.65; }
+.contact-feedback-form { display: grid; gap: 1rem; padding: 1.5rem; border: 1px solid #d8deda; background: #fff; box-shadow: 0 4px 18px rgb(16 35 63 / 7%); }
+.contact-feedback-form .button { width: fit-content; }
+.feedback-honeypot { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.contact-feedback-success { max-width: 640px; padding: 2rem; border: 1px solid #cbd9ce; background: #fff; text-align: center; }
+.contact-feedback-success > svg { width: 2.5rem; height: 2.5rem; color: #286444; }
+.feedback-admin-list { display: grid; gap: .85rem; margin-top: 2rem; }
+.feedback-admin-message { max-width: 70ch; color: #37475a; white-space: pre-wrap; }
 
 @media (min-width: 720px) {
   .analytics-consent { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }

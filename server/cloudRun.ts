@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { randomUUID } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,7 +9,8 @@ import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmContactSuppression, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmEnrichmentUsage, readGtmShadowStatus, readLatestReliabilityCanary, readReliabilityDashboard, listReports, removeSupportingEvidence, saveBillingEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveReview } from "./persistence.ts";
+import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmContactSuppression, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmEnrichmentUsage, readGtmShadowStatus, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveReview } from "./persistence.ts";
+import { validateFeedbackInput, type FeedbackSubmission } from "../src/lib/feedback.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { buildShadowStatus, shadowLeadFromOpportunity, suggestedTopicsFromLeads } from "../src/lib/gtmShadow.ts";
 import { enrichGtmContactInShadow } from "./contactEnrichment.ts";
@@ -32,6 +34,7 @@ const allowedOrigins = new Set(
     .map((origin) => origin.trim())
     .filter(Boolean)
 );
+const feedbackAttempts = new Map<string, number[]>();
 
 createServer(async (request, response) => {
   try {
@@ -57,6 +60,8 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/reports/preflight") return await handlePreflight(request, response);
     if (url.pathname === "/api/compile-report" || url.pathname === "/api/reports/compile") return await handleCompiler(request, response);
     if (url.pathname === "/api/readiness-assessment") return await handleReadiness(request, response);
+    if (url.pathname === "/api/feedback") return await handleFeedback(request, response);
+    if (url.pathname === "/api/gtm/feedback") return await handleGtmFeedback(request, response);
     if (url.pathname === "/api/gtm/access") return await handleGtmAccess(request, response);
     if (url.pathname === "/api/gtm/opportunities") return await handleGtmOpportunities(request, response);
     if (url.pathname === "/api/gtm/daily-signals") return await handleGtmDailySignals(request, response);
@@ -207,6 +212,31 @@ async function handleGtmAccess(request: IncomingMessage, response: ServerRespons
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   requireGtmAdmin(await requireUser(request));
   return json(response, 200, { allowed: true });
+}
+
+async function handleFeedback(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  const source = request.headers["x-forwarded-for"]?.toString().split(",", 1)[0].trim() || request.socket.remoteAddress || "unknown";
+  if (!allowFeedbackAttempt(source)) return json(response, 429, { error: "Too many feedback submissions. Please try again later." });
+  const input = validateFeedbackInput(await readJson(request));
+  if (input.errors.length) return json(response, 400, { error: input.errors.join(" ") });
+  if (input.value.website) return json(response, 202, { submitted: true, notificationStatus: "NOT_CONFIGURED" });
+  const user = request.headers.authorization ? await requireUser(request) : null;
+  const submission: FeedbackSubmission = { id: `feedback_${randomUUID().replaceAll("-", "")}`, createdAt: new Date().toISOString(), userId: user?.uid || null, name: user?.name.trim() || input.value.name, email: user?.email.trim().toLowerCase() || input.value.email, organization: input.value.organization, category: input.value.category, message: input.value.message, sourcePage: input.value.sourcePage, status: "NEW", adminNotes: "", linkedCustomerId: null, notificationStatus: "NOT_CONFIGURED" };
+  await saveFeedback(submission);
+  return json(response, 201, { submitted: true, notificationStatus: submission.notificationStatus });
+}
+
+async function handleGtmFeedback(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  requireGtmAdmin(await requireUser(request));
+  return json(response, 200, { feedback: await listFeedback() });
+}
+
+function allowFeedbackAttempt(source: string) {
+  const now = Date.now(); const attempts = (feedbackAttempts.get(source) || []).filter((at) => at >= now - 60 * 60 * 1000);
+  if (attempts.length >= 5) return false;
+  attempts.push(now); feedbackAttempts.set(source, attempts); return true;
 }
 
 async function handleGtmOpportunities(request: IncomingMessage, response: ServerResponse) {
