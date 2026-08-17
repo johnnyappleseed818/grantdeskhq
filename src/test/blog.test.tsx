@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it } from "vitest";
@@ -6,7 +8,7 @@ import { BlogIndexPage, BlogPostPage } from "../pages/BlogPage";
 import { ResourcesPage } from "../pages/ResourcesPage";
 
 describe("public GrantDeskHQ blog", () => {
-  it("publishes two substantive, source-linked launch articles", () => {
+  it("publishes six substantive, source-linked articles", () => {
     expect(BLOG_POSTS).toHaveLength(6);
     for (const post of BLOG_POSTS) {
       expect(blogWordCount(post)).toBeGreaterThan(250);
@@ -16,6 +18,8 @@ describe("public GrantDeskHQ blog", () => {
     const overnightPages = BLOG_POSTS.filter((post) => ["turn-grant-agreement-into-reporting-plan", "grant-progress-report-workflow", "grant-closeout-checklist", "post-award-grant-management-software"].includes(post.slug));
     expect(overnightPages).toHaveLength(4);
     expect(overnightPages.every((post) => blogWordCount(post) > 400)).toBe(true);
+    const staticRoutes = fs.readFileSync(path.resolve("scripts/create-spa-routes.js"), "utf8");
+    for (const page of overnightPages) expect(staticRoutes).toContain("blog/" + page.slug);
   });
 
   it("renders a discoverable article with source links and a self-service CTA", () => {

@@ -3,7 +3,7 @@ import path from "node:path";
 
 const distDirectory = path.resolve("dist");
 const entryFile = path.join(distDirectory, "index.html");
-const routes = ["demo", "compile", "login", "workspace", "gtm", "readiness", "sample-report", "privacy", "pricing", "assessment", "pilot", "resources", "blog", "blog/post-award-grant-reporting-checklist", "blog/budget-to-actual-grant-reporting-workflow"];
+const routes = ["demo", "compile", "login", "workspace", "gtm", "readiness", "sample-report", "privacy", "pricing", "assessment", "pilot", "resources", "blog", "blog/post-award-grant-reporting-checklist", "blog/budget-to-actual-grant-reporting-workflow", "blog/turn-grant-agreement-into-reporting-plan", "blog/grant-progress-report-workflow", "blog/grant-closeout-checklist", "blog/post-award-grant-management-software"];
 
 await Promise.all(routes.map(async (route) => {
   const routeDirectory = path.join(distDirectory, route);
