@@ -393,3 +393,30 @@ PARTNER EMAILS SENT: 0
 EMAILS SCHEDULED: 0
 GUESSED EMAILS: 0
 PRODUCTION TRAFFIC CHANGED: NO
+
+
+==================================================
+PUBLIC ROLE RESEARCH — CONTACT / ENRICHMENT READINESS
+==================================================
+
+No email discovery was called. Each person below is a public-role research record with an official source, a verified organization domain, and no inferred email address.
+
+| Organization | Current decision-maker | Title | Official title source | Domain | Email state | Suppression / readiness |
+| --- | --- | --- | --- | --- | --- | --- |
+| The Charity CFO | Tosha Anderson, CPA | Founder + Managing Partner | https://thecharitycfo.com/about-us/leadership-team/ | thecharitycfo.com | DIRECT EMAIL: NOT ESTABLISHED | UNKNOWN; ENRICHMENT_READY |
+| Kiwi Partners | Ken Hafner | Head of Accounting Services | https://www.kiwipartners.com/ken-hafner | kiwipartners.com | DIRECT EMAIL: NOT ESTABLISHED | UNKNOWN; ENRICHMENT_READY |
+| YPTC | Jennifer Alleva | Chief Executive Officer | https://www.yptc.com/ceo-jennifer-alleva/ | yptc.com | DIRECT EMAIL: NOT ESTABLISHED | UNKNOWN; ENRICHMENT_READY |
+| Array Accounting | Danielle L. Wright, CPA | Founder, Array Accounting & Consulting | https://arrayaccounting.com/about-fractional-cfo-nonprofit-accounting-consulting-services/ | arrayaccounting.com | DIRECT EMAIL: NOT ESTABLISHED | UNKNOWN; ENRICHMENT_READY |
+| c3 by Design | Scott Turner | Founder and CEO | https://www.c3bydesign.com/about | c3bydesign.com | DIRECT EMAIL: NOT ESTABLISHED | UNKNOWN; ENRICHMENT_READY |
+
+UPDATED PARTNER STAGES:
+RESEARCHED: 50
+HIGH FIT: 20
+CONTACT IDENTIFIED: 5
+ENRICHMENT READY: 5
+VERIFIED EMAILS: 0
+HUMAN-REVIEW READY: 0
+TOP CONTACTS WORTH BOUNDED FUTURE ENRICHMENT: Tosha Anderson; Ken Hafner; Jennifer Alleva; Danielle L. Wright; Scott Turner.
+
+SAFETY:
+No provider lookup, email verification, suppression lookup, email, schedule, form submission, or social action was performed for these research records.
