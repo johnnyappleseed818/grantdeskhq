@@ -37,6 +37,7 @@ export interface ControlPlaneQueueLead {
 }
 
 export interface ControlPlaneQueueReconciliation {
+  generatedAt?: string;
   cards: ControlPlaneQueueLead[];
   uniqueOrganizations: number;
   counts: Record<ControlPlaneLeadState, number>;

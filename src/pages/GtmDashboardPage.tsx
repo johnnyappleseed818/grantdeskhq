@@ -41,8 +41,9 @@ import {
 } from "../lib/gtm";
 import { useAuth } from "../lib/auth";
 import type { ControlPlaneLeadState, ControlPlaneQueueReconciliation } from "../lib/gtmControlPlaneQueue";
+import type { GtmOverview, GtmMetric } from "../lib/gtmOverview";
 
-type DashboardTab = "hot-list" | "control-plane" | "signals" | "sources" | "partners" | "pipeline" | "automation" | "accuracy";
+type DashboardTab = "overview" | "hot-list" | "control-plane" | "signals" | "sources" | "partners" | "pipeline" | "automation" | "accuracy";
 type StageState = Record<string, OpportunityStage>;
 
 const STORAGE_KEY = "grantdeskhq:gtm-stages:v1";
@@ -64,7 +65,7 @@ export function GtmDashboardPage() {
   return <GtmDashboardContent dailySignalToken={token} />;
 }
 
-export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null, initialAwardScan = null, initialControlPlane = null, seedOpportunities = [] }: { dailySignalToken?: () => Promise<string>; initialDailyScan?: DailySocialScan | null; initialAwardScan?: AwardDiscoveryScan | null; initialControlPlane?: ControlPlaneQueueReconciliation | null; seedOpportunities?: GtmOpportunity[] } = {}) {
+export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null, initialAwardScan = null, initialControlPlane = null, initialOverview = null, seedOpportunities = [] }: { dailySignalToken?: () => Promise<string>; initialDailyScan?: DailySocialScan | null; initialAwardScan?: AwardDiscoveryScan | null; initialControlPlane?: ControlPlaneQueueReconciliation | null; initialOverview?: GtmOverview | null; seedOpportunities?: GtmOpportunity[] } = {}) {
   const [activeTab, setActiveTab] = useState<DashboardTab>("hot-list");
   const [filter, setFilter] = useState<"all" | SignalKind>("all");
   const [query, setQuery] = useState("");
@@ -75,6 +76,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   const [dailyScan, setDailyScan] = useState<DailySocialScan | null>(initialDailyScan);
   const [awardScan, setAwardScan] = useState<AwardDiscoveryScan | null>(initialAwardScan);
   const [controlPlane, setControlPlane] = useState<ControlPlaneQueueReconciliation | null>(initialControlPlane);
+  const [overview, setOverview] = useState<GtmOverview | null>(initialOverview);
   const [signalsLoading, setSignalsLoading] = useState(Boolean(dailySignalToken));
   const [signalsError, setSignalsError] = useState("");
 
@@ -85,13 +87,15 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
       apiRequest<{ opportunities: GtmOpportunity[] }>("/api/gtm/opportunities", idToken),
       apiRequest<{ scan: DailySocialScan | null }>("/api/gtm/daily-signals", idToken),
       apiRequest<{ scan: AwardDiscoveryScan | null }>("/api/gtm/award-signals", idToken),
-      apiRequest<{ reconciliation: ControlPlaneQueueReconciliation | null }>("/api/gtm/control-plane-queue", idToken)
+      apiRequest<{ reconciliation: ControlPlaneQueueReconciliation | null }>("/api/gtm/control-plane-queue", idToken),
+      apiRequest<{ overview: GtmOverview }>("/api/gtm/overview", idToken)
     ]))
-      .then(([opportunityBody, socialBody, awardBody, controlPlaneBody]) => {
+      .then(([opportunityBody, socialBody, awardBody, controlPlaneBody, overviewBody]) => {
         if (!active) return;
         setDailyScan(socialBody.scan);
         setAwardScan(awardBody.scan);
         setControlPlane(controlPlaneBody.reconciliation);
+        setOverview(overviewBody.overview);
         setLiveOpportunities(mergeAwardCandidates(awardBody.scan?.opportunities || [], opportunityBody.opportunities));
         setExpanded((current) => current || opportunityBody.opportunities[0]?.id || null);
       })
@@ -140,18 +144,20 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
           <Metric icon={MessageSquareText} label="Pain signals" value={redditSignals.length + linkedinItems.length + (dailyScan?.items.length || 0)} detail="reviewed + today’s scan" />
           <Metric icon={MailCheck} label="Outbound actions" value={contactedCount} detail="locked at zero in SHADOW mode" />
         </div>
+        <OverviewPanel overview={overview} />
       </div>
     </header>
 
     <div className="gtm-tab-wrap">
       <div className="site-shell gtm-tabs" role="tablist" aria-label="GTM dashboard sections">
         {([
-          ["hot-list", "Daily hot list"], ["control-plane", "Canonical queue"], ["signals", "Manual social research"], ["sources", "Signal engines"], ["partners", "Referral channels"], ["pipeline", "Progress"], ["automation", "Outreach automation"], ["accuracy", "Accuracy controls"]
+          ["overview", "Overview"], ["hot-list", "Daily hot list"], ["control-plane", "Canonical queue"], ["signals", "Manual social research"], ["sources", "Signal engines"], ["partners", "Referral channels"], ["pipeline", "Progress"], ["automation", "Outreach automation"], ["accuracy", "Accuracy controls"]
         ] as Array<[DashboardTab, string]>).map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={activeTab === id} className={activeTab === id ? "is-active" : ""} onClick={() => setActiveTab(id)}>{label}</button>)}
       </div>
     </div>
 
     <div className="site-shell py-8 lg:py-12">
+      {activeTab === "overview" && <OverviewPanel overview={overview} inMain />}
       {activeTab === "hot-list" && <section aria-labelledby="hot-list-heading">
         <div className="gtm-section-heading"><div><p className="eyebrow">Today’s review queue</p><h2 id="hot-list-heading">Prioritized by pain, timing, fit, and potential value</h2><p>A high score never replaces evidence. Every row shows what is known, what is inferred, and what still needs confirmation.</p></div><div className="status-badge status-success"><RefreshCw aria-hidden="true" /> Award feed scheduled daily</div></div>
         <div className="gtm-toolbar">
@@ -203,6 +209,25 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
     </div>
   </div>;
 }
+
+function OverviewPanel({ overview, inMain = false }: { overview: GtmOverview | null; inMain?: boolean }) {
+  if (!overview) return <section className={inMain ? "gtm-overview-panel" : "gtm-overview-panel mt-8"} aria-label="GTM overview"><div className="gtm-boundary-note"><AlertCircle aria-hidden="true" /><div><strong>Founder overview is waiting for protected GTM data.</strong><p>Counts are intentionally not estimated. The dashboard will show BLOCKED until the canonical reconciliation and enrichment usage can be read.</p></div></div></section>;
+  const direct = [["Control Plane leads", overview.direct.metrics.controlPlaneLeads], ["Unique organizations", overview.direct.metrics.uniqueOrganizations], ["Qualified", overview.direct.metrics.qualified], ["Contact identified", overview.direct.metrics.contactIdentified], ["Enrichment ready", overview.direct.metrics.enrichmentReady], ["Email verified", overview.direct.metrics.emailVerified], ["Suppression clear", overview.direct.metrics.suppressionClear], ["Draft ready", overview.direct.metrics.draftReady], ["Human review", overview.direct.metrics.humanReview], ["Sent", overview.direct.metrics.sent], ["Replies", overview.direct.metrics.replies], ["Free first award", overview.direct.metrics.freeFirstAward], ["Activated", overview.direct.metrics.activated], ["Paid", overview.direct.metrics.paid]] as Array<[string, GtmMetric]>;
+  const partner = [["Researched", overview.partner.metrics.researched], ["High fit", overview.partner.metrics.highFit], ["Contact identified", overview.partner.metrics.contactIdentified], ["Enrichment ready", overview.partner.metrics.enrichmentReady], ["Email verified", overview.partner.metrics.emailVerified], ["Draft ready", overview.partner.metrics.draftReady], ["Human review", overview.partner.metrics.humanReview], ["Contacted", overview.partner.metrics.contacted], ["Replies", overview.partner.metrics.replies], ["Active conversations", overview.partner.metrics.activeConversations], ["Partners activated", overview.partner.metrics.activatedPartners], ["Customers influenced", overview.partner.metrics.customersInfluenced], ["Paid customers influenced", overview.partner.metrics.paidCustomersInfluenced]] as Array<[string, GtmMetric]>;
+  return <section className={inMain ? "gtm-overview-panel" : "gtm-overview-panel mt-8"} aria-labelledby="gtm-overview-heading">
+    <div className="gtm-section-heading"><div><p className="eyebrow">Founder-level GTM overview</p><h2 id="gtm-overview-heading">Pipeline health from canonical records</h2><p>Actual counts come from protected source records. Targets are operating goals, not achieved results. Website traffic remains in Google Analytics.</p></div><span className="status-badge status-neutral">OUTBOUND LOCKED</span></div>
+    <div className="gtm-automation-metrics" aria-label="GTM queue health"><article><strong>{overview.direct.health}</strong><span>direct queue</span></article><article><strong>{overview.partner.health}</strong><span>partner queue</span></article><article><strong>{overview.controlPlane.health}</strong><span>Control Plane</span></article><article><strong>{overview.enrichment.health}</strong><span>contact enrichment</span></article></div>
+    <div className="grid gap-6 lg:grid-cols-2 mt-6"><OverviewMetricTable title="Direct nonprofit pipeline" rows={direct} /><OverviewMetricTable title="Partner pipeline" rows={partner} /></div>
+    <div className="grid gap-6 lg:grid-cols-2 mt-6"><div className="panel"><p className="eyebrow">Control Plane freshness</p><h3>{overview.controlPlane.health}</h3><p>Last Control Plane refresh: {overview.controlPlane.lastRefresh ? formatDateTime(overview.controlPlane.lastRefresh) : "not recorded"}</p><p>Cards: {metricValue(overview.controlPlane.cards)} · Unique organizations: {metricValue(overview.controlPlane.uniqueOrganizations)} · Duplicates: {metricValue(overview.controlPlane.duplicates)} · Disqualified: {metricValue(overview.controlPlane.disqualified)} · Missing / unaccounted: {metricValue(overview.controlPlane.missingOrUnaccounted)}</p></div><div className="panel"><p className="eyebrow">Contact / enrichment health</p><h3>{overview.enrichment.health}</h3><p>Hunter lookups: {metricValue(overview.enrichment.hunterLookups)} / {overview.enrichment.hunterLookupLimit} · Verifications: {metricValue(overview.enrichment.hunterVerifications)} · Apollo: {metricValue(overview.enrichment.apolloLookups)}</p><p>Verified: {metricValue(overview.enrichment.verifiedEmails)} · Not found: {metricValue(overview.enrichment.notFound)} · Suppressed: {metricValue(overview.enrichment.suppressed)} · Contact not established: {metricValue(overview.enrichment.contactNotEstablished)}</p></div></div>
+    <div className="grid gap-6 lg:grid-cols-2 mt-6"><div className="panel"><p className="eyebrow">Top next enrichment candidates</p>{overview.direct.topNextEnrichmentCandidates.length ? <ol className="list-decimal pl-5 space-y-1">{overview.direct.topNextEnrichmentCandidates.map((organization) => <li key={organization}>{organization}</li>)}</ol> : <p>No candidate is displayed until a named contact and verified domain are present.</p>}</div><div className="panel"><p className="eyebrow">Customer funnel</p><p>Approved: {metricValue(overview.funnel.outreachApproved.actual)} · Sent: {metricValue(overview.funnel.sent.actual)} · Replies: {metricValue(overview.funnel.replies.actual)} · Trials: {metricValue(overview.funnel.freeFirstAwardTrials.actual)} · Paid: {metricValue(overview.funnel.paidCustomers.actual)} · MRR: {metricValue(overview.funnel.mrr.actual)} · ARR: {metricValue(overview.funnel.arr.actual)}</p><p className="mt-3">{overview.partner.sourceNote}</p></div></div>
+  </section>;
+}
+
+function OverviewMetricTable({ title, rows }: { title: string; rows: Array<[string, GtmMetric]> }) {
+  return <div className="panel panel-flush"><div className="panel-heading px-5 py-4"><h3>{title}</h3></div><div className="table-scroll"><table className="data-table"><thead><tr><th>Metric</th><th>Current</th><th>Target</th><th>Gap</th></tr></thead><tbody>{rows.map(([label, value]) => <tr key={label}><th>{label}</th><td>{metricValue(value.actual)}</td><td>{metricValue(value.target)}</td><td>{metricValue(value.gap)}</td></tr>)}</tbody></table></div></div>;
+}
+
+function metricValue(value: number | null) { return value === null ? "Not instrumented" : String(value); }
 
 function ControlPlanePanel({ reconciliation }: { reconciliation: ControlPlaneQueueReconciliation | null }) {
   const states: ControlPlaneLeadState[] = ["CONTACT_RESEARCH_REQUIRED", "ENRICHMENT_READY", "EMAIL_VERIFICATION_REQUIRED", "SUPPRESSION_CHECK_REQUIRED", "DRAFT_REQUIRED", "READY_FOR_HUMAN_REVIEW", "ALREADY_CONTACTED", "CUSTOMER", "DISQUALIFIED", "DUPLICATE", "QUALIFIED"];

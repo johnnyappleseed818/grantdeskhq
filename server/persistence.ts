@@ -568,13 +568,14 @@ export async function readGtmAwardScan(): Promise<AwardDiscoveryScan | null> {
 
 export async function saveGtmControlPlaneReconciliation(reconciliation: ControlPlaneQueueReconciliation) {
   const accessToken = await gcpToken();
+  const persisted = { ...reconciliation, generatedAt: new Date().toISOString() };
   await writeDocument(accessToken, "gtm/control-plane-reconciliation", {
-    generatedAt: new Date().toISOString(),
-    cardCount: reconciliation.cards.length,
-    uniqueOrganizationCount: reconciliation.uniqueOrganizations,
-    reconciliationJson: JSON.stringify(reconciliation)
+    generatedAt: persisted.generatedAt,
+    cardCount: persisted.cards.length,
+    uniqueOrganizationCount: persisted.uniqueOrganizations,
+    reconciliationJson: JSON.stringify(persisted)
   });
-  return reconciliation;
+  return persisted;
 }
 
 export async function readGtmControlPlaneReconciliation(): Promise<ControlPlaneQueueReconciliation | null> {
