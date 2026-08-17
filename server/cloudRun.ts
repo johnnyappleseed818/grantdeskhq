@@ -38,10 +38,23 @@ const allowedOrigins = new Set(
     .filter(Boolean)
 );
 const feedbackAttempts = new Map<string, number[]>();
+const contentSecurityPolicy = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "script-src 'self' https://www.googletagmanager.com https://www.clarity.ms",
+  "connect-src 'self' https://www.google-analytics.com https://region1.google-analytics.com https://www.clarity.ms https://*.clarity.ms https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://firestore.googleapis.com https://storage.googleapis.com",
+  "img-src 'self' data: blob: https:",
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self' data:"
+].join("; ");
 
 createServer(async (request, response) => {
   try {
     const url = new URL(request.url || "/", "http://localhost");
+    applySecurityHeaders(response);
     applyCors(request, response);
     if (url.pathname.startsWith("/api/") && request.method === "OPTIONS") {
       response.statusCode = 204;
@@ -523,6 +536,10 @@ function applyCors(request: IncomingMessage, response: ServerResponse) {
   response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
   response.setHeader("Access-Control-Max-Age", "600");
   response.setHeader("Vary", "Origin");
+}
+
+function applySecurityHeaders(response: ServerResponse) {
+  response.setHeader("Content-Security-Policy", contentSecurityPolicy);
 }
 
 function mime(filePath: string) {

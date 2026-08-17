@@ -1,13 +1,16 @@
 {
-  "status": "PASS",
+  "status": "PARTIAL",
   "tests": [
-    "node --check scripts/codex-project-runner/queue.mjs",
-    "node --test scripts/codex-project-runner/queue.test.mjs scripts/codex-project-runner/model-router.test.mjs (42 passing)",
+    "npm exec vitest -- run src/test/analytics.test.tsx --disableConsoleIntercept (6 passing)",
+    "npm run lint",
+    "npm run build",
+    "npm run test:grantdesk-regression",
+    "zero-traffic local Chromium CSP and GA4 network validation (GA endpoints aborted)",
     "git diff --check"
   ],
   "artifacts": [
-    "reports/codex-overnight-supervisor-validation.md"
+    "reports/ga4-live-audit-20260817.md"
   ],
-  "blocker": "",
-  "result_summary": "Hardened the existing queue controller with five-minute durable active-task status heartbeats, timing and task fields, and a bounded 20-minute no-progress watchdog. One scoped retry is attempted before recording a continuable PARTIAL outcome; no external systems were accessed."
+  "blocker": "GA4 Enhanced Measurement page-history setting requires human verification and disabling before traffic promotion.",
+  "result_summary": "Audited the public runtime for G-P6N5EME81J, confirmed consent-gated manual public page views and safe allowlisted conversion payloads, and added CSP coverage validated in a built local zero-traffic candidate. No GA collection request or production traffic change was made."
 }
