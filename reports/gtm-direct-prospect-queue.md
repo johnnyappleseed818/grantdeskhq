@@ -73,6 +73,12 @@ NEXT OPERATING ACTIONS
 SAFETY
 REAL EMAILS SENT: 0
 PRODUCTION TRAFFIC CHANGED: NO
+
+IMPLEMENTATION NOTE — 2026-08-17
+
+The persisted `gtm/control-plane-reconciliation` record is the canonical direct-prospect inventory. Each source card retains its immutable card ID, normalized organization, source URLs, state, and canonical card ID. Canonical selection is deterministic by immutable source-card ID, so a scanner ordering change cannot change the selected organization record.
+
+Reconciliation stores explicit inventory-only replenishment metrics: source-qualified organizations target 100, enrichment-ready target 50, and human-review candidates target 25. A gap only marks the queue `NEEDS_REPLENISHMENT`; it does not call a provider, create a contact, schedule, or send anything. Existing direct public routes remain subject to suppression and human review.
 NO GUESSED EMAIL IS REPRESENTED AS VERIFIED
 
 

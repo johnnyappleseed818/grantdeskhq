@@ -10,6 +10,7 @@ describe("GTM overview", () => {
     const overview = buildGtmOverview({ reconciliation, shadowStatus: null, usage: { hunterLookups: 2, hunterVerifications: 1, apolloLookups: 0, emailsVerified: 1, contactsNotFound: 1, providerSuccesses: { hunter: 1 }, updatedAt: "2026-08-17T08:00:00.000Z" }, now: "2026-08-17T09:00:00.000Z" });
     expect(overview.direct.metrics.qualified).toMatchObject({ actual: 13, target: 100, gap: 87 });
     expect(overview.direct.metrics.humanReview).toMatchObject({ actual: 2, target: 25 });
+    expect(overview.direct.health).toBe("NEEDS_REPLENISHMENT");
     expect(overview.direct.topNextEnrichmentCandidates).toEqual(["Research nonprofit"]);
     expect(overview.controlPlane).toMatchObject({ health: "HEALTHY", missingOrUnaccounted: 0 });
     expect(overview.enrichment).toMatchObject({ hunterLookups: 2, hunterLookupLimit: 2, verifiedEmails: 1 });

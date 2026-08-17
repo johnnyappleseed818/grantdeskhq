@@ -57,4 +57,27 @@ describe("GTM Control Plane queue reconciliation", () => {
     expect(reconcileControlPlaneQueue({ cards: [direct], customerOrganizations: ["Example Community Action"] }).cards[0].state).toBe("CUSTOMER");
     expect(reconcileControlPlaneQueue({ cards: [direct], alreadyContactedOrganizations: ["Example Community Action"] }).cards[0].state).toBe("ALREADY_CONTACTED");
   });
+
+  it("selects a canonical source card deterministically and retains all repeated-source cards", () => {
+    const alpha = opportunity({ id: "award-alpha", observedAt: "2026-08-15" });
+    const zulu = opportunity({ id: "award-zulu", observedAt: "2026-08-16" });
+    const reversed = reconcileControlPlaneQueue({ cards: [zulu, alpha] });
+    const forward = reconcileControlPlaneQueue({ cards: [alpha, zulu] });
+
+    for (const result of [reversed, forward]) {
+      expect(result.uniqueOrganizations).toBe(1);
+      expect(result.cards.find((card) => card.cardId === "award-alpha")).toMatchObject({ canonicalCardId: "award-alpha", state: "CONTACT_RESEARCH_REQUIRED" });
+      expect(result.cards.find((card) => card.cardId === "award-zulu")).toMatchObject({ canonicalCardId: "award-alpha", state: "DUPLICATE" });
+    }
+  });
+
+  it("reports explicit replenishment gaps without invoking enrichment or delivery", () => {
+    const result = reconcileControlPlaneQueue({ cards: [opportunity()] });
+    expect(result.replenishment).toEqual({
+      sourceQualified: { actual: 1, threshold: 100, gap: 99 },
+      enrichmentReady: { actual: 0, threshold: 50, gap: 50 },
+      humanReview: { actual: 0, threshold: 25, gap: 25 },
+      needsReplenishment: true
+    });
+  });
 });

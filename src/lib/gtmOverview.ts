@@ -1,5 +1,5 @@
 import type { EnrichmentUsage } from "./contactEnrichment";
-import type { ControlPlaneLeadState, ControlPlaneQueueReconciliation } from "./gtmControlPlaneQueue";
+import { directProspectReplenishment, type ControlPlaneLeadState, type ControlPlaneQueueReconciliation } from "./gtmControlPlaneQueue";
 import type { ShadowPipelineStatus } from "./gtmShadow";
 
 export type GtmHealth = "HEALTHY" | "STALE" | "BLOCKED" | "NEEDS_REPLENISHMENT" | "NOT_INSTRUMENTED";
@@ -32,12 +32,13 @@ const metric = (actual: number | null, target: number | null = null): GtmMetric 
 const stale = (value: string | undefined, now: string) => { const then = Date.parse(value || ""); return !Number.isFinite(then) || Date.parse(now) - then > 36 * 60 * 60 * 1000; };
 
 export function buildGtmOverview({ reconciliation, shadowStatus, usage, now = new Date().toISOString(), hunterLookupLimit = 2 }: GtmOverviewInput): GtmOverview {
-  const qualified = reconciliation ? reconciliation.uniqueOrganizations - count(reconciliation, "DISQUALIFIED") : null;
+  const replenishment = reconciliation?.replenishment || (reconciliation ? directProspectReplenishment(reconciliation.uniqueOrganizations, reconciliation.counts) : null);
+  const qualified = replenishment?.sourceQualified.actual ?? null;
   const contactIdentified = reconciliation ? sum(reconciliation, contactStates) : null;
   const emailVerified = reconciliation ? sum(reconciliation, emailStates) : null;
   const suppressionClear = reconciliation ? sum(reconciliation, clearStates) : null;
   const humanReview = reconciliation ? count(reconciliation, "READY_FOR_HUMAN_REVIEW") : null;
-  const directHealth: GtmHealth = !reconciliation ? "BLOCKED" : qualified !== null && qualified < directTargets.qualified ? "NEEDS_REPLENISHMENT" : stale(reconciliation.generatedAt, now) ? "STALE" : "HEALTHY";
+  const directHealth: GtmHealth = !reconciliation ? "BLOCKED" : replenishment?.needsReplenishment ? "NEEDS_REPLENISHMENT" : stale(reconciliation.generatedAt, now) ? "STALE" : "HEALTHY";
   const controlHealth: GtmHealth = !reconciliation ? "BLOCKED" : stale(reconciliation.generatedAt, now) ? "STALE" : "HEALTHY";
   const partnerMetrics = Object.fromEntries(partners.map((key) => [key, metric(partnerPipelineSnapshot.metrics[key as keyof typeof partnerPipelineSnapshot.metrics] ?? null, partnerTargets[key] || null)]));
   const partnerHealth: GtmHealth = partnerPipelineSnapshot.metrics.emailVerified === 0 ? "BLOCKED" : partnerPipelineSnapshot.metrics.researched < partnerTargets.researched || partnerPipelineSnapshot.metrics.highFit < partnerTargets.highFit || partnerPipelineSnapshot.metrics.enrichmentReady < partnerTargets.enrichmentReady ? "NEEDS_REPLENISHMENT" : stale(partnerPipelineSnapshot.generatedAt, now) ? "STALE" : "HEALTHY";

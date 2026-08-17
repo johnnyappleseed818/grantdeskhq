@@ -41,6 +41,26 @@ export interface ControlPlaneQueueReconciliation {
   cards: ControlPlaneQueueLead[];
   uniqueOrganizations: number;
   counts: Record<ControlPlaneLeadState, number>;
+  // Optional only for legacy persisted reconciliations; newly reconciled
+  // inventories always include this field.
+  replenishment?: DirectProspectReplenishment;
+}
+
+export interface DirectProspectReplenishmentMetric {
+  actual: number;
+  threshold: number;
+  gap: number;
+}
+
+/**
+ * Inventory-only thresholds. Reconciliation can identify a gap, but never
+ * initiates enrichment, creates a contact, or authorizes delivery.
+ */
+export interface DirectProspectReplenishment {
+  sourceQualified: DirectProspectReplenishmentMetric;
+  enrichmentReady: DirectProspectReplenishmentMetric;
+  humanReview: DirectProspectReplenishmentMetric;
+  needsReplenishment: boolean;
 }
 
 const STATES: ControlPlaneLeadState[] = [
@@ -56,6 +76,12 @@ const STATES: ControlPlaneLeadState[] = [
   "CUSTOMER",
   "DUPLICATE"
 ];
+
+export const DIRECT_PROSPECT_REPLENISHMENT_THRESHOLDS = {
+  sourceQualified: 100,
+  enrichmentReady: 50,
+  humanReview: 25
+} as const;
 
 const ORGANIZATION_ALIASES: Record<string, string> = {
   "interdistrict committee for project oceanology": "project oceanology"
@@ -76,25 +102,46 @@ export function reconcileControlPlaneQueue(input: ControlPlaneQueueInput): Contr
   const contacted = organizationSet(input.alreadyContactedOrganizations);
   const customers = organizationSet(input.customerOrganizations);
   const drafted = organizationSet(input.draftOrganizations);
-  const firstByOrganization = new Map<string, GtmOpportunity>();
-  const cards: ControlPlaneQueueLead[] = [];
-
+  const canonicalByOrganization = new Map<string, GtmOpportunity>();
   for (const card of input.cards) {
     const organization = normalizeControlPlaneOrganization(card.organization);
-    const canonical = firstByOrganization.get(organization);
-    if (canonical) {
-      cards.push(toLead(card, canonical.id, "DUPLICATE", "This Control Plane card is a repeated organization signal; its source is retained on the canonical organization record."));
-      continue;
-    }
-    firstByOrganization.set(organization, card);
+    const current = canonicalByOrganization.get(organization);
+    if (!current || canonicalSortKey(card) < canonicalSortKey(current)) canonicalByOrganization.set(organization, card);
+  }
+
+  const cards = input.cards.map((card) => {
+    const organization = normalizeControlPlaneOrganization(card.organization);
+    const canonical = canonicalByOrganization.get(organization)!;
+    if (card.id !== canonical.id) return toLead(card, canonical.id, "DUPLICATE", "This Control Plane card is a repeated organization signal; its source is retained on the canonical organization record.");
     const directEmail = card.primaryContact?.emailKind === "direct" ? normalizeEmail(card.primaryContact.email) : undefined;
     const state = classifyLead(card, organization, directEmail, suppressionByEmail, contacted, customers, drafted);
-    cards.push(toLead(card, card.id, state.state, state.reason));
-  }
+    return toLead(card, card.id, state.state, state.reason);
+  });
 
   const counts = Object.fromEntries(STATES.map((state) => [state, 0])) as Record<ControlPlaneLeadState, number>;
   for (const card of cards) counts[card.state] += 1;
-  return { cards, uniqueOrganizations: firstByOrganization.size, counts };
+  const replenishment = directProspectReplenishment(canonicalByOrganization.size, counts);
+  return { cards, uniqueOrganizations: canonicalByOrganization.size, counts, replenishment };
+}
+
+export function directProspectReplenishment(uniqueOrganizations: number, counts: Record<ControlPlaneLeadState, number>): DirectProspectReplenishment {
+  const sourceQualified = Math.max(0, uniqueOrganizations - counts.DISQUALIFIED);
+  const metrics = {
+    sourceQualified: replenishmentMetric(sourceQualified, DIRECT_PROSPECT_REPLENISHMENT_THRESHOLDS.sourceQualified),
+    enrichmentReady: replenishmentMetric(counts.ENRICHMENT_READY, DIRECT_PROSPECT_REPLENISHMENT_THRESHOLDS.enrichmentReady),
+    humanReview: replenishmentMetric(counts.READY_FOR_HUMAN_REVIEW, DIRECT_PROSPECT_REPLENISHMENT_THRESHOLDS.humanReview)
+  };
+  return { ...metrics, needsReplenishment: Object.values(metrics).some((metric) => metric.gap > 0) };
+}
+
+function replenishmentMetric(actual: number, threshold: number): DirectProspectReplenishmentMetric {
+  return { actual, threshold, gap: Math.max(0, threshold - actual) };
+}
+
+function canonicalSortKey(card: GtmOpportunity) {
+  // IDs are immutable source-card keys. Sorting them makes the canonical card
+  // stable if a scanner returns the same cards in a different order.
+  return card.id.toLowerCase();
 }
 
 function classifyLead(
