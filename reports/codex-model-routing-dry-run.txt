@@ -1,0 +1,208 @@
+GRANTDESKHQ MODEL ROUTING DRY RUN
+
+DRY RUN: PASS
+NUMBER OF DRY-RUN TASKS: 25
+ROUTINE TASKS USING XHIGH: 0
+STANDARD TASKS USING XHIGH: 0
+SOL TASKS: 0
+
+TASK: Generate acquisition sprint TXT summary
+TIER: ROUTINE
+MODEL: gpt-5.6-luna
+REASONING: low
+RISK: LOW
+WHY: Routine category with no production, payment, security, or implementation indicators.
+POTENTIAL ESCALATION: Luna medium, then Terra medium only after a genuine capability failure.
+
+TASK: Reconcile Control Plane queue
+TIER: ROUTINE
+MODEL: gpt-5.6-luna
+REASONING: low
+RISK: LOW
+WHY: Routine category with no production, payment, security, or implementation indicators.
+POTENTIAL ESCALATION: Luna medium, then Terra medium only after a genuine capability failure.
+
+TASK: Summarize SEO competitors
+TIER: ROUTINE
+MODEL: gpt-5.6-luna
+REASONING: low
+RISK: LOW
+WHY: Routine category with no production, payment, security, or implementation indicators.
+POTENTIAL ESCALATION: Luna medium, then Terra medium only after a genuine capability failure.
+
+TASK: Write resource metadata
+TIER: ROUTINE
+MODEL: gpt-5.6-luna
+REASONING: low
+RISK: LOW
+WHY: Routine category with no production, payment, security, or implementation indicators.
+POTENTIAL ESCALATION: Luna medium, then Terra medium only after a genuine capability failure.
+
+TASK: Format partner review
+TIER: ROUTINE
+MODEL: gpt-5.6-luna
+REASONING: low
+RISK: LOW
+WHY: Routine category with no production, payment, security, or implementation indicators.
+POTENTIAL ESCALATION: Luna medium, then Terra medium only after a genuine capability failure.
+
+TASK: Normalize direct prospect data
+TIER: ROUTINE
+MODEL: gpt-5.6-luna
+REASONING: low
+RISK: LOW
+WHY: Routine category with no production, payment, security, or implementation indicators.
+POTENTIAL ESCALATION: Luna medium, then Terra medium only after a genuine capability failure.
+
+TASK: Create status report
+TIER: ROUTINE
+MODEL: gpt-5.6-luna
+REASONING: low
+RISK: LOW
+WHY: Routine category with no production, payment, security, or implementation indicators.
+POTENTIAL ESCALATION: Luna medium, then Terra medium only after a genuine capability failure.
+
+TASK: Prepare buyer-language summary
+TIER: ROUTINE
+MODEL: gpt-5.6-luna
+REASONING: low
+RISK: LOW
+WHY: Routine category with no production, payment, security, or implementation indicators.
+POTENTIAL ESCALATION: Luna medium, then Terra medium only after a genuine capability failure.
+
+TASK: Organize source citations
+TIER: ROUTINE
+MODEL: gpt-5.6-luna
+REASONING: low
+RISK: LOW
+WHY: Routine category with no production, payment, security, or implementation indicators.
+POTENTIAL ESCALATION: Luna medium, then Terra medium only after a genuine capability failure.
+
+TASK: Write content outline
+TIER: ROUTINE
+MODEL: gpt-5.6-luna
+REASONING: low
+RISK: LOW
+WHY: Routine category with no production, payment, security, or implementation indicators.
+POTENTIAL ESCALATION: Luna medium, then Terra medium only after a genuine capability failure.
+
+TASK: Add GA4 event tracking
+TIER: STANDARD
+MODEL: gpt-5.6-terra
+REASONING: medium
+RISK: MODERATE
+WHY: Normal repository implementation or test work with no high-risk indicators.
+POTENTIAL ESCALATION: Terra high only after two capability failures.
+
+TASK: Build GTM KPI cards
+TIER: STANDARD
+MODEL: gpt-5.6-terra
+REASONING: medium
+RISK: MODERATE
+WHY: Normal repository implementation or test work with no high-risk indicators.
+POTENTIAL ESCALATION: Terra high only after two capability failures.
+
+TASK: Implement queue API
+TIER: STANDARD
+MODEL: gpt-5.6-terra
+REASONING: medium
+RISK: MODERATE
+WHY: Normal repository implementation or test work with no high-risk indicators.
+POTENTIAL ESCALATION: Terra high only after two capability failures.
+
+TASK: Add Resources component
+TIER: STANDARD
+MODEL: gpt-5.6-terra
+REASONING: medium
+RISK: MODERATE
+WHY: Normal repository implementation or test work with no high-risk indicators.
+POTENTIAL ESCALATION: Terra high only after two capability failures.
+
+TASK: Update GTM integration tests
+TIER: STANDARD
+MODEL: gpt-5.6-terra
+REASONING: medium
+RISK: MODERATE
+WHY: Normal repository implementation or test work with no high-risk indicators.
+POTENTIAL ESCALATION: Terra high only after two capability failures.
+
+TASK: Fix ordinary UI bug
+TIER: STANDARD
+MODEL: gpt-5.6-terra
+REASONING: medium
+RISK: MODERATE
+WHY: Normal repository implementation or test work with no high-risk indicators.
+POTENTIAL ESCALATION: Terra high only after two capability failures.
+
+TASK: Refactor route helper
+TIER: STANDARD
+MODEL: gpt-5.6-terra
+REASONING: medium
+RISK: MODERATE
+WHY: Normal repository implementation or test work with no high-risk indicators.
+POTENTIAL ESCALATION: Terra high only after two capability failures.
+
+TASK: Debug persistent cross-service failure
+TIER: COMPLEX
+MODEL: gpt-5.6-terra
+REASONING: high
+RISK: COMPLEX
+WHY: Complex debugging context: persistent, cross-service, data consistency
+POTENTIAL ESCALATION: One Terra xhigh attempt after two genuine high-effort failures.
+
+TASK: Debug authentication failure
+TIER: COMPLEX
+MODEL: gpt-5.6-terra
+REASONING: high
+RISK: COMPLEX
+WHY: Complex debugging context: persistent, cross-service
+POTENTIAL ESCALATION: One Terra xhigh attempt after two genuine high-effort failures.
+
+TASK: Debug concurrency defect
+TIER: COMPLEX
+MODEL: gpt-5.6-terra
+REASONING: high
+RISK: COMPLEX
+WHY: Complex debugging context: concurrency, difficult debugging
+POTENTIAL ESCALATION: One Terra xhigh attempt after two genuine high-effort failures.
+
+TASK: Validate Stripe checkout
+TIER: HIGH_RISK
+MODEL: gpt-5.6-terra
+REASONING: xhigh
+RISK: HIGH
+WHY: High-risk context: stripe, checkout, subscription
+POTENTIAL ESCALATION: Sol requires exceptional_escalation_approved plus a recorded escalation_reason.
+
+TASK: Review IAM permission
+TIER: HIGH_RISK
+MODEL: gpt-5.6-terra
+REASONING: xhigh
+RISK: HIGH
+WHY: High-risk context: iam
+POTENTIAL ESCALATION: Sol requires exceptional_escalation_approved plus a recorded escalation_reason.
+
+TASK: Inspect Secret Manager mapping
+TIER: HIGH_RISK
+MODEL: gpt-5.6-terra
+REASONING: xhigh
+RISK: HIGH
+WHY: High-risk context: secret manager
+POTENTIAL ESCALATION: Sol requires exceptional_escalation_approved plus a recorded escalation_reason.
+
+TASK: Prepare Cloud Run traffic change
+TIER: HIGH_RISK
+MODEL: gpt-5.6-terra
+REASONING: xhigh
+RISK: HIGH
+WHY: High-risk context: cloud run traffic
+POTENTIAL ESCALATION: Sol requires exceptional_escalation_approved plus a recorded escalation_reason.
+
+TASK: Audit production security
+TIER: HIGH_RISK
+MODEL: gpt-5.6-terra
+REASONING: xhigh
+RISK: HIGH
+WHY: High-risk context: production, authentication
+POTENTIAL ESCALATION: Sol requires exceptional_escalation_approved plus a recorded escalation_reason.
+

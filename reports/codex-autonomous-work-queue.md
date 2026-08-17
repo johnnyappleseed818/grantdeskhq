@@ -24,3 +24,4 @@ The controller acquires a PID lock, detects stale locks, selects the highest-pri
 - `scripts/codex-project-runner/start-queue-tmux.sh`
 
 The status file is `~/grantdeskhq-codex-run-status.txt`; run data is `~/grantdesk-project-runs/codex-queue/`.
+\n\n## Cost-aware model routing\n\nThe queue controller now classifies every task before invocation using `ops/agent-model-policy.json`. It records selected tier, model, reasoning, rationale, route step, runtime, retry/escalation metadata, and aggregate model/reasoning counters. Use `npm run agent:status` to view current routing state, `npm run agent:routing:dry-run` for a no-credit classification audit, and see `reports/codex-cost-aware-model-router.md` for the operator guide.\n

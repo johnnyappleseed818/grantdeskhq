@@ -1,0 +1,193 @@
+{
+  "version": 1,
+  "updated_at": "2026-08-17T11:24:38.536Z",
+  "models": {
+    "routine": "gpt-5.6-luna",
+    "standard": "gpt-5.6-terra",
+    "exceptional": "gpt-5.6-sol"
+  },
+  "reasoning_levels": [
+    "low",
+    "medium",
+    "high",
+    "xhigh"
+  ],
+  "tiers": {
+    "routine": {
+      "tier": 0,
+      "model": "gpt-5.6-luna",
+      "reasoning": "low",
+      "fallback_reasoning": "medium",
+      "max_attempts": 3,
+      "max_escalations": 2,
+      "max_runtime_minutes": 20,
+      "escalation_path": [
+        {
+          "model": "gpt-5.6-luna",
+          "reasoning": "low"
+        },
+        {
+          "model": "gpt-5.6-luna",
+          "reasoning": "medium"
+        },
+        {
+          "model": "gpt-5.6-terra",
+          "reasoning": "medium"
+        }
+      ]
+    },
+    "standard": {
+      "tier": 1,
+      "model": "gpt-5.6-terra",
+      "reasoning": "medium",
+      "escalation_reasoning": "high",
+      "max_attempts": 3,
+      "max_escalations": 1,
+      "max_runtime_minutes": 45,
+      "escalation_path": [
+        {
+          "model": "gpt-5.6-terra",
+          "reasoning": "medium"
+        },
+        {
+          "model": "gpt-5.6-terra",
+          "reasoning": "high"
+        }
+      ]
+    },
+    "complex": {
+      "tier": 2,
+      "model": "gpt-5.6-terra",
+      "reasoning": "high",
+      "escalation_reasoning": "xhigh",
+      "max_attempts": 3,
+      "max_escalations": 1,
+      "max_runtime_minutes": 75,
+      "escalation_path": [
+        {
+          "model": "gpt-5.6-terra",
+          "reasoning": "high"
+        },
+        {
+          "model": "gpt-5.6-terra",
+          "reasoning": "xhigh"
+        }
+      ]
+    },
+    "high_risk": {
+      "tier": 3,
+      "model": "gpt-5.6-terra",
+      "reasoning": "xhigh",
+      "exceptional_model": "gpt-5.6-sol",
+      "exceptional_reasoning": "xhigh",
+      "max_attempts": 2,
+      "max_escalations": 1,
+      "max_runtime_minutes": 90,
+      "sol_requires_explicit_task_approval": true,
+      "escalation_path": [
+        {
+          "model": "gpt-5.6-terra",
+          "reasoning": "xhigh"
+        },
+        {
+          "model": "gpt-5.6-sol",
+          "reasoning": "xhigh",
+          "requires": "exceptional_escalation_approved and escalation_reason"
+        }
+      ]
+    }
+  },
+  "budgets": {
+    "max_terra_xhigh_invocations_per_run": 4,
+    "max_sol_invocations_per_run": 1,
+    "max_expensive_tasks_per_run": 5,
+    "max_retries_per_task": 3,
+    "max_total_runtime_hours": 8
+  },
+  "classification": {
+    "high_risk_indicators": [
+      "stripe",
+      "billing",
+      "checkout",
+      "payment",
+      "subscription",
+      "webhook",
+      "webhook secret",
+      "secret manager",
+      "iam",
+      "service account",
+      "production",
+      "prod",
+      "cloud run traffic",
+      "database migration",
+      "delete",
+      "drop",
+      "customer data",
+      "authentication",
+      "oauth",
+      "credential",
+      "api secret",
+      "dns",
+      "domain configuration",
+      "production firestore",
+      "production entitlement"
+    ],
+    "complex_indicators": [
+      "persistent",
+      "cross-service",
+      "concurrency",
+      "architectural",
+      "production-only",
+      "data consistency",
+      "difficult debugging",
+      "root cause"
+    ],
+    "routine_categories": [
+      "DOCUMENTATION",
+      "REPORTING",
+      "RESEARCH",
+      "SEO",
+      "GTM",
+      "RECONCILIATION",
+      "DATA_PROCESSING",
+      "FORMAT"
+    ],
+    "standard_categories": [
+      "REPO_CODING",
+      "FRONTEND",
+      "BACKEND",
+      "ANALYTICS",
+      "UI",
+      "API",
+      "TESTING",
+      "GTM_UI"
+    ]
+  },
+  "escalation": {
+    "never_for_failure_categories": [
+      "iam",
+      "permission",
+      "credential",
+      "secret",
+      "rate limit",
+      "unavailable",
+      "missing dependency",
+      "fixture",
+      "environment",
+      "configuration",
+      "network"
+    ],
+    "require_explicit_sol_approval": true
+  },
+  "telemetry": {
+    "exact_credit_usage_available": false,
+    "track": [
+      "model",
+      "reasoning",
+      "invocations",
+      "runtime_ms",
+      "retries",
+      "escalations"
+    ]
+  }
+}

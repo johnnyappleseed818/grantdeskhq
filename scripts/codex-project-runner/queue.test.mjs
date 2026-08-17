@@ -7,12 +7,12 @@ import { acquireLock, lockIsStale, queueSummary, runQueue, selectNextTask, valid
 
 const stamp = "2026-08-17T00:00:00.000Z";
 const task = (id, priority, status = "QUEUED", dependencies = []) => ({ id, title: id, category: "QA", priority, status, created_at: stamp, updated_at: stamp, description: "test", acceptance_criteria: ["done"], dependencies, blocked_by: [], attempt_count: 0, max_attempts: 2, estimated_scope: "small", allowed_actions: [], forbidden_actions: [], artifacts_expected: [], tests_expected: [], branch: null, commit_sha: null, started_at: null, completed_at: null, blocker: "", result_summary: "" });
-function fixture() { const dir = mkdtempSync(join(tmpdir(), "grantdesk-queue-")); const queuePath = join(dir, "queue.json"); const policyPath = join(dir, "policy.md"); const schemaPath = join(dir, "schema.json"); writeFileSync(policyPath, "No production. No outbound."); writeFileSync(schemaPath, "{}"); return { dir, queuePath, policyPath, schemaPath }; }
+function fixture() { const dir = mkdtempSync(join(tmpdir(), "grantdesk-queue-")); const queuePath = join(dir, "queue.json"); const policyPath = join(dir, "policy.md"); const schemaPath = join(dir, "schema.json"); const modelPolicyPath = join(dir, "agent-model-policy.json"); writeFileSync(policyPath, "No production. No outbound."); writeFileSync(schemaPath, "{}"); writeFileSync(modelPolicyPath, readFileSync(new URL("../../ops/agent-model-policy.json", import.meta.url))); return { dir, queuePath, policyPath, schemaPath, modelPolicyPath }; }
 
 test("selects the highest-priority unblocked queued task and skips blockers", () => {
   const queue = { tasks: [task("blocked", 1, "BLOCKED"), task("dependent", 2, "QUEUED", ["blocked"]), task("next", 3)] };
   assert.equal(selectNextTask(queue).id, "next");
-  assert.deepEqual(queueSummary(queue).count, { QUEUED: 2, RUNNING: 0, PASS: 0, PARTIAL: 0, BLOCKED: 1, FAILED: 0, SKIPPED: 0 });
+  assert.equal(queueSummary(queue).count.QUEUED, 2); assert.equal(queueSummary(queue).count.BLOCKED, 1); assert.equal(queueSummary(queue).count.CLASSIFYING, 0);
 });
 
 test("rejects malformed queues and duplicate task ids", () => {
@@ -29,9 +29,13 @@ test("PASS requires recorded tests, no blocker, and every expected artifact", ()
 });
 
 test("dry run checkpoints a selected task without invoking Codex", async () => {
-  const { dir, queuePath, policyPath, schemaPath } = fixture(); const queue = { tasks: [task("first", 1), task("blocked", 2, "BLOCKED")] }; writeJson(queuePath, queue); const statusFile = join(dir, "status.txt"); const result = await runQueue({ queuePath, policyPath, schemaPath, root: dir, stateDir: join(dir, "state"), statusFile, dryRun: true, maxTasks: 1, maxRuntimeHours: 1 }); assert.equal(result.tasks[0].status, "PARTIAL"); assert.equal(result.tasks[1].status, "BLOCKED"); assert.match(readFileSync(statusFile, "utf8"), /LAST COMPLETED TASK: first/); assert.match(readFileSync(join("/home/eli_katz/grantdeskhq-overnight-summary.txt"), "utf8"), /TASKS REMAINING/);
+  const { dir, queuePath, policyPath, schemaPath, modelPolicyPath } = fixture(); const queue = { tasks: [task("first", 1), task("blocked", 2, "BLOCKED")] }; writeJson(queuePath, queue); const statusFile = join(dir, "status.txt"); const result = await runQueue({ queuePath, policyPath, schemaPath, modelPolicyPath, root: dir, stateDir: join(dir, "state"), statusFile, morningReportFile: join(dir, "morning.txt"), dryRun: true, maxTasks: 1, maxRuntimeHours: 1 }); assert.equal(result.tasks[0].status, "PARTIAL"); assert.equal(result.tasks[1].status, "BLOCKED"); assert.match(readFileSync(statusFile, "utf8"), /LAST COMPLETED TASK: first/); assert.match(readFileSync(join(dir, "morning.txt"), "utf8"), /TASKS REMAINING/);
 });
 
 test("the legacy bounded runner validates the actual result path", () => {
   const source = readFileSync(new URL("./run-project.sh", import.meta.url), "utf8"); assert.match(source, /valid_result "\$result"/); assert.doesNotMatch(source, /valid_result ""/);
+});
+
+test("model-aware queue invocation preserves safety gates and no approval bypass", () => {
+  const source = readFileSync(new URL("./queue-lib.mjs", import.meta.url), "utf8"); assert.match(source, /CODEX_QUEUE_NO_PRODUCTION: "1"/); assert.match(source, /CODEX_QUEUE_NO_OUTBOUND: "1"/); assert.match(source, /CODEX_QUEUE_NO_PURCHASES: "1"/); assert.match(source, /CODEX_QUEUE_NO_FORCE_PUSH: "1"/); assert.match(source, /"-m", task\.selected_model/); assert.match(source, /model_reasoning_effort=/); assert.doesNotMatch(source, /"--approve-for-me"/);
 });
