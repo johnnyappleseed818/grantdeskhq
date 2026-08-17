@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { ArrowRight, Check, FileSearch, Mail, MessagesSquare, Presentation } from "lucide-react";
+import { trackAnalyticsEvent } from "../lib/analytics";
 
 const CONTACT_DESTINATION = ["eli", "grantdeskhq.com"].join("@");
 const QUESTIONNAIRE_URL = "https://docs.google.com/forms/d/e/1FAIpQLSddrmCFTno2tDYLKW2qCSUllnFxjxcjNMFFPtZJoOlPxQPSBQ/viewform";
@@ -40,7 +41,7 @@ export function PilotPage() {
               <h1 className="page-title">Let our AI-powered solution prepare your first report draft at no cost.</h1>
               <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">Use one completed, appropriately redacted historical report to compare GrantDeskHQ with the process your team uses today. See whether our AI-powered workflow can reduce spreadsheet rebuilding, identify missing evidence sooner, and give your reviewers a stronger starting point.</p>
               <div className="mt-7 flex flex-wrap gap-3">
-                <a className="button button-secondary button-large" href={QUESTIONNAIRE_URL} target="_blank" rel="noreferrer">Tell us about your workflow <ArrowRight aria-hidden="true" /></a>
+                <a className="button button-secondary button-large" href={QUESTIONNAIRE_URL} target="_blank" rel="noreferrer" onClick={() => trackAnalyticsEvent("free_first_report_click", { surface: "assessment" })}>Tell us about your workflow <ArrowRight aria-hidden="true" /></a>
               </div>
               <div className="mt-7 flex flex-wrap items-end gap-3"><strong className="text-4xl font-semibold text-navy-900">$0</strong><span className="pb-1 text-slate-500">for your first report · no subscription required</span></div>
             </div>

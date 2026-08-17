@@ -7,9 +7,17 @@ const CONSENT_KEY = "grantdeskhq:analytics-consent:v1";
 const OPEN_PREFERENCES_EVENT = "grantdeskhq:open-analytics-preferences";
 const PRIVATE_ROUTE_PREFIXES = ["/compile", "/gtm", "/login", "/readiness", "/workspace"];
 const DEFAULT_CLARITY_PROJECT_ID = "xzcynx2076";
+const UTM_PARAMETERS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"] as const;
+const queuedAnalyticsEvents: Array<[AnalyticsEventName, AnalyticsEventProperties]> = [];
 
 type AnalyticsConsent = "granted" | "denied";
 type ClarityFunction = ((...args: unknown[]) => void) & { q?: unknown[][] };
+export type AnalyticsEventName = "free_first_report_click" | "signup_start" | "signup_complete" | "report_started" | "award_uploaded" | "report_generated" | "pricing_view" | "checkout_started" | "subscription_started";
+type AnalyticsEventProperties = {
+  surface?: "header" | "footer" | "pricing" | "resources" | "account" | "assessment";
+  page_type?: "pricing";
+  plan_key?: "starter" | "growth" | "agency";
+};
 
 interface AnalyticsConfig {
   googleAnalyticsMeasurementId?: string;
@@ -19,9 +27,22 @@ interface AnalyticsConfig {
 declare global {
   interface Window {
     clarity?: ClarityFunction;
-    dataLayer?: unknown[][];
+    dataLayer?: unknown[];
     gtag?: (...args: unknown[]) => void;
   }
+}
+
+/**
+ * Records only fixed conversion names and allowlisted, non-sensitive metadata.
+ * Uploaded files, report data, account details, and payment details never enter GA.
+ */
+export function trackAnalyticsEvent(name: AnalyticsEventName, properties: AnalyticsEventProperties = {}) {
+  if (typeof window === "undefined" || readStoredConsent() !== "granted") return;
+  if (!window.gtag) {
+    queuedAnalyticsEvents.push([name, properties]);
+    return;
+  }
+  window.gtag("event", name, properties);
 }
 
 export function AnalyticsManager() {
@@ -64,7 +85,7 @@ export function AnalyticsManager() {
     lastPageView.current = path;
     window.gtag?.("event", "page_view", {
       page_title: document.title,
-      page_location: `${window.location.origin}${path}`,
+      page_location: publicAnalyticsLocation(path),
       page_path: path
     });
   }, [config, consent, location.pathname]);
@@ -126,6 +147,16 @@ function normalizedPagePath(pathname: string) {
   return clean || "/";
 }
 
+function publicAnalyticsLocation(path: string) {
+  const query = new URLSearchParams();
+  for (const parameter of UTM_PARAMETERS) {
+    const value = new URLSearchParams(window.location.search).get(parameter)?.trim() || "";
+    if (/^[a-z0-9._~-]{1,100}$/i.test(value)) query.set(parameter, value);
+  }
+  const search = query.toString();
+  return window.location.origin + path + (search ? `?${search}` : "");
+}
+
 function analyticsConsent(analyticsStorage: AnalyticsConsent) {
   return {
     analytics_storage: analyticsStorage,
@@ -137,7 +168,12 @@ function analyticsConsent(analyticsStorage: AnalyticsConsent) {
 
 function initializeGoogleAnalytics(measurementId: string) {
   window.dataLayer = window.dataLayer || [];
-  window.gtag = window.gtag || ((...args: unknown[]) => window.dataLayer?.push(args));
+  // gtag.js consumes native argument objects from dataLayer. Plain arrays may
+  // look similar in DevTools but are not processed as Google tag commands.
+  window.gtag = window.gtag || function gtagQueue() {
+    // eslint-disable-next-line prefer-rest-params -- gtag.js requires native argument objects.
+    window.dataLayer?.push(arguments);
+  };
   window.gtag("consent", "default", analyticsConsent("granted"));
   window.gtag("js", new Date());
   window.gtag("config", measurementId, {
@@ -145,6 +181,10 @@ function initializeGoogleAnalytics(measurementId: string) {
     allow_google_signals: false,
     allow_ad_personalization_signals: false
   });
+  while (queuedAnalyticsEvents.length) {
+    const [name, properties] = queuedAnalyticsEvents.shift()!;
+    window.gtag("event", name, properties);
+  }
   if (document.getElementById("grantdeskhq-google-analytics")) return;
   const script = document.createElement("script");
   script.id = "grantdeskhq-google-analytics";

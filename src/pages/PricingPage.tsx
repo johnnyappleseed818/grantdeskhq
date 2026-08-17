@@ -5,6 +5,7 @@ import { INCLUDED_IN_EVERY_PLAN, PRICING_PLANS, formatUsd, type PlanId } from ".
 import { apiRequest, apiUrl } from "../lib/api";
 import { currentCampaignAttribution } from "../lib/attribution";
 import { useAuth } from "../lib/auth";
+import { trackAnalyticsEvent } from "../lib/analytics";
 
 interface BillingConfig { billingConfigured?: boolean; foundingPricingActive?: boolean; }
 interface BillingStatus { planKey: string; subscriptionStatus: string; foundingPricingApplied: boolean; entitlementActive: boolean; }
@@ -19,6 +20,10 @@ export function PricingPage() {
   const location = useLocation();
   const resumedCheckout = useRef(false);
   const foundingPricing = Boolean(billingConfig?.foundingPricingActive);
+
+  useEffect(() => {
+    trackAnalyticsEvent("pricing_view", { page_type: "pricing" });
+  }, []);
 
   useEffect(() => {
     fetch(apiUrl("/api/config"))
@@ -58,6 +63,7 @@ export function PricingPage() {
         setStartingPlan("");
         return;
       }
+      trackAnalyticsEvent("checkout_started", { plan_key: plan });
       await apiRequest<{ recorded: boolean }>("/api/lifecycle/checkout-started", idToken, {
         method: "POST",
         body: JSON.stringify({ attribution: currentCampaignAttribution() })
@@ -105,7 +111,7 @@ export function PricingPage() {
           <p className="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">Best for</p><p className="mt-1 text-sm font-semibold text-navy-900">{plan.bestFor}</p>
           <p className="mt-5 min-h-[72px] text-sm leading-6 text-slate-600">{plan.description}</p>
           <ul className="mt-7 grid gap-3 text-sm text-slate-700"><Feature>Up to {plan.activeGrants} active grants</Feature><Feature>{plan.reportsPerYear} report packages per year</Feature><Feature>No per-user fees</Feature><Feature>Unlimited archived grants</Feature><Feature>{plan.support}</Feature></ul>
-          {billingConfig?.billingConfigured ? <button type="button" className={`button mt-8 w-full ${plan.featured ? "button-primary" : "button-secondary"}`} disabled={Boolean(startingPlan) || currentPlan} onClick={() => void beginCheckout(plan.id)}>{startingPlan === plan.id ? <><LoaderCircle className="animate-spin" aria-hidden="true" />Opening secure checkout…</> : currentPlan ? <>Current plan</> : billing?.entitlementActive ? <>Change to {plan.name}<ArrowRight aria-hidden="true" /></> : <>Choose {plan.name}<ArrowRight aria-hidden="true" /></>}</button> : billingConfig ? <Link className={`button mt-8 w-full ${plan.featured ? "button-primary" : "button-secondary"}`} to="/assessment#contact">Analyze your first report free<ArrowRight aria-hidden="true" /></Link> : <button type="button" className="button button-secondary mt-8 w-full" disabled><LoaderCircle className="animate-spin" aria-hidden="true" />Checking secure checkout…</button>}
+          {billingConfig?.billingConfigured ? <button type="button" className={`button mt-8 w-full ${plan.featured ? "button-primary" : "button-secondary"}`} disabled={Boolean(startingPlan) || currentPlan} onClick={() => void beginCheckout(plan.id)}>{startingPlan === plan.id ? <><LoaderCircle className="animate-spin" aria-hidden="true" />Opening secure checkout…</> : currentPlan ? <>Current plan</> : billing?.entitlementActive ? <>Change to {plan.name}<ArrowRight aria-hidden="true" /></> : <>Choose {plan.name}<ArrowRight aria-hidden="true" /></>}</button> : billingConfig ? <Link className={`button mt-8 w-full ${plan.featured ? "button-primary" : "button-secondary"}`} to="/assessment#contact" onClick={() => trackAnalyticsEvent("free_first_report_click", { surface: "pricing" })}>Analyze your first report free<ArrowRight aria-hidden="true" /></Link> : <button type="button" className="button button-secondary mt-8 w-full" disabled><LoaderCircle className="animate-spin" aria-hidden="true" />Checking secure checkout…</button>}
         </article>;
       })}</div>
       <div className="pricing-comparison" aria-labelledby="plan-comparison-heading"><div className="pricing-comparison-heading"><p className="eyebrow">Compare plans</p><h2 id="plan-comparison-heading">One source-linked workflow, scaled for reporting demand</h2><p>Plan limits are defined once and applied consistently across GrantDeskHQ billing and workspace status.</p></div><div className="pricing-table-wrap" tabIndex={0} aria-label="Scrollable plan comparison"><table><thead><tr><th scope="col">Included</th>{PRICING_PLANS.map((plan) => <th scope="col" key={plan.id}>{plan.name}</th>)}</tr></thead><tbody><ComparisonRow label="Active grants" values={PRICING_PLANS.map((plan) => `Up to ${plan.activeGrants}`)} /><ComparisonRow label="Report packages per year" values={PRICING_PLANS.map((plan) => String(plan.reportsPerYear))} />{INCLUDED_IN_EVERY_PLAN.map((feature) => <ComparisonRow key={feature} label={feature} values={PRICING_PLANS.map(() => "Included")} checkmarks />)}</tbody></table></div></div>

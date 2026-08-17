@@ -5,7 +5,7 @@ import { Logo } from "./Logo";
 import { CORE_VALUE_PROPOSITION, REVIEW_PROMISE } from "../content/positioning";
 import { apiRequest } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { openAnalyticsPreferences } from "../lib/analytics";
+import { openAnalyticsPreferences, trackAnalyticsEvent } from "../lib/analytics";
 
 const marketingLinks = [
   ["How It Works", "/#how-it-works"],
@@ -67,7 +67,7 @@ export function SiteLayout() {
             className={`primary-navigation ${menuOpen ? "is-open" : ""}`}
           >
             {marketingLinks.map(([label, href]) => (
-              <NavLink key={label} to={href} className="nav-link">{label}</NavLink>
+              <NavLink key={label} to={href} className="nav-link" onClick={() => { if (label === "Free First Report") trackAnalyticsEvent("free_first_report_click", { surface: "header" }); }}>{label}</NavLink>
             ))}
             {gtmAllowed && <Link className="nav-link admin-nav-link" to="/gtm">GTM Command Center</Link>}
             {gtmAllowed && <Link className="nav-link admin-nav-link" to="/internal/reliability">Reliability</Link>}
@@ -106,7 +106,7 @@ export function SiteLayout() {
               <Link to={user ? "/workspace" : "/login"}>{user ? "My workspace" : "Account sign in"}</Link>
               {gtmAllowed && <Link to="/gtm">GTM Command Center</Link>}
               {gtmAllowed && <Link to="/internal/reliability">Reliability dashboard</Link>}
-              <Link to="/assessment">Free first report</Link>
+              <Link to="/assessment" onClick={() => trackAnalyticsEvent("free_first_report_click", { surface: "footer" })}>Free first report</Link>
             </div>
           </div>
           <div>

@@ -27,6 +27,7 @@ import { createEvidenceId, mergePendingEvidenceFiles, type PendingEvidenceFile }
 import { futureWorkflowStatus, normalizeWorkflowObligations } from "../lib/obligationApplicability";
 import { apiRequest } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { trackAnalyticsEvent } from "../lib/analytics";
 import type { CompilationPreflightResult, CompilationRequest, CompilationResult, CompilerFile, GrantReportingPeriod, GrantWorkflowObligation, ObligationApplicability, PersistedCompilationResponse, ReviewState, SetupDecision, SourceRole, SupportingEvidenceFile } from "../types/prototype";
 
 const sourceFields: Array<{ role: SourceRole; label: string; help: string; accept: string; required: boolean }> = [
@@ -117,6 +118,7 @@ export function CompilePage() {
   const updateFile = (role: SourceRole, event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    trackAnalyticsEvent("award_uploaded", { surface: "account" });
     setFiles((current) => ({ ...current, [role]: file }));
     inspectSelectedFile(role, file);
     setResult(null);
@@ -133,6 +135,7 @@ export function CompilePage() {
     if (!selected.length) return;
     const unsupported = selected.filter((file) => !acceptsEvidenceFile(file));
     const accepted = selected.filter(acceptsEvidenceFile);
+    if (accepted.length) trackAnalyticsEvent("award_uploaded", { surface: "account" });
     setEvidenceFiles((current) => {
       const merged = mergePendingEvidenceFiles(current, accepted);
       if (merged.error) window.requestAnimationFrame(() => setError(merged.error));
@@ -184,6 +187,7 @@ export function CompilePage() {
     const selected = Array.from(event.target.files || []);
     if (!selected.length) return;
     const { assigned, evidence, unmatched } = assignPackageFiles(selected, files);
+    if (Object.keys(assigned).length) trackAnalyticsEvent("award_uploaded", { surface: "account" });
     setFiles((current) => ({ ...current, ...assigned }));
     appendEvidenceFiles(evidence);
     for (const [role, file] of Object.entries(assigned) as Array<[SourceRole, File]>) inspectSelectedFile(role, file);
@@ -286,6 +290,7 @@ export function CompilePage() {
         return;
       }
       const idToken = await token();
+      trackAnalyticsEvent("report_started", { surface: "account" });
       void apiRequest<{ recorded: boolean }>("/api/lifecycle/first-report-started", idToken, { method: "POST", body: "{}" }).catch(() => undefined);
       const corePayload = { ...payload, files: payload.files.filter((file) => file.role !== "supportingEvidence") };
       const body = await apiRequest<PersistedCompilationResponse>("/api/reports/compile", idToken, { method: "POST", body: JSON.stringify(corePayload) });
@@ -304,6 +309,7 @@ export function CompilePage() {
       setResult(completed.result);
       setReportId(completed.reportId);
       setActiveTab("overview");
+      trackAnalyticsEvent("report_generated", { surface: "account" });
       window.requestAnimationFrame(() => document.getElementById("compiler-results")?.focus());
     } catch (compileError) {
       setError(compileError instanceof Error ? compileError.message : "The report compiler could not complete this package.");
