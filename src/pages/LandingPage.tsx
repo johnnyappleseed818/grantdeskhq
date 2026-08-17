@@ -57,7 +57,7 @@ export function LandingPage() {
               {CORE_VALUE_PROPOSITION} Built for nonprofit finance teams, our AI-powered solution organizes the funder's requirements, prepares the financial schedules and narrative, and flags missing or conflicting information before final review.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link className="button button-primary button-large" to="/compile">Prepare a report <ArrowRight aria-hidden="true" /></Link>
+              <Link className="button button-primary button-large" to="/assessment">Start your Free First Award <ArrowRight aria-hidden="true" /></Link>
               <Link className="button button-secondary button-large" to="/readiness">Get a free readiness audit</Link>
             </div>
             <p className="trust-line"><CheckCircle2 aria-hidden="true" /> Source-linked output · Built-in evidence checks · Professional review required</p>
@@ -198,7 +198,7 @@ export function LandingPage() {
             <p className="mt-3 text-slate-600">Follow the workflow from grant agreement to source-linked draft, or let us analyze one report at no cost.</p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link className="button button-primary button-large shrink-0" to="/assessment">Analyze your first report free <ArrowRight aria-hidden="true" /></Link>
+            <Link className="button button-primary button-large shrink-0" to="/assessment">Start your Free First Award <ArrowRight aria-hidden="true" /></Link>
             <Link className="button button-secondary button-large shrink-0" to="/readiness">Audit one grant agreement free</Link>
           </div>
         </div>

@@ -90,7 +90,7 @@ export const BLOG_POSTS: BlogPost[] = [
         "The same approach applies to narrative statements. A claim about activities, outcomes, or a variance needs a source that a reviewer can inspect. If evidence is missing, carry the gap forward as a visible follow-up item. This keeps a working draft useful without suggesting that incomplete information has been verified." ] },
       { heading: "Review the plan before the first deadline", paragraphs: [
         "Run a short readiness review after setup and again before each reporting cycle. Check that the period dates, required questions, attachments, metrics, accounting categories, and approval path still reflect the current agreement. Amendments and funder communications can change what is required, so preserve them with the plan instead of relying on memory or an old spreadsheet.",
-        "GrantDeskHQ helps teams organize their agreement, accounting data, program updates, and supporting evidence into a reviewable post-award workflow. The team remains responsible for review and submission. When you are ready, try one award through the Free First Report flow and see which reporting inputs become easier to assemble." ] }
+        "GrantDeskHQ helps teams organize their agreement, accounting data, program updates, and supporting evidence into a reviewable post-award workflow. The team remains responsible for review and submission. When you are ready, try one award through the Free First Award flow and see which reporting inputs become easier to assemble." ] }
     ]
   },
   {
@@ -116,7 +116,7 @@ export const BLOG_POSTS: BlogPost[] = [
         "Honest context improves a report when it is tied to evidence. If implementation changed, describe the confirmed change, its effect on the period, and the next action. Do not imply funder approval, a compliance conclusion, or a causal explanation unless the relevant source supports it." ] },
       { heading: "Use a human review gate before submission", paragraphs: [
         "A final review is more than proofreading. Check period dates, agreement requirements, totals, category labels, metric definitions, attachments, and any certification or authorized-signature step. Confirm that open questions are resolved or clearly escalated. Preserve the submitted package, review decisions, and source trail so that the next period starts from a reliable record.",
-        "GrantDeskHQ prepares a source-linked draft from the agreement, accounting data, program updates, and supporting evidence, while keeping people in control of review and submission. You can try one award through the Free First Report flow without replacing the accounting system." ] }
+        "GrantDeskHQ prepares a source-linked draft from the agreement, accounting data, program updates, and supporting evidence, while keeping people in control of review and submission. You can try one award through the Free First Award flow without replacing the accounting system." ] }
     ]
   },
   {
@@ -142,7 +142,7 @@ export const BLOG_POSTS: BlogPost[] = [
         "Retention requirements can vary. For awards subject to federal requirements, consult the applicable regulation and agency guidance as well as the award itself. Your operational archive should make it possible for a future reviewer to identify the final version, see what changed, and trace material values to their source records." ] },
       { heading: "4. Run the final human review", paragraphs: [
         "Before submission, compare the package to the current award terms line by line: reporting period, required narrative questions, financial fields, metrics, attachments, signatures, certifications, portal instructions, and due date. Record who reviewed the package and what was resolved. This supports continuity and avoids treating a generated draft as an approved submission.",
-        "GrantDeskHQ helps teams bring award terms, financial data, program updates, and evidence into a reviewable workflow. It does not submit, certify, or approve a report for your organization. Use the Free First Report flow with one award when you want to test how a source-linked draft can support your closeout preparation." ] }
+        "GrantDeskHQ helps teams bring award terms, financial data, program updates, and evidence into a reviewable workflow. It does not submit, certify, or approve a report for your organization. Use the Free First Award flow with one award when you want to test how a source-linked draft can support your closeout preparation." ] }
     ]
   },
   {
@@ -168,7 +168,7 @@ export const BLOG_POSTS: BlogPost[] = [
         "During an evaluation, use one real award and a safe copy of the associated inputs. Measure the time needed to set up requirements, assemble the first reporting draft, trace a budget-to-actual total, and resolve a missing evidence question. This is more useful than a generic demonstration because it shows whether the product fits the organization workflow and review standards." ] },
       { heading: "Choose a focused workflow when reporting is the urgent need", paragraphs: [
         "A broad platform can be appropriate for organizations that need discovery, applications, portfolio management, and post-award administration in one system. A focused post-award workflow can be a better fit when the immediate need is to prepare accurate, source-linked funder reporting without adding a larger grant-discovery or proposal stack. The right choice depends on the work, team, existing systems, and award complexity.",
-        "GrantDeskHQ is designed for the post-award reporting workflow: it turns the agreement, accounting data, program updates, and supporting evidence into a reviewable funder-report draft. It keeps the nonprofit team in control of review and submission. Try one award through the Free First Report flow to evaluate the workflow against your own reporting requirements." ] }
+        "GrantDeskHQ is designed for the post-award reporting workflow: it turns the agreement, accounting data, program updates, and supporting evidence into a reviewable funder-report draft. It keeps the nonprofit team in control of review and submission. Try one award through the Free First Award flow to evaluate the workflow against your own reporting requirements." ] }
     ]
   }
 ];

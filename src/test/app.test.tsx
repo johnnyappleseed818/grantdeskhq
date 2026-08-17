@@ -70,8 +70,9 @@ describe("important routes", () => {
     renderRoute("/");
     const navigation = screen.getByRole("navigation", { name: "Primary navigation" });
     const resources = navigation.querySelector<HTMLAnchorElement>("a[href=\"/resources\"]");
-    expect(Array.from(navigation.querySelectorAll("a.nav-link")).slice(0, 6).map((link) => link.textContent)).toEqual(["How It Works", "Sample Output", "Resources", "Security & FAQ", "Pricing", "Free First Report"]);
+    expect(Array.from(navigation.querySelectorAll("a.nav-link")).slice(0, 5).map((link) => link.textContent)).toEqual(["How It Works", "Sample Output", "Resources", "Security & FAQ", "Pricing"]);
     expect(resources).toHaveTextContent("Resources");
+    expect(navigation.querySelector("a.button[href=\"/assessment\"]")).toHaveTextContent("Free First Award");
     expect(screen.queryByRole("link", { name: "GTM Command Center" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Reliability" })).not.toBeInTheDocument();
   });
@@ -107,12 +108,12 @@ describe("important routes", () => {
       "href",
       expect.stringMatching(/^https:\/\/docs\.google\.com\/forms\/d\/e\//)
     );
-    expect(screen.getByRole("heading", { name: "Try one report at no cost" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Start your Free First Award" })).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
     expect(screen.getByLabelText("Work email")).toBeInTheDocument();
     expect(screen.getByLabelText("Organization")).toBeInTheDocument();
     expect(screen.getByLabelText("Current grant-reporting process")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Try one report free/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Open a Free First Award email draft/i })).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/eli@|Eli Katz/i);
   });
 

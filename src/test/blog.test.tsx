@@ -25,7 +25,7 @@ describe("public GrantDeskHQ blog", () => {
   it("renders a discoverable article with source links and a self-service CTA", () => {
     render(<MemoryRouter initialEntries={["/blog/post-award-grant-reporting-checklist"]}><Routes><Route path="/blog/:slug" element={<BlogPostPage />} /><Route path="/pricing" element={<div>Pricing</div>} /></Routes></MemoryRouter>);
     expect(screen.getByRole("heading", { name: /post-award grant reporting checklist/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /try one award for free/i })).toHaveAttribute("href", "/assessment");
+    expect(screen.getByRole("link", { name: /start your free first award/i })).toHaveAttribute("href", "/assessment");
     expect(screen.getByRole("link", { name: /view self-service plans/i })).toHaveAttribute("href", "/pricing");
     expect(screen.getByRole("link", { name: /uniform administrative requirements/i })).toHaveAttribute("href", expect.stringMatching(/^https:\/\//));
     expect(screen.getByRole("link", { name: "All resources" })).toHaveAttribute("href", "/resources");
@@ -52,7 +52,7 @@ describe("public GrantDeskHQ blog", () => {
     expect(document.querySelector('meta[name="description"]')?.getAttribute("content")).toBe(findBlogPost(slug)?.description);
     expect(document.querySelector("link[rel=canonical]")?.getAttribute("href")).toBe("https://grantdeskhq.com/blog/" + slug);
     expect(screen.getByRole("link", { name: "All resources" })).toHaveAttribute("href", "/resources");
-    expect(screen.getByRole("link", { name: /try one award for free/i })).toHaveAttribute("href", "/assessment");
+    expect(screen.getByRole("link", { name: /start your free first award/i })).toHaveAttribute("href", "/assessment");
   });
 
   it("renders only published resources on the public Resources hub", () => {

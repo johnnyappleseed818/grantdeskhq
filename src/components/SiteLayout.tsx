@@ -12,8 +12,7 @@ const marketingLinks = [
   ["Sample Output", "/sample-report"],
   ["Resources", "/resources"],
   ["Security & FAQ", "/#security-faq"],
-  ["Pricing", "/pricing"],
-  ["Free First Report", "/assessment"]
+  ["Pricing", "/pricing"]
 ];
 
 export function SiteLayout() {
@@ -67,7 +66,7 @@ export function SiteLayout() {
             className={`primary-navigation ${menuOpen ? "is-open" : ""}`}
           >
             {marketingLinks.map(([label, href]) => (
-              <NavLink key={label} to={href} className="nav-link" onClick={() => { if (label === "Free First Report") trackAnalyticsEvent("free_first_report_click", { surface: "header" }); }}>{label}</NavLink>
+              <NavLink key={label} to={href} className="nav-link">{label}</NavLink>
             ))}
             {gtmAllowed && <Link className="nav-link admin-nav-link" to="/gtm">GTM Command Center</Link>}
             {gtmAllowed && <Link className="nav-link admin-nav-link" to="/gtm/feedback">Feedback review</Link>}
@@ -75,10 +74,11 @@ export function SiteLayout() {
             <Link className="nav-link account-nav-link" to={user ? "/workspace" : "/login"}>{user ? "My workspace" : "Sign in"}</Link>
             <Link
               className="button button-primary whitespace-nowrap"
-              to={user ? "/compile?new=1" : "/login?next=/compile"}
+              to={user ? "/compile?new=1" : "/assessment"}
               reloadDocument={Boolean(user)}
+              onClick={() => { if (!user) trackAnalyticsEvent("free_first_report_click", { surface: "header" }); }}
             >
-              {user ? "New report" : "Create account"}
+              {user ? "New report" : "Free First Award"}
             </Link>
           </nav>
         </div>
@@ -107,7 +107,7 @@ export function SiteLayout() {
               <Link to={user ? "/workspace" : "/login"}>{user ? "My workspace" : "Account sign in"}</Link>
               {gtmAllowed && <Link to="/gtm">GTM Command Center</Link>}
               {gtmAllowed && <Link to="/internal/reliability">Reliability dashboard</Link>}
-              <Link to="/assessment" onClick={() => trackAnalyticsEvent("free_first_report_click", { surface: "footer" })}>Free first report</Link>
+              <Link to="/assessment" onClick={() => trackAnalyticsEvent("free_first_report_click", { surface: "footer" })}>Free First Award</Link>
             </div>
           </div>
           <div>
