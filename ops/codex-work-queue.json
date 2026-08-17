@@ -904,6 +904,521 @@
       "exceptional_escalation_approved": false,
       "max_runtime_minutes": 45,
       "run_dir": "/home/eli_katz/grantdesk-project-runs/codex-queue/runs/outreach-feedback-final-integration/2026-08-17T13-11-09-348Z"
+    },
+    {
+      "status": "PASS",
+      "created_at": "2026-08-17T14:30:14.881Z",
+      "updated_at": "2026-08-17T14:32:52.311Z",
+      "dependencies": [],
+      "blocked_by": [],
+      "attempt_count": 1,
+      "max_attempts": 3,
+      "estimated_scope": "bounded",
+      "allowed_actions": [
+        "inspect",
+        "edit",
+        "test",
+        "commit",
+        "push",
+        "zero-traffic QA"
+      ],
+      "forbidden_actions": [
+        "outbound",
+        "purchases",
+        "force push",
+        "live payment",
+        "traffic shift"
+      ],
+      "branch": "feature/outreach-feedback-tracking",
+      "commit_sha": "7047646ff75d5ae2840bafeecd05940c876fb7d8",
+      "started_at": "2026-08-17T14:30:25.148Z",
+      "completed_at": "2026-08-17T14:32:52.311Z",
+      "blocker": "",
+      "result_summary": "Audited public pricing terminology and generated /pricing path; documented exact required public-copy changes and safe internal identifiers. Reconciled canonical outreach: Direct 5, Partner 5, Total 10, Missing 0; all date-only confirmed with no inferred outcomes or duplicates. Preserved the pre-existing ops/codex-work-queue.json modification.",
+      "risk_level": "MODERATE",
+      "selected_tier": "STANDARD",
+      "selected_model": "gpt-5.6-terra",
+      "reasoning_level": "medium",
+      "why_selected": "Normal repository implementation or test work with no high-risk indicators.",
+      "runtime_ms": 147152,
+      "fallback_reason": null,
+      "escalation_reason": null,
+      "escalation_count": 0,
+      "max_escalations": 1,
+      "route_step": 0,
+      "validation_status": "PASS",
+      "exceptional_escalation_approved": false,
+      "id": "founder-pricing-terminology-audit-20260817",
+      "title": "Audit public pricing terminology and confirmed manual outreach",
+      "category": "RECONCILIATION",
+      "task_type": "RECONCILIATION",
+      "priority": 1,
+      "description": "Inspect the public website source and generated build paths for customer-facing commercial uses of founding/founder pricing language. Classify findings as public copy to change or safe internal implementation. Verify the canonical confirmed-human outreach ledger reconciles exactly five Direct nonprofit and five Partner records dated 2026-08-17 with date-only precision, no invented delivery/reply data, and no duplicates. Produce a concise factual audit with concrete file locations and the intended public copy changes. Do not change application code in this task.",
+      "acceptance_criteria": [
+        "A repository audit classifies each commercial founding/founder match as PUBLIC or INTERNAL.",
+        "The audit identifies all exact pricing copy changes requested by the founder.",
+        "Manual outreach reconciliation verifies Direct sent 5, Partner sent 5, Total sent 10, Missing 0 without fabricated timestamps or outcomes."
+      ],
+      "artifacts_expected": [
+        "reports/gtm-founder-pricing-audit.md"
+      ],
+      "tests_expected": [
+        "targeted source search",
+        "ledger reconciliation check"
+      ],
+      "max_runtime_minutes": 45,
+      "run_dir": "/home/eli_katz/grantdesk-project-runs/codex-queue/runs/founder-pricing-terminology-audit-20260817/2026-08-17T14-30-25-150Z"
+    },
+    {
+      "status": "PASS",
+      "created_at": "2026-08-17T14:30:14.881Z",
+      "updated_at": "2026-08-17T14:42:41.647Z",
+      "dependencies": [
+        "founder-pricing-terminology-audit-20260817"
+      ],
+      "blocked_by": [],
+      "attempt_count": 1,
+      "max_attempts": 2,
+      "estimated_scope": "bounded",
+      "allowed_actions": [
+        "inspect",
+        "edit",
+        "test",
+        "commit",
+        "push",
+        "zero-traffic QA"
+      ],
+      "forbidden_actions": [
+        "outbound",
+        "purchases",
+        "force push",
+        "live payment",
+        "traffic shift"
+      ],
+      "branch": "feature/outreach-feedback-tracking",
+      "commit_sha": "3dc03d9a97e0d51f966414ba2d1a51c89fc9ec70",
+      "started_at": "2026-08-17T14:33:39.047Z",
+      "completed_at": "2026-08-17T14:42:41.647Z",
+      "blocker": "",
+      "result_summary": "Updated public pricing and workspace terminology, preserved price data and internal billing identifiers, committed and pushed. Pre-existing ops/codex-work-queue.json change remains unstaged.",
+      "risk_level": "HIGH",
+      "selected_tier": "HIGH_RISK",
+      "selected_model": "gpt-5.6-terra",
+      "reasoning_level": "xhigh",
+      "why_selected": "High-risk context: stripe, checkout, subscription",
+      "runtime_ms": 542590,
+      "fallback_reason": null,
+      "escalation_reason": null,
+      "escalation_count": 0,
+      "max_escalations": 1,
+      "route_step": 0,
+      "validation_status": "PASS",
+      "exceptional_escalation_approved": false,
+      "id": "founder-pricing-copy-cleanup-20260817",
+      "title": "Implement public pricing copy cleanup",
+      "category": "UI",
+      "task_type": "UI",
+      "priority": 2,
+      "description": "Implement only the public customer-facing terminology cleanup identified by the completed audit. Pricing page must use exactly: headline Choose the GrantDeskHQ workflow that fits your reporting needs. Subheading Choose the plan that fits your current grant workload and scale as your reporting needs grow. Banner label LIMITED-TIME PRICING. Banner body Lock in your current price for as long as your subscription remains active. Preserve the visible plan amounts Starter 99 to 49 monthly, Growth 199 to 99 monthly, Agency 499 to 299 monthly. Remove customer-facing founding/founder commercial references and customer-visible Stripe/server/coupon implementation explanations from all public routes and metadata. Remove the per-plan founding checkout note with no replacement. Replace the authenticated customer-visible workspace status with neutral retained-price wording. Preserve internal identifier names and validated commercial implementation. Add focused tests that prove public copy has the required strings and no prohibited public commercial terms. Do not alter payment configuration or delivery behavior.",
+      "acceptance_criteria": [
+        "All requested pricing strings are exact in the public route.",
+        "Public customer-facing commercial founding terminology is removed while safe internal identifiers remain unchanged.",
+        "Focused tests cover required copy and prohibited copy."
+      ],
+      "artifacts_expected": [
+        "reports/gtm-founder-pricing-copy-validation.md"
+      ],
+      "tests_expected": [
+        "pricing tests",
+        "public terminology search"
+      ],
+      "max_runtime_minutes": 90,
+      "run_dir": "/home/eli_katz/grantdesk-project-runs/codex-queue/runs/founder-pricing-copy-cleanup-20260817/2026-08-17T14-33-39-049Z"
+    },
+    {
+      "status": "PASS",
+      "created_at": "2026-08-17T14:30:14.881Z",
+      "updated_at": "2026-08-17T14:58:00.630Z",
+      "dependencies": [
+        "founder-pricing-copy-cleanup-20260817"
+      ],
+      "blocked_by": [],
+      "attempt_count": 1,
+      "max_attempts": 3,
+      "estimated_scope": "bounded",
+      "allowed_actions": [
+        "inspect",
+        "edit",
+        "test",
+        "commit",
+        "push",
+        "zero-traffic QA"
+      ],
+      "forbidden_actions": [
+        "outbound",
+        "purchases",
+        "force push",
+        "live payment",
+        "traffic shift"
+      ],
+      "branch": "feature/outreach-feedback-tracking",
+      "commit_sha": "4bec5c2",
+      "started_at": "2026-08-17T14:49:19.854Z",
+      "completed_at": "2026-08-17T14:58:00.630Z",
+      "blocker": "",
+      "result_summary": "Founder-first GTM console implemented with canonical 5 Direct / 5 Partner / 10 Sent ledger, derived awaiting-reply count, zero unobserved outcomes, filterable outreach, feedback entry point, and System Health separation. Pushed to assigned branch; pre-existing ops queue change was preserved.",
+      "risk_level": "MODERATE",
+      "selected_tier": "STANDARD",
+      "selected_model": "gpt-5.6-terra",
+      "reasoning_level": "medium",
+      "why_selected": "Normal repository implementation or test work with no high-risk indicators.",
+      "runtime_ms": 520767,
+      "fallback_reason": null,
+      "escalation_reason": null,
+      "escalation_count": 0,
+      "max_escalations": 1,
+      "route_step": 0,
+      "validation_status": "PASS",
+      "exceptional_escalation_approved": false,
+      "id": "founder-gtm-command-center-20260817",
+      "title": "Implement founder-oriented GTM Command Center",
+      "category": "GTM_UI",
+      "task_type": "GTM_UI",
+      "priority": 3,
+      "description": "Redesign the internal GTM Command Center into a founder sales operating console using canonical data and the confirmed manual outreach ledger. Primary navigation must be Overview, Outreach, Leads, Partners, Feedback, System Health. Overview begins with commercial KPIs: Sent, Awaiting reply, Replies, Positive replies, Trials or Free First Awards, Paid, MRR. It must show confirmed manual Sent totals Direct 5, Partner 5, Total 10 while automated outbound stays visibly LOCKED and distinct. Derive awaiting reply logically from sent records without a recorded response; do not fabricate downstream values. Add compact direct and partner funnels, a real Next Actions panel from canonical records with no arbitrary follow-up dates, and move infrastructure/alert/freshness states to System Health. Implement a filterable Outreach working table with contact-level history and fields specified in the task. Keep upstream inventory compact in Leads and Partners. Surface the existing Feedback route/view gracefully. Preserve useful existing views as supporting detail. Keep laptop and mobile usability, avoid giant empty target tables, and add focused tests for counts, funnel derivation, filters, next actions, and manual activity versus automation lock. Do not modify any commercial configuration, send outreach, or create data that is not grounded in canonical records.",
+      "acceptance_criteria": [
+        "Overview answers outreach, responses, trial, paid, and next-action questions before technical health.",
+        "Manual ledger renders 5 Direct, 5 Partner, 10 total and all unobserved downstream counts stay zero.",
+        "Outreach, Leads, Partners, Feedback, and System Health are usable views with canonical data only.",
+        "Focused GTM tests pass."
+      ],
+      "artifacts_expected": [
+        "reports/gtm-founder-command-center-implementation.md"
+      ],
+      "tests_expected": [
+        "GTM dashboard tests",
+        "responsive component tests"
+      ],
+      "max_runtime_minutes": 45,
+      "run_dir": "/home/eli_katz/grantdesk-project-runs/codex-queue/runs/founder-gtm-command-center-20260817/2026-08-17T14-49-19-856Z"
+    },
+    {
+      "status": "PASS",
+      "created_at": "2026-08-17T14:30:14.881Z",
+      "updated_at": "2026-08-17T15:25:56.172Z",
+      "dependencies": [
+        "founder-gtm-overview-integrity-polish-20260817"
+      ],
+      "blocked_by": [],
+      "attempt_count": 1,
+      "max_attempts": 3,
+      "estimated_scope": "bounded",
+      "allowed_actions": [
+        "inspect",
+        "edit",
+        "test",
+        "commit",
+        "push",
+        "zero-traffic QA"
+      ],
+      "forbidden_actions": [
+        "outbound",
+        "purchases",
+        "force push",
+        "live payment",
+        "traffic shift"
+      ],
+      "branch": "feature/outreach-feedback-tracking",
+      "commit_sha": "2bc6bcb23eb8b160da7d8a2b274891b6d7dc5158",
+      "started_at": "2026-08-17T15:20:39.001Z",
+      "completed_at": "2026-08-17T15:25:56.172Z",
+      "blocker": "",
+      "result_summary": "Validated 5 direct + 5 partner = 10 manual sends, zero missing and zero downstream outcomes. Public pricing copy has no commercial implementation explanations; GTM outbound remains locked/manual-only. Committed validation evidence; unrelated pre-existing working-tree changes remain.",
+      "risk_level": "MODERATE",
+      "selected_tier": "STANDARD",
+      "selected_model": "gpt-5.6-terra",
+      "reasoning_level": "medium",
+      "why_selected": "Normal repository implementation or test work with no high-risk indicators.",
+      "runtime_ms": 317163,
+      "fallback_reason": null,
+      "escalation_reason": null,
+      "escalation_count": 0,
+      "max_escalations": 1,
+      "route_step": 0,
+      "validation_status": "PASS",
+      "exceptional_escalation_approved": false,
+      "id": "founder-gtm-pricing-validation-20260817",
+      "title": "Validate founder dashboard and public copy",
+      "category": "TESTING",
+      "task_type": "TESTING",
+      "priority": 5,
+      "description": "Perform the integration validation for the founder pricing and GTM dashboard change. Run focused unit and route tests, public terminology audit, lint, build, secret scan, outbound-safety check, and commercial regression check without making configuration changes. Verify public commercial founding references are zero, public implementation explanations are absent, direct sent equals five, partner sent equals five, total sent equals ten, missing equals zero, manual outreach is distinct from automated lock, and no ungrounded commercial data exists. Prepare a concise validation artifact listing results and candidate readiness. Do not deploy or change traffic in this task.",
+      "acceptance_criteria": [
+        "Required tests, lint, and build are run and recorded.",
+        "Terminology and manual-send reconciliation gates pass.",
+        "No secret or outbound safety regression is introduced."
+      ],
+      "artifacts_expected": [
+        "reports/gtm-founder-dashboard-validation.md"
+      ],
+      "tests_expected": [
+        "focused tests",
+        "lint",
+        "build",
+        "secret scan",
+        "outbound safety",
+        "regression"
+      ],
+      "max_runtime_minutes": 45,
+      "run_dir": "/home/eli_katz/grantdesk-project-runs/codex-queue/runs/founder-gtm-pricing-validation-20260817/2026-08-17T15-20-39-002Z"
+    },
+    {
+      "id": "router-copy-classification-repair-20260817",
+      "title": "Repair cost router false positives for public copy work",
+      "category": "TESTING",
+      "task_type": "TESTING",
+      "priority": 0,
+      "status": "PASS",
+      "created_at": "2026-08-17T14:44:18.374Z",
+      "updated_at": "2026-08-17T14:48:42.535Z",
+      "description": "Repair the cost-aware task classifier so public copy and UI tasks that merely mention retained customer transaction behavior do not route to the high-risk tier when they make no configuration, credential, data, or traffic change. Keep the existing route protections for genuine high-risk operations. Add deterministic regression cases covering false-positive public copy wording and the protected operation cases already supported by the router. Do not alter application behavior.",
+      "acceptance_criteria": [
+        "Public copy wording with no protected action routes to STANDARD or ROUTINE as appropriate.",
+        "Existing protected-operation routing cases remain covered.",
+        "Focused router tests pass."
+      ],
+      "dependencies": [],
+      "blocked_by": [],
+      "attempt_count": 1,
+      "max_attempts": 3,
+      "estimated_scope": "small",
+      "allowed_actions": [
+        "inspect",
+        "edit",
+        "test",
+        "commit",
+        "push"
+      ],
+      "forbidden_actions": [
+        "outbound",
+        "purchases",
+        "force push"
+      ],
+      "artifacts_expected": [
+        "reports/router-copy-classification-validation.md"
+      ],
+      "tests_expected": [
+        "model router tests"
+      ],
+      "branch": "feature/outreach-feedback-tracking",
+      "commit_sha": "0521f3531019af24b5c590056ab16aae7646c081",
+      "started_at": "2026-08-17T14:44:18.739Z",
+      "completed_at": "2026-08-17T14:48:42.535Z",
+      "blocker": "",
+      "result_summary": "Public copy/UI wording about retained customer transactions now routes STANDARD or ROUTINE without suppressing genuine configuration, Stripe, customer-data, credential, or traffic operations. Committed task changes only; existing controller queue-state edit remains unstaged.",
+      "risk_level": "MODERATE",
+      "selected_tier": "STANDARD",
+      "selected_model": "gpt-5.6-terra",
+      "reasoning_level": "medium",
+      "why_selected": "Normal repository implementation or test work with no high-risk indicators.",
+      "runtime_ms": 263785,
+      "fallback_reason": null,
+      "escalation_reason": null,
+      "escalation_count": 0,
+      "max_escalations": 1,
+      "route_step": 0,
+      "validation_status": "PASS",
+      "exceptional_escalation_approved": false,
+      "max_runtime_minutes": 45,
+      "run_dir": "/home/eli_katz/grantdesk-project-runs/codex-queue/runs/router-copy-classification-repair-20260817/2026-08-17T14-44-18-741Z"
+    },
+    {
+      "id": "founder-gtm-requirements-completion-20260817",
+      "title": "Complete founder GTM dashboard commercial views",
+      "category": "GTM_UI",
+      "task_type": "GTM_UI",
+      "priority": 4,
+      "status": "PASS",
+      "created_at": "2026-08-17T14:59:19.650Z",
+      "updated_at": "2026-08-17T15:07:36.928Z",
+      "description": "Complete the founder-facing GTM dashboard requirements left out of the first pass. The visible top commercial KPI row must present separate Sent, Awaiting reply, Replies, Positive replies, Trials or Free First Awards, Paid, and MRR values from canonical records. Overview must include compact Direct funnel stages Qualified, Ready to send, Sent, Replies, Positive replies, Free First Award, Award uploaded, Report generated, Paid and separate Partner funnel stages High fit, Ready to send, Sent, Replies, Positive replies, Active conversations, Trial with client or award, Active partners, Customers influenced, Paid customers influenced, using known values only and omitting unsupported decorative data. Next Actions must identify action type, organization/contact, why, source, genuine due date only when present, and click-through destination. Outreach must be a practical searchable and filterable daily table with organization, contact, type, email state, why now, sent date, status, last contact, follow-up due, replied, sentiment, trial, paid, and next action. Filters must include all, awaiting reply, follow-up due, replied, positive, trial, paid, direct, partner. Leads and Partners must show compact canonical inventory counts and targets instead of duplicating system-health tables. Feedback must surface the existing authenticated feedback queue or gracefully link to its functional view. Keep all technical status under System Health. Do not add contacts, emails, outcomes, dates, or metrics not present in the canonical record. Automated sender remains locked and separate from manual sends.",
+      "acceptance_criteria": [
+        "All requested commercial KPI and funnel stages are visibly separate and factual.",
+        "Outreach table and filters support the daily operating workflow using canonical records.",
+        "Leads, Partners, Feedback, and System Health are correctly scoped and compact.",
+        "Focused dashboard tests prove the confirmed 5 direct, 5 partner, 10 total sends and no fabricated outcomes."
+      ],
+      "dependencies": [
+        "founder-gtm-command-center-20260817"
+      ],
+      "blocked_by": [],
+      "attempt_count": 1,
+      "max_attempts": 3,
+      "estimated_scope": "bounded",
+      "allowed_actions": [
+        "inspect",
+        "edit",
+        "test",
+        "commit",
+        "push",
+        "zero-traffic QA"
+      ],
+      "forbidden_actions": [
+        "outbound",
+        "purchases",
+        "force push"
+      ],
+      "artifacts_expected": [
+        "reports/gtm-founder-command-center-requirements-validation.md"
+      ],
+      "tests_expected": [
+        "GTM dashboard tests",
+        "responsive component tests"
+      ],
+      "branch": "feature/outreach-feedback-tracking",
+      "commit_sha": "f995a709b6f4a1714e2a57e7e5189a8780e3bbbe",
+      "started_at": "2026-08-17T14:59:28.571Z",
+      "completed_at": "2026-08-17T15:07:36.928Z",
+      "blocker": "",
+      "result_summary": "Completed factual founder GTM commercial KPIs, staged funnels, daily outreach filters/table, feedback routing, and focused coverage confirming 5 direct, 5 partner, 10 total sends with no fabricated outcomes. Preserved unrelated queue/generated-sample changes.",
+      "risk_level": "MODERATE",
+      "selected_tier": "STANDARD",
+      "selected_model": "gpt-5.6-terra",
+      "reasoning_level": "medium",
+      "why_selected": "Normal repository implementation or test work with no high-risk indicators.",
+      "runtime_ms": 488348,
+      "fallback_reason": null,
+      "escalation_reason": null,
+      "escalation_count": 0,
+      "max_escalations": 1,
+      "route_step": 0,
+      "validation_status": "PASS",
+      "exceptional_escalation_approved": false,
+      "max_runtime_minutes": 45,
+      "run_dir": "/home/eli_katz/grantdesk-project-runs/codex-queue/runs/founder-gtm-requirements-completion-20260817/2026-08-17T14-59-28-573Z"
+    },
+    {
+      "id": "founder-gtm-overview-integrity-polish-20260817",
+      "title": "Polish founder GTM overview data hierarchy",
+      "category": "GTM_UI",
+      "task_type": "GTM_UI",
+      "priority": 4,
+      "status": "PASS",
+      "created_at": "2026-08-17T15:08:41.272Z",
+      "updated_at": "2026-08-17T15:19:42.116Z",
+      "description": "Polish the founder GTM console so the primary Overview does not foreground NOT_INSTRUMENTED, stale, blocked, or target-gap scaffolding. Use the existing canonical GtmOverview actual values when available and the confirmed manual ledger for manual sent and downstream outcomes. On Overview, show compact recorded counts for the direct and partner funnels and omit unsupported stage cards rather than filling the commercial view with instrumentation notices. Place all missing-instrumentation, freshness, source, and queue-health disclosures only in System Health. Add compact actual / target inventory summaries to Leads and Partners, with manual sent counts merged without double counting. Make Partners actually consume its canonical overview and manual-ledger props. Make Next Actions show action type, organization/contact, reason, source, genuine due date only when present, and an actionable link to the Outreach view. Preserve zero counts only where canonical records establish no outcome. Add focused tests for this hierarchy and for no NOT_INSTRUMENTED text on Overview.",
+      "acceptance_criteria": [
+        "Overview is commercial-first and has no instrumentation-status wording in its primary funnel cards.",
+        "Leads and Partners use compact actual/target inventory from canonical data when available.",
+        "Next Actions contains grounded action metadata and a working destination.",
+        "Focused tests cover hierarchy and no fabricated outcomes."
+      ],
+      "dependencies": [
+        "founder-gtm-requirements-completion-20260817"
+      ],
+      "blocked_by": [],
+      "attempt_count": 2,
+      "max_attempts": 3,
+      "estimated_scope": "bounded",
+      "allowed_actions": [
+        "inspect",
+        "edit",
+        "test",
+        "commit",
+        "push"
+      ],
+      "forbidden_actions": [
+        "outbound",
+        "purchases",
+        "force push"
+      ],
+      "artifacts_expected": [
+        "reports/gtm-founder-overview-hierarchy-validation.md"
+      ],
+      "tests_expected": [
+        "GTM dashboard tests"
+      ],
+      "branch": "feature/outreach-feedback-tracking",
+      "commit_sha": "1c591a181ae0d02e4016a9f23c96fb7ab191e9c9",
+      "started_at": "2026-08-17T15:08:41.505Z",
+      "completed_at": "2026-08-17T15:19:42.116Z",
+      "blocker": "",
+      "result_summary": "Implemented and committed commercial-first recorded-only Overview funnels, canonical Leads/Partners inventory summaries, grounded Next Actions with Outreach navigation, and focused coverage.",
+      "risk_level": "MODERATE",
+      "selected_tier": "STANDARD",
+      "selected_model": "gpt-5.6-terra",
+      "reasoning_level": "medium",
+      "why_selected": "Normal repository implementation or test work with no high-risk indicators.",
+      "runtime_ms": 398476,
+      "fallback_reason": "No model escalation: environmental or configuration failure (permission, secret, unavailable, fixture, configuration).",
+      "escalation_reason": null,
+      "escalation_count": 0,
+      "max_escalations": 1,
+      "route_step": 0,
+      "validation_status": "PASS",
+      "exceptional_escalation_approved": false,
+      "max_runtime_minutes": 45,
+      "run_dir": "/home/eli_katz/grantdesk-project-runs/codex-queue/runs/founder-gtm-overview-integrity-polish-20260817/2026-08-17T15-13-03-633Z"
+    },
+    {
+      "id": "router-standard-category-precedence-20260817",
+      "title": "Prioritize explicit standard categories in the cost router",
+      "category": "TESTING",
+      "task_type": "TESTING",
+      "priority": 0,
+      "status": "PASS",
+      "created_at": "2026-08-17T15:10:15.116Z",
+      "updated_at": "2026-08-17T15:12:43.089Z",
+      "description": "Repair model-routing category precedence so explicit normal UI and repository coding categories select the standard tier before any broader routine-category substring can match. Keep genuine documentation, reporting, research, reconciliation, and format tasks on the inexpensive tier. Add deterministic regression coverage for GTM_UI, UI, FRONTEND, and routine GTM reconciliation categories. Do not alter product behavior.",
+      "acceptance_criteria": [
+        "Explicit normal UI and coding categories route STANDARD / Terra medium.",
+        "Routine reconciliation category still routes ROUTINE / Luna low.",
+        "Focused router tests pass."
+      ],
+      "dependencies": [],
+      "blocked_by": [],
+      "attempt_count": 1,
+      "max_attempts": 3,
+      "estimated_scope": "small",
+      "allowed_actions": [
+        "inspect",
+        "edit",
+        "test",
+        "commit",
+        "push"
+      ],
+      "forbidden_actions": [
+        "outbound",
+        "purchases",
+        "force push"
+      ],
+      "artifacts_expected": [
+        "reports/router-category-precedence-validation.md"
+      ],
+      "tests_expected": [
+        "model router tests"
+      ],
+      "branch": "feature/outreach-feedback-tracking",
+      "commit_sha": "5e92f5acc1e0e837da047ca3a197282218548888",
+      "started_at": "2026-08-17T15:10:15.328Z",
+      "completed_at": "2026-08-17T15:12:43.089Z",
+      "blocker": "",
+      "result_summary": "Explicit standard categories now take precedence over broad routine matches. GTM_UI, UI, and FRONTEND route STANDARD/Terra medium; GTM_RECONCILIATION remains ROUTINE/Luna low. Unrelated pre-existing changes were left untouched.",
+      "risk_level": "MODERATE",
+      "selected_tier": "STANDARD",
+      "selected_model": "gpt-5.6-terra",
+      "reasoning_level": "medium",
+      "why_selected": "Normal repository implementation or test work with no high-risk indicators.",
+      "runtime_ms": 147752,
+      "fallback_reason": null,
+      "escalation_reason": null,
+      "escalation_count": 0,
+      "max_escalations": 1,
+      "route_step": 0,
+      "validation_status": "PASS",
+      "exceptional_escalation_approved": false,
+      "max_runtime_minutes": 45,
+      "run_dir": "/home/eli_katz/grantdesk-project-runs/codex-queue/runs/router-standard-category-precedence-20260817/2026-08-17T15-10-15-329Z"
     }
   ]
 }
