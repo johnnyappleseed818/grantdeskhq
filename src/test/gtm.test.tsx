@@ -131,9 +131,14 @@ describe("GTM command center", () => {
   const awardScan: AwardDiscoveryScan = {
     generatedAt: "2026-08-10T08:00:00.000Z",
     source: "https://api.usaspending.gov/api/v2/search/spending_by_award/",
+    scanStatus: "success",
+    lastSuccessfulScanAt: "2026-08-10T08:00:00.000Z",
     criteria: { startDate: "2026-05-12", endDate: "2026-08-10", minimumAward: 25_000, recipientTypes: ["Nonprofit Organization"], awardTypes: ["02", "03", "04", "05"], pageSize: 100, maxPages: 4, maxCandidates: 100 },
     recordsChecked: 100,
     pagesChecked: 1,
+    newAwardCount: 1,
+    duplicateCount: 0,
+    errorCount: 0,
     coverage: "100 recent federal grant records checked.",
     opportunities: [awardCandidate],
     limitations: ["Contacts require verification."]

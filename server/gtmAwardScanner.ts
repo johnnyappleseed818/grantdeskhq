@@ -63,7 +63,7 @@ export async function runDailyAwardScan(now = new Date()): Promise<AwardDiscover
     .map((award) => toOpportunity(award, scanDate))
     .sort(compareOpportunityResearchValue)
     .slice(0, criteria.maxCandidates);
- 
+
 
   return {
     generatedAt: now.toISOString(),
