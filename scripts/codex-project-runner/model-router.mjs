@@ -41,9 +41,33 @@ function categoryMatches(category, values) {
   return values.some((item) => value === normalize(item) || value.includes(normalize(item)) || normalize(item).includes(value));
 }
 
+function isPublicCopyOrUiWork(task, context) {
+  const category = normalize(task.category || task.task_type);
+  const publicAudience = /\b(public|customer-facing|website|landing page|help ?center|marketing)\b/.test(context);
+  const copyDeliverable = /\b(copy|copywriting|wording|text|content|messaging|ui|user interface|component|page)\b/.test(context);
+  return publicAudience && copyDeliverable && /\b(ui|frontend|documentation|content|marketing|seo|gtm)\b/.test(category);
+}
+
+function hasProtectedOperation(context) {
+  // Public copy can accurately mention billing or retained transactions. Treat
+  // those words as high risk only when the task also operates on the protected
+  // system, rather than merely describing it.
+  const protectedResource = "stripe|billing|checkout|payment|subscription|webhook|secret manager|iam|service account|oauth|credential|customer data|database|cloud run traffic|production|prod";
+  const operation = "configure|reconfigur|inspect|audit|migrat|deploy|delete|drop|access|export|query|rotate|validate|traffic";
+  const patterns = [
+    new RegExp("\\b(?:" + operation + ")\\w*\\b[^.!?;]{0,100}\\b(?:" + protectedResource + ")\\b|\\b(?:" + protectedResource + ")\\b[^.!?;]{0,100}\\b(?:" + operation + ")\\w*\\b", "gi"),
+    /\b(?:change|modify)\b[^.!?;]{0,100}\b(?:customer data|database|cloud run traffic)\b|\b(?:customer data|database|cloud run traffic)\b[^.!?;]{0,100}\b(?:change|modify)\b/gi
+  ];
+  return patterns.flatMap((pattern) => [...context.matchAll(pattern)]).some((match) => {
+    const sentenceStart = Math.max(context.lastIndexOf(".", match.index), context.lastIndexOf("!", match.index), context.lastIndexOf("?", match.index), context.lastIndexOf(";", match.index)) + 1;
+    return !/\b(do not|don.t|never|no|without|forbidden|forbid)\b/i.test(context.slice(sentenceStart, match.index));
+  });
+}
+
 export function classifyTask(task, policy) {
   const context = taskContext(task);
-  const highSignals = includesAny(context, policy.classification.high_risk_indicators).filter((signal) => !isNegatedSignal(context, signal));
+  const detectedHighSignals = includesAny(context, policy.classification.high_risk_indicators).filter((signal) => !isNegatedSignal(context, signal));
+  const highSignals = isPublicCopyOrUiWork(task, context) && !hasProtectedOperation(context) ? [] : detectedHighSignals;
   const complexSignals = includesAny(context, policy.classification.complex_indicators);
   const explicitRisk = normalize(task.risk_level);
   const protectedAction = (task.allowed_actions || []).some((item) => /production|stripe|iam|secret|credential|customer data|database/i.test(item));

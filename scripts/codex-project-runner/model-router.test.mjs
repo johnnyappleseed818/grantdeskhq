@@ -23,6 +23,8 @@ const scenarios = [
   ["production deployment", { title: "Prepare production deployment", category: "BACKEND", description: "Review production deployment safety." }, "gpt-5.6-terra", "xhigh", "HIGH_RISK"],
   ["Cloud Run traffic", { title: "Inspect Cloud Run traffic", category: "BACKEND", description: "Review cloud run traffic split." }, "gpt-5.6-terra", "xhigh", "HIGH_RISK"],
   ["security", { title: "Review security configuration", category: "BACKEND", description: "Audit production security configuration." }, "gpt-5.6-terra", "xhigh", "HIGH_RISK"],
+  ["public retained-transaction copy", { title: "Refresh public billing page copy", category: "UI", description: "Update public UI copy explaining that customer transaction records are retained for account history. No configuration, credential, customer data access, or traffic change." }, "gpt-5.6-terra", "medium", "STANDARD"],
+  ["public retained-transaction help content", { title: "Write public billing help-center wording", category: "DOCUMENTATION", description: "Write public help-center copy explaining that customer transaction records are retained for account history. No configuration, credential, customer data access, or traffic change." }, "gpt-5.6-luna", "low", "ROUTINE"],
   ["ambiguous bounded task", { title: "Update an internal status note", category: "", task_type: "", description: "Use a small task-scoped prompt." }, "gpt-5.6-luna", "low", "ROUTINE"]
 ];
 
@@ -48,6 +50,18 @@ test("negated billing and checkout constraints remain standard repository work",
   const selected = route({ title: "Build contact feedback form", category: "FRONTEND", description: "Implement a public contact form. Do not change billing, checkout, or any paid-plan flow." });
   assert.equal(selected.selected_tier, "STANDARD");
   assert.equal(selected.reasoning_level, "medium");
+});
+
+test("public copy does not bypass a genuine protected operation", () => {
+  const selected = route({ title: "Refresh public billing page copy", category: "UI", description: "Update public UI copy, then inspect the live Stripe checkout configuration for consistency." });
+  assert.equal(selected.selected_tier, "HIGH_RISK");
+  assert.equal(selected.reasoning_level, "xhigh");
+});
+
+test("public copy does not bypass a customer-data operation", () => {
+  const selected = route({ title: "Refresh public billing page copy", category: "UI", description: "Update public UI copy, then change customer data retention settings." });
+  assert.equal(selected.selected_tier, "HIGH_RISK");
+  assert.equal(selected.reasoning_level, "xhigh");
 });
 
 test("forbidden safety constraints do not inflate a routine task to high risk", () => {
