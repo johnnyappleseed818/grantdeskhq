@@ -1,7 +1,7 @@
 {
   "status": "PASS",
-  "tests": ["npm run build", "npm test -- src/test/gtm.test.tsx src/test/gtmOutreach.test.ts"],
-  "artifacts": ["reports/gtm-founder-command-center-requirements-validation.md"],
+  "tests": ["npm run test:agent-routing", "git diff --check"],
+  "artifacts": ["reports/router-category-precedence-validation.md"],
   "blocker": "",
-  "result_summary": "Completed factual founder GTM commercial views with 5 direct, 5 partner, and 10 total sends; no fabricated outcomes."
+  "result_summary": "Explicit standard categories now take precedence over broad routine category matches; GTM_UI, UI, and FRONTEND route to Terra medium while GTM_RECONCILIATION remains Luna low."
 }

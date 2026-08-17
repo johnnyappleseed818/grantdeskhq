@@ -78,10 +78,15 @@ export function classifyTask(task, policy) {
   if (explicitRisk === "complex" || explicitRisk === "high" || task.capability_difficulty === true || complexSignals.length) {
     return { key: "complex", risk_level: "COMPLEX", why: "Complex debugging context: " + (complexSignals.length ? complexSignals.join(", ") : explicitRisk || "explicit capability difficulty") };
   }
+  // Check explicit normal repository categories before broad routine matches.
+  // For example, GTM_UI is a standard category even though it contains GTM.
+  if (categoryMatches(task.category || task.task_type, policy.classification.standard_categories)) {
+    return { key: "standard", risk_level: "MODERATE", why: "Normal repository implementation or test work with no high-risk indicators." };
+  }
   if (categoryMatches(task.category || task.task_type, policy.classification.routine_categories) && !/implement|refactor|component|api|backend|frontend|database|analytics/i.test(context)) {
     return { key: "routine", risk_level: "LOW", why: "Routine category with no production, payment, security, or implementation indicators." };
   }
-  if (categoryMatches(task.category || task.task_type, policy.classification.standard_categories) || /implement|component|api|backend|frontend|analytics|refactor|bug fix|test/i.test(context)) {
+  if (/implement|component|api|backend|frontend|analytics|refactor|bug fix|test/i.test(context)) {
     return { key: "standard", risk_level: "MODERATE", why: "Normal repository implementation or test work with no high-risk indicators." };
   }
   return { key: "routine", risk_level: "LOW", why: "Bounded non-production task with no implementation or high-risk indicators." };
