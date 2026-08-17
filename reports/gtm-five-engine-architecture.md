@@ -18,7 +18,9 @@ Private conversion-learning records retain the received reply, deterministic cla
 
 ## 5. Acquisition optimization
 
-Recommendations require real outcomes and an explanation; absent evidence produces no recommendation. The follow-up queue excludes suppressed/replied contacts.
+Recommendations require real, completed human-reviewed `WON` or `LOST` conversion outcomes and an explanation; absent evidence produces no recommendation. The bounded channel-review primitive requires at least three such outcomes in each compared channel, identifies every persisted conversion record used, shows win/loss counts and rates for both channels, and labels confidence from the reviewed sample size. It excludes unreviewed, suppressed, open, unknown, malformed, and non-terminal records.
+
+The output is a human-review suggestion only. It cannot update prospect scores, rank opportunities, alter draft language, create a follow-up, or send a message. The follow-up queue continues to exclude suppressed/replied contacts.
 
 ## Command Center status
 
