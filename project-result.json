@@ -1,21 +1,27 @@
 {
-  "project": "outreach-feedback-final-integration",
-  "status": "PASS",
-  "tests": [
-    "focused outreach, feedback, route, and analytics Vitest suite: 62 passed",
-    "GTM safety suite: 5 passed",
-    "queue safety suite: 8 passed",
-    "model-routing safety suite: 24 passed",
+  "project": "founder-gtm-command-center-20260817",
+  "started_at": "2026-08-17T14:49:19Z",
+  "finished_at": "2026-08-17T14:57:30Z",
+  "git_branch": "feature/outreach-feedback-tracking",
+  "starting_commit": "0521f3531019af24b5c590056ab16aae7646c081",
+  "ending_commit": "159519dc12b6198eb3a7ce780d4c7948c58b4752",
+  "tests_run": [
     "npm run lint",
     "npm run build",
-    "git diff --check",
-    "non-disclosing tracked-file high-confidence secret scan: 0 matches"
+    "npm exec vitest -- run src/test/gtm.test.tsx src/test/gtmOutreach.test.ts src/test/contactFeedbackExperience.test.tsx --disableConsoleIntercept",
+    "git diff --check"
   ],
-  "artifacts": [
-    "reports/contact-feedback-final-validation.md",
-    "reports/contact-feedback-readiness.md",
-    "reports/canonical-outreach-feedback-workflow.md"
+  "passed": [
+    "Founder-first overview uses canonical manual-outreach counts: 5 Direct, 5 Partner, 10 Sent.",
+    "Commercial outcomes remain zero unless recorded; automation remains locked.",
+    "Outreach filters, feedback entry point, supporting views, lint, build, and focused tests passed."
   ],
-  "blocker": "",
-  "result_summary": "Final validation passed for the factual outreach ledger and Contact & Feedback workflow: five direct, five partner, and ten total confirmed human sends remain without email, delivery, reply, trial, conversion, or follow-up inference. Notifications remain NOT_CONFIGURED; no sending, paid-plan, service-configuration, or production-traffic behavior changed."
+  "failed": [],
+  "skipped": [],
+  "qa_validation": [
+    "No deployment or traffic change was performed.",
+    "No outreach, payment, or commercial-configuration action was performed."
+  ],
+  "remaining_blockers": [],
+  "status": "PASS"
 }
