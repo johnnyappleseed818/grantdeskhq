@@ -59,7 +59,7 @@ export function PricingPage() {
           body: JSON.stringify({ plan })
         });
         setBilling({ ...billing, ...result.billing });
-        setCheckoutError("Your plan change has been submitted and will be confirmed securely by Stripe.");
+        setCheckoutError("Your plan change has been submitted for confirmation.");
         setStartingPlan("");
         return;
       }
@@ -91,13 +91,13 @@ export function PricingPage() {
     <section className="pricing-hero"><div className="site-shell text-center">
       <div className="prototype-pill mx-auto"><span aria-hidden="true" /> Clear monthly pricing</div>
       <p className="eyebrow mt-8">Pricing</p>
-      <h1 className="page-title mx-auto">Choose the GrantDeskHQ workflow that fits your reporting portfolio.</h1>
-      <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-600">Starter, Growth, and Agency are all self-service. No sales call, demo, or manual onboarding is required.</p>
-      <div className="pricing-promises"><span>Monthly billing</span><span>Secure Stripe Checkout</span><span>No per-user pricing</span><span>Cancel anytime</span></div>
+      <h1 className="page-title mx-auto">Choose the GrantDeskHQ workflow that fits your reporting needs.</h1>
+      <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-600">Choose the plan that fits your current grant workload and scale as your reporting needs grow.</p>
+      <div className="pricing-promises"><span>Monthly billing</span><span>Secure checkout</span><span>No per-user pricing</span><span>Cancel anytime</span></div>
     </div></section>
 
     <section className="site-shell pb-14 lg:pb-20" aria-label="GrantDeskHQ subscription plans">
-      {foundingPricing && <div className="pricing-launch-offer"><div><p className="eyebrow">Limited-time founding pricing</p><h2>Founding customers keep their qualifying Stripe discount while their subscription remains active.</h2><p>Discount eligibility is enforced securely on the server and confirmed by Stripe at Checkout.</p></div><ShieldCheck aria-hidden="true" /></div>}
+      {foundingPricing && <div className="pricing-launch-offer"><div><p className="eyebrow">LIMITED-TIME PRICING</p><h2>Lock in your current price for as long as your subscription remains active.</h2></div><ShieldCheck aria-hidden="true" /></div>}
       {new URLSearchParams(location.search).get("billing") === "cancelled" && <div className="pricing-notice" role="status">Checkout was cancelled. Nothing was charged.</div>}
       {checkoutError && <div className="compiler-error pricing-error" role="alert">{checkoutError}</div>}
       <div className="pricing-grid">{PRICING_PLANS.map((plan) => {
@@ -107,7 +107,6 @@ export function PricingPage() {
           {plan.featured && <div className="pricing-label">Most popular</div>}
           <p className="text-sm font-semibold text-emeraldMuted-700">{plan.name}</p>
           <div className="mt-4 flex items-end gap-2">{foundingPricing && <s className="pb-1 text-lg text-slate-500">{formatUsd(plan.monthly)}</s>}<strong className="text-4xl font-semibold tracking-tight text-navy-950">{formatUsd(displayPrice)}</strong><span className="pb-1 text-sm text-slate-500">/month</span></div>
-          <p className="mt-2 text-sm font-medium text-slate-600">{foundingPricing ? "Founding pricing is applied securely in Checkout." : "Simple month-to-month pricing."}</p>
           <p className="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">Best for</p><p className="mt-1 text-sm font-semibold text-navy-900">{plan.bestFor}</p>
           <p className="mt-5 min-h-[72px] text-sm leading-6 text-slate-600">{plan.description}</p>
           <ul className="mt-7 grid gap-3 text-sm text-slate-700"><Feature>Up to {plan.activeGrants} active grants</Feature><Feature>{plan.reportsPerYear} report packages per year</Feature><Feature>No per-user fees</Feature><Feature>Unlimited archived grants</Feature><Feature>{plan.support}</Feature></ul>

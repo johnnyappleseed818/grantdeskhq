@@ -16,7 +16,7 @@ describe("important routes", () => {
     ["/demo", /Six-Month Progress Report/i],
     ["/sample-report", /See the complete review package/i],
     ["/privacy", /Understand where your data goes and who can access it/i],
-    ["/pricing", /Choose the GrantDeskHQ workflow that fits your reporting portfolio/i],
+    ["/pricing", /Choose the GrantDeskHQ workflow that fits your reporting needs\./i],
     ["/assessment", /Let our AI-powered solution prepare your first report draft at no cost/i],
     ["/compile", /Bring what you have\. We’ll help with the rest/i],
     ["/readiness", /Find every reporting requirement before the deadline gets close/i],

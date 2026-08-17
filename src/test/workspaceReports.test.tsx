@@ -52,4 +52,21 @@ describe("saved report workspace", () => {
     const link = await screen.findByRole("link", { name: /^New report$/i });
     expect(link).toHaveAttribute("href", "/compile?new=1");
   });
+
+  it("uses neutral retained-price wording for an eligible customer", async () => {
+    apiRequest.mockImplementation((path: string) => path === "/api/reports"
+      ? Promise.resolve({ reports: [] })
+      : Promise.resolve({ billing: {
+        planKey: "growth",
+        subscriptionStatus: "active",
+        foundingPricingApplied: true,
+        cancelAtPeriodEnd: false,
+        entitlementActive: true
+      } }));
+
+    render(<MemoryRouter><WorkspacePage /></MemoryRouter>);
+
+    expect(await screen.findByText("Current price retained")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/found(?:er|ing) pricing|Stripe|coupon|server/i);
+  });
 });
