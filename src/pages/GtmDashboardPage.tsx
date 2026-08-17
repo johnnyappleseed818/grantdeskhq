@@ -40,8 +40,9 @@ import {
   type SignalKind
 } from "../lib/gtm";
 import { useAuth } from "../lib/auth";
+import type { ControlPlaneLeadState, ControlPlaneQueueReconciliation } from "../lib/gtmControlPlaneQueue";
 
-type DashboardTab = "hot-list" | "signals" | "sources" | "partners" | "pipeline" | "automation" | "accuracy";
+type DashboardTab = "hot-list" | "control-plane" | "signals" | "sources" | "partners" | "pipeline" | "automation" | "accuracy";
 type StageState = Record<string, OpportunityStage>;
 
 const STORAGE_KEY = "grantdeskhq:gtm-stages:v1";
@@ -63,7 +64,7 @@ export function GtmDashboardPage() {
   return <GtmDashboardContent dailySignalToken={token} />;
 }
 
-export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null, initialAwardScan = null, seedOpportunities = [] }: { dailySignalToken?: () => Promise<string>; initialDailyScan?: DailySocialScan | null; initialAwardScan?: AwardDiscoveryScan | null; seedOpportunities?: GtmOpportunity[] } = {}) {
+export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null, initialAwardScan = null, initialControlPlane = null, seedOpportunities = [] }: { dailySignalToken?: () => Promise<string>; initialDailyScan?: DailySocialScan | null; initialAwardScan?: AwardDiscoveryScan | null; initialControlPlane?: ControlPlaneQueueReconciliation | null; seedOpportunities?: GtmOpportunity[] } = {}) {
   const [activeTab, setActiveTab] = useState<DashboardTab>("hot-list");
   const [filter, setFilter] = useState<"all" | SignalKind>("all");
   const [query, setQuery] = useState("");
@@ -73,6 +74,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   const [stages, setStages] = useState<StageState>(() => readStages());
   const [dailyScan, setDailyScan] = useState<DailySocialScan | null>(initialDailyScan);
   const [awardScan, setAwardScan] = useState<AwardDiscoveryScan | null>(initialAwardScan);
+  const [controlPlane, setControlPlane] = useState<ControlPlaneQueueReconciliation | null>(initialControlPlane);
   const [signalsLoading, setSignalsLoading] = useState(Boolean(dailySignalToken));
   const [signalsError, setSignalsError] = useState("");
 
@@ -82,12 +84,14 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
     dailySignalToken().then(async (idToken) => Promise.all([
       apiRequest<{ opportunities: GtmOpportunity[] }>("/api/gtm/opportunities", idToken),
       apiRequest<{ scan: DailySocialScan | null }>("/api/gtm/daily-signals", idToken),
-      apiRequest<{ scan: AwardDiscoveryScan | null }>("/api/gtm/award-signals", idToken)
+      apiRequest<{ scan: AwardDiscoveryScan | null }>("/api/gtm/award-signals", idToken),
+      apiRequest<{ reconciliation: ControlPlaneQueueReconciliation | null }>("/api/gtm/control-plane-queue", idToken)
     ]))
-      .then(([opportunityBody, socialBody, awardBody]) => {
+      .then(([opportunityBody, socialBody, awardBody, controlPlaneBody]) => {
         if (!active) return;
         setDailyScan(socialBody.scan);
         setAwardScan(awardBody.scan);
+        setControlPlane(controlPlaneBody.reconciliation);
         setLiveOpportunities(mergeAwardCandidates(awardBody.scan?.opportunities || [], opportunityBody.opportunities));
         setExpanded((current) => current || opportunityBody.opportunities[0]?.id || null);
       })
@@ -142,7 +146,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
     <div className="gtm-tab-wrap">
       <div className="site-shell gtm-tabs" role="tablist" aria-label="GTM dashboard sections">
         {([
-          ["hot-list", "Daily hot list"], ["signals", "Manual social research"], ["sources", "Signal engines"], ["partners", "Referral channels"], ["pipeline", "Progress"], ["automation", "Outreach automation"], ["accuracy", "Accuracy controls"]
+          ["hot-list", "Daily hot list"], ["control-plane", "Canonical queue"], ["signals", "Manual social research"], ["sources", "Signal engines"], ["partners", "Referral channels"], ["pipeline", "Progress"], ["automation", "Outreach automation"], ["accuracy", "Accuracy controls"]
         ] as Array<[DashboardTab, string]>).map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={activeTab === id} className={activeTab === id ? "is-active" : ""} onClick={() => setActiveTab(id)}>{label}</button>)}
       </div>
     </div>
@@ -189,6 +193,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
         </div>
       </section>}
 
+      {activeTab === "control-plane" && <ControlPlanePanel reconciliation={controlPlane} />}
       {activeTab === "signals" && <SignalsPanel dailyScan={dailyScan} loading={signalsLoading} error={signalsError} />}
       {activeTab === "sources" && <SourcesPanel />}
       {activeTab === "partners" && <PartnersPanel />}
@@ -197,6 +202,18 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
       {activeTab === "accuracy" && <AccuracyPanel />}
     </div>
   </div>;
+}
+
+function ControlPlanePanel({ reconciliation }: { reconciliation: ControlPlaneQueueReconciliation | null }) {
+  const states: ControlPlaneLeadState[] = ["CONTACT_RESEARCH_REQUIRED", "ENRICHMENT_READY", "EMAIL_VERIFICATION_REQUIRED", "SUPPRESSION_CHECK_REQUIRED", "DRAFT_REQUIRED", "READY_FOR_HUMAN_REVIEW", "ALREADY_CONTACTED", "CUSTOMER", "DISQUALIFIED", "DUPLICATE", "QUALIFIED"];
+  if (!reconciliation) return <section><div className="workspace-empty"><Radar aria-hidden="true" /><h2>Canonical queue is not available yet</h2><p>The private daily award scan has not saved a reconciliation. This workspace cannot create or send an outbound action.</p></div></section>;
+  const cards = reconciliation.cards.filter((card) => card.state !== "DUPLICATE");
+  return <section aria-labelledby="control-plane-heading">
+    <div className="gtm-section-heading"><div><p className="eyebrow">Canonical direct nonprofit pipeline</p><h2 id="control-plane-heading">Every award lead has one visible queue state</h2><p>This read-only view comes from the private Control Plane reconciliation. It preserves source links, fails closed on verification and suppression, and contains no delivery controls.</p></div><span className="status-badge status-success">SHADOW only</span></div>
+    <div className="gtm-automation-metrics" aria-label="Canonical queue summary"><article><strong>{reconciliation.cards.length}</strong><span>source cards</span></article><article><strong>{reconciliation.uniqueOrganizations}</strong><span>unique organizations</span></article><article><strong>{reconciliation.counts.CONTACT_RESEARCH_REQUIRED}</strong><span>contact research</span></article><article><strong>{reconciliation.counts.READY_FOR_HUMAN_REVIEW}</strong><span>human-review only</span></article></div>
+    <div className="panel panel-flush mt-6"><div className="table-scroll"><table className="data-table gtm-pipeline-table"><thead><tr><th>Organization</th><th>Observed</th><th>Queue state</th><th>Reason</th><th>Evidence</th></tr></thead><tbody>{cards.map((card) => <tr key={card.cardId}><th>{card.organization}</th><td>{formatDate(card.observedAt)}</td><td><span className="status-badge status-neutral">{card.state.replaceAll("_", " ")}</span></td><td>{card.reason}</td><td>{card.sourceUrls[0] ? <a href={card.sourceUrls[0]} target="_blank" rel="noreferrer">Source <ExternalLink aria-hidden="true" /></a> : "Source retained privately"}</td></tr>)}</tbody></table></div></div>
+    <div className="gtm-boundary-note"><ShieldCheck aria-hidden="true" /><div><strong>Queue totals</strong><p>{states.map((state) => state.replaceAll("_", " ") + ": " + reconciliation.counts[state]).join(" · ")}</p></div></div>
+  </section>;
 }
 
 function SignalsPanel({ dailyScan, loading, error }: { dailyScan: DailySocialScan | null; loading: boolean; error: string }) {

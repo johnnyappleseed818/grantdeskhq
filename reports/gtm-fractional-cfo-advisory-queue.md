@@ -339,3 +339,57 @@ NO CUSTOMER OUTREACH
 NO GUESSED EMAIL
 NO PAID ENRICHMENT BEYOND THE ALREADY-AUTHORIZED TOP-2 DIRECT TEST
 PRODUCTION TRAFFIC CHANGED: NO
+
+
+==================================================
+PARTNER INVENTORY EXPANSION — PUBLIC RESEARCH ONLY
+==================================================
+
+The following 25 additional U.S.-oriented organizations are backed by their public service pages. They are research records only: no email discovery, delivery, contact-form, social, or paid enrichment was used.
+
+| # | Organization | Website / evidence | Partner type | Publicly evidenced relevance | Relationship | Fit | Current person / email state |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 26 | YPTC | https://www.yptc.com/services/fractional-cfo-services-for-nonprofits/ | PARTNER_FRACTIONAL_CFO | Fractional CFO and nonprofit accounting services. | A | 10 | CONTACT_RESEARCH_REQUIRED |
+| 27 | Array Accounting | https://lps.arrayaccounting.com/ | PARTNER_ACCOUNTING | Outsourced CFO, controller, nonprofit accounting, grant compliance. | A | 10 | CONTACT_RESEARCH_REQUIRED |
+| 28 | Integra Nonprofit Financial Management | https://www.integranfm.com/ | PARTNER_ACCOUNTING | Outsourced finance, grant support, reporting reminders and closeout. | A | 10 | CONTACT_RESEARCH_REQUIRED |
+| 29 | Strategic Nonprofit Finance | https://www.strategicnonprofitfinance.com/ | PARTNER_FRACTIONAL_CFO | Fractional nonprofit finance leadership. | A | 9 | CONTACT_RESEARCH_REQUIRED |
+| 30 | US Fractional CFO | https://usfractionalcfo.com/industry/nonprofit-cfo/ | PARTNER_FRACTIONAL_CFO | Nonprofit fund accounting and reporting support. | A | 8 | CONTACT_RESEARCH_REQUIRED |
+| 31 | Cardinal Professional Services | https://www.cardinalprofessionalservices.com/ | PARTNER_ACCOUNTING | Nonprofit virtual finance office, grant tracking and funder reporting. | A | 9 | CONTACT_RESEARCH_REQUIRED |
+| 32 | EJeter Consulting | https://ejeterconsulting.com/nonprofit-compliance.html | PARTNER_NONPROFIT_ADVISOR | Nonprofit financial compliance, restricted fund tracking and grant reporting. | B | 8 | CONTACT_RESEARCH_REQUIRED |
+| 33 | Bookr | https://www.bookr.inc/ | PARTNER_ACCOUNTING | Outsourced nonprofit accounting, grant fiscal compliance and funder reporting. | A | 10 | CONTACT_RESEARCH_REQUIRED |
+| 34 | hfco | https://hfco.com/nonprofit-accounting-advisory-services/ | PARTNER_ACCOUNTING | Nonprofit accounting advisory, bookkeeping, grant reporting and audit preparation. | A | 9 | CONTACT_RESEARCH_REQUIRED |
+| 35 | VLPC | https://www.vlpc.com/nonprofit-support-services | PARTNER_NONPROFIT_ADVISOR | Nonprofit financial management and grant-reporting support. | B | 7 | CONTACT_RESEARCH_REQUIRED |
+| 36 | c3 by Design | https://www.c3bydesign.com/hire-us | PARTNER_NONPROFIT_ADVISOR | Grant requirements, allocation methodology and grant reporting. | B | 9 | CONTACT_RESEARCH_REQUIRED |
+| 37 | ICount For Nonprofits | https://icountfornonprofits.com/services/ | PARTNER_ACCOUNTING | Fund tracking, grant reports and nonprofit accounting support. | A | 8 | CONTACT_RESEARCH_REQUIRED |
+| 38 | PBO Advisory Group | https://pboadvisory.com/nonprofit/ | PARTNER_NONPROFIT_ADVISOR | Grant reporting, audit schedules and accounting outsourcing. | A | 8 | CONTACT_RESEARCH_REQUIRED |
+| 39 | NexGen Accounting | https://nexgenllc.co/industries/nonprofits | PARTNER_ACCOUNTING | Fund accounting, grant tracking, budget-vs-actual and compliance. | A | 9 | CONTACT_RESEARCH_REQUIRED |
+| 40 | Cascade CPA | https://cascadecpa.com/nonprofit/ | PARTNER_ACCOUNTING | Nonprofit accounting plus grant reporting, invoicing and monitoring. | A | 8 | CONTACT_RESEARCH_REQUIRED |
+| 41 | Accountably | https://accountably.com/industries/non-profit-organization/ | PARTNER_ACCOUNTING | Nonprofit fund accounting, grant compliance and reporting packages. | A | 9 | CONTACT_RESEARCH_REQUIRED |
+| 42 | npact | https://npact.com/outsourced-accounting/ | PARTNER_TECH_ADVISOR | Nonprofit accounting implementation, reporting and grant-reporting services. | B | 8 | CONTACT_RESEARCH_REQUIRED |
+| 43 | Maner Costerisan | https://manercpa.com/nonprofit/ | PARTNER_ACCOUNTING | Outsourced accounting, CFO advisory and grant reporting. | A | 8 | CONTACT_RESEARCH_REQUIRED |
+| 44 | Bay Business Group | https://bay-biz.com/cash-flow-management-for-nonprofits/ | PARTNER_ACCOUNTING | Outsourced accounting, bookkeeping, fractional CFO, audit and grant reporting. | A | 8 | CONTACT_RESEARCH_REQUIRED |
+| 45 | Startup Advisory Group | https://www.startupadvisorygroup.co/fundraising-grant-management | PARTNER_GRANT_ADVISOR | Public page identifies post-award grant-management support. | B | 8 | CONTACT_RESEARCH_REQUIRED |
+| 46 | Dorsey CPA | https://www.dorseycpa.com/non-profit-accounting.htm | PARTNER_ACCOUNTING | Nonprofit outsourced accounting and automated grant reporting. | A | 7 | CONTACT_RESEARCH_REQUIRED |
+| 47 | Wipfli | https://www.wipfli.com/success-stories/ngp-aa-wisconsin-collaborative-for-healthcare-quality | PARTNER_ACCOUNTING | Public nonprofit case study includes outsourced CFO, grant reporting and accounting. | A | 8 | CONTACT_RESEARCH_REQUIRED |
+| 48 | Nisivoccia | https://www.njcpa.org/article/2026/03/10/how-nonprofits-can-benefit-from-outsourced-accounting | PARTNER_ACCOUNTING | Firm partner publicly discusses nonprofit grant accounting and outsourced finance. | A | 7 | CONTACT_RESEARCH_REQUIRED |
+| 49 | Bookminders | https://www.bookminders.com/nonprofit-accounting/ | PARTNER_ACCOUNTING | Nonprofit outsourced accounting and reporting. | A | 7 | CONTACT_RESEARCH_REQUIRED |
+| 50 | 100 Degrees Consulting | https://100degreesconsulting.com/ | PARTNER_FRACTIONAL_CFO | Fractional CFO and nonprofit finance support. | A | 8 | CONTACT_RESEARCH_REQUIRED |
+
+CURRENT PARTNER INVENTORY:
+RESEARCHED: 50
+HIGH FIT: 20 (the existing top 20 retain their source-backed 8-plus fit threshold)
+CONTACT IDENTIFIED: 2
+ENRICHMENT READY: 2
+VERIFIED EMAIL: 0
+HUMAN-REVIEW READY: 0
+TOP 5: The Charity CFO; Kiwi Partners; YPTC; Array Accounting; Integra Nonprofit Financial Management.
+
+REPLENISHMENT RULE:
+When researched inventory falls below 50, add public-source candidates only if nonprofit specialization and a plausible post-award/reporting-service fit are explicit on an official site. Deduplicate by normalized organization/domain, refresh named roles from an official team page, reuse shared enrichment and suppression gates, and never create an outbound action.
+
+SAFETY:
+REAL EMAILS SENT: 0
+PARTNER EMAILS SENT: 0
+EMAILS SCHEDULED: 0
+GUESSED EMAILS: 0
+PRODUCTION TRAFFIC CHANGED: NO

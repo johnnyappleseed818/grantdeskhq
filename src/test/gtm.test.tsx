@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it } from "vitest";
 import { initialOpportunities } from "../data/gtmData";
 import { GtmDashboardContent } from "../pages/GtmDashboardPage";
+import type { ControlPlaneQueueReconciliation } from "../lib/gtmControlPlaneQueue";
 import {
   assessOpportunityAccuracy,
   canMoveToContacted,
@@ -175,6 +176,22 @@ describe("GTM command center", () => {
     expect(screen.getByRole("heading", { name: "1 source-linked result" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Manual grant reporting workflow/i })).toHaveAttribute("href", dailyScan.items[0].url);
     expect(screen.getAllByText("research only").length).toBeGreaterThan(0);
+  });
+
+  it("renders the protected canonical Control Plane queue without a delivery action", async () => {
+    const user = userEvent.setup();
+    const controlPlane: ControlPlaneQueueReconciliation = {
+      uniqueOrganizations: 1,
+      counts: { DISQUALIFIED: 0, QUALIFIED: 0, CONTACT_RESEARCH_REQUIRED: 0, ENRICHMENT_READY: 0, EMAIL_VERIFICATION_REQUIRED: 0, SUPPRESSION_CHECK_REQUIRED: 0, DRAFT_REQUIRED: 0, READY_FOR_HUMAN_REVIEW: 1, ALREADY_CONTACTED: 0, CUSTOMER: 0, DUPLICATE: 0 },
+      cards: [{ cardId: "award-one", canonicalCardId: "award-one", organization: "Example Community Action", normalizedOrganization: "example community action", signalKind: "grant_award", observedAt: "2026-08-16", sourceUrls: ["https://example.org/award"], state: "READY_FOR_HUMAN_REVIEW", reason: "Direct business email, suppression, and a human-review-only draft are present." }]
+    };
+    render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} initialControlPlane={controlPlane} /></MemoryRouter>);
+    await user.click(screen.getByRole("tab", { name: "Canonical queue" }));
+    expect(screen.getByRole("heading", { name: /Every award lead has one visible queue state/i })).toBeInTheDocument();
+    expect(screen.getByText("Example Community Action")).toBeInTheDocument();
+    expect(screen.getByText("human-review only")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /outbound locked/i })).not.toBeInTheDocument();
+    expect(document.querySelectorAll("a[href^=\"mailto:\"]")).toHaveLength(0);
   });
 
   it("shows expanded award candidates without allowing unverified outreach", async () => {

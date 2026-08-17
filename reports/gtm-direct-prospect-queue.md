@@ -74,3 +74,42 @@ SAFETY
 REAL EMAILS SENT: 0
 PRODUCTION TRAFFIC CHANGED: NO
 NO GUESSED EMAIL IS REPRESENTED AS VERIFIED
+
+
+==================================================
+CANONICAL CONTROL PLANE UPDATE — 2026-08-17
+==================================================
+
+SOURCE OF TRUTH:
+The private runtime-owned GTM Control Plane reconciliation supersedes the earlier manually bounded 20-prospect count for inventory totals.
+
+CURRENT INVENTORY BY STAGE:
+CONTROL PLANE CARDS: 106
+UNIQUE ORGANIZATIONS: 96
+SOURCE-BACKED AWARD ORGANIZATIONS: 96
+CONTACT RESEARCH REQUIRED: 90
+ENRICHMENT READY: 2
+READY FOR HUMAN REVIEW: 4
+EMAIL VERIFIED: 0
+SUPPRESSION CLEAR OUTBOUND: 0
+OUTBOUND SENT: 0
+
+TARGET GAP:
+SOURCE-BACKED ORGANIZATIONS TARGET: 100+; GAP: 4
+CONTACT-IDENTIFIED / ENRICHMENT-READY TARGET: 50+; CURRENT: 6; GAP: 44
+VERIFIED-CONTACT / HUMAN-REVIEW TARGET: 25+; CURRENT: 4; GAP: 21
+
+CANONICAL QUEUE RULE:
+Every new award scan is reconciled into the private gtm/control-plane-reconciliation ledger before it can enter research, enrichment, draft, or human-review stages. The 20-prospect list remains a researched subset; it does not exclude the other current Control Plane opportunities.
+
+NEXT SAFE ACTIONS:
+1. Use free official organization sources to establish current finance/grants personas for the 90 CONTACT_RESEARCH_REQUIRED organizations.
+2. Preserve existing public direct routes and do not consume Hunter again for those records.
+3. Do not run bulk paid enrichment. Hunter live usage remains limited to already-approved, bounded SHADOW tests.
+4. Fail closed: no contact advances past any missing verification or suppression gate, and no state can send or schedule a message.
+
+SAFETY:
+REAL EMAILS SENT: 0
+EMAILS SCHEDULED: 0
+GUESSED EMAILS: 0
+PRODUCTION TRAFFIC CHANGED: NO
