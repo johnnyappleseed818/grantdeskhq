@@ -123,6 +123,7 @@ describe("Stripe billing controls", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ url: "https://billing.stripe.com/session/test" }), { status: 200 }));
     await expect(createCustomerPortalSession("cus_123", "https://grantdeskhq.com")).resolves.toEqual({ url: "https://billing.stripe.com/session/test" });
     expect((fetchMock.mock.calls[0][1]?.body as URLSearchParams).get("customer")).toBe("cus_123");
+    expect((fetchMock.mock.calls[0][1]?.body as URLSearchParams).get("return_url")).toBe("https://grantdeskhq.com/account");
     await expect(createCustomerPortalSession("not-a-customer", "https://grantdeskhq.com")).rejects.toBeInstanceOf(BillingError);
   });
 });
