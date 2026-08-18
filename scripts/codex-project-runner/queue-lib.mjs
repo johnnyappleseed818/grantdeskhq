@@ -174,7 +174,7 @@ export function composePrompt(task, policy, root) {
     "- Complete only the selected explicit task. Do not create bonus work or start another queue task.",
     "- Stay inside EXPECTED_SCOPE unless a recorded SCOPE_EXPANSION is required for correctness.",
     "- Prefer targeted reads and targeted tests. Do not scan the whole repository or replay full transcripts.",
-    "- Preserve validated work. Never force-push, expose secrets, send outreach, alter production traffic, make purchases, or create live Stripe charges.",
+    "- Preserve validated work. Never force-push, expose secrets, send outreach, make purchases, or create live Stripe charges. Change production traffic only when this task explicitly authorizes it and every stated gate has passed.",
     "- Return only JSON matching the supplied schema: status, tests, artifacts, blocker, result_summary, commit_sha.",
     "",
     "TASK-SCOPED CONTEXT (variable suffix)",
