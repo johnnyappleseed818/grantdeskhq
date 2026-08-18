@@ -38,6 +38,22 @@ const allowedOrigins = new Set(
     .filter(Boolean)
 );
 const feedbackAttempts = new Map<string, number[]>();
+// These React routes require the client bundle after a direct load, but do not
+// need separate crawlable HTML. Keep this allowlist narrow so unknown URLs
+// remain real 404s.
+const clientApplicationRoutes = new Set([
+  "/account",
+  "/compile",
+  "/gtm",
+  "/gtm/feedback",
+  "/internal/reliability",
+  "/login",
+  "/pilot",
+  "/privacy",
+  "/readiness",
+  "/sample-report",
+  "/workspace"
+]);
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -503,6 +519,7 @@ function requestOrigin(request: IncomingMessage) {
 
 async function serveStatic(urlPath: string, headOnly: boolean, response: ServerResponse) {
   const decoded = decodeURIComponent(urlPath);
+  const normalizedRoute = decoded.replace(/\/+$/, "") || "/";
   const candidate = path.resolve(root, `.${decoded}`);
   const safeCandidate = candidate.startsWith(`${root}${path.sep}`) || candidate === root ? candidate : root;
   let filePath = safeCandidate;
@@ -512,8 +529,12 @@ async function serveStatic(urlPath: string, headOnly: boolean, response: ServerR
     if (info.isDirectory()) filePath = path.join(filePath, "index.html");
     await stat(filePath);
   } catch {
-    filePath = path.join(root, "404.html");
-    statusCode = 404;
+    if (clientApplicationRoutes.has(normalizedRoute)) {
+      filePath = path.join(root, "index.html");
+    } else {
+      filePath = path.join(root, "404.html");
+      statusCode = 404;
+    }
   }
   const body = await readFile(filePath);
   response.statusCode = statusCode;

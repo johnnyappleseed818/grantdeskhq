@@ -83,6 +83,8 @@ describe("important routes", () => {
     expect(directLoadRoutes).toContain("\"resources\"");
     expect(directLoadRoutes).toContain("\"contact\"");
     const cloudRun = fs.readFileSync(path.resolve("server/cloudRun.ts"), "utf8");
+    expect(cloudRun).toContain('"/account"');
+    expect(cloudRun).toContain("clientApplicationRoutes.has(normalizedRoute)");
     expect(cloudRun).toContain("filePath = path.join(root, \"404.html\");");
     expect(cloudRun).toContain("response.statusCode = statusCode;");
   });
