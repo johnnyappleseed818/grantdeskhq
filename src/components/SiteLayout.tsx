@@ -71,7 +71,8 @@ export function SiteLayout() {
             {gtmAllowed && <Link className="nav-link admin-nav-link" to="/gtm">GTM Command Center</Link>}
             {gtmAllowed && <Link className="nav-link admin-nav-link" to="/gtm/feedback">Feedback review</Link>}
             {gtmAllowed && <Link className="nav-link admin-nav-link" to="/internal/reliability">Reliability</Link>}
-            <Link className="nav-link account-nav-link" to={user ? "/workspace" : "/login"}>{user ? "My workspace" : "Sign in"}</Link>
+            {user && <Link className="nav-link account-nav-link" to="/workspace">My workspace</Link>}
+            <Link className="nav-link account-nav-link" to={user ? "/account" : "/login"}>{user ? "Account" : "Sign in"}</Link>
             <Link
               className="button button-primary whitespace-nowrap"
               to={user ? "/compile?new=1" : "/assessment"}
@@ -105,6 +106,7 @@ export function SiteLayout() {
               <Link to="/resources">Resources</Link>
               <Link to="/blog">Grant reporting field guide</Link>
               <Link to={user ? "/workspace" : "/login"}>{user ? "My workspace" : "Account sign in"}</Link>
+              {user && <Link to="/account">Account settings &amp; billing</Link>}
               {gtmAllowed && <Link to="/gtm">GTM Command Center</Link>}
               {gtmAllowed && <Link to="/internal/reliability">Reliability dashboard</Link>}
               <Link to="/assessment" onClick={() => trackAnalyticsEvent("free_first_report_click", { surface: "footer" })}>Free First Award</Link>
