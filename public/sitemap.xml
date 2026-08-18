@@ -1,13 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://grantdeskhq.com/</loc></url>
-  <url><loc>https://grantdeskhq.com/pricing</loc></url>
-  <url><loc>https://grantdeskhq.com/resources</loc></url>
-  <url><loc>https://grantdeskhq.com/blog</loc></url>
-  <url><loc>https://grantdeskhq.com/blog/post-award-grant-reporting-checklist</loc></url>
-  <url><loc>https://grantdeskhq.com/blog/budget-to-actual-grant-reporting-workflow</loc></url>
-  <url><loc>https://grantdeskhq.com/blog/turn-grant-agreement-into-reporting-plan</loc></url>
-  <url><loc>https://grantdeskhq.com/blog/grant-progress-report-workflow</loc></url>
-  <url><loc>https://grantdeskhq.com/blog/grant-closeout-checklist</loc></url>
-  <url><loc>https://grantdeskhq.com/blog/post-award-grant-management-software</loc></url>
+  <url><loc>https://grantdeskhq.com/</loc><lastmod>2026-08-18</lastmod></url>
+  <url><loc>https://grantdeskhq.com/pricing</loc><lastmod>2026-08-18</lastmod></url>
+  <url><loc>https://grantdeskhq.com/resources</loc><lastmod>2026-08-18</lastmod></url>
+  <url><loc>https://grantdeskhq.com/blog</loc><lastmod>2026-08-18</lastmod></url>
+  <url><loc>https://grantdeskhq.com/assessment</loc><lastmod>2026-08-18</lastmod></url>
+  <url><loc>https://grantdeskhq.com/contact</loc><lastmod>2026-08-18</lastmod></url>
+  <url><loc>https://grantdeskhq.com/demo</loc><lastmod>2026-08-18</lastmod></url>
+  <url><loc>https://grantdeskhq.com/blog/post-award-grant-reporting-checklist</loc><lastmod>2026-08-16</lastmod></url>
+  <url><loc>https://grantdeskhq.com/blog/budget-to-actual-grant-reporting-workflow</loc><lastmod>2026-08-16</lastmod></url>
+  <url><loc>https://grantdeskhq.com/blog/turn-grant-agreement-into-reporting-plan</loc><lastmod>2026-08-16</lastmod></url>
+  <url><loc>https://grantdeskhq.com/blog/grant-progress-report-workflow</loc><lastmod>2026-08-16</lastmod></url>
+  <url><loc>https://grantdeskhq.com/blog/grant-closeout-checklist</loc><lastmod>2026-08-16</lastmod></url>
+  <url><loc>https://grantdeskhq.com/blog/post-award-grant-management-software</loc><lastmod>2026-08-16</lastmod></url>
 </urlset>

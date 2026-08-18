@@ -1,5 +1,7 @@
 import type { EnrichmentUsage } from "./contactEnrichment";
-import { directProspectReplenishment, type ControlPlaneLeadState, type ControlPlaneQueueReconciliation } from "./gtmControlPlaneQueue";
+// This value import is also loaded by the Node 22 Cloud Run runtime. Node's
+// TypeScript stripper requires the explicit source extension at runtime.
+import { directProspectReplenishment, type ControlPlaneLeadState, type ControlPlaneQueueReconciliation } from "./gtmControlPlaneQueue.ts";
 import type { ShadowPipelineStatus } from "./gtmShadow";
 
 export type GtmHealth = "HEALTHY" | "STALE" | "BLOCKED" | "NEEDS_REPLENISHMENT" | "NOT_INSTRUMENTED";
