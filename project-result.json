@@ -1,52 +1,53 @@
 {
   "status": "PASS",
-  "project": "customer-account-contact-self-service-finish-20260818",
-  "completed_at": "2026-08-18T15:55:00Z",
-  "scope": "Customer account, billing self-service, direct authenticated routes, and visible Contact/Feedback navigation only.",
+  "project": "gtm-command-center-operator-redesign-20260818",
+  "completed_at": "2026-08-18T16:38:24Z",
+  "scope": "Canonical GTM reconciliation and founder/operator Command Center UX only.",
   "tests": [
-    "npx vitest run --reporter=dot src/test/accountNavigation.test.tsx src/test/accountSelfService.test.tsx src/test/app.test.tsx src/test/workspaceReports.test.tsx src/test/contactFeedbackExperience.test.tsx src/test/billing.test.ts (50 passed)",
-    "focused ESLint (passed)",
-    "npm run build (passed; 13 static public routes generated)",
-    "candidate and production smoke: /api/health, /, /contact, /account, /workspace, /gtm = 200; unknown route = 404",
-    "browser validation: public Contact Us and footer Contact & Feedback visible and point to /contact; mobile Contact Us visible; direct /account and /workspace redirect unauthenticated users to sign-in",
-    "live Stripe Customer Portal configuration, read only: active; payment-method update, invoice history, and subscription cancellation enabled; cancellation mode at_period_end"
+    "Focused GTM, authorization, account, billing, contact, pricing, and app tests: 83 passed",
+    "Focused GTM runtime-import repair tests: 31 passed",
+    "Focused Stripe/privacy regression tests: 18 passed",
+    "ESLint passed",
+    "Production build passed; 13 static public routes generated",
+    "GTM validation and GrantDesk site regression passed",
+    "Stripe PCI static audit: 202 files, 0 violations",
+    "Zero-traffic and production smoke: health and customer routes 200; unauthenticated GTM APIs 401",
+    "Browser smoke: public Contact Us, footer Contact & Feedback, mobile Contact Us, and unauthenticated /gtm redirect all passed"
   ],
   "artifacts": [
-    "src/pages/AccountPage.tsx",
-    "src/App.tsx",
-    "src/components/SiteLayout.tsx",
-    "src/pages/WorkspacePage.tsx",
-    "src/lib/auth.tsx",
-    "server/billing.ts",
-    "server/cloudRun.ts",
-    "src/test/accountSelfService.test.tsx",
-    "src/test/accountNavigation.test.tsx",
-    "src/test/app.test.tsx",
-    "src/test/billing.test.ts"
+    "src/lib/gtmOutreach.ts",
+    "src/lib/gtmOverview.ts",
+    "src/lib/partnerPipeline.ts",
+    "src/pages/GtmDashboardPage.tsx",
+    "src/test/gtm.test.tsx",
+    "src/test/gtmOutreach.test.ts",
+    "src/test/gtmOverview.test.ts"
   ],
-  "customer_self_service": {
-    "account_route_direct_load": true,
-    "account_navigation": true,
-    "profile_display_name_update": true,
-    "login_email_change": "separate_secure_auth_flow",
-    "plan_status_next_billing_display": true,
-    "customer_portal": true,
-    "payment_method_update": true,
-    "invoice_history": true,
-    "cancellation_without_support": true,
-    "cancellation_mode": "at_period_end",
-    "contact_feedback_navigation": true,
-    "raw_card_handling": false
+  "pipeline": {
+    "direct_unique_contacted": 7,
+    "partner_unique_contacted": 10,
+    "unique_contacted": 17,
+    "email_events": 17,
+    "awaiting_reply": 17,
+    "replies": 0,
+    "trials": 0,
+    "paid": 0,
+    "mrr": null,
+    "missing_or_unaccounted": 0,
+    "duplicate_initial_send_guard": true,
+    "different_contact_same_organization_guard": true,
+    "instantly_initial_import_guard": true
   },
   "production": {
     "traffic_changed": true,
-    "revision": "grantdeskhq-prototype-accountselfservice2",
+    "revision": "grantdeskhq-prototype-gtmoperator5",
     "traffic_percent": 100,
-    "rollback_revision": "grantdeskhq-prototype-gtmoperator3",
+    "rollback_revision": "grantdeskhq-prototype-accountselfservice2",
     "stripe_pricing_changed": false,
     "stripe_objects_changed": false,
-    "external_actions": 0
+    "external_actions": 0,
+    "real_emails_sent_by_codex": 0
   },
   "blocker": null,
-  "result_summary": "A customer can discover Account from authenticated navigation, directly load /account, update their display name without changing the secure login email, view current subscription information, and open the server-created Stripe Customer Portal for enabled payment-method, invoice, and cancellation self-service. The release preserves the live GTM changes and runtime configuration exactly. No charge, customer record, Stripe object, or secret changed."
+  "result_summary": "The GTM Command Center now treats all 17 human-confirmed initial sends as canonical organization-level outreach, distinguishes email events from unique contacted organizations, blocks duplicate initial sends by organization, domain, and email, presents commercial KPIs and real-record next actions first, and moves browser-local pseudo-pipeline and automation panels out of System Health. No billing, pricing, Stripe, Instantly, account, or contact behavior changed."
 }
