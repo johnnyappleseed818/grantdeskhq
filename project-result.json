@@ -1,8 +1,8 @@
 {
   "status": "PASS",
-  "tests": ["npx vitest run src/test/gtmOutreach.test.ts src/test/gtmControlPlaneQueue.test.ts", "npm run gtm:test", "npx tsc --noEmit", "git diff --check"],
-  "artifacts": ["src/lib/gtmOutreach.ts", "src/lib/gtmControlPlaneQueue.ts", "server/cloudRun.ts", "server/gtmControlPlaneReconcileJob.ts", "src/pages/GtmDashboardPage.tsx", "src/test/gtmOutreach.test.ts", "src/test/gtmControlPlaneQueue.test.ts", "reports/gtm-outreach-tracking.md", "reports/gtm-outreach-update-20260818.md"],
+  "tests": ["npx vitest run src/test/gtmOutreach.test.ts", "git diff --check"],
+  "artifacts": ["server/persistence.ts", "src/test/gtmOutreach.test.ts", "reports/gtm-outreach-update-20260818.md"],
   "blocker": "",
-  "result_summary": "Recorded the two human-confirmed 2026-08-18 initial outreach events, preserved Junior Achievement0027s single 2026-08-17 event, and added duplicate-initial reconciliation guards without external actions.",
+  "result_summary": "Known valid business email values on human-confirmed outreach records now survive persistence decoding; malformed values remain rejected without external actions.",
   "commit_sha": ""
 }

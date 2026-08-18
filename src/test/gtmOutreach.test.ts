@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { confirmedHumanOutreach, initialOutreachEligibility, mergeOutreachRecords, reconcileOutreachControlPlane, summarizeOutreach } from "../lib/gtmOutreach";
+import { outreachFromRecord } from "../../server/persistence";
 
 describe("human-confirmed GTM outreach ledger", () => {
   it("contains exactly seven direct and five partner sends with no inferred downstream outcome", () => {
@@ -35,6 +36,19 @@ describe("human-confirmed GTM outreach ledger", () => {
     const reconciled = mergeOutreachRecords([stale], confirmedHumanOutreach);
     expect(reconciled).toHaveLength(12);
     expect(reconciled.find((record) => record.id === stale.id)?.canonicalOpportunityId).toBe("job-sustainable-food-center-2026");
+  });
+
+  it("round-trips a known business recipient without relaxing malformed-email rejection", () => {
+    const oceanology = confirmedHumanOutreach.find((record) => record.organization === "Project Oceanology");
+    expect(oceanology).toBeDefined();
+    expect(outreachFromRecord({ ...oceanology! })).toMatchObject({
+      id: "outreach_direct_project_oceanology_20260818",
+      email: "lmcolon@oceanology.org",
+      initialOutreachGuard: "DO_NOT_SEND_NEW_INITIAL_OUTREACH",
+      sentAt: "2026-08-18T00:00:00.000Z",
+      sentTimePrecision: "DATE_CONFIRMED"
+    });
+    expect(outreachFromRecord({ ...oceanology!, email: "not-a-valid-address" })).toBeNull();
   });
 
 });

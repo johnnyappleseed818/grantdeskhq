@@ -1337,12 +1337,14 @@ function safeConversionLearningDocumentId(value: string) {
   return value;
 }
 
-function outreachFromRecord(record: Record<string, unknown>): OutreachRecord | null {
+/** Decodes a stored human-confirmed outreach event; it does not send or schedule email. */
+export function outreachFromRecord(record: Record<string, unknown>): OutreachRecord | null {
   const id = String(record.id || "");
   const type = String(record.type || "");
   if (!/^outreach_(direct|partner)_[a-z0-9_]+$/.test(id) || (type !== "DIRECT_NONPROFIT" && type !== "PARTNER")) return null;
   const parsed = { ...record, email: String(record.email || "") || null, canonicalOpportunityId: String(record.canonicalOpportunityId || "") || null, whyNowSignal: String(record.whyNowSignal || "") || null, signalSource: String(record.signalSource || "") || null, followUpDueAt: String(record.followUpDueAt || "") || null } as OutreachRecord;
-  return parsed.source === "HUMAN_CONFIRMED_OUTREACH" && parsed.status === "SENT" && parsed.email === null ? parsed : null;
+  const validEmail = parsed.email === null || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(parsed.email);
+  return parsed.source === "HUMAN_CONFIRMED_OUTREACH" && parsed.status === "SENT" && validEmail ? parsed : null;
 }
 
 function feedbackFromRecord(record: Record<string, unknown>): FeedbackSubmission | null {

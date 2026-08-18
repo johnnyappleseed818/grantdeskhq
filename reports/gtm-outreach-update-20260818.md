@@ -13,3 +13,10 @@ Every ledger record has `DO_NOT_SEND_NEW_INITIAL_OUTREACH`. The reusable guard b
 ## Boundary
 
 This update only records provided human-confirmed history and reconciliation metadata. It performs no send, scheduling, enrichment, delivery lookup, deployment, billing, or other external action.
+
+## Durable email decode correction
+
+- Known syntactically valid business email values on human-confirmed records now survive persistence decoding.
+- Null-email records continue to decode, while malformed email values remain rejected.
+- The focused regression covers the saved Project Oceanology record and retains its initial-outreach guard and date-only send precision.
+- Scope expansion: the repository-required `project-result.json` is updated solely to record this completed bounded task.
