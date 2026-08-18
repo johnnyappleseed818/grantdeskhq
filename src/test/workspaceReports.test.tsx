@@ -53,6 +53,13 @@ describe("saved report workspace", () => {
     expect(link).toHaveAttribute("href", "/compile?new=1");
   });
 
+  it("keeps a visible Feedback entry point for an authenticated workspace user", async () => {
+    render(<MemoryRouter><WorkspacePage /></MemoryRouter>);
+
+    const link = await screen.findByRole("link", { name: /^Feedback$/i });
+    expect(link).toHaveAttribute("href", "/contact");
+  });
+
   it("uses neutral retained-price wording for an eligible customer", async () => {
     apiRequest.mockImplementation((path: string) => path === "/api/reports"
       ? Promise.resolve({ reports: [] })
