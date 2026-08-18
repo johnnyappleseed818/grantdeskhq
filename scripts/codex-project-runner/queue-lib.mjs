@@ -236,6 +236,7 @@ export async function runQueue({ queuePath, policyPath, schemaPath, root, stateD
   // A run budget is intentionally fresh per invocation. Historical usage must
   // never silently consume the allowance of the next focused run.
   const routingUsage = createRoutingUsage();
+  routingUsage.budget_policy_version = budgetPolicy.version;
   const deferredTasks = [];
   acquireLock(stateDir, queuePath); const started = Date.now(); const runnerStartedAt = new Date(started).toISOString(); let lastCompleted = null; let lastCommit = null;
   const status = (extra) => writeStatus(queue, stateDir, statusFile, { runnerStartedAt, elapsedMs: Date.now() - started, lastCommit, budgetPolicy, deferredTasks, ...extra });
