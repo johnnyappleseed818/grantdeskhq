@@ -38,6 +38,9 @@ const allowedOrigins = new Set(
     .filter(Boolean)
 );
 const feedbackAttempts = new Map<string, number[]>();
+// Private React operator routes must survive a direct load, while unknown
+// public paths continue to return the generated 404 page.
+const clientOperatorRoutes = new Set(["/gtm", "/gtm/feedback", "/internal/reliability", "/login"]);
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -503,6 +506,7 @@ function requestOrigin(request: IncomingMessage) {
 
 async function serveStatic(urlPath: string, headOnly: boolean, response: ServerResponse) {
   const decoded = decodeURIComponent(urlPath);
+  const normalizedRoute = decoded.replace(/\/+$/, "") || "/";
   const candidate = path.resolve(root, `.${decoded}`);
   const safeCandidate = candidate.startsWith(`${root}${path.sep}`) || candidate === root ? candidate : root;
   let filePath = safeCandidate;
@@ -512,8 +516,12 @@ async function serveStatic(urlPath: string, headOnly: boolean, response: ServerR
     if (info.isDirectory()) filePath = path.join(filePath, "index.html");
     await stat(filePath);
   } catch {
-    filePath = path.join(root, "404.html");
-    statusCode = 404;
+    if (clientOperatorRoutes.has(normalizedRoute)) {
+      filePath = path.join(root, "index.html");
+    } else {
+      filePath = path.join(root, "404.html");
+      statusCode = 404;
+    }
   }
   const body = await readFile(filePath);
   response.statusCode = statusCode;
