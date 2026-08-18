@@ -1,8 +1,39 @@
 {
   "status": "PASS",
-  "tests": ["npx vitest run src/test/gtmOutreach.test.ts", "git diff --check"],
-  "artifacts": ["server/persistence.ts", "src/test/gtmOutreach.test.ts", "reports/gtm-outreach-update-20260818.md"],
-  "blocker": "",
-  "result_summary": "Known valid business email values on human-confirmed outreach records now survive persistence decoding; malformed values remain rejected without external actions.",
-  "commit_sha": ""
+  "project": "gtm-human-confirmed-outreach-20260818",
+  "completed_at": "2026-08-18",
+  "tests": [
+    "npx vitest run src/test/gtmOutreach.test.ts src/test/gtmControlPlaneQueue.test.ts",
+    "npm run gtm:test",
+    "npm run lint -- --quiet",
+    "npm run build",
+    "git diff --check"
+  ],
+  "artifacts": [
+    "src/lib/gtmOutreach.ts",
+    "src/lib/gtmControlPlaneQueue.ts",
+    "server/cloudRun.ts",
+    "server/gtmControlPlaneReconcileJob.ts",
+    "server/persistence.ts",
+    "src/pages/GtmDashboardPage.tsx",
+    "src/test/gtmOutreach.test.ts",
+    "src/test/gtmControlPlaneQueue.test.ts",
+    "reports/gtm-outreach-update-20260818.md"
+  ],
+  "blocker": "No production deployment was authorized or performed; the committed reconciliation will become live only through a separately authorized deployment.",
+  "result_summary": "Recorded Project Oceanology and Rodale Institute as human-confirmed 2026-08-18 direct sends, preserved Junior Achievement's single 2026-08-17 send, and enforced a canonical organization/email duplicate-initial-send guard. Known valid business emails survive persistence decoding; malformed values remain rejected. No email was sent or scheduled.",
+  "counts": {
+    "direct_unique_contacted": 7,
+    "partner_unique_contacted": 5,
+    "total_unique_contacted": 12,
+    "total_email_events": 12,
+    "missing_unaccounted": 0,
+    "real_emails_sent_by_codex": 0
+  },
+  "production_traffic_changed": false,
+  "external_actions": 0,
+  "implementation_commits": [
+    "41810b41e904e0e5c57c5ddfce98e4df6430da7c",
+    "10fe3f4479302e689a1c94097585f25f10db3c4c"
+  ]
 }

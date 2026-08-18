@@ -4,8 +4,17 @@ import { resolve } from "node:path";
 import { defaultStateDir, defaultStatusFile, queueSummary, readJson, routingUsagePath, runQueue, validateQueue, writeJson, writeStatus } from "./queue-lib.mjs";
 import { loadBudgetPolicy } from "./cost-governor.mjs";
 import { createRoutingUsage } from "./model-router.mjs";
-const root = resolve(process.cwd()); const queuePath = resolve(root, "ops/codex-work-queue.json"); const modelPolicyPath = resolve(root, "ops/agent-model-policy.json"); const policyPath = resolve(root, "ops/codex-operating-policy.md"); const schemaPath = resolve(root, "ops/codex-task-result.schema.json"); const command = process.argv[2] || "status"; const stateDir = process.env.CODEX_QUEUE_STATE_DIR || defaultStateDir; const statusFile = process.env.CODEX_QUEUE_STATUS_FILE || defaultStatusFile;
-const budgetPolicyPath = resolve(root, "ops/agent-budget-policy.json");
+
+const root = resolve(process.cwd());
+const configuredPath = (name, fallback) => resolve(root, process.env[name] || fallback);
+const queuePath = configuredPath("CODEX_QUEUE_FILE", "ops/codex-work-queue.json");
+const modelPolicyPath = configuredPath("CODEX_QUEUE_MODEL_POLICY", "ops/agent-model-policy.json");
+const policyPath = configuredPath("CODEX_QUEUE_POLICY", "ops/codex-operating-policy.md");
+const schemaPath = configuredPath("CODEX_QUEUE_RESULT_SCHEMA", "ops/codex-task-result.schema.json");
+const budgetPolicyPath = configuredPath("CODEX_QUEUE_BUDGET_POLICY", "ops/agent-budget-policy.json");
+const command = process.argv[2] || "status";
+const stateDir = process.env.CODEX_QUEUE_STATE_DIR || defaultStateDir;
+const statusFile = process.env.CODEX_QUEUE_STATUS_FILE || defaultStatusFile;
 const queue = () => validateQueue(readJson(queuePath));
 if (command === "status") {
   const value = queue(); const usageFile = routingUsagePath(stateDir); const budgetPolicy = loadBudgetPolicy(budgetPolicyPath);

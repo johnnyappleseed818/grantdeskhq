@@ -20,3 +20,27 @@ This update only records provided human-confirmed history and reconciliation met
 - Null-email records continue to decode, while malformed email values remain rejected.
 - The focused regression covers the saved Project Oceanology record and retains its initial-outreach guard and date-only send precision.
 - Scope expansion: the repository-required `project-result.json` is updated solely to record this completed bounded task.
+
+## Required reconciliation report
+
+PROJECT OCEANOLOGY: SENT
+
+RODALE INSTITUTE: SENT
+
+JUNIOR ACHIEVEMENT: SENT EXISTING
+
+DIRECT UNIQUE CONTACTED: 7
+
+PARTNER UNIQUE CONTACTED: 5
+
+TOTAL UNIQUE CONTACTED: 12
+
+TOTAL EMAIL EVENTS SENT: 12
+
+DUPLICATE INITIAL SEND GUARD: PASS
+
+MISSING / UNACCOUNTED FOR: 0
+
+FOLLOW-UP DUE: NOT YET CONFIGURED (for all twelve records; no date was inferred)
+
+REAL EMAILS SENT BY CODEX: 0

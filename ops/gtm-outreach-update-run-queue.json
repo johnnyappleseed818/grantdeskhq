@@ -1,0 +1,166 @@
+{
+  "version": 1,
+  "purpose": "One bounded controller task for the 2026-08-18 human-confirmed outreach update.",
+  "tasks": [
+    {
+      "id": "gtm-human-confirmed-outreach-20260818",
+      "title": "Record two new direct sends and block duplicate initial outreach",
+      "category": "REPO_CODING",
+      "task_type": "GTM_OUTREACH_RECONCILIATION",
+      "priority": 1,
+      "status": "PASS",
+      "created_at": "2026-08-18T10:35:00.000Z",
+      "updated_at": "2026-08-18T10:37:08.563Z",
+      "description": "Record the human-confirmed 2026-08-18 initial outreach for Project Oceanology and Rodale Institute in the canonical immutable GTM ledger, with date-only time precision and existing publicly verified contacts/sources only. Preserve the existing Junior Achievement of South Florida SENT event and its known recipient info@jasouthflorida.org without adding an event. Add an explicit DO_NOT_SEND_NEW_INITIAL_OUTREACH guard to these records and a reusable initial-outreach eligibility guard that blocks a duplicate by canonical organization identity or known recipient email, while allowing only separately authorized follow-up logic. Feed prior contacted organizations into Control Plane reconciliation so new signals remain ALREADY_CONTACTED rather than READY_TO_SEND. Distinguish unique organizations contacted from email events; expected direct unique 7, partner unique 5, total unique 12, and total sent events 12. Show Not yet configured for a null follow-up date. Add focused tests and a factual report. Do not send, enrich, or schedule any email; do not publish or change traffic.",
+      "acceptance_criteria": [
+        "Project Oceanology and Rodale Institute each have exactly one date-confirmed direct SENT event dated 2026-08-18, with no invented send time or downstream outcome.",
+        "Junior Achievement of South Florida retains its original 2026-08-17 sent event and becomes no second record.",
+        "The canonical direct/partner unique-contacted counts are 7/5 and total unique contacted is 12; event count remains a separate metric of 12.",
+        "A new source or later import cannot make an organization with prior initial outreach eligible for a new initial send; the Control Plane state remains ALREADY_CONTACTED.",
+        "No follow-up due date is invented when no follow-up policy exists.",
+        "No send, enrichment, deployment, billing, or external action is implemented."
+      ],
+      "dependencies": [],
+      "blocked_by": [],
+      "attempt_count": 1,
+      "max_attempts": 1,
+      "estimated_scope": "focused",
+      "expected_scope": [
+        "src/lib/gtmOutreach.ts",
+        "src/lib/gtmControlPlaneQueue.ts",
+        "server/cloudRun.ts",
+        "server/gtmControlPlaneReconcileJob.ts",
+        "src/pages/GtmDashboardPage.tsx",
+        "src/test/gtmOutreach.test.ts",
+        "src/test/gtmControlPlaneQueue.test.ts",
+        "reports/gtm-outreach-tracking.md",
+        "reports/gtm-outreach-update-20260818.md"
+      ],
+      "allowed_actions": [
+        "inspect scoped source",
+        "edit scoped source",
+        "run focused tests",
+        "write factual report"
+      ],
+      "forbidden_actions": [
+        "email send",
+        "enrichment",
+        "external-account action",
+        "traffic change",
+        "billing",
+        "Stripe",
+        "force push"
+      ],
+      "artifacts_expected": [
+        "src/lib/gtmOutreach.ts",
+        "src/test/gtmOutreach.test.ts",
+        "src/test/gtmControlPlaneQueue.test.ts",
+        "reports/gtm-outreach-update-20260818.md"
+      ],
+      "tests_expected": [
+        "npx vitest run src/test/gtmOutreach.test.ts src/test/gtmControlPlaneQueue.test.ts",
+        "npm run gtm:test"
+      ],
+      "branch": "codex/acquisition-finish-20260818",
+      "commit_sha": "41810b41e904e0e5c57c5ddfce98e4df6430da7c",
+      "started_at": "2026-08-18T10:30:00.124Z",
+      "completed_at": "2026-08-18T10:37:08.563Z",
+      "blocker": "",
+      "result_summary": "Recorded the two confirmed 2026-08-18 direct sends, preserved Junior Achievement’s single prior event, added duplicate-initial guards, and kept follow-up dates unconfigured. No external actions were performed.",
+      "risk_level": "MODERATE",
+      "business_value": "HIGH",
+      "urgency": "HIGH",
+      "estimated_cost_class": "MEDIUM",
+      "validation_level": "WORKSTREAM",
+      "production_traffic_authorized": false,
+      "finalization_task": false,
+      "checkpoint_summary": "Existing canonical ledger has five direct and five partner events. Project Oceanology ID award-project-oceanology-2026; Rodale ID job-rodale-2026; Junior Achievement ID job-ja-south-florida-2026 already has one direct event.",
+      "selected_tier": "STANDARD",
+      "selected_model": "gpt-5.6-terra",
+      "reasoning_level": "medium",
+      "why_selected": "Normal repository implementation or test work with no high-risk indicators.",
+      "route_step": 0,
+      "max_escalations": 1,
+      "max_runtime_minutes": 20,
+      "validation_status": "PASS",
+      "runtime_ms": 428428,
+      "run_dir": "/home/eli_katz/grantdesk-project-runs/gtm-outreach-update-20260818/runs/gtm-human-confirmed-outreach-20260818/2026-08-18T10-30-00-125Z"
+    },
+    {
+      "id": "gtm-outreach-email-roundtrip",
+      "title": "Preserve known recorded business emails in the durable outreach ledger",
+      "category": "REPO_CODING",
+      "task_type": "GTM_OUTREACH_RECONCILIATION",
+      "priority": 2,
+      "status": "PASS",
+      "created_at": "2026-08-18T10:40:00.000Z",
+      "updated_at": "2026-08-18T10:43:51.773Z",
+      "description": "Correct only the durable GTM outreach ledger round trip: a human-confirmed record with a known valid business email must persist and reload without being discarded, while invalid addresses remain rejected and no email is ever sent. Preserve the new duplicate-initial-outreach guard and date-only send precision. Add a focused test that a saved Project Oceanology, Rodale Institute, or Junior Achievement-style record with a known address remains an outreach record after decode. Do not call any external service, deploy, enrich, or change unrelated code.",
+      "acceptance_criteria": [
+        "Known valid business emails on human-confirmed outreach records survive persistence decoding.",
+        "Invalid email values remain rejected.",
+        "No external service is called and no outreach action is performed."
+      ],
+      "dependencies": [
+        "gtm-human-confirmed-outreach-20260818"
+      ],
+      "blocked_by": [],
+      "attempt_count": 1,
+      "max_attempts": 1,
+      "estimated_scope": "focused",
+      "expected_scope": [
+        "server/persistence.ts",
+        "src/lib/gtmOutreach.ts",
+        "src/test/gtmOutreach.test.ts",
+        "reports/gtm-outreach-update-20260818.md"
+      ],
+      "allowed_actions": [
+        "inspect scoped source",
+        "edit scoped source",
+        "run focused tests",
+        "update factual report"
+      ],
+      "forbidden_actions": [
+        "external service call",
+        "email send",
+        "enrichment",
+        "traffic change",
+        "billing",
+        "Stripe",
+        "force push"
+      ],
+      "artifacts_expected": [
+        "server/persistence.ts",
+        "src/test/gtmOutreach.test.ts",
+        "reports/gtm-outreach-update-20260818.md"
+      ],
+      "tests_expected": [
+        "npx vitest run src/test/gtmOutreach.test.ts"
+      ],
+      "branch": "codex/acquisition-finish-20260818",
+      "commit_sha": "10fe3f4479302e689a1c94097585f25f10db3c4c",
+      "started_at": "2026-08-18T10:39:35.059Z",
+      "completed_at": "2026-08-18T10:43:51.773Z",
+      "blocker": "",
+      "result_summary": "Valid known business emails now survive outreach-ledger decoding; malformed values remain rejected. No external service or outreach action occurred.",
+      "risk_level": "MODERATE",
+      "business_value": "HIGH",
+      "urgency": "HIGH",
+      "estimated_cost_class": "MEDIUM",
+      "validation_level": "WORKSTREAM",
+      "production_traffic_authorized": false,
+      "finalization_task": false,
+      "checkpoint_summary": "The current persistence decoder accepts only null-email records, which would discard the three human-confirmed known recipient values.",
+      "selected_tier": "STANDARD",
+      "selected_model": "gpt-5.6-terra",
+      "reasoning_level": "medium",
+      "why_selected": "Normal repository implementation or test work with no high-risk indicators.",
+      "route_step": 0,
+      "max_escalations": 1,
+      "max_runtime_minutes": 20,
+      "validation_status": "PASS",
+      "runtime_ms": 256706,
+      "run_dir": "/home/eli_katz/grantdesk-project-runs/gtm-outreach-email-roundtrip-20260818/runs/gtm-outreach-email-roundtrip/2026-08-18T10-39-35-060Z"
+    }
+  ]
+}
