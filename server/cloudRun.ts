@@ -38,9 +38,22 @@ const allowedOrigins = new Set(
     .filter(Boolean)
 );
 const feedbackAttempts = new Map<string, number[]>();
-// Private React operator routes must survive a direct load, while unknown
-// public paths continue to return the generated 404 page.
-const clientOperatorRoutes = new Set(["/gtm", "/gtm/feedback", "/internal/reliability", "/login"]);
+// These React routes require the client bundle after a direct load, but do not
+// need separate crawlable HTML. Keep this allowlist narrow so unknown URLs
+// remain real 404s.
+const clientApplicationRoutes = new Set([
+  "/account",
+  "/compile",
+  "/gtm",
+  "/gtm/feedback",
+  "/internal/reliability",
+  "/login",
+  "/pilot",
+  "/privacy",
+  "/readiness",
+  "/sample-report",
+  "/workspace"
+]);
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -516,7 +529,7 @@ async function serveStatic(urlPath: string, headOnly: boolean, response: ServerR
     if (info.isDirectory()) filePath = path.join(filePath, "index.html");
     await stat(filePath);
   } catch {
-    if (clientOperatorRoutes.has(normalizedRoute)) {
+    if (clientApplicationRoutes.has(normalizedRoute)) {
       filePath = path.join(root, "index.html");
     } else {
       filePath = path.join(root, "404.html");
