@@ -4,16 +4,23 @@ import { EventEmitter } from "node:events";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { acquireLock, invokeCodex, lockIsStale, queueSummary, runQueue, selectNextTask, validateQueue, validateResult, writeJson } from "./queue-lib.mjs";
+import { acquireLock, composePrompt, invokeCodex, lockIsStale, queueSummary, runQueue, selectNextTask, validateQueue, validateResult, writeJson } from "./queue-lib.mjs";
 
 const stamp = "2026-08-17T00:00:00.000Z";
 const task = (id, priority, status = "QUEUED", dependencies = []) => ({ id, title: id, category: "QA", priority, status, created_at: stamp, updated_at: stamp, description: "test", acceptance_criteria: ["done"], dependencies, blocked_by: [], attempt_count: 0, max_attempts: 2, estimated_scope: "small", allowed_actions: [], forbidden_actions: [], artifacts_expected: [], tests_expected: [], branch: null, commit_sha: null, started_at: null, completed_at: null, blocker: "", result_summary: "" });
-function fixture() { const dir = mkdtempSync(join(tmpdir(), "grantdesk-queue-")); const queuePath = join(dir, "queue.json"); const policyPath = join(dir, "policy.md"); const schemaPath = join(dir, "schema.json"); const modelPolicyPath = join(dir, "agent-model-policy.json"); writeFileSync(policyPath, "No production. No outbound."); writeFileSync(schemaPath, "{}"); writeFileSync(modelPolicyPath, readFileSync(new URL("../../ops/agent-model-policy.json", import.meta.url))); return { dir, queuePath, policyPath, schemaPath, modelPolicyPath }; }
+function fixture() { const dir = mkdtempSync(join(tmpdir(), "grantdesk-queue-")); const queuePath = join(dir, "queue.json"); const policyPath = join(dir, "policy.md"); const schemaPath = join(dir, "schema.json"); const modelPolicyPath = join(dir, "agent-model-policy.json"); const budgetPolicyPath = join(dir, "agent-budget-policy.json"); writeFileSync(policyPath, "No production. No outbound."); writeFileSync(schemaPath, "{}"); writeFileSync(modelPolicyPath, readFileSync(new URL("../../ops/agent-model-policy.json", import.meta.url))); writeFileSync(budgetPolicyPath, readFileSync(new URL("../../ops/agent-budget-policy.json", import.meta.url))); return { dir, queuePath, policyPath, schemaPath, modelPolicyPath, budgetPolicyPath }; }
 
 test("selects the highest-priority unblocked queued task and skips blockers", () => {
   const queue = { tasks: [task("blocked", 1, "BLOCKED"), task("dependent", 2, "QUEUED", ["blocked"]), task("next", 3)] };
   assert.equal(selectNextTask(queue).id, "next");
   assert.equal(queueSummary(queue).count.QUEUED, 2); assert.equal(queueSummary(queue).count.BLOCKED, 1); assert.equal(queueSummary(queue).count.CLASSIFYING, 0);
+});
+
+test("explicit business value and estimated cost break priority ties", () => {
+  const cheapHighValue = { ...task("cheap", 5), business_value: "HIGH", urgency: "HIGH", estimated_cost_class: "LOW" };
+  const expensiveHighValue = { ...task("expensive", 1), business_value: "HIGH", urgency: "HIGH", estimated_cost_class: "HIGH" };
+  const lowValue = { ...task("low", 1), business_value: "LOW", urgency: "LOW", estimated_cost_class: "LOW" };
+  assert.equal(selectNextTask({ tasks: [lowValue, expensiveHighValue, cheapHighValue] }).id, "cheap");
 });
 
 test("rejects malformed queues and duplicate task ids", () => {
@@ -55,10 +62,19 @@ test("the legacy bounded runner validates the actual result path", () => {
 
 test("queue retry routing retains worker error evidence", () => {
   const source = readFileSync(new URL("./queue-lib.mjs", import.meta.url), "utf8");
-  assert.match(source, /eventDetails = existsSync\(execution\.eventFile\)/);
+  assert.match(source, /rawEvents = existsSync\(execution\.eventFile\)/);
   assert.match(source, /eventDetails/);
 });
 
 test("model-aware queue invocation preserves safety gates and no approval bypass", () => {
   const source = readFileSync(new URL("./queue-lib.mjs", import.meta.url), "utf8"); assert.match(source, /CODEX_QUEUE_NO_PRODUCTION: "1"/); assert.match(source, /CODEX_QUEUE_NO_OUTBOUND: "1"/); assert.match(source, /CODEX_QUEUE_NO_PURCHASES: "1"/); assert.match(source, /CODEX_QUEUE_NO_FORCE_PUSH: "1"/); assert.match(source, /"-m", task\.selected_model/); assert.match(source, /model_reasoning_effort=/); assert.doesNotMatch(source, /"--approve-for-me"/);
+});
+
+test("worker prompt has a stable policy prefix and excludes volatile full task state", () => {
+  const input = { ...task("prompt", 1), selected_tier: "ROUTINE", selected_model: "gpt-5.6-luna", reasoning_level: "low", why_selected: "bounded", started_at: "volatile-time", run_dir: "volatile-path", checkpoint_summary: "compact checkpoint" };
+  const prompt = composePrompt(input, "Stable policy.", "/repo");
+  assert.ok(prompt.indexOf("Stable policy.") < prompt.indexOf("TASK-SCOPED CONTEXT"));
+  assert.match(prompt, /EXPECTED_SCOPE/);
+  assert.match(prompt, /compact checkpoint/);
+  assert.doesNotMatch(prompt, /volatile-time|volatile-path/);
 });

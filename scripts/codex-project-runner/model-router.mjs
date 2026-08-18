@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { failureCategory } from "./cost-governor.mjs";
 
 export const TIER_LABELS = { routine: "ROUTINE", standard: "STANDARD", complex: "COMPLEX", high_risk: "HIGH_RISK" };
 
@@ -7,7 +8,7 @@ export function loadModelPolicy(file) {
 }
 
 export function createRoutingUsage() {
-  return { started_at: new Date().toISOString(), invocations: 0, runtime_ms: 0, retries: 0, escalations: 0, by_model_reasoning: {}, budget_blocks: 0 };
+  return { started_at: new Date().toISOString(), invocations: 0, task_attempts: 0, full_regressions: 0, runtime_ms: 0, retries: 0, escalations: 0, by_model_reasoning: {}, budget_blocks: 0, budget_stop_reason: "", telemetry: { input_tokens: null, cached_input_tokens: null, output_tokens: null, reasoning_tokens: null, credits: null } };
 }
 
 function normalize(value) {
@@ -38,7 +39,11 @@ function isNegatedSignal(text, signal) {
 function categoryMatches(category, values) {
   const value = normalize(category);
   if (!value) return false;
-  return values.some((item) => value === normalize(item) || value.includes(normalize(item)) || normalize(item).includes(value));
+  // A broad task label such as GTM must not accidentally match the more
+  // specific standard-coding label GTM_UI merely because the latter contains
+  // the former. Match the task's category to a configured prefix, not vice
+  // versa.
+  return values.some((item) => value === normalize(item) || value.includes(normalize(item)));
 }
 
 function isPublicCopyOrUiWork(task, context) {
@@ -113,22 +118,12 @@ function routeForStep(classification, task, policy) {
   return { tier: "high_risk", model: policy.tiers.high_risk.model, reasoning: "xhigh", route_step: 0, potential_escalation: "Sol requires exceptional_escalation_approved plus a recorded escalation_reason." };
 }
 
-function budgetBlock(route, policy, usage) {
-  const key = route.model + "/" + route.reasoning;
-  const modelCount = usage.by_model_reasoning[key]?.invocations || 0;
-  const expensive = route.reasoning === "xhigh" || route.model === policy.models.exceptional;
-  const expensiveCount = Object.entries(usage.by_model_reasoning).reduce((total, [name, item]) => total + ((name.endsWith("/xhigh") || name.startsWith(policy.models.exceptional + "/")) ? item.invocations : 0), 0);
-  if (route.model === policy.models.exceptional && modelCount >= policy.budgets.max_sol_invocations_per_run) return "Sol invocation budget exhausted for this run.";
-  if (route.model === policy.models.standard && route.reasoning === "xhigh" && modelCount >= policy.budgets.max_terra_xhigh_invocations_per_run) return "Terra xhigh invocation budget exhausted for this run.";
-  if (expensive && expensiveCount >= policy.budgets.max_expensive_tasks_per_run) return "Expensive-task invocation budget exhausted for this run.";
-  return "";
-}
-
-export function selectRoute(task, policy, usage = createRoutingUsage()) {
+export function selectRoute(task, policy) {
   const classification = classifyTask(task, policy);
   const route = routeForStep(classification, task, policy);
-  const block = budgetBlock(route, policy, usage);
-  return { ...route, task_type: task.task_type || task.category || "UNCLASSIFIED", risk_level: classification.risk_level, selected_tier: TIER_LABELS[route.tier], selected_model: route.model, reasoning_level: route.reasoning, why_selected: classification.why, allowed: !block, budget_block: block, base_tier: TIER_LABELS[classification.key] };
+  // Model routing only classifies. The separate hard governor owns all
+  // per-run budgets so every worker is checked before dispatch.
+  return { ...route, task_type: task.task_type || task.category || "UNCLASSIFIED", risk_level: classification.risk_level, selected_tier: TIER_LABELS[route.tier], selected_model: route.model, reasoning_level: route.reasoning, why_selected: classification.why, allowed: true, budget_block: "", base_tier: TIER_LABELS[classification.key] };
 }
 
 export function recordInvocation(usage, route, runtimeMs = 0) {
@@ -146,7 +141,8 @@ export function nextRoutingDecision(task, failure, policy) {
   const classification = classifyTask(task, policy);
   const text = normalize(failure);
   const environmental = includesAny(text, policy.escalation.never_for_failure_categories);
-  if (environmental.length) return { action: "RETRY", reason: "No model escalation: environmental or configuration failure (" + environmental.join(", ") + ").", next_step: Number(task.route_step || 0) };
+  const category = failureCategory(failure);
+  if (environmental.length || !["CODE_REASONING", "UNKNOWN"].includes(category)) return { action: "BLOCK", reason: "No model escalation: " + category + " failure (" + (environmental.join(", ") || "detected") + ") requires an environment, permission, credential, service, dependency, or fixture remedy.", next_step: Number(task.route_step || 0), failure_category: category };
   const step = Number(task.route_step || 0);
   if (classification.key === "routine") {
     if (step < 2) return { action: "ESCALATE", reason: step === 0 ? "First genuine capability failure: raise Luna to medium." : "Second genuine capability failure: evaluate with Terra medium.", next_step: step + 1 };
@@ -173,12 +169,12 @@ export function applyRoute(task, route, policy) {
   task.reasoning_level = route.reasoning_level;
   task.why_selected = route.why_selected;
   task.route_step = route.route_step;
-  task.max_attempts = Math.max(Number(task.max_attempts || 0), Number(tierConfig.max_attempts || 1));
+  task.max_attempts = Math.min(Math.max(1, Number(task.max_attempts || 1)), Number(tierConfig.max_attempts || 1));
   task.max_escalations = Number(tierConfig.max_escalations || 0);
   task.max_runtime_minutes = Number(tierConfig.max_runtime_minutes || 0);
   return task;
 }
 
 export function routingSummary(usage) {
-  return { invocations: usage.invocations, runtime_ms: usage.runtime_ms, retries: usage.retries, escalations: usage.escalations, by_model_reasoning: usage.by_model_reasoning, budget_blocks: usage.budget_blocks };
+  return { invocations: usage.invocations, task_attempts: usage.task_attempts || 0, full_regressions: usage.full_regressions || 0, runtime_ms: usage.runtime_ms, retries: usage.retries, escalations: usage.escalations, by_model_reasoning: usage.by_model_reasoning, budget_blocks: usage.budget_blocks, budget_stop_reason: usage.budget_stop_reason || "", telemetry: usage.telemetry || {} };
 }

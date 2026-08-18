@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, appendFileS
 import { dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { spawn } from "node:child_process";
-import { applyRoute, createRoutingUsage, loadModelPolicy, nextRoutingDecision, recordInvocation, routingSummary, selectRoute } from "./model-router.mjs";
+import { applyRoute, createRoutingUsage, loadModelPolicy, nextRoutingDecision, routingSummary, selectRoute } from "./model-router.mjs";
+import { dispatchDecision, economics, failureCategory, loadBudgetPolicy, recordDispatchRuntime, reserveDispatch } from "./cost-governor.mjs";
 
 export const STATUSES = new Set(["QUEUED", "CLASSIFYING", "RUNNING", "VALIDATING", "RETRYING", "ESCALATING", "PASS", "PARTIAL", "BLOCKED", "FAILED", "SKIPPED"]);
 export const terminal = new Set(["PASS", "PARTIAL", "BLOCKED", "FAILED", "SKIPPED"]);
@@ -14,6 +15,53 @@ export const now = () => new Date().toISOString();
 export const readJson = (file) => JSON.parse(readFileSync(file, "utf8"));
 export const writeJson = (file, value) => { mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, JSON.stringify(value, null, 2) + "\n"); };
 export const routingUsagePath = (stateDir) => join(stateDir, "routing-usage.json");
+export const checkpointPath = (stateDir, taskId) => join(stateDir, "checkpoints", taskId + ".json");
+
+function valueOrUnavailable(value) {
+  return typeof value === "number" ? String(value) : "unavailable";
+}
+
+function cacheHitRatio(telemetry) {
+  const input = Number(telemetry?.input_tokens);
+  const cached = Number(telemetry?.cached_input_tokens);
+  return Number.isFinite(input) && input > 0 && Number.isFinite(cached) ? (cached / input).toFixed(3) : "unavailable";
+}
+
+export function writeCheckpoint(stateDir, task, result = {}) {
+  writeJson(checkpointPath(stateDir, task.id), {
+    task: task.id,
+    status: task.status,
+    sha: task.commit_sha || null,
+    changed_files: Array.isArray(result.artifacts) ? result.artifacts : [],
+    validation: Array.isArray(result.tests) ? result.tests : [],
+    blocker: task.blocker || "",
+    next_action: task.next_action || (task.status === "PASS" ? "Continue to the next explicit queued task." : "Resolve the recorded blocker before requeueing."),
+    updated_at: now()
+  });
+}
+
+export function extractCodexTelemetry(eventFile) {
+  // Codex CLI JSON has no stable documented token/credit schema in the local
+  // help output. Only record explicit numeric usage fields when they are
+  // present; otherwise keep telemetry unavailable rather than estimating.
+  if (!existsSync(eventFile)) return {};
+  const keys = ["input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "credits"];
+  const found = {};
+  for (const line of readFileSync(eventFile, "utf8").split("\n")) {
+    try {
+      const record = JSON.parse(line);
+      const candidates = [record, record.usage, record.response?.usage, record.item?.usage].filter(Boolean);
+      for (const candidate of candidates) for (const key of keys) if (typeof candidate[key] === "number") found[key] = candidate[key];
+    } catch { /* stdout/stderr and non-JSON lines are intentionally ignored. */ }
+  }
+  return found;
+}
+
+function mergeTelemetry(usage, telemetry) {
+  usage.telemetry ||= {};
+  for (const [key, value] of Object.entries(telemetry || {})) if (typeof value === "number") usage.telemetry[key] = value;
+  return usage;
+}
 
 export function validateQueue(queue) {
   if (!queue || !Array.isArray(queue.tasks)) throw new Error("Queue requires a tasks array.");
@@ -29,11 +77,17 @@ export function validateQueue(queue) {
   return queue;
 }
 
+function valueRank(value) { return ({ HIGH: 3, MEDIUM: 2, LOW: 1 })[String(value || "").toUpperCase()] || 0; }
+function costRank(value) { return ({ LOW: 1, MEDIUM: 2, HIGH: 3 })[String(value || "").toUpperCase()] || 2; }
+
 export function selectNextTask(queue) {
   validateQueue(queue);
   const byId = new Map(queue.tasks.map((task) => [task.id, task]));
   return queue.tasks.filter((task) => task.status === "QUEUED" && task.dependencies.every((id) => byId.get(id)?.status === "PASS"))
-    .sort((a, b) => a.priority - b.priority || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))[0] || null;
+    .sort((a, b) => valueRank(b.business_value) - valueRank(a.business_value)
+      || valueRank(b.urgency) - valueRank(a.urgency)
+      || costRank(a.estimated_cost_class) - costRank(b.estimated_cost_class)
+      || a.priority - b.priority || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))[0] || null;
 }
 
 export function queueSummary(queue) {
@@ -61,10 +115,34 @@ export function writeStatus(queue, stateDir, statusFile = defaultStatusFile, ext
   const summary = queueSummary(queue);
   const current = queue.tasks.find((task) => task.id === extra.currentTask);
   const usage = routingSummary(extra.routingUsage || createRoutingUsage());
-  const routine = Object.entries(usage.by_model_reasoning).filter(([key]) => key.startsWith("gpt-5.6-luna/")).reduce((total, [, value]) => total + value.invocations, 0);
+  const budget = extra.budgetPolicy?.budget || {};
   const runnerStartedAt = extra.runnerStartedAt || "none";
   const elapsedMs = Number(extra.elapsedMs ?? (runnerStartedAt === "none" ? 0 : Math.max(0, Date.now() - Date.parse(runnerStartedAt))));
-  const lines = ["GRANTDESKHQ CODEX QUEUE STATUS", "", "LAST UPDATED: " + now(), "RUN STARTED: " + runnerStartedAt, "ELAPSED: " + Math.floor(elapsedMs / 1000) + " seconds", "TASK STARTED: " + (extra.taskStartedAt || current?.started_at || "none"), "HEARTBEAT: " + (extra.heartbeatAt || "none"), "TASKS TOTAL: " + summary.total, "QUEUED: " + summary.count.QUEUED, "CLASSIFYING: " + summary.count.CLASSIFYING, "RUNNING: " + summary.count.RUNNING, "VALIDATING: " + summary.count.VALIDATING, "RETRYING: " + summary.count.RETRYING, "ESCALATING: " + summary.count.ESCALATING, "PASSED: " + summary.count.PASS, "PARTIAL: " + summary.count.PARTIAL, "BLOCKED: " + summary.count.BLOCKED, "FAILED: " + summary.count.FAILED, "REMAINING: " + summary.remaining, "NEXT TASK: " + (summary.next || "none"), "CURRENT TASK: " + (extra.currentTask || "none"), "TIER: " + (current?.selected_tier || "none"), "MODEL: " + (current?.selected_model || "none"), "REASONING: " + (current?.reasoning_level || "none"), "ATTEMPT: " + (current?.attempt_count || 0), "WHY THIS MODEL: " + (current?.why_selected || "none"), "LAST COMPLETED TASK: " + (extra.lastCompleted || "none"), "LAST COMMIT: " + (extra.lastCommit || current?.commit_sha || "none"), "LAST CHECKPOINT: " + (extra.checkpoint || "none"), "", "MODEL ROUTING RUN TOTALS:", "ROUTINE TASKS: " + routine, "TERRA MEDIUM: " + (usage.by_model_reasoning["gpt-5.6-terra/medium"]?.invocations || 0), "TERRA HIGH: " + (usage.by_model_reasoning["gpt-5.6-terra/high"]?.invocations || 0), "TERRA XHIGH: " + (usage.by_model_reasoning["gpt-5.6-terra/xhigh"]?.invocations || 0), "SOL XHIGH: " + (usage.by_model_reasoning["gpt-5.6-sol/xhigh"]?.invocations || 0), "ESCALATIONS: " + usage.escalations, "RETRIES: " + usage.retries, "BUDGET BLOCKS: " + usage.budget_blocks, "RUNTIME: " + Math.round(usage.runtime_ms / 1000) + " seconds", "", "HUMAN ACTIONS REQUIRED:"];
+  const lines = [
+    "GRANTDESKHQ CODEX QUEUE STATUS", "", "LAST UPDATED: " + now(), "RUN STARTED: " + runnerStartedAt,
+    "ELAPSED: " + Math.floor(elapsedMs / 1000) + " seconds", "TASK STARTED: " + (extra.taskStartedAt || current?.started_at || "none"),
+    "HEARTBEAT: " + (extra.heartbeatAt || "none"), "TASKS TOTAL: " + summary.total, "QUEUED: " + summary.count.QUEUED,
+    "PASSED: " + summary.count.PASS, "PARTIAL: " + summary.count.PARTIAL, "BLOCKED: " + summary.count.BLOCKED,
+    "FAILED: " + summary.count.FAILED, "REMAINING: " + summary.remaining, "", "RUN BUDGET",
+    "WORKER INVOCATIONS: " + usage.invocations + " / " + (budget.max_worker_invocations_per_run ?? "unavailable"),
+    "TASK ATTEMPTS: " + usage.task_attempts + " / " + (budget.max_total_task_attempts_per_run ?? "unavailable"),
+    "TERRA MEDIUM/HIGH: " + ((usage.by_model_reasoning["gpt-5.6-terra/medium"]?.invocations || 0) + (usage.by_model_reasoning["gpt-5.6-terra/high"]?.invocations || 0)) + " / " + (budget.max_terra_medium_high_invocations_per_run ?? "unavailable"),
+    "TERRA XHIGH: " + (usage.by_model_reasoning["gpt-5.6-terra/xhigh"]?.invocations || 0) + " / " + (budget.max_terra_xhigh_invocations_per_run ?? "unavailable"),
+    "SOL: " + (usage.by_model_reasoning["gpt-5.6-sol/xhigh"]?.invocations || 0) + " / " + (budget.max_sol_invocations_per_run ?? "unavailable"),
+    "FULL REGRESSIONS: " + usage.full_regressions + " / " + (budget.max_full_regression_runs ?? "unavailable"),
+    "RUNTIME: " + Math.round(usage.runtime_ms / 60000) + " / " + (budget.max_total_runtime_minutes ?? "unavailable") + " minutes", "", "TOKEN / CACHE",
+    "INPUT TOKENS: " + valueOrUnavailable(usage.telemetry?.input_tokens), "CACHED INPUT TOKENS: " + valueOrUnavailable(usage.telemetry?.cached_input_tokens),
+    "CACHE HIT RATIO: " + cacheHitRatio(usage.telemetry), "OUTPUT TOKENS: " + valueOrUnavailable(usage.telemetry?.output_tokens),
+    "CREDITS USED: " + valueOrUnavailable(usage.telemetry?.credits), "", "TASK",
+    "CURRENT TASK: " + (extra.currentTask || "none"), "TIER: " + (current?.selected_tier || "none"),
+    "MODEL: " + (current?.selected_model || "none"), "REASONING: " + (current?.reasoning_level || "none"),
+    "ATTEMPT: " + (current?.attempt_count || 0), "BUSINESS VALUE: " + (current?.business_value || "none"),
+    "ESTIMATED COST: " + (current?.estimated_cost_class || "none"), "STATUS: " + (current?.status || "none"),
+    "WHY THIS MODEL: " + (current?.why_selected || "none"), "WHY XHIGH: " + (current?.why_xhigh || "N/A"),
+    "NEXT TASK: " + (summary.next || "none"), "DEFERRED TASKS: " + (extra.deferredTasks?.join(", ") || "none"),
+    "LAST COMPLETED TASK: " + (extra.lastCompleted || "none"), "LAST COMMIT: " + (extra.lastCommit || current?.commit_sha || "none"),
+    "LAST CHECKPOINT: " + (extra.checkpoint || "none"), "BUDGET STOP: " + (usage.budget_stop_reason || "none"), "", "HUMAN ACTIONS REQUIRED:"
+  ];
   const blockers = queue.tasks.filter((task) => task.status === "BLOCKED").map((task) => task.id + ": " + (task.blocker || "not recorded"));
   lines.push(...(blockers.length ? blockers : ["NONE"]));
   mkdirSync(stateDir, { recursive: true });
@@ -74,7 +152,37 @@ export function writeStatus(queue, stateDir, statusFile = defaultStatusFile, ext
 }
 
 export function composePrompt(task, policy, root) {
-  return ["You are the bounded GrantDeskHQ queue worker. Complete only the selected task below.", "Repository root: " + root, "", "MODEL ROUTING", "Tier: " + task.selected_tier, "Model: " + task.selected_model, "Reasoning: " + task.reasoning_level, "Why selected: " + task.why_selected, "", "PERSISTENT OPERATING POLICY", policy, "", "TASK", JSON.stringify(task, null, 2), "", "Completion contract:", "- Do not start another queue task.", "- Preserve existing validated work and never force-push, expose secrets, send outreach, alter production traffic, make purchases, or create live Stripe charges.", "- Run the listed acceptance checks. Do not weaken tests.", "- Final output must be JSON matching the supplied schema with status PASS, PARTIAL, BLOCKED, or FAILED, tests, artifacts, blocker, and result_summary."].join("\n");
+  // Keep this exact stable prefix first. Task-specific data is intentionally
+  // last so sequential Codex invocations can reuse a native prompt prefix.
+  const taskContext = {
+    id: task.id,
+    title: task.title,
+    objective: task.description,
+    expected_scope: task.expected_scope || task.resource_paths || [],
+    acceptance_criteria: task.acceptance_criteria || [],
+    artifacts_expected: task.artifacts_expected || [],
+    tests_expected: task.tests_expected || [],
+    allowed_actions: task.allowed_actions || [],
+    forbidden_actions: task.forbidden_actions || [],
+    checkpoint: task.checkpoint_summary || "No prior checkpoint."
+  };
+  return [
+    "GRANTDESKHQ BOUNDED WORKER POLICY (stable prefix)",
+    policy.trim(),
+    "",
+    "STABLE EXECUTION CONTRACT",
+    "- Complete only the selected explicit task. Do not create bonus work or start another queue task.",
+    "- Stay inside EXPECTED_SCOPE unless a recorded SCOPE_EXPANSION is required for correctness.",
+    "- Prefer targeted reads and targeted tests. Do not scan the whole repository or replay full transcripts.",
+    "- Preserve validated work. Never force-push, expose secrets, send outreach, alter production traffic, make purchases, or create live Stripe charges.",
+    "- Return only JSON matching the supplied schema: status, tests, artifacts, blocker, result_summary, commit_sha.",
+    "",
+    "TASK-SCOPED CONTEXT (variable suffix)",
+    "Repository root: " + root,
+    "Model routing: " + task.selected_tier + " | " + task.selected_model + " | " + task.reasoning_level,
+    "Why selected: " + task.why_selected,
+    JSON.stringify(taskContext, null, 2)
+  ].join("\n");
 }
 
 export function validateResult(result, task, root) {
@@ -113,29 +221,70 @@ export function writeMorningReport(queue, stateDir, reportFile = join(homedir(),
   mkdirSync(dirname(reportFile), { recursive: true }); writeFileSync(reportFile, lines.join("\n") + "\n"); appendFileSync(join(stateDir, "queue.log"), now() + " morning report updated\n");
 }
 
-export async function runQueue({ queuePath, policyPath, schemaPath, root, stateDir = defaultStateDir, statusFile = defaultStatusFile, maxRuntimeHours = 8, maxTasks = 20, dryRun = false, morningReportFile = process.env.CODEX_QUEUE_MORNING_REPORT || join(homedir(), "grantdeskhq-overnight-summary.txt"), modelPolicyPath = join(dirname(queuePath), "agent-model-policy.json"), invokeCodexFn = invokeCodex, supervisor = {} }) {
-  rmSync(stopPath(stateDir), { force: true }); const queue = validateQueue(readJson(queuePath)); const policy = readFileSync(policyPath, "utf8"); const modelPolicy = loadModelPolicy(modelPolicyPath); const effectiveMaxRuntimeHours = Math.min(maxRuntimeHours, Number(modelPolicy.budgets.max_total_runtime_hours || maxRuntimeHours)); const usageFile = routingUsagePath(stateDir); const routingUsage = existsSync(usageFile) ? readJson(usageFile) : createRoutingUsage(); acquireLock(stateDir, queuePath); const started = Date.now(); const runnerStartedAt = new Date(started).toISOString(); let lastCompleted = null; let lastCommit = null;
-  const status = (extra) => writeStatus(queue, stateDir, statusFile, { runnerStartedAt, elapsedMs: Date.now() - started, lastCommit, ...extra });
+export async function runQueue({ queuePath, policyPath, schemaPath, root, stateDir = defaultStateDir, statusFile = defaultStatusFile, maxRuntimeHours, maxTasks, dryRun = false, morningReportFile = process.env.CODEX_QUEUE_MORNING_REPORT || join(homedir(), "grantdeskhq-overnight-summary.txt"), modelPolicyPath = join(dirname(queuePath), "agent-model-policy.json"), budgetPolicyPath = join(dirname(queuePath), "agent-budget-policy.json"), invokeCodexFn = invokeCodex, supervisor = {}, allowBudgetOverride = false, allowSolOverride = false }) {
+  rmSync(stopPath(stateDir), { force: true });
+  const queue = validateQueue(readJson(queuePath));
+  const policy = readFileSync(policyPath, "utf8");
+  const modelPolicy = loadModelPolicy(modelPolicyPath);
+  const budgetPolicy = loadBudgetPolicy(budgetPolicyPath);
+  const configuredRuntimeMinutes = Number(budgetPolicy.budget.max_total_runtime_minutes);
+  const requestedRuntimeMinutes = Number.isFinite(Number(maxRuntimeHours)) ? Number(maxRuntimeHours) * 60 : configuredRuntimeMinutes;
+  const effectiveMaxRuntimeMs = (allowBudgetOverride ? requestedRuntimeMinutes : Math.min(requestedRuntimeMinutes, configuredRuntimeMinutes)) * 60_000;
+  const configuredWorkerLimit = Number(budgetPolicy.budget.max_worker_invocations_per_run);
+  const maxQueueSteps = allowBudgetOverride && Number.isFinite(Number(maxTasks)) ? Number(maxTasks) : Math.min(Number.isFinite(Number(maxTasks)) ? Number(maxTasks) : configuredWorkerLimit, configuredWorkerLimit);
+  const usageFile = routingUsagePath(stateDir);
+  // A run budget is intentionally fresh per invocation. Historical usage must
+  // never silently consume the allowance of the next focused run.
+  const routingUsage = createRoutingUsage();
+  const deferredTasks = [];
+  acquireLock(stateDir, queuePath); const started = Date.now(); const runnerStartedAt = new Date(started).toISOString(); let lastCompleted = null; let lastCommit = null;
+  const status = (extra) => writeStatus(queue, stateDir, statusFile, { runnerStartedAt, elapsedMs: Date.now() - started, lastCommit, budgetPolicy, deferredTasks, ...extra });
   try {
-    for (let processed = 0; processed < maxTasks && Date.now() - started < effectiveMaxRuntimeHours * 3_600_000; processed += 1) {
+    for (let processed = 0; processed < maxQueueSteps && Date.now() - started < effectiveMaxRuntimeMs; processed += 1) {
       if (existsSync(stopPath(stateDir))) break; const task = selectNextTask(queue); if (!task) break;
       task.status = "CLASSIFYING"; task.updated_at = now(); writeJson(queuePath, queue); status({ currentTask: task.id, lastCompleted, checkpoint: "task classifying", routingUsage });
       const route = selectRoute(task, modelPolicy, routingUsage);
-      if (!route.allowed) { task.status = "BLOCKED"; task.blocker = route.budget_block; task.updated_at = now(); routingUsage.budget_blocks += 1; writeJson(queuePath, queue); writeJson(usageFile, routingUsage); lastCompleted = task.id; status({ currentTask: "none", lastCompleted, checkpoint: "budget guard blocked task", routingUsage }); continue; }
-      applyRoute(task, route, modelPolicy); task.max_attempts = Math.min(task.max_attempts, 1 + Number(modelPolicy.budgets.max_retries_per_task || task.max_attempts)); task.status = "RUNNING"; task.started_at = task.started_at || now(); task.attempt_count += 1; task.updated_at = now(); writeJson(queuePath, queue); writeJson(usageFile, routingUsage); status({ currentTask: task.id, lastCompleted, checkpoint: "task started", routingUsage });
-      if (dryRun) { task.status = "PARTIAL"; task.blocker = "DRY_RUN: task classified but Codex was not invoked."; task.completed_at = now(); task.updated_at = now(); task.validation_status = "DRY_RUN"; task.result_summary = "Selected " + task.selected_model + " at " + task.reasoning_level + " reasoning without invoking Codex."; writeJson(queuePath, queue); lastCompleted = task.id; continue; }
-      const remainingMs = Math.max(60_000, effectiveMaxRuntimeHours * 3_600_000 - (Date.now() - started)); const taskMaxMs = Math.max(60_000, Number(task.max_runtime_minutes || 1) * 60_000); const execution = await invokeCodexFn({ root, task, policy, schema: schemaPath, stateDir, maxRuntimeMs: Math.min(remainingMs, taskMaxMs), ...supervisor, onHeartbeat: ({ heartbeatAt }) => status({ currentTask: task.id, lastCompleted, checkpoint: "active-task heartbeat", routingUsage, taskStartedAt: task.started_at, heartbeatAt }) });
-      recordInvocation(routingUsage, route, execution.runtimeMs);
+      if (!route.allowed) { task.status = "BLOCKED"; task.blocker = route.budget_block; task.updated_at = now(); routingUsage.budget_blocks += 1; writeJson(queuePath, queue); writeJson(usageFile, routingUsage); writeCheckpoint(stateDir, task); lastCompleted = task.id; status({ currentTask: "none", lastCompleted, checkpoint: "router blocked task", routingUsage }); continue; }
+      applyRoute(task, route, modelPolicy);
+      Object.assign(task, economics(task, route));
+      task.max_attempts = Math.min(task.max_attempts, 1 + Number(budgetPolicy.retries[route.tier] || 0));
+      const budgetDecision = dispatchDecision({ task, route, usage: routingUsage, budgetPolicy, elapsedMs: Date.now() - started, allowBudgetOverride, allowSolOverride });
+      if (!budgetDecision.allowed) {
+        routingUsage.budget_blocks += 1;
+        if (budgetDecision.action === "STOP") { routingUsage.budget_stop_reason = budgetDecision.reason; task.status = "QUEUED"; task.updated_at = now(); writeJson(queuePath, queue); writeJson(usageFile, routingUsage); status({ currentTask: "none", lastCompleted, checkpoint: "hard budget stop", routingUsage }); break; }
+        task.status = budgetDecision.action === "BLOCK" ? "BLOCKED" : "PARTIAL";
+        task.blocker = budgetDecision.reason; task.validation_status = budgetDecision.action === "BLOCK" ? "BLOCKED" : "DEFERRED"; task.updated_at = now(); task.completed_at = now();
+        if (budgetDecision.action === "DEFER") deferredTasks.push(task.id);
+        writeJson(queuePath, queue); writeJson(usageFile, routingUsage); writeCheckpoint(stateDir, task); lastCompleted = task.id;
+        status({ currentTask: "none", lastCompleted, checkpoint: "hard budget " + budgetDecision.action.toLowerCase(), routingUsage }); continue;
+      }
+      task.status = "RUNNING"; task.started_at = task.started_at || now(); task.attempt_count += 1; task.updated_at = now(); reserveDispatch(routingUsage, route, task); writeJson(queuePath, queue); writeJson(usageFile, routingUsage); status({ currentTask: task.id, lastCompleted, checkpoint: "task started", routingUsage });
+      if (dryRun) { task.status = "PARTIAL"; task.blocker = "DRY_RUN: task classified but Codex was not invoked."; task.completed_at = now(); task.updated_at = now(); task.validation_status = "DRY_RUN"; task.result_summary = "Selected " + task.selected_model + " at " + task.reasoning_level + " reasoning without invoking Codex."; writeJson(queuePath, queue); writeCheckpoint(stateDir, task); lastCompleted = task.id; continue; }
+      const remainingMs = Math.max(60_000, effectiveMaxRuntimeMs - (Date.now() - started)); const taskMaxMs = Math.max(60_000, Math.min(Number(task.max_runtime_minutes || 1), Number(budgetPolicy.budget.max_runtime_per_task_minutes)) * 60_000); const execution = await invokeCodexFn({ root, task, policy, schema: schemaPath, stateDir, maxRuntimeMs: Math.min(remainingMs, taskMaxMs), ...supervisor, onHeartbeat: ({ heartbeatAt }) => status({ currentTask: task.id, lastCompleted, checkpoint: "active-task heartbeat", routingUsage, taskStartedAt: task.started_at, heartbeatAt }) });
+      recordDispatchRuntime(routingUsage, route, execution.runtimeMs); mergeTelemetry(routingUsage, extractCodexTelemetry(execution.eventFile));
       if (execution.noProgressWatchdog) {
         const watchdogRetries = Number(task.watchdog_retry_count || 0);
-        if (watchdogRetries === 0 && task.attempt_count < task.max_attempts) {
+        if (watchdogRetries < Number(budgetPolicy.budget.max_consecutive_no_progress_attempts || 2) - 1 && task.attempt_count < task.max_attempts) {
           task.watchdog_retry_count = 1; task.status = "RETRYING"; task.validation_status = "WATCHDOG_RETRY"; task.blocker = "No-progress watchdog reached 20 minutes; running one scoped retry."; task.completed_at = null; task.updated_at = now(); routingUsage.retries += 1; writeJson(queuePath, queue); writeJson(usageFile, routingUsage); status({ currentTask: task.id, lastCompleted, checkpoint: "no-progress watchdog retry", routingUsage }); task.status = "QUEUED"; writeJson(queuePath, queue); updateLock(stateDir, { activeTask: null, childPid: null }); continue;
         }
-        task.status = "PARTIAL"; task.validation_status = "WATCHDOG_PARTIAL"; task.blocker = "No-progress watchdog reached 20 minutes after its scoped retry; task remains continuable."; task.completed_at = now(); task.updated_at = now(); task.runtime_ms = execution.runtimeMs; task.result_summary = "Worker made no observable progress before the bounded watchdog stopped it."; task.run_dir = execution.runDir; writeJson(queuePath, queue); writeJson(usageFile, routingUsage); lastCompleted = task.id; updateLock(stateDir, { activeTask: null, childPid: null }); status({ currentTask: "none", lastCompleted, checkpoint: "no-progress watchdog partial", routingUsage }); continue;
+        task.status = "PARTIAL"; task.validation_status = "WATCHDOG_PARTIAL"; task.blocker = "No-progress watchdog reached 20 minutes after its scoped retry; task remains continuable."; task.completed_at = now(); task.updated_at = now(); task.runtime_ms = execution.runtimeMs; task.result_summary = "Worker made no observable progress before the bounded watchdog stopped it."; task.run_dir = execution.runDir; writeJson(queuePath, queue); writeJson(usageFile, routingUsage); writeCheckpoint(stateDir, task); lastCompleted = task.id; updateLock(stateDir, { activeTask: null, childPid: null }); status({ currentTask: "none", lastCompleted, checkpoint: "no-progress watchdog partial", routingUsage }); continue;
       }
       const verified = validateResult(execution.result, task, root); task.status = "VALIDATING"; task.updated_at = now(); writeJson(queuePath, queue); task.status = verified.status; task.validation_status = verified.status; task.blocker = verified.blocker; task.completed_at = now(); task.updated_at = now(); task.runtime_ms = execution.runtimeMs; task.result_summary = execution.result?.result_summary || "No structured task summary returned."; task.commit_sha = execution.result?.commit_sha || null; lastCommit = task.commit_sha || lastCommit; task.run_dir = execution.runDir;
-      if (task.status === "FAILED" && task.attempt_count < task.max_attempts) { const eventDetails = existsSync(execution.eventFile) ? readFileSync(execution.eventFile, "utf8") : ""; let decision = nextRoutingDecision(task, task.blocker + " " + task.result_summary + " " + eventDetails, modelPolicy); if (decision.action === "ESCALATE" && Number(task.escalation_count || 0) >= Number(task.max_escalations || 0)) decision = { action: "RETRY", reason: "Escalation limit reached; retry without raising model cost.", next_step: Number(task.route_step || 0) }; if (decision.action === "ESCALATE") { task.escalation_count = Number(task.escalation_count || 0) + 1; routingUsage.escalations += 1; task.status = "ESCALATING"; } else { routingUsage.retries += 1; task.status = "RETRYING"; } task.route_step = decision.next_step; task.fallback_reason = decision.reason; task.blocker = "Retry " + task.attempt_count + " of " + task.max_attempts + ": " + decision.reason; task.completed_at = null; task.updated_at = now(); writeJson(queuePath, queue); writeJson(usageFile, routingUsage); status({ currentTask: task.id, lastCompleted, checkpoint: task.status.toLowerCase(), routingUsage }); task.status = "QUEUED"; }
-      writeJson(queuePath, queue); writeJson(usageFile, routingUsage); lastCompleted = terminal.has(task.status) ? task.id : lastCompleted; updateLock(stateDir, { activeTask: null, childPid: null }); status({ currentTask: "none", lastCompleted, checkpoint: "task checkpointed", routingUsage });
+      if (task.status === "FAILED" && task.attempt_count < task.max_attempts) {
+        const rawEvents = existsSync(execution.eventFile) ? readFileSync(execution.eventFile, "utf8") : "";
+        const eventDetails = rawEvents.slice(-Number(budgetPolicy.context.max_failure_log_characters || 4000));
+        let decision = nextRoutingDecision(task, task.blocker + " " + task.result_summary + " " + eventDetails, modelPolicy);
+        if (decision.action === "ESCALATE" && Number(task.escalation_count || 0) >= Number(task.max_escalations || 0)) decision = { action: "RETRY", reason: "Escalation limit reached; retry without raising model cost.", next_step: Number(task.route_step || 0) };
+        task.failure_category = decision.failure_category || failureCategory(task.blocker + " " + task.result_summary);
+        if (decision.action === "BLOCK") {
+          task.status = "BLOCKED"; task.validation_status = "BLOCKED"; task.blocker = decision.reason;
+        } else {
+          if (decision.action === "ESCALATE") { task.escalation_count = Number(task.escalation_count || 0) + 1; routingUsage.escalations += 1; task.status = "ESCALATING"; if (decision.next_step > 0 && /xhigh/i.test(decision.reason)) task.why_xhigh = decision.reason; } else { routingUsage.retries += 1; task.status = "RETRYING"; }
+          task.route_step = decision.next_step; task.fallback_reason = decision.reason; task.blocker = "Retry " + task.attempt_count + " of " + task.max_attempts + ": " + decision.reason; task.completed_at = null; task.updated_at = now();
+          writeJson(queuePath, queue); writeJson(usageFile, routingUsage); status({ currentTask: task.id, lastCompleted, checkpoint: task.status.toLowerCase(), routingUsage }); task.status = "QUEUED";
+        }
+      }
+      writeJson(queuePath, queue); writeJson(usageFile, routingUsage); if (terminal.has(task.status)) { writeCheckpoint(stateDir, task, execution.result); lastCompleted = task.id; } updateLock(stateDir, { activeTask: null, childPid: null }); status({ currentTask: "none", lastCompleted, checkpoint: "task checkpointed", routingUsage });
     }
   } finally { updateLock(stateDir, { activeTask: null, childPid: null }); writeJson(usageFile, routingUsage); status({ currentTask: "none", lastCompleted, checkpoint: "runner stopped", routingUsage }); writeMorningReport(queue, stateDir, morningReportFile, Date.now() - started, routingUsage); releaseLock(stateDir); }
   return queue;

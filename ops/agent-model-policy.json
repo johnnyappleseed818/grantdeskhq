@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "updated_at": "2026-08-17T11:24:38.536Z",
+  "version": 2,
+  "updated_at": "2026-08-18T00:00:00.000Z",
   "models": {
     "routine": "gpt-5.6-luna",
     "standard": "gpt-5.6-terra",
@@ -18,8 +18,8 @@
       "model": "gpt-5.6-luna",
       "reasoning": "low",
       "fallback_reasoning": "medium",
-      "max_attempts": 3,
-      "max_escalations": 2,
+      "max_attempts": 2,
+      "max_escalations": 1,
       "max_runtime_minutes": 20,
       "escalation_path": [
         {
@@ -41,9 +41,9 @@
       "model": "gpt-5.6-terra",
       "reasoning": "medium",
       "escalation_reasoning": "high",
-      "max_attempts": 3,
+      "max_attempts": 2,
       "max_escalations": 1,
-      "max_runtime_minutes": 45,
+      "max_runtime_minutes": 20,
       "escalation_path": [
         {
           "model": "gpt-5.6-terra",
@@ -60,9 +60,9 @@
       "model": "gpt-5.6-terra",
       "reasoning": "high",
       "escalation_reasoning": "xhigh",
-      "max_attempts": 3,
+      "max_attempts": 2,
       "max_escalations": 1,
-      "max_runtime_minutes": 75,
+      "max_runtime_minutes": 20,
       "escalation_path": [
         {
           "model": "gpt-5.6-terra",
@@ -82,7 +82,7 @@
       "exceptional_reasoning": "xhigh",
       "max_attempts": 2,
       "max_escalations": 1,
-      "max_runtime_minutes": 90,
+      "max_runtime_minutes": 20,
       "sol_requires_explicit_task_approval": true,
       "escalation_path": [
         {
@@ -96,13 +96,6 @@
         }
       ]
     }
-  },
-  "budgets": {
-    "max_terra_xhigh_invocations_per_run": 4,
-    "max_sol_invocations_per_run": 1,
-    "max_expensive_tasks_per_run": 5,
-    "max_retries_per_task": 3,
-    "max_total_runtime_hours": 8
   },
   "classification": {
     "high_risk_indicators": [

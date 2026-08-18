@@ -35,10 +35,13 @@
     "codex:queue:blockers": "node scripts/codex-project-runner/queue.mjs blockers",
     "test:codex-queue": "node --test scripts/codex-project-runner/queue.test.mjs",
     "agent:status": "node scripts/codex-project-runner/queue.mjs status",
+    "agent:run": "node scripts/codex-project-runner/queue.mjs run",
     "agent:queue:run": "node scripts/codex-project-runner/queue.mjs run",
     "agent:queue:stop": "node scripts/codex-project-runner/queue.mjs stop",
     "agent:routing:dry-run": "node scripts/codex-project-runner/model-routing-dry-run.mjs",
-    "test:agent-routing": "node --test scripts/codex-project-runner/model-router.test.mjs"
+    "agent:cache:probe": "node scripts/codex-project-runner/cache-probe.mjs",
+    "test:agent-routing": "node --test scripts/codex-project-runner/model-router.test.mjs scripts/codex-project-runner/cost-governor.test.mjs",
+    "test:agent-governor": "node --test scripts/codex-project-runner/cost-governor.test.mjs"
   },
   "dependencies": {
     "fflate": "^0.8.3",

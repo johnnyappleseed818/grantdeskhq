@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "purpose": "Hard per-run Codex spend governor. Limits apply before a worker is dispatched.",
+  "budget": {
+    "max_worker_invocations_per_run": 12,
+    "max_total_task_attempts_per_run": 20,
+    "max_terra_medium_high_invocations_per_run": 5,
+    "max_terra_xhigh_invocations_per_run": 1,
+    "max_sol_invocations_per_run": 0,
+    "max_runtime_per_task_minutes": 20,
+    "max_total_runtime_minutes": 90,
+    "max_full_regression_runs": 2,
+    "max_consecutive_no_progress_attempts": 2,
+    "finalization_reserve_invocations": 2
+  },
+  "retries": {
+    "routine": 1,
+    "standard": 1,
+    "complex": 1,
+    "high_risk": 1
+  },
+  "overrides": {
+    "require_explicit_human_override": true,
+    "environment_flag": "CODEX_QUEUE_ALLOW_BUDGET_OVERRIDE",
+    "sol_environment_flag": "CODEX_QUEUE_ALLOW_SOL"
+  },
+  "context": {
+    "stable_prompt_prefix": true,
+    "task_scoped_context": true,
+    "pass_full_parent_prompt": false,
+    "checkpoint_summary_only": true,
+    "max_failure_log_characters": 4000
+  },
+  "cache": {
+    "optimize_native_prompt_cache": true,
+    "track_cached_input_if_available": true,
+    "custom_response_cache": false
+  }
+}

@@ -10,6 +10,7 @@ const scenarios = [
   ["routine documentation", { title: "Document queue status", category: "DOCUMENTATION" }, "gpt-5.6-luna", "low", "ROUTINE"],
   ["GTM queue reconciliation", { title: "Reconcile Control Plane queue", category: "RECONCILIATION" }, "gpt-5.6-luna", "low", "ROUTINE"],
   ["routine GTM reconciliation", { title: "Reconcile GTM records", category: "GTM_RECONCILIATION", description: "Deduplicate existing GTM records." }, "gpt-5.6-luna", "low", "ROUTINE"],
+  ["routine GTM summary", { title: "Prepare buyer-language summary", category: "GTM", description: "Aggregate existing public-signal themes." }, "gpt-5.6-luna", "low", "ROUTINE"],
   ["SEO research", { title: "Summarize public SEO research", category: "RESEARCH" }, "gpt-5.6-luna", "low", "ROUTINE"],
   ["standard repo coding", { title: "Implement normal repository feature", category: "REPO_CODING", description: "Implement a bounded application workflow." }, "gpt-5.6-terra", "medium", "STANDARD"],
   ["GA implementation", { title: "Add GA4 event tracking", category: "ANALYTICS", description: "Implement non-sensitive analytics event tracking." }, "gpt-5.6-terra", "medium", "STANDARD"],
@@ -45,9 +46,9 @@ test("standard and complex escalation paths are bounded", () => {
   assert.deepEqual(nextRoutingDecision(standard, "actual coding failure", policy), { action: "ESCALATE", reason: "Two standard capability failures: raise Terra to high.", next_step: 1 }); assert.equal(route({ ...complex, route_step: 1 }).reasoning_level, "xhigh");
 });
 
-test("environment, permissions, dependencies, and fixtures never trigger model escalation", () => {
+test("environment, permissions, dependencies, and fixtures block without expensive escalation", () => {
   const task = base({ category: "BACKEND", task_type: "BACKEND", description: "Implement normal API.", attempt_count: 2 });
-  for (const failure of ["IAM permission denied", "missing dependency", "malformed fixture", "rate limit", "service unavailable", "configuration missing"]) assert.equal(nextRoutingDecision(task, failure, policy).action, "RETRY");
+  for (const failure of ["IAM permission denied", "missing dependency", "malformed fixture", "rate limit", "service unavailable", "configuration missing"]) assert.equal(nextRoutingDecision(task, failure, policy).action, "BLOCK");
 });
 
 test("negated billing and checkout constraints remain standard repository work", () => {
@@ -79,8 +80,8 @@ test("Sol is an explicit exceptional high-risk escalation only", () => {
   const exceptional = route({ title: "Stripe webhook", description: "Stripe webhook handling.", route_step: 1, exceptional_escalation_approved: true, escalation_reason: "Terra xhigh failed with reproducible high-risk defect." }); assert.equal(exceptional.selected_model, "gpt-5.6-sol"); assert.equal(exceptional.reasoning_level, "xhigh");
 });
 
-test("budget guards block expensive routes while telemetry remains truthful", () => {
+test("routing remains budget-neutral while telemetry remains truthful", () => {
   const usage = createRoutingUsage(); usage.by_model_reasoning["gpt-5.6-terra/xhigh"] = { invocations: 4, runtime_ms: 1 };
-  const selected = route({ title: "Stripe checkout", description: "Stripe checkout validation." }, usage); assert.equal(selected.allowed, false); assert.match(selected.budget_block, /Terra xhigh/);
+  const selected = route({ title: "Stripe checkout", description: "Stripe checkout validation." }, usage); assert.equal(selected.allowed, true); assert.equal(selected.budget_block, "");
   const clean = createRoutingUsage(); recordInvocation(clean, route({ title: "Write report", category: "REPORTING" }), 42); assert.equal(clean.invocations, 1); assert.equal(clean.runtime_ms, 42); assert.equal(clean.by_model_reasoning["gpt-5.6-luna/low"].invocations, 1);
 });
