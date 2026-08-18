@@ -11,6 +11,7 @@ export interface OutreachRecord {
   signalSource: string | null;
   canonicalOpportunityId: string | null;
   canonicalRecordStatus: "LINKED" | "PENDING_CANONICAL_LEAD_LINK";
+  initialOutreachGuard: "DO_NOT_SEND_NEW_INITIAL_OUTREACH";
   sentAt: string;
   sentTimePrecision: "DATE_CONFIRMED";
   status: OutreachStatus;
@@ -27,9 +28,10 @@ export interface OutreachRecord {
   updatedAt: string;
 }
 
-const date = "2026-08-17T00:00:00.000Z";
-const direct = (id: string, organization: string, contact: string, persona: string, canonicalOpportunityId: string | null, whyNowSignal: string | null, signalSource: string | null, notes: string): OutreachRecord => ({ id, organization, contact, persona, email: null, type: "DIRECT_NONPROFIT", whyNowSignal, signalSource, canonicalOpportunityId, canonicalRecordStatus: canonicalOpportunityId ? "LINKED" : "PENDING_CANONICAL_LEAD_LINK", sentAt: date, sentTimePrecision: "DATE_CONFIRMED", status: "SENT", lastContactAt: date, nextAction: "AWAIT_RESPONSE", followUpDueAt: null, replied: false, replySentiment: "NONE", trial: false, customer: false, notes, source: "HUMAN_CONFIRMED_OUTREACH", createdAt: date, updatedAt: date });
-const partner = (id: string, organization: string, contact: string, persona: string, notes: string): OutreachRecord => ({ id, organization, contact, persona, email: null, type: "PARTNER", whyNowSignal: null, signalSource: null, canonicalOpportunityId: null, canonicalRecordStatus: "PENDING_CANONICAL_LEAD_LINK", sentAt: date, sentTimePrecision: "DATE_CONFIRMED", status: "SENT", lastContactAt: date, nextAction: "AWAIT_RESPONSE", followUpDueAt: null, replied: false, replySentiment: "NONE", trial: false, customer: false, notes, source: "HUMAN_CONFIRMED_OUTREACH", createdAt: date, updatedAt: date });
+const august17 = "2026-08-17T00:00:00.000Z";
+const august18 = "2026-08-18T00:00:00.000Z";
+const direct = (id: string, organization: string, contact: string, persona: string, canonicalOpportunityId: string | null, whyNowSignal: string | null, signalSource: string | null, notes: string, sentAt = august17, email: string | null = null): OutreachRecord => ({ id, organization, contact, persona, email, type: "DIRECT_NONPROFIT", whyNowSignal, signalSource, canonicalOpportunityId, canonicalRecordStatus: canonicalOpportunityId ? "LINKED" : "PENDING_CANONICAL_LEAD_LINK", initialOutreachGuard: "DO_NOT_SEND_NEW_INITIAL_OUTREACH", sentAt, sentTimePrecision: "DATE_CONFIRMED", status: "SENT", lastContactAt: sentAt, nextAction: "AWAIT_RESPONSE", followUpDueAt: null, replied: false, replySentiment: "NONE", trial: false, customer: false, notes, source: "HUMAN_CONFIRMED_OUTREACH", createdAt: sentAt, updatedAt: sentAt });
+const partner = (id: string, organization: string, contact: string, persona: string, notes: string): OutreachRecord => ({ id, organization, contact, persona, email: null, type: "PARTNER", whyNowSignal: null, signalSource: null, canonicalOpportunityId: null, canonicalRecordStatus: "PENDING_CANONICAL_LEAD_LINK", initialOutreachGuard: "DO_NOT_SEND_NEW_INITIAL_OUTREACH", sentAt: august17, sentTimePrecision: "DATE_CONFIRMED", status: "SENT", lastContactAt: august17, nextAction: "AWAIT_RESPONSE", followUpDueAt: null, replied: false, replySentiment: "NONE", trial: false, customer: false, notes, source: "HUMAN_CONFIRMED_OUTREACH", createdAt: august17, updatedAt: august17 });
 
 /** Human-confirmed activity only. No provider delivery, reply, trial, or conversion is inferred. */
 export const confirmedHumanOutreach: OutreachRecord[] = [
@@ -37,7 +39,9 @@ export const confirmedHumanOutreach: OutreachRecord[] = [
   direct("outreach_direct_child_enrichment_20260817", "Child Enrichment", "Kari Viola-Brooke", "Nonprofit contact", null, null, null, "Human-confirmed direct nonprofit email. Canonical lead and verified email route must be linked without guessing."),
   direct("outreach_direct_foodlink_20260817", "Foodlink", "Terra Keller", "Nonprofit contact", null, null, null, "Human-confirmed direct nonprofit email. Canonical lead and verified email route must be linked without guessing."),
   direct("outreach_direct_sustainable_food_center_20260817", "Sustainable Food Center", "Anthony Cordova / Nicole Thompson route", "Finance / Grants route", "job-sustainable-food-center-2026", "Hiring a Grants Manager to coordinate reporting across program, finance, and data teams.", "https://careers.wgu.edu/jobs/sustainable-food-center-grants-manager/", "Human-confirmed direct nonprofit email. The canonical source identifies the public organization-inbox route; preserve any exact delivery address only when imported from the approved sender record."),
-  direct("outreach_direct_junior_achievement_20260817", "Junior Achievement of South Florida", "Finance team route", "Finance team", "job-ja-south-florida-2026", "Hiring a Grant Accountant for the post-award financial lifecycle and funder-specific reporting templates.", "https://recruiting.paylocity.com/recruiting/jobs/Details/4290195/Junior-Achievement-South-Florida/Grant-Accountant", "Human-confirmed direct nonprofit email. The canonical source identifies the Finance team route; preserve any exact delivery address only when imported from the approved sender record."),
+  direct("outreach_direct_junior_achievement_20260817", "Junior Achievement of South Florida", "Finance team route", "Finance team", "job-ja-south-florida-2026", "Hiring a Grant Accountant for the post-award financial lifecycle and funder-specific reporting templates.", "https://recruiting.paylocity.com/recruiting/jobs/Details/4290195/Junior-Achievement-South-Florida/Grant-Accountant", "Human-confirmed direct nonprofit email. Existing known recipient retained without inferring delivery or another event.", august17, "info@jasouthflorida.org"),
+  direct("outreach_direct_project_oceanology_20260818", "Project Oceanology", "Lisa Colón", "Accounts Manager", "award-project-oceanology-2026", "Federal marine-science grant record detected.", "https://www.usaspending.gov/award/ASST_NON_NA26NMFX469G0026_013/", "Human-confirmed direct nonprofit email. Publicly verified contact and source retained; no delivery result or follow-up is inferred.", august18, "lmcolon@oceanology.org"),
+  direct("outreach_direct_rodale_20260818", "Rodale Institute", "Elaine Macbeth", "Executive Vice President, Chief Finance and Administration Officer", "job-rodale-2026", "Hiring a Grants Accountant reporting to the CFO.", "https://rodaleinstitute.org/employment/grants-accountant/", "Human-confirmed direct nonprofit email. Publicly verified contact and source retained; no delivery result or follow-up is inferred.", august18, "elaine.macbeth@rodaleinstitute.org"),
   partner("outreach_partner_21_light_20260817", "21 Light Accounting", "Joshua Gonzales", "Partner / fractional CFO", "Human-confirmed partner email. Canonical partner research and verified email route must be linked without guessing."),
   partner("outreach_partner_vault_20260817", "Vault Consulting", "Chris Rauch", "Partner / fractional CFO", "Human-confirmed partner email. Canonical partner research and verified email route must be linked without guessing."),
   partner("outreach_partner_goldin_20260817", "Goldin Group", "Alicia Coleman", "Partner / fractional CFO", "Human-confirmed partner email. Canonical partner research and verified email route must be linked without guessing."),
@@ -60,10 +64,29 @@ export function outreachOrganizations(records: OutreachRecord[], type: OutreachT
 export function outreachCount(records: OutreachRecord[], type?: OutreachType) {
   return records.filter((record) => !type || record.type === type).length;
 }
+
+export function normalizeOutreachOrganization(value: string) {
+  const normalized = value.toLowerCase().replace(/\b(the|inc|incorporated|corp|corporation|co|company|foundation)\b/g, " ").replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+  return normalized === "interdistrict committee for project oceanology" ? "project oceanology" : normalized;
+}
+
+export interface InitialOutreachCandidate { organization: string; email?: string | null; }
+export type InitialOutreachEligibility = "ELIGIBLE_FOR_INITIAL_OUTREACH" | "DO_NOT_SEND_NEW_INITIAL_OUTREACH" | "SEPARATE_HUMAN_AUTHORIZATION_REQUIRED";
+
+// This reconciliation guard authorizes neither delivery nor follow-up.
+export function initialOutreachEligibility(records: OutreachRecord[], candidate: InitialOutreachCandidate, event: "INITIAL" | "FOLLOW_UP" = "INITIAL"): InitialOutreachEligibility {
+  if (event === "FOLLOW_UP") return "SEPARATE_HUMAN_AUTHORIZATION_REQUIRED";
+  const organization = normalizeOutreachOrganization(candidate.organization);
+  const email = candidate.email?.trim().toLowerCase();
+  return records.some((record) => record.initialOutreachGuard === "DO_NOT_SEND_NEW_INITIAL_OUTREACH" && (normalizeOutreachOrganization(record.organization) === organization || Boolean(email && record.email?.toLowerCase() === email))) ? "DO_NOT_SEND_NEW_INITIAL_OUTREACH" : "ELIGIBLE_FOR_INITIAL_OUTREACH";
+}
 export interface OutreachMetrics {
   totalSent: number;
   directSent: number;
   partnerSent: number;
+  uniqueOrganizationsContacted: number;
+  directUniqueOrganizationsContacted: number;
+  partnerUniqueOrganizationsContacted: number;
   awaitingResponse: number;
   replied: number;
   trials: number;
@@ -83,6 +106,9 @@ export function summarizeOutreach(records: OutreachRecord[]): OutreachMetrics {
     totalSent: records.filter((record) => record.status === "SENT").length,
     directSent: records.filter((record) => record.type === "DIRECT_NONPROFIT" && record.status === "SENT").length,
     partnerSent: records.filter((record) => record.type === "PARTNER" && record.status === "SENT").length,
+    uniqueOrganizationsContacted: new Set(records.map((record) => normalizeOutreachOrganization(record.organization))).size,
+    directUniqueOrganizationsContacted: new Set(records.filter((record) => record.type === "DIRECT_NONPROFIT").map((record) => normalizeOutreachOrganization(record.organization))).size,
+    partnerUniqueOrganizationsContacted: new Set(records.filter((record) => record.type === "PARTNER").map((record) => normalizeOutreachOrganization(record.organization))).size,
     awaitingResponse: records.filter((record) => record.nextAction === "AWAIT_RESPONSE" && !record.replied).length,
     replied: records.filter((record) => record.replied).length,
     trials: records.filter((record) => record.trial).length,

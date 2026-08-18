@@ -19,6 +19,7 @@ export interface ControlPlaneQueueInput {
   cards: GtmOpportunity[];
   suppressionByEmail?: Record<string, QueueSuppressionStatus>;
   alreadyContactedOrganizations?: readonly string[];
+  alreadyContactedEmails?: readonly string[];
   customerOrganizations?: readonly string[];
   draftOrganizations?: readonly string[];
 }
@@ -100,6 +101,7 @@ export function normalizeControlPlaneOrganization(value: string) {
 export function reconcileControlPlaneQueue(input: ControlPlaneQueueInput): ControlPlaneQueueReconciliation {
   const suppressionByEmail = Object.fromEntries(Object.entries(input.suppressionByEmail || {}).map(([email, status]) => [email.trim().toLowerCase(), status]));
   const contacted = organizationSet(input.alreadyContactedOrganizations);
+  const contactedEmails = new Set((input.alreadyContactedEmails || []).map(normalizeEmail).filter(Boolean));
   const customers = organizationSet(input.customerOrganizations);
   const drafted = organizationSet(input.draftOrganizations);
   const canonicalByOrganization = new Map<string, GtmOpportunity>();
@@ -114,7 +116,7 @@ export function reconcileControlPlaneQueue(input: ControlPlaneQueueInput): Contr
     const canonical = canonicalByOrganization.get(organization)!;
     if (card.id !== canonical.id) return toLead(card, canonical.id, "DUPLICATE", "This Control Plane card is a repeated organization signal; its source is retained on the canonical organization record.");
     const directEmail = card.primaryContact?.emailKind === "direct" ? normalizeEmail(card.primaryContact.email) : undefined;
-    const state = classifyLead(card, organization, directEmail, suppressionByEmail, contacted, customers, drafted);
+    const state = classifyLead(card, organization, directEmail, suppressionByEmail, contacted, contactedEmails, customers, drafted);
     return toLead(card, card.id, state.state, state.reason);
   });
 
@@ -150,12 +152,13 @@ function classifyLead(
   directEmail: string | undefined,
   suppressionByEmail: Record<string, QueueSuppressionStatus>,
   contacted: Set<string>,
+  contactedEmails: Set<string>,
   customers: Set<string>,
   drafted: Set<string>
 ): { state: Exclude<ControlPlaneLeadState, "DUPLICATE">; reason: string } {
   if (!card.entityVerified || !card.nonprofitVerified || card.conflicts.length) return { state: "DISQUALIFIED", reason: "Entity, nonprofit, or source-conflict gate is not satisfied." };
   if (customers.has(organization)) return { state: "CUSTOMER", reason: "Organization is present in the canonical customer/suppression source." };
-  if (contacted.has(organization)) return { state: "ALREADY_CONTACTED", reason: "Organization is present in the canonical prior-outreach/suppression source." };
+  if (contacted.has(organization) || Boolean(directEmail && contactedEmails.has(directEmail))) return { state: "ALREADY_CONTACTED", reason: "Canonical organization identity or known recipient email has a prior initial-outreach record; a new initial send is blocked." };
   if (!card.primaryContact?.name || !card.primaryContact?.title) return { state: "CONTACT_RESEARCH_REQUIRED", reason: "A current finance or grants contact has not been established." };
   if (!directEmail) return { state: "ENRICHMENT_READY", reason: "A current relevant contact is known, but no direct publicly verified business email is attached." };
   const suppression = suppressionByEmail[directEmail];

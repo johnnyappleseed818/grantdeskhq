@@ -58,6 +58,13 @@ describe("GTM Control Plane queue reconciliation", () => {
     expect(reconcileControlPlaneQueue({ cards: [direct], alreadyContactedOrganizations: ["Example Community Action"] }).cards[0].state).toBe("ALREADY_CONTACTED");
   });
 
+  it("keeps later source signals already contacted by canonical identity or known recipient email", () => {
+    const byAlias = opportunity({ id: "later-oceanology", organization: "Interdistrict Committee for Project Oceanology", primaryContact: { name: "Lisa Colón", title: "Accounts Manager", email: "lmcolon@oceanology.org", emailKind: "direct", roleSourceUrl: "https://example.org/team", emailSourceUrl: "https://example.org/team", verifiedAt: "2026-08-18", note: "Existing public route." } });
+    const byEmail = opportunity({ id: "later-rodale", organization: "Rodale Institute Foundation", primaryContact: { name: "Elaine Macbeth", title: "Finance leader", email: "elaine.macbeth@rodaleinstitute.org", emailKind: "direct", roleSourceUrl: "https://example.org/team", emailSourceUrl: "https://example.org/team", verifiedAt: "2026-08-18", note: "Existing public route." } });
+    const result = reconcileControlPlaneQueue({ cards: [byAlias, byEmail], alreadyContactedOrganizations: ["Project Oceanology"], alreadyContactedEmails: ["elaine.macbeth@rodaleinstitute.org"] });
+    expect(result.cards.map((card) => card.state)).toEqual(["ALREADY_CONTACTED", "ALREADY_CONTACTED"]);
+  });
+
   it("selects a canonical source card deterministically and retains all repeated-source cards", () => {
     const alpha = opportunity({ id: "award-alpha", observedAt: "2026-08-15" });
     const zulu = opportunity({ id: "award-zulu", observedAt: "2026-08-16" });

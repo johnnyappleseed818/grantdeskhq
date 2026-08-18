@@ -355,6 +355,8 @@ async function reconcileAndSaveControlPlane(opportunities: GtmOpportunity[]) {
   const reconciliation = reconcileControlPlaneQueue({
     cards: opportunities,
     suppressionByEmail,
+    alreadyContactedOrganizations: confirmedHumanOutreach.map((record) => record.organization),
+    alreadyContactedEmails: confirmedHumanOutreach.flatMap((record) => record.email ? [record.email] : []),
     draftOrganizations: opportunities.filter((opportunity) => opportunity.emailSubject.trim() && opportunity.draftMessage.trim()).map((opportunity) => opportunity.organization)
   });
   return saveGtmControlPlaneReconciliation(reconciliation);
