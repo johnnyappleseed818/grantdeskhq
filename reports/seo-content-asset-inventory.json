@@ -1,0 +1,16 @@
+{
+  "generated_at": "2026-08-18",
+  "method": "Repository-derived initial inventory; no live ranking, traffic, or citation claim is made.",
+  "public_sitemap_url_count": 13,
+  "article_count": 6,
+  "assets": [
+    { "url": "/blog/post-award-grant-reporting-checklist", "type": "checklist", "coverage": "agreement, financial inputs, evidence, and review" },
+    { "url": "/blog/budget-to-actual-grant-reporting-workflow", "type": "guide", "coverage": "budget mapping, variance review, and accounting evidence" },
+    { "url": "/blog/turn-grant-agreement-into-reporting-plan", "type": "guide", "coverage": "obligations, owners, and reporting workback plan" },
+    { "url": "/blog/grant-progress-report-workflow", "type": "guide", "coverage": "recurring financial, program, and review workflow" },
+    { "url": "/blog/grant-closeout-checklist", "type": "checklist", "coverage": "final reporting, reconciliation, evidence, and review" },
+    { "url": "/blog/post-award-grant-management-software", "type": "buyer guide", "coverage": "post-award software evaluation" }
+  ],
+  "technical_expectations": { "robots": "/robots.txt permits crawling and names the sitemap", "sitemap": "/sitemap.xml includes all six articles", "canonical": "Article routes set their own canonical URL", "internal_links": "Articles render resources, blog, Free First Award, related-resource, and source links" },
+  "publication": "No new page was created or published during this initial setup."
+}

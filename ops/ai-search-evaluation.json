@@ -1,0 +1,132 @@
+{
+  "version": 1,
+  "purpose": "Deterministic target coverage checks for answer-engine queries. Readiness is not a rank, retrieval, citation, or placement claim.",
+  "queries": [
+    {
+      "query": "post-award grant reporting workflow",
+      "target_page": "/blog/post-award-grant-reporting-checklist",
+      "intent": "post-award reporting",
+      "readiness": "TARGETED"
+    },
+    {
+      "query": "grant reporting checklist for nonprofits",
+      "target_page": "/blog/post-award-grant-reporting-checklist",
+      "intent": "post-award reporting",
+      "readiness": "TARGETED"
+    },
+    {
+      "query": "budget to actual grant reporting",
+      "target_page": "/blog/budget-to-actual-grant-reporting-workflow",
+      "intent": "post-award reporting",
+      "readiness": "TARGETED"
+    },
+    {
+      "query": "grant budget variance review",
+      "target_page": "/blog/budget-to-actual-grant-reporting-workflow",
+      "intent": "post-award reporting",
+      "readiness": "TARGETED"
+    },
+    {
+      "query": "turn a grant agreement into a reporting plan",
+      "target_page": "/blog/turn-grant-agreement-into-reporting-plan",
+      "intent": "post-award reporting",
+      "readiness": "TARGETED"
+    },
+    {
+      "query": "grant reporting workback plan",
+      "target_page": "/blog/turn-grant-agreement-into-reporting-plan",
+      "intent": "post-award reporting",
+      "readiness": "TARGETED"
+    },
+    {
+      "query": "grant progress report workflow",
+      "target_page": "/blog/grant-progress-report-workflow",
+      "intent": "post-award reporting",
+      "readiness": "TARGETED"
+    },
+    {
+      "query": "grant progress report financial and program inputs",
+      "target_page": "/blog/grant-progress-report-workflow",
+      "intent": "post-award reporting",
+      "readiness": "TARGETED"
+    },
+    {
+      "query": "grant closeout checklist",
+      "target_page": "/blog/grant-closeout-checklist",
+      "intent": "post-award reporting",
+      "readiness": "TARGETED"
+    },
+    {
+      "query": "grant closeout evidence package",
+      "target_page": "/blog/grant-closeout-checklist",
+      "intent": "post-award reporting",
+      "readiness": "TARGETED"
+    },
+    {
+      "query": "post-award grant management software",
+      "target_page": "/blog/post-award-grant-management-software",
+      "intent": "post-award reporting",
+      "readiness": "TARGETED"
+    },
+    {
+      "query": "grant reporting software for nonprofits",
+      "target_page": "/blog/post-award-grant-management-software",
+      "intent": "post-award reporting",
+      "readiness": "TARGETED"
+    },
+    {
+      "query": "AI post-award grant reporting",
+      "target_page": "/",
+      "intent": "post-award reporting",
+      "readiness": "TARGETED"
+    },
+    {
+      "query": "source-linked funder report draft",
+      "target_page": "/",
+      "intent": "post-award reporting",
+      "readiness": "TARGETED"
+    },
+    {
+      "query": "nonprofit funder report preparation",
+      "target_page": "/",
+      "intent": "post-award reporting",
+      "readiness": "TARGETED"
+    },
+    {
+      "query": "grant reporting financial data and program updates",
+      "target_page": "/",
+      "intent": "post-award reporting",
+      "readiness": "TARGETED"
+    },
+    {
+      "query": "grant reporting evidence review",
+      "target_page": "/blog/grant-progress-report-workflow",
+      "intent": "post-award reporting",
+      "readiness": "TARGETED"
+    },
+    {
+      "query": "grant report missing information follow up",
+      "target_page": "/blog/post-award-grant-reporting-checklist",
+      "intent": "post-award reporting",
+      "readiness": "TARGETED"
+    },
+    {
+      "query": "grant reporting for nonprofit finance teams",
+      "target_page": "/resources",
+      "intent": "post-award reporting",
+      "readiness": "TARGETED"
+    },
+    {
+      "query": "what does GrantDeskHQ do",
+      "target_page": "/",
+      "intent": "post-award reporting",
+      "readiness": "TARGETED"
+    }
+  ],
+  "required_preconditions": [
+    "unique target",
+    "source-linked factual guidance where needed",
+    "clear Free First Award CTA",
+    "human-review and award-specific disclaimer"
+  ]
+}

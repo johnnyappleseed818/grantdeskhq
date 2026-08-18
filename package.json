@@ -41,7 +41,9 @@
     "agent:routing:dry-run": "node scripts/codex-project-runner/model-routing-dry-run.mjs",
     "agent:cache:probe": "node scripts/codex-project-runner/cache-probe.mjs",
     "test:agent-routing": "node --test scripts/codex-project-runner/model-router.test.mjs scripts/codex-project-runner/cost-governor.test.mjs",
-    "test:agent-governor": "node --test scripts/codex-project-runner/cost-governor.test.mjs"
+    "test:agent-governor": "node --test scripts/codex-project-runner/cost-governor.test.mjs",
+    "seo:validate": "node scripts/seo/run-seo-growth.mjs --dry-run",
+    "seo:run": "node scripts/seo/run-seo-growth.mjs"
   },
   "dependencies": {
     "fflate": "^0.8.3",

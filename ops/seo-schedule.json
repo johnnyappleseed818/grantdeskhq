@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "timezone": "Etc/UTC",
+  "cadence": "twice_weekly",
+  "schedule": [{ "day": "Tuesday", "time": "09:00" }, { "day": "Friday", "time": "09:00" }],
+  "command": "npm run seo:run -- --dry-run",
+  "calendar_trigger": { "creation": "MANUAL_REQUIRED", "system": "ChatGPT Scheduled UI", "instruction": "Create a twice-weekly Scheduled task for Tuesday and Friday at 09:00 UTC that invokes only the explicit SEO runner task; attach no automatic publish or external action." },
+  "guardrails": ["No second scheduler is created by this manifest.", "The runner prepares one explicitly selected opportunity only.", "Publication remains disabled until a separately queued and approved task passes all gates."]
+}
