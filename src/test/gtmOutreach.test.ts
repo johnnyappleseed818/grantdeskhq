@@ -14,11 +14,11 @@ describe("human-confirmed GTM outreach ledger", () => {
     }
   });
 
-  it("deduplicates by immutable ledger id and preserves explicit Control Plane links only", () => {
+  it("deduplicates by immutable ledger id while treating all human-confirmed sends as canonical", () => {
     expect(mergeOutreachRecords(confirmedHumanOutreach, [confirmedHumanOutreach[0]])).toHaveLength(17);
     const links = reconcileOutreachControlPlane(confirmedHumanOutreach, ["job-ja-south-florida-2026"]);
     expect(links.filter((link) => link.status === "LINKED")).toEqual([{ recordId: "outreach_direct_junior_achievement_20260817", canonicalOpportunityId: "job-ja-south-florida-2026", status: "LINKED" }]);
-    expect(links.filter((link) => link.status === "PENDING_CANONICAL_LEAD_LINK")).toHaveLength(16);
+    expect(links.filter((link) => link.status === "HUMAN_CONFIRMED_CANONICAL")).toHaveLength(16);
     expect(confirmedHumanOutreach.find((record) => record.id === "outreach_direct_junior_achievement_20260817")?.email).toBe("info@jasouthflorida.org");
     expect(confirmedHumanOutreach.filter((record) => record.organization === "Junior Achievement of South Florida")).toHaveLength(1);
   });
@@ -33,7 +33,7 @@ describe("human-confirmed GTM outreach ledger", () => {
   });
 
   it("reconciles a repeat import by immutable id and restores canonical factual fields", () => {
-    const stale = { ...confirmedHumanOutreach[3], canonicalOpportunityId: null, canonicalRecordStatus: "PENDING_CANONICAL_LEAD_LINK" as const };
+    const stale = { ...confirmedHumanOutreach[3], canonicalOpportunityId: null, canonicalRecordStatus: "HUMAN_CONFIRMED_CANONICAL" as const };
     const reconciled = mergeOutreachRecords([stale], confirmedHumanOutreach);
     expect(reconciled).toHaveLength(17);
     expect(reconciled.find((record) => record.id === stale.id)?.canonicalOpportunityId).toBe("job-sustainable-food-center-2026");

@@ -15,13 +15,15 @@ describe("GTM overview", () => {
     expect(overview.controlPlane).toMatchObject({ health: "HEALTHY", missingOrUnaccounted: 0 });
     expect(overview.enrichment).toMatchObject({ hunterLookups: 2, hunterLookupLimit: 2, verifiedEmails: 1 });
     expect(overview.outboundEnabled).toBe(false);
+    expect(overview.funnel).toMatchObject({ sent: { actual: 17 }, replies: { actual: 0 }, positiveReplies: { actual: 0 }, freeFirstAwardTrials: { actual: 0 }, paidCustomers: { actual: 0 }, mrr: { actual: null } });
+    expect(overview.partner.metrics.contacted).toMatchObject({ actual: 10 });
   });
-  it("fails closed for unavailable direct sources while retaining source-backed partner research", () => {
+  it("fails closed for unavailable direct sources while retaining the actual source-backed partner research inventory", () => {
     const overview = buildGtmOverview({ reconciliation: null, shadowStatus: null, usage: null, now: "2026-08-17T09:00:00.000Z" });
     expect(overview.direct.health).toBe("BLOCKED");
     expect(overview.direct.metrics.qualified.actual).toBeNull();
-    expect(overview.partner).toMatchObject({ health: "BLOCKED" });
-    expect(overview.partner.metrics.researched).toMatchObject({ actual: 50, target: 50, gap: 0 });
+    expect(overview.partner).toMatchObject({ health: "NEEDS_REPLENISHMENT" });
+    expect(overview.partner.metrics.researched).toMatchObject({ actual: 10, target: 50, gap: 40 });
     expect(overview.partner.metrics.emailVerified.actual).toBe(0);
   });
   it("marks stale Control Plane data without discarding its last known values", () => {

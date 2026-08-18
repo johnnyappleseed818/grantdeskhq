@@ -197,7 +197,7 @@ describe("GTM command center", () => {
     expect(screen.getByRole("heading", { name: /Every award lead has one visible queue state/i })).toBeInTheDocument();
     expect(screen.getByText("Example Community Action")).toBeInTheDocument();
     expect(screen.getByText("human-review only")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /outbound locked/i }).every((button) => (button as HTMLButtonElement).disabled)).toBe(true);
+    expect(screen.getByText(/Manual outreach is active/i)).toBeInTheDocument();
     expect(document.querySelectorAll("a[href^=\"mailto:\"]")).toHaveLength(0);
   });
 
@@ -210,8 +210,8 @@ describe("GTM command center", () => {
     const card = screen.getByRole("heading", { name: "Community Action Network" }).closest("article")!;
     expect(card.textContent).toMatch(/Contact research needed/i);
     await user.click(screen.getByRole("tab", { name: "System Health" }));
-    expect(screen.getByRole("heading", { name: /Research and drafts stay reviewable/i })).toBeInTheDocument();
-    expect(screen.getByText("Outbound delivery").closest("article")?.textContent).toMatch(/Disabled/i);
+    expect(screen.getByRole("heading", { name: /Know exactly which scanners are active/i })).toBeInTheDocument();
+    expect(screen.queryByText("Outbound delivery")).not.toBeInTheDocument();
   });
 
   it("renders the reconciled 17-organization outreach work queue without a delivery action", async () => {
@@ -220,19 +220,21 @@ describe("GTM command center", () => {
     await user.click(screen.getByRole("tab", { name: "Outreach" }));
     expect(screen.getByRole("heading", { name: /Who has been contacted—and what happens next/i })).toBeInTheDocument();
     expect(screen.getByLabelText("Outreach ledger summary")).toHaveTextContent("17email events sent17unique organizations contacted7direct unique10partner unique");
-    expect(screen.getAllByText("canonical lead link pending").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Human-confirmed canonical record")).toHaveLength(13);
+    expect(screen.getAllByText("Control Plane linked")).toHaveLength(4);
+    expect(screen.getByRole("option", { name: "Already Contacted" })).toBeInTheDocument();
     expect(document.querySelectorAll("a[href^=\"mailto:\"]")).toHaveLength(0);
   });
   it("keeps the Overview commercial-first and filters the confirmed manual ledger", async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} /></MemoryRouter>);
-    expect(screen.getByLabelText("Commercial funnel")).toHaveTextContent("17Sent events17Unique contacted17Awaiting reply0Replies0Positive replies0Trials / Free First Awards0Paid");
+    expect(screen.getByLabelText("Commercial funnel")).toHaveTextContent("17Sent email events17Unique contacted17Awaiting reply0Replies0Positive replies0Trials / Free First Awards0Paid");
     expect(screen.getByLabelText("Commercial funnel")).toHaveTextContent("MRR");
     expect(screen.getByLabelText("Direct funnel")).toHaveTextContent(/7Sent.*0Replies.*0Positive replies.*0Free First Award.*0Paid/);
     expect(screen.getByLabelText("Partner funnel")).toHaveTextContent(/10Sent.*0Replies.*0Positive replies.*0Trial with client or award.*0Paid customers influenced/);
     expect(screen.queryByText(/NOT_INSTRUMENTED/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Not instrumented/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/Nothing is due yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/No operator action is due/i)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open Outreach" }));
     expect(screen.getByRole("heading", { name: /Who has been contacted—and what happens next/i })).toBeInTheDocument();
   });

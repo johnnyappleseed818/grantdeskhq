@@ -12,7 +12,8 @@ export interface OutreachRecord {
   whyNowSignal: string | null;
   signalSource: string | null;
   canonicalOpportunityId: string | null;
-  canonicalRecordStatus: "LINKED" | "PENDING_CANONICAL_LEAD_LINK";
+  /** A human-confirmed outreach event is canonical even before a scanner card is linked. */
+  canonicalRecordStatus: "LINKED" | "HUMAN_CONFIRMED_CANONICAL";
   initialOutreachGuard: "DO_NOT_SEND_NEW_INITIAL_OUTREACH";
   sentAt: string | null;
   sentTimePrecision: "DATE_CONFIRMED" | "DATE_NOT_RECORDED";
@@ -37,7 +38,7 @@ function record(input: Pick<OutreachRecord, "id" | "organization" | "contact" | 
   const sentAt = input.sentAt === undefined ? august17 : input.sentAt;
   return {
     ...input,
-    canonicalRecordStatus: input.canonicalOpportunityId ? "LINKED" : "PENDING_CANONICAL_LEAD_LINK",
+    canonicalRecordStatus: input.canonicalOpportunityId ? "LINKED" : "HUMAN_CONFIRMED_CANONICAL",
     initialOutreachGuard: "DO_NOT_SEND_NEW_INITIAL_OUTREACH",
     sentAt,
     sentTimePrecision: sentAt ? "DATE_CONFIRMED" : "DATE_NOT_RECORDED",
@@ -154,5 +155,9 @@ export function summarizeOutreach(records: OutreachRecord[]): OutreachMetrics {
 
 export function reconcileOutreachControlPlane(records: OutreachRecord[], canonicalOpportunityIds: readonly string[]): OutreachControlPlaneLink[] {
   const canonicalIds = new Set(canonicalOpportunityIds);
-  return records.map((item) => ({ recordId: item.id, canonicalOpportunityId: item.canonicalOpportunityId, status: item.canonicalOpportunityId && canonicalIds.has(item.canonicalOpportunityId) ? "LINKED" : "PENDING_CANONICAL_LEAD_LINK" }));
+  return records.map((item) => ({
+    recordId: item.id,
+    canonicalOpportunityId: item.canonicalOpportunityId,
+    status: item.canonicalOpportunityId && canonicalIds.has(item.canonicalOpportunityId) ? "LINKED" : "HUMAN_CONFIRMED_CANONICAL"
+  }));
 }
