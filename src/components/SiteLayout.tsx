@@ -12,7 +12,8 @@ const marketingLinks = [
   ["Sample Output", "/sample-report"],
   ["Resources", "/resources"],
   ["Security & FAQ", "/#security-faq"],
-  ["Pricing", "/pricing"]
+  ["Pricing", "/pricing"],
+  ["Contact Us", "/contact"]
 ];
 
 export function SiteLayout() {
@@ -69,8 +70,6 @@ export function SiteLayout() {
               <NavLink key={label} to={href} className="nav-link">{label}</NavLink>
             ))}
             {gtmAllowed && <Link className="nav-link admin-nav-link" to="/gtm">GTM Command Center</Link>}
-            {gtmAllowed && <Link className="nav-link admin-nav-link" to="/gtm/feedback">Feedback review</Link>}
-            {gtmAllowed && <Link className="nav-link admin-nav-link" to="/internal/reliability">Reliability</Link>}
             <Link className="nav-link account-nav-link" to={user ? "/workspace" : "/login"}>{user ? "My workspace" : "Sign in"}</Link>
             <Link
               className="button button-primary whitespace-nowrap"
@@ -106,7 +105,6 @@ export function SiteLayout() {
               <Link to="/blog">Grant reporting field guide</Link>
               <Link to={user ? "/workspace" : "/login"}>{user ? "My workspace" : "Account sign in"}</Link>
               {gtmAllowed && <Link to="/gtm">GTM Command Center</Link>}
-              {gtmAllowed && <Link to="/internal/reliability">Reliability dashboard</Link>}
               <Link to="/assessment" onClick={() => trackAnalyticsEvent("free_first_report_click", { surface: "footer" })}>Free First Award</Link>
             </div>
           </div>
@@ -116,7 +114,7 @@ export function SiteLayout() {
               <Link to="/privacy">Privacy and data handling</Link>
               <Link to="/#security-faq">Security and FAQ</Link>
               <button type="button" className="footer-link-button" onClick={openAnalyticsPreferences}>Cookie settings</button>
-              <Link to="/contact">Contact and feedback</Link>
+              <Link to="/contact">Contact &amp; Feedback</Link>
               <span className="text-slate-500">© {new Date().getFullYear()} GrantDeskHQ</span>
             </div>
           </div>

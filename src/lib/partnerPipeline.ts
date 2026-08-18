@@ -1,6 +1,8 @@
+import { initialOutreachEligibility, type InitialOutreachCandidate, type OutreachRecord } from "./gtmOutreach";
+
 /** Canonical, factual partner-acquisition research pipeline. No delivery integration exists here. */
 export const PARTNER_PIPELINE_MODE = "SHADOW" as const;
-export const PARTNER_STAGES = ["RESEARCHED", "FIT_REVIEW", "COMMERCIAL_REVIEW_REQUIRED", "PERSON_RESEARCH_OPTIONAL", "SUPPRESSED", "READY_FOR_HUMAN_APPROVAL", "ACTIVATED_PARTNER", "CLOSED"] as const;
+export const PARTNER_STAGES = ["RESEARCHED", "FIT_REVIEW", "COMMERCIAL_REVIEW_REQUIRED", "PERSON_RESEARCH_OPTIONAL", "SUPPRESSED", "ALREADY_CONTACTED", "READY_FOR_HUMAN_APPROVAL", "ACTIVATED_PARTNER", "CLOSED"] as const;
 export type PartnerPipelineStage = typeof PARTNER_STAGES[number];
 export type PartnerRelationshipClass = "A" | "B" | "C" | "D";
 export type PartnerSuppressionStatus = "NOT_CHECKED" | "CLEAR" | "BLOCKED" | "UNKNOWN";
@@ -40,6 +42,14 @@ export function nextPartnerStage(record: Pick<PartnerResearchRecord, "relationsh
   if (record.suppression === "BLOCKED") return "SUPPRESSED";
   if (record.relationshipClass === "C" || record.relationshipClass === "D") return "COMMERCIAL_REVIEW_REQUIRED";
   return partnerMayAdvanceToHumanApproval(record) ? "READY_FOR_HUMAN_APPROVAL" : "RESEARCHED";
+}
+
+/** A rediscovered contacted firm may be enriched, but cannot become a new first-touch candidate. */
+export function partnerStageWithOutreachHistory(record: Pick<PartnerResearchRecord, "relationshipClass" | "suppression" | "directBusinessEmailEstablished">, candidate: InitialOutreachCandidate, outreachHistory: readonly OutreachRecord[]): PartnerPipelineStage {
+  const eligibility = initialOutreachEligibility([...outreachHistory], candidate);
+  if (eligibility === "SUPPRESSED_DO_NOT_CONTACT") return "SUPPRESSED";
+  if (eligibility === "DO_NOT_SEND_NEW_INITIAL_OUTREACH") return "ALREADY_CONTACTED";
+  return nextPartnerStage(record);
 }
 
 export function summarizePartnerPipeline(partners: readonly PartnerResearchRecord[] = canonicalPartnerResearch) {

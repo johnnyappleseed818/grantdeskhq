@@ -66,7 +66,7 @@ export async function reconcileGtmOutreachLedger(confirmed: OutreachRecord[]): P
   const existing = response.status === 404 ? [] : ((await response.json()) as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> }).documents || [];
   const imported = existing.map((document) => outreachFromRecord(decodeFields(document.fields || {}))).filter((record): record is OutreachRecord => Boolean(record));
   const reconciled = mergeOutreachRecords(imported, confirmed);
-  await Promise.all(confirmed.map((record) => writeDocument(accessToken, collection + "/" + safeOutreachDocumentId(record.id), { ...record, email: record.email || "", canonicalOpportunityId: record.canonicalOpportunityId || "", whyNowSignal: record.whyNowSignal || "", signalSource: record.signalSource || "", followUpDueAt: record.followUpDueAt || "" })));
+  await Promise.all(confirmed.map((record) => writeDocument(accessToken, collection + "/" + safeOutreachDocumentId(record.id), { ...record, email: record.email || "", canonicalOpportunityId: record.canonicalOpportunityId || "", whyNowSignal: record.whyNowSignal || "", signalSource: record.signalSource || "", sentAt: record.sentAt || "", lastContactAt: record.lastContactAt || "", followUpDueAt: record.followUpDueAt || "" })));
   return reconciled;
 }
 
@@ -1342,7 +1342,8 @@ export function outreachFromRecord(record: Record<string, unknown>): OutreachRec
   const id = String(record.id || "");
   const type = String(record.type || "");
   if (!/^outreach_(direct|partner)_[a-z0-9_]+$/.test(id) || (type !== "DIRECT_NONPROFIT" && type !== "PARTNER")) return null;
-  const parsed = { ...record, email: String(record.email || "") || null, canonicalOpportunityId: String(record.canonicalOpportunityId || "") || null, whyNowSignal: String(record.whyNowSignal || "") || null, signalSource: String(record.signalSource || "") || null, followUpDueAt: String(record.followUpDueAt || "") || null } as OutreachRecord;
+  const sentAt = String(record.sentAt || "") || null;
+  const parsed = { ...record, email: String(record.email || "") || null, canonicalOpportunityId: String(record.canonicalOpportunityId || "") || null, whyNowSignal: String(record.whyNowSignal || "") || null, signalSource: String(record.signalSource || "") || null, sentAt, sentTimePrecision: sentAt ? "DATE_CONFIRMED" : "DATE_NOT_RECORDED", lastContactAt: String(record.lastContactAt || "") || null, followUpDueAt: String(record.followUpDueAt || "") || null, initialOutreachGuard: "DO_NOT_SEND_NEW_INITIAL_OUTREACH" } as OutreachRecord;
   const validEmail = parsed.email === null || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(parsed.email);
   return parsed.source === "HUMAN_CONFIRMED_OUTREACH" && parsed.status === "SENT" && validEmail ? parsed : null;
 }
