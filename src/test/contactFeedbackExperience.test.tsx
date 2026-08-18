@@ -30,6 +30,7 @@ describe("contact and feedback experience", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<MemoryRouter initialEntries={["/contact"]}><ContactFeedbackPage /></MemoryRouter>);
 
+    expect(screen.getByRole("heading", { name: "we'd love to hear from you" })).toBeInTheDocument();
     const form = screen.getByRole("button", { name: "Submit feedback" }).closest("form")!;
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Avery Grant" } });
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "avery@example.org" } });
