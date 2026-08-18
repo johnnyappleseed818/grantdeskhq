@@ -1,39 +1,58 @@
 {
   "status": "PASS",
-  "project": "gtm-human-confirmed-outreach-20260818",
-  "completed_at": "2026-08-18",
+  "project": "gtm-command-center-operator-audit-20260818",
+  "completed_at": "2026-08-18T14:01:00Z",
+  "scope": "Focused GTM command-center UX, canonical manual-outreach reconciliation, duplicate-initial-send prevention, and operator navigation only.",
   "tests": [
-    "npx vitest run src/test/gtmOutreach.test.ts src/test/gtmControlPlaneQueue.test.ts",
-    "npm run gtm:test",
-    "npm run lint -- --quiet",
-    "npm run build",
-    "git diff --check"
+    "npx vitest run --reporter=dot src/test/app.test.tsx src/test/gtmOutreach.test.ts src/test/partnerPipeline.test.ts src/test/gtm.test.tsx src/test/contactFeedbackExperience.test.tsx (61 passed)",
+    "npm run gtm:test (5 passed)",
+    "npx eslint src/data/gtmData.ts src/pages/GtmDashboardPage.tsx src/lib/gtmOutreach.ts src/lib/partnerPipeline.ts server/persistence.ts server/cloudRun.ts (passed)",
+    "npm run build (passed; 13 public static routes generated)",
+    "npx vitest run --reporter=dot src/test/workspaceReports.test.tsx (4 passed)",
+    "zero-traffic and production route smoke: /api/health, /, /contact, /gtm, /gtm/feedback 200; unknown route 404",
+    "browser verification on www.grantdeskhq.com: visible desktop Contact Us and footer Contact & Feedback links to /contact; mobile Contact Us visible"
   ],
   "artifacts": [
+    "reports/gtm-command-center-operator-audit-20260818.md",
     "src/lib/gtmOutreach.ts",
-    "src/lib/gtmControlPlaneQueue.ts",
-    "server/cloudRun.ts",
-    "server/gtmControlPlaneReconcileJob.ts",
-    "server/persistence.ts",
+    "src/lib/partnerPipeline.ts",
     "src/pages/GtmDashboardPage.tsx",
+    "src/components/SiteLayout.tsx",
+    "server/persistence.ts",
+    "server/cloudRun.ts",
     "src/test/gtmOutreach.test.ts",
-    "src/test/gtmControlPlaneQueue.test.ts",
-    "reports/gtm-outreach-update-20260818.md"
+    "src/test/partnerPipeline.test.ts",
+    "src/test/gtm.test.tsx",
+    "src/test/app.test.tsx",
+    "src/test/workspaceReports.test.tsx"
   ],
-  "blocker": "No production deployment was authorized or performed; the committed reconciliation will become live only through a separately authorized deployment.",
-  "result_summary": "Recorded Project Oceanology and Rodale Institute as human-confirmed 2026-08-18 direct sends, preserved Junior Achievement's single 2026-08-17 send, and enforced a canonical organization/email duplicate-initial-send guard. Known valid business emails survive persistence decoding; malformed values remain rejected. No email was sent or scheduled.",
   "counts": {
     "direct_unique_contacted": 7,
-    "partner_unique_contacted": 5,
-    "total_unique_contacted": 12,
-    "total_email_events": 12,
+    "partner_unique_contacted": 10,
+    "total_unique_contacted": 17,
     "missing_unaccounted": 0,
-    "real_emails_sent_by_codex": 0
+    "manual_outreach_active": true,
+    "automated_outbound_status": "INSTANTLY_WARMING_PAUSED",
+    "real_emails_sent_by_codex": 0,
+    "replies_recorded": 0,
+    "trials_recorded": 0,
+    "paid_recorded": 0
   },
-  "production_traffic_changed": false,
-  "external_actions": 0,
+  "production": {
+    "traffic_changed": true,
+    "revision": "grantdeskhq-prototype-gtmoperator3",
+    "traffic_percent": 100,
+    "rollback_revision": "grantdeskhq-prototype-00177-bec",
+    "stripe_changed": false,
+    "external_actions": 0
+  },
+  "blocker": null,
+  "result_summary": "The founder-facing GTM workspace now leads with factual commercial outcomes and next actions; outreach is a canonical manual-outreach ledger; partners and leads are distinct inventory views; feedback and technical health are demoted to their appropriate operational contexts. Seventeen human-confirmed contacted organizations are reconciled without duplicate initial-send eligibility. No customer data, Stripe, Instantly, or external outreach changed.",
   "implementation_commits": [
-    "41810b41e904e0e5c57c5ddfce98e4df6430da7c",
-    "10fe3f4479302e689a1c94097585f25f10db3c4c"
+    "aa6e830",
+    "4c27a41",
+    "978182e",
+    "0255a5f",
+    "10b6c3f"
   ]
 }
