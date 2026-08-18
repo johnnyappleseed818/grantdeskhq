@@ -1,4 +1,6 @@
-import { initialOutreachEligibility, type InitialOutreachCandidate, type OutreachRecord } from "./gtmOutreach";
+// Cloud Run loads this module through Node's TypeScript stripper, which requires
+// an explicit source extension for runtime imports.
+import { initialOutreachEligibility, type InitialOutreachCandidate, type OutreachRecord } from "./gtmOutreach.ts";
 
 /** Canonical, factual partner-acquisition research pipeline. No delivery integration exists here. */
 export const PARTNER_PIPELINE_MODE = "SHADOW" as const;
