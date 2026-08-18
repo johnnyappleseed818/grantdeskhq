@@ -197,7 +197,7 @@ export async function invokeCodex({ root, task, policy, schema, stateDir, maxRun
   const finalFile = join(runDir, "final.json"); const eventFile = join(runDir, "events.jsonl"); const prompt = composePrompt(task, policy, root);
   const args = ["exec", "--strict-config", "--sandbox", "workspace-write", "--json", "--output-schema", schema, "--output-last-message", finalFile, "-m", task.selected_model, "-c", "model_reasoning_effort=" + JSON.stringify(task.reasoning_level), "-C", root, prompt];
   return await new Promise((resolvePromise) => {
-    const child = spawnChild("codex", args, { cwd: root, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, CODEX_QUEUE_NO_PRODUCTION: "1", CODEX_QUEUE_NO_OUTBOUND: "1", CODEX_QUEUE_NO_PURCHASES: "1", CODEX_QUEUE_NO_FORCE_PUSH: "1" } });
+    const child = spawnChild("codex", args, { cwd: root, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, CODEX_QUEUE_NO_PRODUCTION: task.production_traffic_authorized === true ? "0" : "1", CODEX_QUEUE_NO_OUTBOUND: "1", CODEX_QUEUE_NO_PURCHASES: "1", CODEX_QUEUE_NO_FORCE_PUSH: "1" } });
     updateLock(stateDir, { activeTask: task.id, childPid: child.pid || null }); writeFileSync(eventFile, "");
     const started = nowFn(); let lastProgressAt = started; let noProgressWatchdog = false;
     const recordProgress = (chunk) => { lastProgressAt = nowFn(); appendFileSync(eventFile, chunk); };
