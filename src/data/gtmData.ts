@@ -309,7 +309,7 @@ export const signalSources = [
 ] as const;
 
 export const referralChannels = [
-  { name: "Nonprofit accounting and fractional-CFO firms", offer: "A co-branded Grant Reporting Health Check for each nonprofit client", value: "One trusted finance relationship can introduce the workflow across a portfolio without replacing the firm's services.", status: "design partner list", nextAction: "Identify 10 firms with visible nonprofit grant-reporting work and review each partner fit." },
+  { name: "Nonprofit accounting and fractional-CFO firms", offer: "A co-branded Grant Reporting Health Check for each nonprofit client", value: "One trusted finance relationship can introduce the workflow across a portfolio without replacing the firm's services.", status: "channel experiment", nextAction: "Use the canonical partner pipeline to review the next verified, eligible firm; already-contacted firms remain blocked from a new initial send." },
   { name: "Grant consultants and grant writers", offer: "A post-award readiness handoff after the award is won", value: "Consultants help clients win the grant; GrantDeskHQ helps organize what must happen after the award.", status: "message ready", nextAction: "Draft a transparent referral proposal with no unverified fee or partner claims." },
   { name: "Professional communities", offer: "Educational reporting-readiness checklist", value: "Useful, non-promotional guidance can reveal real workflow language before a sales conversation.", status: "manual engagement", nextAction: "Review current discussions in GPA, ANAFP, and Nonprofit Financial Commons before contributing." }
 ] as const;
