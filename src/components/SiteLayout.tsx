@@ -12,7 +12,8 @@ const marketingLinks = [
   ["Sample Output", "/sample-report"],
   ["Resources", "/resources"],
   ["Security & FAQ", "/#security-faq"],
-  ["Pricing", "/pricing"]
+  ["Pricing", "/pricing"],
+  ["Contact Us", "/contact"]
 ];
 
 export function SiteLayout() {
@@ -118,7 +119,7 @@ export function SiteLayout() {
               <Link to="/privacy">Privacy and data handling</Link>
               <Link to="/#security-faq">Security and FAQ</Link>
               <button type="button" className="footer-link-button" onClick={openAnalyticsPreferences}>Cookie settings</button>
-              <Link to="/contact">Contact and feedback</Link>
+              <Link to="/contact">Contact &amp; Feedback</Link>
               <span className="text-slate-500">© {new Date().getFullYear()} GrantDeskHQ</span>
             </div>
           </div>

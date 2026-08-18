@@ -70,8 +70,10 @@ describe("important routes", () => {
     renderRoute("/");
     const navigation = screen.getByRole("navigation", { name: "Primary navigation" });
     const resources = navigation.querySelector<HTMLAnchorElement>("a[href=\"/resources\"]");
-    expect(Array.from(navigation.querySelectorAll("a.nav-link")).slice(0, 5).map((link) => link.textContent)).toEqual(["How It Works", "Sample Output", "Resources", "Security & FAQ", "Pricing"]);
+    expect(Array.from(navigation.querySelectorAll("a.nav-link")).slice(0, 6).map((link) => link.textContent)).toEqual(["How It Works", "Sample Output", "Resources", "Security & FAQ", "Pricing", "Contact Us"]);
     expect(resources).toHaveTextContent("Resources");
+    expect(navigation.querySelector('a[href="/contact"]')).toHaveTextContent("Contact Us");
+    expect(screen.getByRole("contentinfo").querySelector('a[href="/contact"]')).toHaveTextContent("Contact & Feedback");
     expect(navigation.querySelector("a.button[href=\"/assessment\"]")).toHaveTextContent("Free First Award");
     expect(screen.queryByRole("link", { name: "GTM Command Center" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Reliability" })).not.toBeInTheDocument();
@@ -105,6 +107,7 @@ describe("important routes", () => {
     renderRoute("/");
     await user.click(screen.getByRole("button", { name: "Open navigation" }));
     const navigation = screen.getByRole("navigation", { name: "Primary navigation" });
+    expect(navigation.querySelector('a[href="/contact"]')).toHaveTextContent("Contact Us");
     await user.click(navigation.querySelector<HTMLAnchorElement>("a[href=\"/resources\"]")!);
     expect(await screen.findByRole("heading", { name: /Practical resources for post-award grant reporting/i })).toBeInTheDocument();
   });
