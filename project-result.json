@@ -1,17 +1,23 @@
 {
-  "status": "PASS",
+  "status": "PARTIAL",
   "tests": [
-    "npm exec vitest -- run src/test/gtmOptimization.test.ts src/test/gtmIntelligence.test.ts src/test/gtmConversion.test.ts --disableConsoleIntercept (10 passed)",
-    "npm run lint",
     "npm run build",
+    "npm run test:seo-static (9 public routes passed)",
+    "npm test",
+    "npm run lint",
+    "npm run gtm:test (5 passed)",
+    "npm run test:grantdesk-regression",
+    "npm run audit:stripe-pci (191 files, no violation)",
     "git diff --check"
   ],
   "artifacts": [
-    "reports/gtm-five-engine-architecture.md",
-    "src/lib/gtmOptimization.ts",
-    "src/test/gtmOptimization.test.ts"
+    "reports/acquisition-finish-20260818.md",
+    "reports/acquisition-external-actions-20260818.md",
+    "scripts/create-spa-routes.js",
+    "scripts/generate-acquisition-targets.mjs",
+    "/home/eli_katz/grantdeskhq-acquisition-targets-20260818.csv"
   ],
-  "blocker": "",
-  "result_summary": "Added an outcome-only, human-review acquisition recommendation primitive with source record IDs, rates, and confidence. It emits no recommendation without sufficient completed human-reviewed outcomes and cannot alter prospect scoring, messaging, follow-ups, or delivery.",
-  "commit_sha": ""
+  "blocker": "GA4 Enhanced Measurement browser-history page changes emit a duplicate SPA page_view on the zero-traffic candidate. Search Console, Bing, directory, and community publication actions require authenticated owner sessions.",
+  "result_summary": "Reviewed and preserved the overnight work; fixed Node 22 candidate startup; added static route-specific acquisition metadata, content, schemas, sitemap coverage, GA4 browser validation, a source-backed 30-organization target generator, and a zero-traffic candidate. Production remains unchanged pending the precise GA4 property fix.",
+  "commit_sha": "945f359"
 }
