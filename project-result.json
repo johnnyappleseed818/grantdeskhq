@@ -1,23 +1,23 @@
 {
-  "status": "PARTIAL",
+  "status": "PASS",
   "tests": [
-    "npm run build",
-    "npm run test:seo-static (9 public routes passed)",
-    "npm test",
+    "npm run test:agent-routing (39 passed)",
+    "npm run test:codex-queue (12 passed)",
+    "npm run agent:routing:dry-run (25 tasks; PASS)",
+    "npm run agent:cache:probe (2 read-only Luna probes; cached-input telemetry observed)",
     "npm run lint",
-    "npm run gtm:test (5 passed)",
-    "npm run test:grantdesk-regression",
-    "npm run audit:stripe-pci (191 files, no violation)",
-    "git diff --check"
+    "npm run build",
+    "git diff --check",
+    "targeted secret-pattern scan (only known test fixtures/source checks)"
   ],
   "artifacts": [
-    "reports/acquisition-finish-20260818.md",
-    "reports/acquisition-external-actions-20260818.md",
-    "scripts/create-spa-routes.js",
-    "scripts/generate-acquisition-targets.mjs",
-    "/home/eli_katz/grantdeskhq-acquisition-targets-20260818.csv"
+    "ops/agent-budget-policy.json",
+    "scripts/codex-project-runner/cost-governor.mjs",
+    "scripts/codex-project-runner/cache-probe.mjs",
+    "scripts/codex-project-runner/cost-governor.test.mjs",
+    "/home/eli_katz/grantdeskhq-codex-budget-review.txt"
   ],
-  "blocker": "GA4 Enhanced Measurement browser-history page changes emit a duplicate SPA page_view on the zero-traffic candidate. Search Console, Bing, directory, and community publication actions require authenticated owner sessions.",
-  "result_summary": "Reviewed and preserved the overnight work; fixed Node 22 candidate startup; added static route-specific acquisition metadata, content, schemas, sitemap coverage, GA4 browser validation, a source-backed 30-organization target generator, and a zero-traffic candidate. Production remains unchanged pending the precise GA4 property fix.",
-  "commit_sha": "945f359"
+  "blocker": "",
+  "result_summary": "Added a centralized hard per-run Codex budget governor, compact cache-aware task prompts, bounded retry/failure classification, finalization capacity reserve, optional native cache telemetry, and conservative operator commands. No customer production, Stripe, email, or external action changed.",
+  "commit_sha": "cfe03782ef6c517dcfbf7e391bc235f4e9e3a48b"
 }
