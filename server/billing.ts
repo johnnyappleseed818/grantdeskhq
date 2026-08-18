@@ -166,7 +166,7 @@ export async function createCustomerPortalSession(customerId: string, origin: st
   const response = await fetch(`${stripeApi}/billing_portal/sessions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${secretKey}`, "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ customer: customerId, return_url: `${origin}/workspace` })
+    body: new URLSearchParams({ customer: customerId, return_url: `${origin}/account` })
   });
   const result = await response.json() as { url?: string; error?: { message?: string } };
   if (!response.ok || !result.url) {

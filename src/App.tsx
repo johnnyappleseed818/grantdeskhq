@@ -18,6 +18,7 @@ import { BlogIndexPage, BlogPostPage } from "./pages/BlogPage";
 import { ResourcesPage } from "./pages/ResourcesPage";
 import { ContactFeedbackPage } from "./pages/ContactFeedbackPage";
 import { GtmFeedbackPage } from "./pages/GtmFeedbackPage";
+import { AccountPage } from "./pages/AccountPage";
 import { AuthProvider } from "./lib/auth";
 import { AnalyticsManager } from "./lib/analytics";
 
@@ -56,6 +57,7 @@ export default function App() {
           <Route path="compile" element={<CompilePage />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="workspace" element={<WorkspacePage />} />
+          <Route path="account" element={<AccountPage />} />
           <Route path="gtm" element={<GtmDashboardPage />} />
           <Route path="gtm/feedback" element={<GtmFeedbackPage />} />
           <Route path="internal/reliability" element={<ReliabilityDashboardPage />} />

@@ -24,6 +24,7 @@ interface AuthContextValue {
   signUp(name: string, email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
   resetPassword(email: string): Promise<void>;
+  updateDisplayName(name: string): Promise<void>;
   token(): Promise<string>;
 }
 
@@ -85,6 +86,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     async signOut() { await firebaseSignOut(getReadyAuth()); },
     async resetPassword(email) { await sendPasswordResetEmail(getReadyAuth(), email); },
+    async updateDisplayName(name) {
+      const clean = name.trim().replace(/\s+/g, " ").slice(0, 120);
+      if (!clean) throw new Error("Enter a name to save your profile.");
+      if (!user) throw new Error("Sign in to update your profile.");
+      await updateProfile(user, { displayName: clean });
+    },
     async token() {
       if (!user) throw new Error("Sign in to continue.");
       return user.getIdToken();
