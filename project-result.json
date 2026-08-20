@@ -1,10 +1,10 @@
 {
-  "status": "PASS",
-  "project": "gtm-command-center-operator-redesign-20260818",
-  "completed_at": "2026-08-18T16:38:24Z",
-  "scope": "Canonical GTM reconciliation and founder/operator Command Center UX only.",
+  "status": "PARTIAL",
+  "project": "gtm-command-center-v2-20260820",
+  "completed_at": "2026-08-20T09:15:00Z",
+  "scope": "Focused GTM V2 daily revenue workspace only.",
   "tests": [
-    "Focused GTM, authorization, account, billing, contact, pricing, and app tests: 83 passed",
+    "Focused GTM V2 tests: 32 passed",
     "Focused GTM runtime-import repair tests: 31 passed",
     "Focused Stripe/privacy regression tests: 18 passed",
     "ESLint passed",
@@ -39,15 +39,15 @@
     "instantly_initial_import_guard": true
   },
   "production": {
-    "traffic_changed": true,
-    "revision": "grantdeskhq-prototype-gtmoperator5",
-    "traffic_percent": 100,
-    "rollback_revision": "grantdeskhq-prototype-accountselfservice2",
+    "traffic_changed": false,
+    "revision": null,
+    "traffic_percent": 0,
+    "rollback_revision": "grantdeskhq-prototype-gtmoperator5",
     "stripe_pricing_changed": false,
     "stripe_objects_changed": false,
     "external_actions": 0,
     "real_emails_sent_by_codex": 0
   },
-  "blocker": null,
-  "result_summary": "The GTM Command Center now treats all 17 human-confirmed initial sends as canonical organization-level outreach, distinguishes email events from unique contacted organizations, blocks duplicate initial sends by organization, domain, and email, presents commercial KPIs and real-record next actions first, and moves browser-local pseudo-pipeline and automation panels out of System Health. No billing, pricing, Stripe, Instantly, account, or contact behavior changed."
+  "blocker": "Cloud Run source deployment did not create a revision after two bounded attempts; existing production was not changed.",
+  "result_summary": "GTM V2 is committed and pushed with Customers, Partners, Social, SEO, Feedback, and System Health navigation; it preserves all 17 canonical first-touch records and adds a manual-only business-day follow-up derivation. No email, social, Instantly, Stripe, pricing, or production traffic change occurred."
 }

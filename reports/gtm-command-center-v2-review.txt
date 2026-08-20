@@ -1,0 +1,39 @@
+GRANTDESKHQ GTM COMMAND CENTER V2
+
+GTM V2: PASS (source/test/build); DEPLOYMENT: NOT CHANGED
+OVERVIEW: PASS — canonical action queue with manual follow-up and send-ready actions
+CUSTOMERS: PASS — direct queue uses verified canonical opportunities and first-touch dedupe
+PARTNERS: PASS — 10 existing contacted partners remain out of initial-send inventory
+SOCIAL: PASS — 10 source-backed Reddit threads and existing public LinkedIn research; manual review only
+SEO: PASS — queue/sitemap/article operations; Search Console: HUMAN ACTION REQUIRED; no GA4 traffic duplication
+SIGNAL RADAR: PASS — scanner-derived signal inventory remains in System Health
+CHANNEL EXPERIMENTS: PARTIAL — compact existing channel status retained; no invented experiment results
+
+DIRECT CONTACTED: 7
+PARTNERS CONTACTED: 10
+TOTAL UNIQUE: 17
+CUSTOMERS READY TO SEND: 1 (Perkins School for the Blind; existing verified-source record, human review required)
+PARTNERS READY TO SEND: 0
+REDDIT ACTIONS: 0
+PUBLIC LINKEDIN ACTIONS: 0
+PRIVATE LINKEDIN GROUPS TO REVIEW: 0 verified
+FOLLOW-UPS DUE: 12 as of 2026-08-20 from recorded 2026-08-17/18 send dates; 5 records remain FOLLOW-UP DATE UNKNOWN
+
+SEO INDEXING STATUS: NOT RECORDED (Search Console unavailable)
+SEARCH CONSOLE: HUMAN ACTION REQUIRED
+SEO CONTENT QUEUE: 8 existing opportunities
+INSTANTLY: WARMING / NOT ACTIVE FOR CAMPAIGNS
+
+PRODUCTION REVISION: grantdeskhq-prototype-gtmoperator5 (unchanged)
+ROLLBACK: grantdeskhq-prototype-accountselfservice2
+
+MODEL USED: current foreground session
+REASONING: bounded standard implementation
+XHIGH INVOCATIONS: 0
+SOL INVOCATIONS: 0
+
+VALIDATION: focused GTM tests 32/32 PASS; lint PASS; production build PASS.
+
+DEPLOYMENT BLOCKER: Two Cloud Run source-deploy attempts were interrupted before a new revision was created. Service describe confirms current production remains grantdeskhq-prototype-gtmoperator5. No traffic change occurred.
+HUMAN ACTION REQUIRED: Retry the zero-traffic Cloud Run candidate deployment from an environment where gcloud source deployment can remain attached through build completion, then smoke-test before promotion.
+
