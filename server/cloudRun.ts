@@ -13,6 +13,9 @@ import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMat
 import { validateFeedbackInput, type FeedbackSubmission } from "../src/lib/feedback.ts";
 import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
 import { confirmedHumanOutreach } from "../src/lib/gtmOutreach.ts";
+import { canonicalPartnerResearch, summarizePartnerPipeline } from "../src/lib/partnerPipeline.ts";
+import seoQueue from "../ops/seo-content-queue.json" with { type: "json" };
+import seoAssets from "../reports/seo-content-asset-inventory.json" with { type: "json" };
 import { reconcileGtmOutreachLedger, updateFeedbackReview, listGtmSocialActions, saveGtmSocialAction } from "./persistence.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { buildShadowStatus, shadowLeadFromOpportunity, suggestedTopicsFromLeads } from "../src/lib/gtmShadow.ts";
@@ -105,6 +108,8 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/shadow-status") return await handleGtmShadowStatus(request, response);
     if (url.pathname === "/api/gtm/contact-enrichment") return await handleGtmContactEnrichment(request, response);
     if (url.pathname === "/api/gtm/daily-scan") return await handleGtmDailyScan(request, response);
+    if (url.pathname === "/api/gtm/partner-reconciliation") return await handleGtmPartnerReconciliation(request, response);
+    if (url.pathname === "/api/gtm/seo-reconciliation") return await handleGtmSeoReconciliation(request, response);
     if (url.pathname === "/api/internal/reliability/access") return await handleReliabilityAccess(request, response);
     if (url.pathname === "/api/internal/reliability/summary") return await handleReliabilitySummary(request, response);
     if (url.pathname === "/api/internal/reliability/dependencies") return await handleReliabilityDependencies(request, response);
@@ -343,6 +348,20 @@ export function validateContactEnrichmentTarget(target: Partial<EnrichmentTarget
   if (!person?.firstName?.trim() || !person.lastName?.trim() || !person.fullName?.trim()) errors.push("A named current contact is required.");
   if (!person?.currentTitle?.trim() || !person.titleSourceUrl || !/^https:\/\//.test(person.titleSourceUrl)) errors.push("A current contact title and authoritative source URL are required.");
   return errors;
+}
+
+async function handleGtmPartnerReconciliation(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const pipeline = summarizePartnerPipeline(canonicalPartnerResearch);
+  return json(response, 200, { processed: pipeline.researchedOrganizations, qualified: pipeline.relationshipClasses.A + pipeline.relationshipClasses.B, ready: pipeline.readyForHumanApproval, needsVerification: pipeline.suppressionNotChecked, alreadyContacted: confirmedHumanOutreach.filter((record) => record.type === "PARTNER").length, duplicates: 0, errors: [], generatedAt: new Date().toISOString() });
+}
+
+async function handleGtmSeoReconciliation(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const opportunities = seoQueue.opportunities.filter((item) => item.lifecycle_status === "READY_FOR_REFRESH" || item.lifecycle_status === "READY_FOR_BRIEF");
+  return json(response, 200, { publishedPages: seoAssets.article_count, actionable: opportunities.length, refreshActions: opportunities.filter((item) => item.action === "REFRESH").length, internalLinkActions: 0, deadActions: 0, errors: [], records: opportunities.map((item) => ({ id: item.id, url: item.canonical_url, action: item.action })), generatedAt: new Date().toISOString() });
 }
 
 async function handleGtmDailyScan(request: IncomingMessage, response: ServerResponse) {
