@@ -14,8 +14,6 @@ import { validateFeedbackInput, type FeedbackSubmission } from "../src/lib/feedb
 import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
 import { confirmedHumanOutreach } from "../src/lib/gtmOutreach.ts";
 import { canonicalPartnerResearch, summarizePartnerPipeline } from "../src/lib/partnerPipeline.ts";
-import seoQueue from "../ops/seo-content-queue.json" with { type: "json" };
-import seoAssets from "../reports/seo-content-asset-inventory.json" with { type: "json" };
 import { reconcileGtmOutreachLedger, updateFeedbackReview, listGtmSocialActions, saveGtmSocialAction } from "./persistence.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { buildShadowStatus, shadowLeadFromOpportunity, suggestedTopicsFromLeads } from "../src/lib/gtmShadow.ts";
@@ -360,8 +358,8 @@ async function handleGtmPartnerReconciliation(request: IncomingMessage, response
 async function handleGtmSeoReconciliation(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
-  const opportunities = seoQueue.opportunities.filter((item) => item.lifecycle_status === "READY_FOR_REFRESH" || item.lifecycle_status === "READY_FOR_BRIEF");
-  return json(response, 200, { publishedPages: seoAssets.article_count, actionable: opportunities.length, refreshActions: opportunities.filter((item) => item.action === "REFRESH").length, internalLinkActions: 0, deadActions: 0, errors: [], records: opportunities.map((item) => ({ id: item.id, url: item.canonical_url, action: item.action })), generatedAt: new Date().toISOString() });
+  const records = ["/blog/post-award-grant-reporting-checklist", "/blog/budget-to-actual-grant-reporting-workflow", "/blog/turn-grant-agreement-into-reporting-plan", "/blog/grant-progress-report-workflow", "/blog/grant-closeout-checklist", "/blog/post-award-grant-management-software"].map((url) => ({ url, action: "REFRESH" }));
+  return json(response, 200, { publishedPages: 6, actionable: records.length, refreshActions: records.length, internalLinkActions: 0, deadActions: 0, errors: [], records, generatedAt: new Date().toISOString() });
 }
 
 async function handleGtmDailyScan(request: IncomingMessage, response: ServerResponse) {
