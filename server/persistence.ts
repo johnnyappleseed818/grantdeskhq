@@ -8,6 +8,7 @@ import type { ContactEnrichmentRecord, EnrichmentUsage, SuppressionCheck } from 
 import type { FeedbackSubmission } from "../src/lib/feedback.ts";
 import type { OutreachRecord } from "../src/lib/gtmOutreach.ts";
 import { mergeOutreachRecords } from "../src/lib/gtmOutreach.ts";
+import { validateSocialActionRecord, type SocialActionRecord } from "../src/lib/gtmActionState.ts";
 import { isConversionLearningRecord, type ConversionLearningRecord } from "../src/lib/gtmConversion.ts";
 import type { AuthenticatedUser } from "./auth.ts";
 import { normalizeAttribution, type Attribution, type BillingEventSnapshot } from "./billing.ts";
@@ -79,6 +80,23 @@ export async function saveGtmConversionLearning(record: ConversionLearningRecord
     recordJson: JSON.stringify(record)
   });
   return record;
+}
+
+export async function listGtmSocialActions(): Promise<SocialActionRecord[]> {
+  const accessToken = await gcpToken();
+  const response = await authorizedFetch(`/gtm/social-actions/records?pageSize=500`, accessToken);
+  if (response.status === 404) return [];
+  if (!response.ok) throw new Error(`GTM social actions could not be loaded ().`);
+  const body = await response.json() as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> };
+  return (body.documents || []).map((document) => { const value = decodeFields(document.fields || {}); try { return validateSocialActionRecord(JSON.parse(String(value.recordJson || ""))); } catch { return null; } }).filter((record): record is SocialActionRecord => Boolean(record));
+}
+
+export async function saveGtmSocialAction(record: SocialActionRecord): Promise<SocialActionRecord> {
+  const valid = validateSocialActionRecord(record);
+  if (!valid) throw new Error("Invalid GTM social action.");
+  const accessToken = await gcpToken();
+  await writeDocument(accessToken, `gtm/social-actions/records/`, { recordJson: JSON.stringify(valid), updatedAt: valid.updatedAt || "" });
+  return valid;
 }
 
 export async function readGtmConversionLearning(id: string): Promise<ConversionLearningRecord | null> {

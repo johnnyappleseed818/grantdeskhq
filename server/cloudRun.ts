@@ -13,7 +13,7 @@ import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMat
 import { validateFeedbackInput, type FeedbackSubmission } from "../src/lib/feedback.ts";
 import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
 import { confirmedHumanOutreach } from "../src/lib/gtmOutreach.ts";
-import { reconcileGtmOutreachLedger, updateFeedbackReview } from "./persistence.ts";
+import { reconcileGtmOutreachLedger, updateFeedbackReview, listGtmSocialActions, saveGtmSocialAction } from "./persistence.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { buildShadowStatus, shadowLeadFromOpportunity, suggestedTopicsFromLeads } from "../src/lib/gtmShadow.ts";
 import { enrichGtmContactInShadow } from "./contactEnrichment.ts";
@@ -92,6 +92,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/reports/preflight") return await handlePreflight(request, response);
     if (url.pathname === "/api/compile-report" || url.pathname === "/api/reports/compile") return await handleCompiler(request, response);
     if (url.pathname === "/api/gtm/outreach") return await handleGtmOutreach(request, response);
+    if (url.pathname === "/api/gtm/social-actions") return await handleGtmSocialActions(request, response);
     if (url.pathname === "/api/readiness-assessment") return await handleReadiness(request, response);
     if (url.pathname === "/api/feedback") return await handleFeedback(request, response);
     if (url.pathname === "/api/gtm/feedback") return await handleGtmFeedback(request, response);
@@ -275,6 +276,16 @@ async function handleGtmOutreach(request: IncomingMessage, response: ServerRespo
   requireGtmAdmin(await requireUser(request));
   try { return json(response, 200, { outreach: await reconcileGtmOutreachLedger(confirmedHumanOutreach), durable: true }); }
   catch { return json(response, 200, { outreach: confirmedHumanOutreach, durable: false }); }
+}
+
+async function handleGtmSocialActions(request: IncomingMessage, response: ServerResponse) {
+  requireGtmAdmin(await requireUser(request));
+  if (request.method === "GET") return json(response, 200, { actions: await listGtmSocialActions() });
+  if (request.method !== "PATCH") return json(response, 405, { error: "Method not allowed." });
+  const body = await readJson(request) as { action?: unknown };
+  const action = validateSocialActionRecord(body.action);
+  if (!action) return json(response, 400, { error: "Invalid GTM social action." });
+  return json(response, 200, { action: await saveGtmSocialAction(action) });
 }
 
 function allowFeedbackAttempt(source: string) {

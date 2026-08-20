@@ -128,6 +128,13 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   }, [dailySignalToken]);
 
 
+  useEffect(() => {
+    if (!dailySignalToken) return;
+    let active = true;
+    dailySignalToken().then((idToken) => apiRequest<{ actions: SocialActionRecord[] }>("/api/gtm/social-actions", idToken)).then((body) => { if (active) setSocialActions(body.actions); }).catch(() => { /* Local state is a temporary offline fallback only. */ });
+    return () => { active = false; };
+  }, [dailySignalToken]);
+
   useEffect(() => { try { localStorage.setItem(SOCIAL_STATE_KEY, JSON.stringify(socialActions)); } catch { /* Browser storage can be unavailable. */ } }, [socialActions]);
 
   const ranked = useMemo(() => rankGtmOpportunities(liveOpportunities), [liveOpportunities]);
@@ -144,7 +151,11 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   const unresolvedAwardCandidates = ranked.filter((item) => item.signalKind === "grant_award" && !item.primaryContact?.email).length;
   const outreachMetrics = summarizeOutreach(outreach);
   const updateStage = (id: string, stage: OpportunityStage) => setStages((current) => ({ ...current, [id]: stage }));
-  const updateSocialAction = (record: ReturnType<typeof socialActionUpdate>) => setSocialActions((current) => [...current.filter((item) => item.id !== record.id), record]);
+  const updateSocialAction = async (record: ReturnType<typeof socialActionUpdate>) => {
+    setSocialActions((current) => [...current.filter((item) => item.id !== record.id), record]);
+    if (!dailySignalToken) return;
+    try { const idToken = await dailySignalToken(); const body = await apiRequest<{ action: SocialActionRecord }>("/api/gtm/social-actions", idToken, { method: "PATCH", body: JSON.stringify({ action: record }) }); setSocialActions((current) => [...current.filter((item) => item.id !== body.action.id), body.action]); } catch { /* The optimistic state remains locally visible; the next server read is canonical. */ }
+  };
   const copyDraft = async (opportunity: GtmOpportunity) => {
     try {
       const recipient = opportunity.primaryContact?.email || "Contact not yet verified";
