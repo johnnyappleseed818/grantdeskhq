@@ -149,7 +149,8 @@ describe("GTM command center", () => {
     render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} /></MemoryRouter>);
     expect(screen.getByRole("heading", { name: /Founder GTM Command Center/i })).toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: "Customers" }));
-    expect(screen.getByRole("heading", { name: "Junior Achievement of South Florida" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Junior Achievement of South Florida" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Perkins School for the Blind" })).toBeInTheDocument();
     expect(screen.getByText(/Manual outreach is active/i)).toBeInTheDocument();
     await user.click(screen.getAllByRole("button", { name: "Review evidence" })[0]);
     expect(screen.getByText("Observed evidence")).toBeInTheDocument();
@@ -205,10 +206,8 @@ describe("GTM command center", () => {
     const user = userEvent.setup();
     render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} initialAwardScan={awardScan} /></MemoryRouter>);
     await user.click(screen.getByRole("tab", { name: "Customers" }));
-    expect(screen.getByRole("heading", { name: "Community Action Network" })).toBeInTheDocument();
-    expect(screen.getByText("emerging target")).toBeInTheDocument();
-    const card = screen.getByRole("heading", { name: "Community Action Network" }).closest("article")!;
-    expect(card.textContent).toMatch(/Contact research needed/i);
+    expect(screen.queryByRole("heading", { name: "Community Action Network" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Prioritized by pain, timing, fit, and potential value/i })).toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: "System Health" }));
     expect(screen.getByRole("heading", { name: /Know exactly which scanners are active/i })).toBeInTheDocument();
     expect(screen.queryByText("Outbound delivery")).not.toBeInTheDocument();
