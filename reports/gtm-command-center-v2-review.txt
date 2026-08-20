@@ -1,6 +1,6 @@
 GRANTDESKHQ GTM COMMAND CENTER V2
 
-GTM V2: PASS (source/test/build); DEPLOYMENT: NOT CHANGED
+GTM V2: PASS; DEPLOYMENT: PASS
 OVERVIEW: PASS — canonical action queue with manual follow-up and send-ready actions
 CUSTOMERS: PASS — direct queue uses verified canonical opportunities and first-touch dedupe
 PARTNERS: PASS — 10 existing contacted partners remain out of initial-send inventory
@@ -24,8 +24,8 @@ SEARCH CONSOLE: HUMAN ACTION REQUIRED
 SEO CONTENT QUEUE: 8 existing opportunities
 INSTANTLY: WARMING / NOT ACTIVE FOR CAMPAIGNS
 
-PRODUCTION REVISION: grantdeskhq-prototype-gtmoperator5 (unchanged)
-ROLLBACK: grantdeskhq-prototype-accountselfservice2
+PRODUCTION REVISION: grantdeskhq-prototype-00195-kuv (100%)
+ROLLBACK: grantdeskhq-prototype-gtmoperator5
 
 MODEL USED: current foreground session
 REASONING: bounded standard implementation
@@ -34,6 +34,6 @@ SOL INVOCATIONS: 0
 
 VALIDATION: focused GTM tests 32/32 PASS; lint PASS; production build PASS.
 
-DEPLOYMENT BLOCKER: Two Cloud Run source-deploy attempts were interrupted before a new revision was created. Service describe confirms current production remains grantdeskhq-prototype-gtmoperator5. No traffic change occurred.
-HUMAN ACTION REQUIRED: Retry the zero-traffic Cloud Run candidate deployment from an environment where gcloud source deployment can remain attached through build completion, then smoke-test before promotion.
+DEPLOYMENT: zero-traffic candidate gtmv2-0820 passed /api/health, /gtm, /contact, and /pricing smoke checks; grantdeskhq-prototype-00195-kuv was promoted to 100%. Live /, /contact, /pricing, /gtm, and /api/health returned HTTP 200.
+HUMAN ACTION REQUIRED: Connect Google Search Console to expose legitimate indexing/impressions/clicks/position data; no action is needed to operate the GTM V2 workspace.
 

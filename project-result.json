@@ -1,5 +1,5 @@
 {
-  "status": "PARTIAL",
+  "status": "PASS",
   "project": "gtm-command-center-v2-20260820",
   "completed_at": "2026-08-20T09:15:00Z",
   "scope": "Focused GTM V2 daily revenue workspace only.",
@@ -39,15 +39,15 @@
     "instantly_initial_import_guard": true
   },
   "production": {
-    "traffic_changed": false,
-    "revision": null,
-    "traffic_percent": 0,
+    "traffic_changed": true,
+    "revision": "grantdeskhq-prototype-00195-kuv",
+    "traffic_percent": 100,
     "rollback_revision": "grantdeskhq-prototype-gtmoperator5",
     "stripe_pricing_changed": false,
     "stripe_objects_changed": false,
     "external_actions": 0,
     "real_emails_sent_by_codex": 0
   },
-  "blocker": "Cloud Run source deployment did not create a revision after two bounded attempts; existing production was not changed.",
-  "result_summary": "GTM V2 is committed and pushed with Customers, Partners, Social, SEO, Feedback, and System Health navigation; it preserves all 17 canonical first-touch records and adds a manual-only business-day follow-up derivation. No email, social, Instantly, Stripe, pricing, or production traffic change occurred."
+  "blocker": null,
+  "result_summary": "GTM V2 is committed, pushed, and live at 100% on grantdeskhq-prototype-00195-kuv. It preserves all 17 canonical first-touch records and adds manual-only business-day follow-up derivation. No email, social, Instantly, Stripe, or pricing change occurred."
 }
