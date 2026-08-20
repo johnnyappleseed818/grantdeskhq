@@ -1,4 +1,5 @@
 export type SignalKind = "grant_award" | "job_posting" | "excel_pain" | "competitor_intent";
+import type { ComplexitySignals, NonprofitVertical } from "./gtmExpansion";
 export type SourceAuthority = "official" | "employer" | "professional" | "community" | "review_platform";
 export type OpportunityStage = "new" | "reviewing" | "ready" | "contacted" | "replied" | "converted" | "dismissed";
 export type SocialPlatform = "reddit" | "linkedin";
@@ -104,6 +105,8 @@ export interface GtmOpportunity {
   entityVerified: boolean;
   nonprofitVerified: boolean;
   conflicts: string[];
+  vertical?: NonprofitVertical;
+  complexitySignals?: ComplexitySignals;
   unknowns: string[];
   recommendedRoles: string[];
   whyNow: string;

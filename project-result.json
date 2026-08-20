@@ -1,9 +1,10 @@
 {
   "status": "PASS",
-  "project": "gtm-command-center-v2-20260820",
-  "completed_at": "2026-08-20T09:15:00Z",
-  "scope": "Focused GTM V2 daily revenue workspace only.",
+  "project": "gtm-command-center-v2-increment-20260820",
+  "completed_at": "2026-08-20T10:05:00Z",
+  "scope": "Bounded incremental GTM V2 channels, transparent opportunity scoring, full-funnel state, and attribution model only.",
   "tests": [
+    "Focused incremental GTM tests: 33 passed",
     "Focused GTM V2 tests: 32 passed",
     "Focused GTM runtime-import repair tests: 31 passed",
     "Focused Stripe/privacy regression tests: 18 passed",
@@ -15,6 +16,9 @@
     "Browser smoke: public Contact Us, footer Contact & Feedback, mobile Contact Us, and unauthenticated /gtm redirect all passed"
   ],
   "artifacts": [
+    "src/lib/gtmExpansion.ts",
+    "src/test/gtmExpansion.test.ts",
+    "reports/gtm-v2-incremental-review.md",
     "src/lib/gtmOutreach.ts",
     "src/lib/gtmOverview.ts",
     "src/lib/partnerPipeline.ts",
@@ -39,7 +43,7 @@
     "instantly_initial_import_guard": true
   },
   "production": {
-    "traffic_changed": true,
+    "traffic_changed": false,
     "revision": "grantdeskhq-prototype-00195-kuv",
     "traffic_percent": 100,
     "rollback_revision": "grantdeskhq-prototype-gtmoperator5",
@@ -49,5 +53,5 @@
     "real_emails_sent_by_codex": 0
   },
   "blocker": null,
-  "result_summary": "GTM V2 is committed, pushed, and live at 100% on grantdeskhq-prototype-00195-kuv. It preserves all 17 canonical first-touch records and adds manual-only business-day follow-up derivation. No email, social, Instantly, Stripe, or pricing change occurred."
+  "result_summary": "The GTM V2 increment adds typed channel, complexity-signal, campaign, vertical, product-led, referral/expansion, and attribution support without creating records, activating Instantly, or changing production. The existing 17 contacted organizations and duplicate-send guard remain intact."
 }
