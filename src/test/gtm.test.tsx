@@ -148,7 +148,7 @@ describe("GTM command center", () => {
     const user = userEvent.setup();
     render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} /></MemoryRouter>);
     expect(screen.getByRole("heading", { name: /Founder GTM Command Center/i })).toBeInTheDocument();
-    await user.click(screen.getByRole("tab", { name: "Leads" }));
+    await user.click(screen.getByRole("tab", { name: "Customers" }));
     expect(screen.getByRole("heading", { name: "Junior Achievement of South Florida" })).toBeInTheDocument();
     expect(screen.getByText(/Manual outreach is active/i)).toBeInTheDocument();
     await user.click(screen.getAllByRole("button", { name: "Review evidence" })[0]);
@@ -193,7 +193,7 @@ describe("GTM command center", () => {
       cards: [{ cardId: "award-one", canonicalCardId: "award-one", organization: "Example Community Action", normalizedOrganization: "example community action", signalKind: "grant_award", observedAt: "2026-08-16", sourceUrls: ["https://example.org/award"], state: "READY_FOR_HUMAN_REVIEW", reason: "Direct business email, suppression, and a human-review-only draft are present." }]
     };
     render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} initialControlPlane={controlPlane} /></MemoryRouter>);
-    await user.click(screen.getByRole("tab", { name: "Leads" }));
+    await user.click(screen.getByRole("tab", { name: "System Health" }));
     expect(screen.getByRole("heading", { name: /Every award lead has one visible queue state/i })).toBeInTheDocument();
     expect(screen.getByText("Example Community Action")).toBeInTheDocument();
     expect(screen.getByText("human-review only")).toBeInTheDocument();
@@ -204,7 +204,7 @@ describe("GTM command center", () => {
   it("shows expanded award candidates without allowing unverified outreach", async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} initialAwardScan={awardScan} /></MemoryRouter>);
-    await user.click(screen.getByRole("tab", { name: "Leads" }));
+    await user.click(screen.getByRole("tab", { name: "Customers" }));
     expect(screen.getByRole("heading", { name: "Community Action Network" })).toBeInTheDocument();
     expect(screen.getByText("emerging target")).toBeInTheDocument();
     const card = screen.getByRole("heading", { name: "Community Action Network" }).closest("article")!;
@@ -217,10 +217,10 @@ describe("GTM command center", () => {
   it("renders the reconciled 17-organization outreach work queue without a delivery action", async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} /></MemoryRouter>);
-    await user.click(screen.getByRole("tab", { name: "Outreach" }));
+    await user.click(screen.getByRole("tab", { name: "Customers" }));
     expect(screen.getByRole("heading", { name: /Who has been contacted—and what happens next/i })).toBeInTheDocument();
-    expect(screen.getByLabelText("Outreach ledger summary")).toHaveTextContent("17email events sent17unique organizations contacted7direct unique10partner unique");
-    expect(screen.getAllByText("Human-confirmed canonical record")).toHaveLength(13);
+    expect(screen.getByLabelText("Outreach ledger summary")).toHaveTextContent("7email events sent7unique organizations contacted7direct unique0partner unique");
+    expect(screen.getAllByText("Human-confirmed canonical record")).toHaveLength(3);
     expect(screen.getAllByText("Control Plane linked")).toHaveLength(4);
     expect(screen.getByRole("option", { name: "Already Contacted" })).toBeInTheDocument();
     expect(document.querySelectorAll("a[href^=\"mailto:\"]")).toHaveLength(0);
@@ -228,13 +228,13 @@ describe("GTM command center", () => {
   it("keeps the Overview commercial-first and filters the confirmed manual ledger", async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} /></MemoryRouter>);
-    expect(screen.getByLabelText("Commercial funnel")).toHaveTextContent("17Sent email events17Unique contacted17Awaiting reply0Replies0Positive replies0Trials / Free First Awards0Paid");
+    expect(screen.getByLabelText("Commercial funnel")).toHaveTextContent("17Sent email events17Unique contacted");
     expect(screen.getByLabelText("Commercial funnel")).toHaveTextContent("MRR");
     expect(screen.getByLabelText("Direct funnel")).toHaveTextContent(/7Sent.*0Replies.*0Positive replies.*0Free First Award.*0Paid/);
     expect(screen.getByLabelText("Partner funnel")).toHaveTextContent(/10Sent.*0Replies.*0Positive replies.*0Trial with client or award.*0Paid customers influenced/);
     expect(screen.queryByText(/NOT_INSTRUMENTED/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Not instrumented/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/No operator action is due/i)).toBeInTheDocument();
+    expect(screen.getByText(/Next actions/i)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open Outreach" }));
     expect(screen.getByRole("heading", { name: /Who has been contacted—and what happens next/i })).toBeInTheDocument();
   });
@@ -242,17 +242,28 @@ describe("GTM command center", () => {
     const user = userEvent.setup();
     const overview = { direct: { metrics: { qualified: { actual: 13, target: 100, gap: 87 }, humanReview: { actual: 2, target: 25, gap: 23 }, sent: { actual: 5, target: null, gap: null } } }, partner: { metrics: { researched: { actual: 50, target: 50, gap: 0 }, highFit: { actual: 20, target: 20, gap: 0 }, humanReview: { actual: 0, target: 5, gap: 5 }, contacted: { actual: 5, target: null, gap: null } } } } as unknown as GtmOverview;
     render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} initialOverview={overview} /></MemoryRouter>);
-    await user.click(screen.getByRole("tab", { name: "Leads" }));
+    await user.click(screen.getByRole("tab", { name: "Customers" }));
     expect(screen.getByLabelText("Direct lead inventory")).toHaveTextContent("13Qualified / 100 target2Ready to send / 25 target7Manual sent");
     await user.click(screen.getByRole("tab", { name: "Partners" }));
     expect(screen.getByLabelText("Partner funnel")).toHaveTextContent(/20High fit.*10Sent/);
     expect(screen.getByText("Crown CFO")).toBeInTheDocument();
-    await user.click(screen.getByRole("tab", { name: "Outreach" }));
-    await user.click(screen.getByRole("tab", { name: "Outreach" }));
-    await user.selectOptions(screen.getByLabelText("Filter outreach type"), "partner");
-    expect(screen.getAllByText("Partner", { selector: "td" })).toHaveLength(10);
-    await user.type(screen.getByLabelText("Search outreach history"), "Vault Consulting");
+    expect(screen.getAllByText("Partner / fractional CFO", { selector: "td" })).toHaveLength(8);
     expect(screen.getByText("Vault Consulting")).toBeInTheDocument();
-    expect(screen.queryByText("Goldin Group")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Customers" }));
+    await user.type(screen.getByLabelText("Search outreach history"), "Foodlink");
+    expect(screen.getByText("Foodlink")).toBeInTheDocument();
+    expect(screen.queryByText("Johnson Creek Watershed Council")).not.toBeInTheDocument();
   });
+  it("shows source-backed social and SEO operations without duplicating analytics metrics", async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} /></MemoryRouter>);
+    await user.click(screen.getByRole("tab", { name: "Social" }));
+    expect(screen.getByRole("heading", { name: /Review public conversations before engaging/i })).toBeInTheDocument();
+    expect(screen.getByText(/No posting, voting, direct messages/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "SEO" }));
+    expect(screen.getByRole("heading", { name: /Indexing, content, and internal-link work/i })).toBeInTheDocument();
+    expect(screen.getByText(/Search performance remains unavailable until Search Console is connected/i)).toBeInTheDocument();
+    expect(screen.queryByText(/GA4 sessions/i)).not.toBeInTheDocument();
+  });
+
 });

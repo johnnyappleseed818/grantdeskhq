@@ -1,6 +1,16 @@
 export type OutreachType = "DIRECT_NONPROFIT" | "PARTNER";
 export type OutreachStatus = "SENT" | "REPLIED" | "POSITIVE_REPLY" | "FREE_FIRST_AWARD" | "ACTIVATED" | "PAID" | "CLOSED";
 export type OutreachSuppressionState = "CLEAR" | "BLOCKED" | "UNSUBSCRIBED" | "DO_NOT_CONTACT" | "OPT_OUT" | "BOUNCE_SUPPRESSION" | "NEGATIVE_RESPONSE_DO_NOT_CONTACT";
+export type FollowUpState = "INITIAL_SENT" | "FOLLOW_UP_1_DUE" | "FOLLOW_UP_1_SENT" | "FOLLOW_UP_2_DUE" | "FOLLOW_UP_2_SENT" | "SEQUENCE_COMPLETE" | "REPLIED" | "POSITIVE" | "NEGATIVE" | "SUPPRESSED" | "FOLLOW_UP_DATE_UNKNOWN";
+export type ManualOutreachAction = "FOLLOW_UP_1_SENT" | "FOLLOW_UP_2_SENT" | "MARK_REPLIED" | "MARK_POSITIVE" | "MARK_NEGATIVE" | "SUPPRESS";
+
+/** Manual-only policy. A send event must be recorded by an operator; this module never sends email. */
+export const MANUAL_FOLLOW_UP_POLICY = {
+  firstFollowUpBusinessDays: 4,
+  secondFollowUpBusinessDaysAfterFirst: 7,
+  automaticEmailSending: false
+} as const;
+
 
 export interface OutreachRecord {
   id: string;
@@ -19,8 +29,14 @@ export interface OutreachRecord {
   sentTimePrecision: "DATE_CONFIRMED" | "DATE_NOT_RECORDED";
   status: OutreachStatus;
   lastContactAt: string | null;
-  nextAction: "AWAIT_RESPONSE";
+  nextAction: "AWAIT_RESPONSE" | "MANUAL_FOLLOW_UP_1" | "MANUAL_FOLLOW_UP_2" | "REPLY_REQUIRES_RESPONSE" | "HUMAN_REVIEW_REQUIRED" | "NONE";
   followUpDueAt: string | null;
+  followUpState: FollowUpState;
+  followUp1DueAt: string | null;
+  followUp1SentAt: string | null;
+  followUp2DueAt: string | null;
+  followUp2SentAt: string | null;
+  suppressionStatus: OutreachSuppressionState;
   replied: boolean;
   replySentiment: "NONE" | "POSITIVE" | "NEUTRAL" | "NEGATIVE";
   trial: boolean;
@@ -46,6 +62,12 @@ function record(input: Pick<OutreachRecord, "id" | "organization" | "contact" | 
     lastContactAt: sentAt,
     nextAction: "AWAIT_RESPONSE",
     followUpDueAt: null,
+    followUpState: sentAt ? "INITIAL_SENT" : "FOLLOW_UP_DATE_UNKNOWN",
+    followUp1DueAt: null,
+    followUp1SentAt: null,
+    followUp2DueAt: null,
+    followUp2SentAt: null,
+    suppressionStatus: "CLEAR",
     replied: false,
     replySentiment: "NONE",
     trial: false,
@@ -121,6 +143,61 @@ export function initialOutreachEligibility(records: OutreachRecord[], candidate:
     Boolean(domain && normalizeDomain(existing.email) === domain)
   )) ? "DO_NOT_SEND_NEW_INITIAL_OUTREACH" : "ELIGIBLE_FOR_INITIAL_OUTREACH";
 }
+function utcDay(value: string | Date) {
+  const parsed = value instanceof Date ? value : new Date(value);
+  return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()));
+}
+
+function isoMidnight(value: Date) {
+  return value.toISOString().replace(/T\d{2}:\d{2}:\d{2}\.\d{3}Z$/, "T00:00:00.000Z");
+}
+
+/** Adds weekdays only; Saturday and Sunday never advance a manual deadline. */
+export function addBusinessDays(value: string | Date, businessDays: number) {
+  const date = utcDay(value);
+  let remaining = Math.max(0, Math.floor(businessDays));
+  while (remaining > 0) {
+    date.setUTCDate(date.getUTCDate() + 1);
+    if (date.getUTCDay() !== 0 && date.getUTCDay() !== 6) remaining -= 1;
+  }
+  return isoMidnight(date);
+}
+
+/**
+ * Derives a manual daily queue from factual send timestamps. It never sends
+ * mail, invents a send date, or relaxes first-touch suppression and dedupe.
+ */
+export function applyManualFollowUpCadence(records: OutreachRecord[], referenceDate: string | Date = new Date()): OutreachRecord[] {
+  const reference = utcDay(referenceDate).getTime();
+  return records.map((record) => {
+    if (strongSuppression(record.suppressionStatus)) return { ...record, followUpState: "SUPPRESSED", followUpDueAt: null, nextAction: "NONE" };
+    if (record.replySentiment === "NEGATIVE") return { ...record, followUpState: "NEGATIVE", followUpDueAt: null, nextAction: "NONE" };
+    if (record.replySentiment === "POSITIVE") return { ...record, followUpState: "POSITIVE", followUpDueAt: null, nextAction: "REPLY_REQUIRES_RESPONSE" };
+    if (record.replied) return { ...record, followUpState: "REPLIED", followUpDueAt: null, nextAction: "REPLY_REQUIRES_RESPONSE" };
+    if (!record.sentAt) return { ...record, followUpState: "FOLLOW_UP_DATE_UNKNOWN", followUpDueAt: null, followUp1DueAt: null, followUp2DueAt: null, nextAction: "HUMAN_REVIEW_REQUIRED" };
+    const followUp1DueAt = addBusinessDays(record.sentAt, MANUAL_FOLLOW_UP_POLICY.firstFollowUpBusinessDays);
+    if (!record.followUp1SentAt) {
+      const isDue = utcDay(followUp1DueAt).getTime() <= reference;
+      return { ...record, followUpState: isDue ? "FOLLOW_UP_1_DUE" : "INITIAL_SENT", followUpDueAt: followUp1DueAt, followUp1DueAt, followUp2DueAt: null, nextAction: isDue ? "MANUAL_FOLLOW_UP_1" : "AWAIT_RESPONSE" };
+    }
+    const followUp2DueAt = addBusinessDays(record.followUp1SentAt, MANUAL_FOLLOW_UP_POLICY.secondFollowUpBusinessDaysAfterFirst);
+    if (record.followUp2SentAt) return { ...record, followUpState: "SEQUENCE_COMPLETE", followUpDueAt: null, followUp1DueAt, followUp2DueAt, nextAction: "NONE" };
+    const isDue = utcDay(followUp2DueAt).getTime() <= reference;
+    return { ...record, followUpState: isDue ? "FOLLOW_UP_2_DUE" : "FOLLOW_UP_1_SENT", followUpDueAt: followUp2DueAt, followUp1DueAt, followUp2DueAt, nextAction: isDue ? "MANUAL_FOLLOW_UP_2" : "AWAIT_RESPONSE" };
+  });
+}
+
+/** Records only a human-confirmed internal state change; no email transport is invoked. */
+export function applyManualOutreachAction(record: OutreachRecord, action: ManualOutreachAction, at: string): OutreachRecord {
+  if (!Number.isFinite(Date.parse(at)) || strongSuppression(record.suppressionStatus) || record.replied) return record;
+  if (action === "FOLLOW_UP_1_SENT") return { ...record, followUp1SentAt: at, lastContactAt: at, followUpState: "FOLLOW_UP_1_SENT", followUpDueAt: null, updatedAt: at };
+  if (action === "FOLLOW_UP_2_SENT") return { ...record, followUp2SentAt: at, lastContactAt: at, followUpState: "FOLLOW_UP_2_SENT", followUpDueAt: null, updatedAt: at };
+  if (action === "MARK_POSITIVE") return { ...record, status: "POSITIVE_REPLY", replied: true, replySentiment: "POSITIVE", followUpState: "POSITIVE", followUpDueAt: null, nextAction: "REPLY_REQUIRES_RESPONSE", updatedAt: at };
+  if (action === "MARK_NEGATIVE") return { ...record, status: "CLOSED", replied: true, replySentiment: "NEGATIVE", suppressionStatus: "NEGATIVE_RESPONSE_DO_NOT_CONTACT", followUpState: "NEGATIVE", followUpDueAt: null, nextAction: "NONE", updatedAt: at };
+  if (action === "SUPPRESS") return { ...record, status: "CLOSED", suppressionStatus: "DO_NOT_CONTACT", followUpState: "SUPPRESSED", followUpDueAt: null, nextAction: "NONE", updatedAt: at };
+  return { ...record, status: "REPLIED", replied: true, replySentiment: "NEUTRAL", followUpState: "REPLIED", followUpDueAt: null, nextAction: "REPLY_REQUIRES_RESPONSE", updatedAt: at };
+}
+
 
 export function mergeOutreachRecords(existing: OutreachRecord[], incoming: OutreachRecord[]) {
   const byId = new Map(existing.map((item) => [item.id, item]));
