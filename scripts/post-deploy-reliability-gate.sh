@@ -7,6 +7,16 @@ service="grantdeskhq-prototype"
 origin="${GRANTDESK_CANDIDATE_ORIGIN:-}"
 service_account="${HEALTH_SCHEDULER_SERVICE_ACCOUNT:-grantdeskhq-health-scheduler@${project}.iam.gserviceaccount.com}"
 scheduler_audience="${HEALTH_SCHEDULER_AUDIENCE:-${origin%/}}"
+seo_reconciliation_job="grantdeskhq-seo-reconciliation"
+
+trigger_post_deploy_sitemap_submission() {
+  # Reuse the established OIDC scheduler job. The job verifies the public
+  # sitemap, submits it to Search Console, and persists the resulting state.
+  # This intentionally does not alter its normal twice-weekly schedule.
+  gcloud scheduler jobs describe "${seo_reconciliation_job}" --project="${project}" --location="${region}" >/dev/null
+  gcloud scheduler jobs run "${seo_reconciliation_job}" --project="${project}" --location="${region}"
+  echo "Queued ${seo_reconciliation_job} after successful production promotion."
+}
 
 rollback_if_allowed() {
   local reason="$1"
@@ -61,4 +71,5 @@ if [[ "${GRANTDESK_PROMOTE_VERIFIED_CANDIDATE:-0}" == "1" ]]; then
     --project="${project}" \
     --region="${region}" \
     --to-revisions="${GRANTDESK_CANDIDATE_REVISION}=100"
+  trigger_post_deploy_sitemap_submission
 fi
