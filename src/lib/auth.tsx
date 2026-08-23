@@ -25,7 +25,7 @@ interface AuthContextValue {
   signOut(): Promise<void>;
   resetPassword(email: string): Promise<void>;
   updateDisplayName(name: string): Promise<void>;
-  token(): Promise<string>;
+  token(forceRefresh?: boolean): Promise<string>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -92,9 +92,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!user) throw new Error("Sign in to update your profile.");
       await updateProfile(user, { displayName: clean });
     },
-    async token() {
+    async token(forceRefresh = false) {
       if (!user) throw new Error("Sign in to continue.");
-      return user.getIdToken();
+      return user.getIdToken(forceRefresh);
     }
   };
 
