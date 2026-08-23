@@ -1,24 +1,22 @@
 {
-  "status": "PASS",
-  "project": "gtm-daily-action-queues-20260823",
-  "completed_at": "2026-08-23T13:20:00Z",
-  "production_revision": "PENDING_DEPLOYMENT",
-  "rollback_revision": "grantdeskhq-prototype-00232-tom",
+  "status": "PARTIAL",
+  "project": "instantly-fail-closed-integration-20260823",
+  "completed_at": "2026-08-23T15:45:00Z",
+  "production_revision": "PENDING_CANDIDATE",
+  "rollback_revision": "grantdeskhq-prototype-00244-tim",
   "implementation_commits": [
-    "f559c4b"
+    "PENDING_COMMIT"
   ],
-  "root_cause": "The commercial engine correctly protected exhausted contact inventory but did not surface fresh award research in the canonical Direct model, did not prioritize published emails before Hunter, left Social scanning outside the daily GTM runtime, and represented SEO monitoring as founder work.",
+  "root_cause": "Instantly had no production integration boundary or durable attribution/event model. The API v2 secret remains absent, so all delivery and provider operations are deliberately fail-closed.",
   "completed": [
-    "Recorded eight founder-confirmed partner sends with canonical prior-contact protection and Monday-Friday follow-up dates",
-    "Centralized future benefit-led Direct and Partner drafts with one appropriate product link",
-    "Added published-business-email-first Direct enrichment before Hunter fallback",
-    "Fed bounded fresh award research into the canonical Direct model",
-    "Added canonical Social telemetry and human-only Responded/Skipped state",
-    "Changed SEO to an evidence-threshold action queue with health separate from monitoring",
-    "Added canonical trailing-slash redirects for public pages"
+    "Added a fail-closed Instantly API v2 client and explicit feature flags",
+    "Added lean durable Instantly staging, event, status, and product-attribution records",
+    "Added idempotent signed webhook normalization and canonical external-outreach reconciliation",
+    "Added first-party attribution for Free First Award start, report generation, and paid subscription",
+    "Added founder-safe Instantly System Health status with outbound and auto-handoff disabled"
   ],
   "validation": [
-    "npm test -- --run src/test/gtmOutreach.test.ts src/test/gtmDailyScanner.test.ts src/test/searchConsole.test.ts src/test/contactEnrichmentTargets.test.ts src/test/gtmCanonical.test.ts",
+    "npm test",
     "npm run build"
   ],
   "side_effects": {
@@ -26,9 +24,10 @@
     "outbound_email_sent": 0,
     "instantly_activated": false,
     "search_console_provider_calls": 0,
-    "social_posts_made": 0
+    "social_posts_made": 0,
+    "instantly_provider_calls": 0
   },
   "limitations": [
-    "Deployment and normal bounded GTM runtime validation are pending. No existing safe authenticated founder browser fixture exists, so visual validation will use deployed frontend bundle and protected endpoint evidence rather than a live founder visual session."
+    "The external Instantly API v2 key is absent. API reads/writes, actual CRM staging, campaign mapping discovery, webhook registration, and live reconciliation remain intentionally disabled until the one required credential is stored securely."
   ]
 }

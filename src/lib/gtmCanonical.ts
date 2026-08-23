@@ -80,6 +80,18 @@ export interface CanonicalGtmModel {
   };
 }
 
+/** Lean external delivery state; Instantly remains the campaign/inbox system. */
+export interface CanonicalExternalOutreachState {
+  canonicalOrganizationId: string;
+  email: string;
+  instantlySyncStatus: string;
+  firstSentAt?: string;
+  replyReceivedAt?: string;
+  bounceAt?: string;
+  unsubscribeAt?: string;
+  sequenceCompletedAt?: string;
+}
+
 const STATES: CanonicalGtmState[] = ["RESEARCH_BACKLOG", "NEEDS_VERIFICATION", "READY_TO_SEND", "ALREADY_CONTACTED", "AWAITING_REPLY", "FOLLOW_UP_DUE", "REPLIED", "POSITIVE", "TRIAL", "PAID"];
 
 /** A small explicit alias registry supplements normalized names and domains. */
@@ -105,6 +117,7 @@ export function buildCanonicalGtmModel(input: {
   candidates: readonly CanonicalGtmCandidate[];
   enrichments: readonly ContactEnrichmentRecord[];
   outreach: readonly OutreachRecord[];
+  instantly?: readonly CanonicalExternalOutreachState[];
   generatedAt?: string;
 }): CanonicalGtmModel {
   const enrichmentByIdentity = new Map<string, ContactEnrichmentRecord>();
@@ -142,10 +155,13 @@ export function buildCanonicalGtmModel(input: {
     }
   }
 
+  const externallyManaged = new Map((input.instantly || []).map((record) => [`${record.canonicalOrganizationId}:${record.email.toLowerCase()}`, record]));
   const records = [...candidateByIdentity.entries()].map(([organizationId, candidate]) => {
     const enrichment = enrichmentByIdentity.get(organizationId);
     const history = outreachByIdentity.get(organizationId);
-    return toCanonicalRecord(organizationId, candidate, enrichment, history);
+    const canonical = toCanonicalRecord(organizationId, candidate, enrichment, history);
+    const external = externallyManaged.get(`${organizationId}:${String(canonical.email || "").toLowerCase()}`);
+    return external ? applyExternalCommercialState(canonical, external) : canonical;
   }).sort((left, right) => stateOrder(left.state) - stateOrder(right.state) || (right.lastUpdated || "").localeCompare(left.lastUpdated || "") || left.organization.localeCompare(right.organization));
   const queues = Object.fromEntries(STATES.map((state) => [state, records.filter((record) => record.state === state).map((record) => record.id)])) as CanonicalGtmModel["queues"];
   const count = (state: CanonicalGtmState, segment?: CanonicalSegment) => records.filter((record) => record.state === state && (!segment || record.segment === segment)).length;
@@ -158,6 +174,18 @@ export function buildCanonicalGtmModel(input: {
       positiveReplies: count("POSITIVE"), trials: count("TRIAL"), paid: count("PAID"), mrr: 0
     }
   };
+}
+
+function applyExternalCommercialState(record: CanonicalGtmRecord, external: CanonicalExternalOutreachState): CanonicalGtmRecord {
+  // Human-confirmed ledger history is still stronger than an external sync;
+  // this only lets real delivery/reply outcomes enrich the same read model.
+  if (record.priorContact && record.sentAt) return record;
+  const status = external.instantlySyncStatus;
+  if (status === "SENT") return { ...record, state: "AWAITING_REPLY", priorContact: true, blockers: [], sentAt: external.firstSentAt || record.sentAt || null, nextAction: "AWAIT RESPONSE; DELIVERY WAS RECORDED BY INSTANTLY." };
+  if (status === "REPLIED") return { ...record, state: "REPLIED", priorContact: true, blockers: [], sentAt: external.firstSentAt || record.sentAt || null, nextAction: "REPLY REQUIRES HUMAN RESPONSE IN INSTANTLY." };
+  if (status === "POSITIVE") return { ...record, state: "POSITIVE", priorContact: true, blockers: [], sentAt: external.firstSentAt || record.sentAt || null, nextAction: "REVIEW INTERESTED REPLY IN INSTANTLY." };
+  if (["BOUNCED", "UNSUBSCRIBED", "NOT_INTERESTED", "SEQUENCE_COMPLETE"].includes(status)) return { ...record, state: "ALREADY_CONTACTED", priorContact: true, blockers: [status], sentAt: external.firstSentAt || record.sentAt || null, nextAction: "PRESERVE EXTERNAL OUTREACH HISTORY; DO NOT CREATE A NEW FIRST-TOUCH ACTION." };
+  return record;
 }
 
 function toCanonicalRecord(organizationId: string, candidate: CanonicalGtmCandidate, enrichment?: ContactEnrichmentRecord, history?: OutreachRecord): CanonicalGtmRecord {

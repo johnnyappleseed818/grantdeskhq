@@ -9,7 +9,7 @@ import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmContactSuppression, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmEnrichmentUsage, readGtmShadowStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveGtmDailyScan, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview, updateGtmDailySocialItem } from "./persistence.ts";
+import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmContactSuppression, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmEnrichmentUsage, readGtmShadowStatus, readInstantlyRecords, readInstantlyStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveGtmDailyScan, saveInstantlyRecord, saveInstantlyStatus, saveInstantlyWebhookEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview, updateGtmDailySocialItem } from "./persistence.ts";
 import { validateFeedbackInput, type FeedbackSubmission } from "../src/lib/feedback.ts";
 import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
 import { confirmedHumanOutreach, summarizeOutreach } from "../src/lib/gtmOutreach.ts";
@@ -31,6 +31,7 @@ import { readCanonicalGtmModel } from "./gtmCanonical.ts";
 import type { GtmOpportunity } from "../src/lib/gtm.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
+import { applyInstantlyEvent, instantlyConfig, instantlyHealth, instantlyPreviewRecord, normalizeInstantlyWebhook, stagingEligibility, verifyInstantlyWebhookSignature } from "./instantly.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
@@ -116,6 +117,10 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/control-plane-queue") return await handleGtmControlPlaneQueue(request, response);
     if (url.pathname === "/api/gtm/overview") return await handleGtmOverview(request, response);
     if (url.pathname === "/api/gtm/canonical") return await handleGtmCanonical(request, response);
+    if (url.pathname === "/api/gtm/instantly") return await handleGtmInstantly(request, response);
+    if (url.pathname === "/api/gtm/instantly/stage") return await handleGtmInstantlyStage(request, response);
+    if (url.pathname === "/api/gtm/instantly/reconcile") return await handleInstantlyReconcile(request, response);
+    if (url.pathname === "/api/gtm/instantly/webhook") return await handleInstantlyWebhook(request, response);
     if (url.pathname === "/api/gtm/shadow-status") return await handleGtmShadowStatus(request, response);
     if (url.pathname === "/api/gtm/contact-enrichment") return await handleGtmContactEnrichment(request, response);
     if (url.pathname === "/api/gtm/contact-enrichment/batch") return await handleGtmContactEnrichmentBatch(request, response);
@@ -360,6 +365,55 @@ async function handleGtmCanonical(request: IncomingMessage, response: ServerResp
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   requireGtmAdmin(await requireUser(request));
   return json(response, 200, { model: await readCanonicalGtmModel() });
+}
+
+/** Founder-safe status; it intentionally excludes API keys and raw payloads. */
+async function handleGtmInstantly(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  requireGtmAdmin(await requireUser(request));
+  const [records, persisted] = await Promise.all([readInstantlyRecords(), readInstantlyStatus()]);
+  return json(response, 200, { health: instantlyHealth(), records, persisted });
+}
+
+/** Staging defaults to preview-only and cannot create a campaign membership. */
+async function handleGtmInstantlyStage(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  requireGtmAdmin(await requireUser(request));
+  const config = instantlyConfig();
+  const model = await readCanonicalGtmModel();
+  const outreach = await reconcileGtmOutreachLedger(confirmedHumanOutreach);
+  const eligible = model.records.filter((record) => stagingEligibility(record, outreach, config).eligible);
+  // Never write to Instantly while there is no verified API credential. The
+  // returned preview is enough for founder review and produces no side effect.
+  if (!config.apiKeyConfigured) return json(response, 200, { mode: "PREVIEW_ONLY", reason: "API_KEY_NOT_CONFIGURED", eligible: eligible.map((record) => ({ id: record.id, organization: record.organization, segment: record.segment })) });
+  const previews = eligible.map((record) => instantlyPreviewRecord(record));
+  await Promise.all(previews.map(saveInstantlyRecord));
+  return json(response, 200, { mode: "STAGED_PENDING_APPROVAL", staged: previews.length, records: previews });
+}
+
+/** Scheduler-protected reconciliation remains read-only until a key is configured. */
+async function handleInstantlyReconcile(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const health = instantlyHealth();
+  await saveInstantlyStatus({ ...health, checkedAt: new Date().toISOString(), reconciliation: health.apiKeyConfigured ? "PENDING_CLIENT_READ" : "API_KEY_NOT_CONFIGURED" });
+  return json(response, 200, { mode: health.apiKeyConfigured ? "CONFIGURED_READ_PENDING" : "PREVIEW_ONLY", health });
+}
+
+/** Public only after cryptographic verification; replayed event ids are ignored. */
+async function handleInstantlyWebhook(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  const secret = process.env.INSTANTLY_WEBHOOK_SECRET || "";
+  const payload = await readBody(request);
+  if (!verifyInstantlyWebhookSignature(payload, String(request.headers["x-instantly-signature"] || request.headers["x-webhook-signature"] || ""), secret)) return json(response, 401, { error: "Webhook signature is invalid." });
+  let event;
+  try { event = normalizeInstantlyWebhook(JSON.parse(payload.toString("utf8"))); } catch { event = null; }
+  if (!event) return json(response, 400, { error: "Webhook payload is invalid." });
+  if (!await saveInstantlyWebhookEvent(event)) return json(response, 200, { received: true, duplicate: true });
+  const records = await readInstantlyRecords();
+  const record = records.find((item) => (event.instantlyLeadId && item.instantlyLeadId === event.instantlyLeadId) || (event.email && item.email === event.email));
+  if (record) await saveInstantlyRecord(applyInstantlyEvent(record, event));
+  return json(response, 200, { received: true, matched: Boolean(record) });
 }
 
 async function handleGtmShadowStatus(request: IncomingMessage, response: ServerResponse) {

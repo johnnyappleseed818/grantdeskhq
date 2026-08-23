@@ -1,14 +1,15 @@
 import { canonicalGtmCandidates } from "./contactEnrichmentBatch.ts";
-import { listGtmContactEnrichments, readGtmAwardScan, readGtmOutreachLedger } from "./persistence.ts";
+import { listGtmContactEnrichments, readGtmAwardScan, readGtmOutreachLedger, readInstantlyRecords } from "./persistence.ts";
 import { confirmedHumanOutreach } from "../src/lib/gtmOutreach.ts";
 import { buildCanonicalGtmModel } from "../src/lib/gtmCanonical.ts";
 
 /** Read-only composition boundary for every founder-facing commercial queue. */
 export async function readCanonicalGtmModel() {
-  const [enrichments, outreach, awardScan] = await Promise.all([
+  const [enrichments, outreach, awardScan, instantly] = await Promise.all([
     listGtmContactEnrichments(),
     readGtmOutreachLedger(confirmedHumanOutreach),
-    readGtmAwardScan()
+    readGtmAwardScan(),
+    readInstantlyRecords()
   ]);
-  return buildCanonicalGtmModel({ candidates: canonicalGtmCandidates(awardScan?.opportunities || []), enrichments, outreach });
+  return buildCanonicalGtmModel({ candidates: canonicalGtmCandidates(awardScan?.opportunities || []), enrichments, outreach, instantly });
 }

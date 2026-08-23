@@ -28,6 +28,7 @@ import { futureWorkflowStatus, normalizeWorkflowObligations } from "../lib/oblig
 import { apiRequest } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { trackAnalyticsEvent } from "../lib/analytics";
+import { currentCampaignAttribution } from "../lib/attribution";
 import type { CompilationPreflightResult, CompilationRequest, CompilationResult, CompilerFile, GrantReportingPeriod, GrantWorkflowObligation, ObligationApplicability, PersistedCompilationResponse, ReviewState, SetupDecision, SourceRole, SupportingEvidenceFile } from "../types/prototype";
 
 const sourceFields: Array<{ role: SourceRole; label: string; help: string; accept: string; required: boolean }> = [
@@ -291,7 +292,7 @@ export function CompilePage() {
       }
       const idToken = await token();
       trackAnalyticsEvent("report_started", { surface: "account" });
-      void apiRequest<{ recorded: boolean }>("/api/lifecycle/first-report-started", idToken, { method: "POST", body: "{}" }).catch(() => undefined);
+      void apiRequest<{ recorded: boolean }>("/api/lifecycle/first-report-started", idToken, { method: "POST", body: JSON.stringify({ attribution: currentCampaignAttribution() }) }).catch(() => undefined);
       const corePayload = { ...payload, files: payload.files.filter((file) => file.role !== "supportingEvidence") };
       const body = await apiRequest<PersistedCompilationResponse>("/api/reports/compile", idToken, { method: "POST", body: JSON.stringify(corePayload) });
       setResult(body.result);

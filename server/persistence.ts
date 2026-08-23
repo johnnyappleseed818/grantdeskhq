@@ -13,6 +13,7 @@ import { isConversionLearningRecord, type ConversionLearningRecord } from "../sr
 import type { AuthenticatedUser } from "./auth.ts";
 import { normalizeAttribution, type Attribution, type BillingEventSnapshot } from "./billing.ts";
 import { subscriptionIsEntitled } from "../src/content/pricing.ts";
+import type { InstantlyIntegrationRecord, InstantlyWebhookEvent } from "./instantly.ts";
 import { analyzeSupportingEvidence, applyEvidenceMatches, buildEvidenceTargets, normalizeSupportingEvidenceFiles } from "./evidenceReconciliation.ts";
 import { applyDeterministicAccuracyChecks } from "./accuracy.ts";
 import { normalizeCompilationSources } from "./sourceNormalization.ts";
@@ -154,6 +155,13 @@ export async function saveCompilation(user: AuthenticatedUser, request: Compilat
     auditJson: JSON.stringify([...setupAudit, { at: now, actorUid: user.uid, action: "compiled", detail: "Our AI-powered solution prepared the draft, then completed an independent source check and deterministic validation." }])
   });
   await persistAnalysisManifest(accessToken, `organizations/${organizationId}/reports/${reportId}`, manifest);
+  await writeDocumentIfAbsent(accessToken, `organizations/${organizationId}/lifecycleEvents/report_generated`, {
+    event: "report_generated", uid: user.uid, occurredAt: now, attributionJson: "{}"
+  });
+  // The stored organization attribution is intentionally first-party. It is
+  // read only to connect a previously attributed lead to product progress.
+  const attributionResponse = await authorizedFetch(`${firestoreBase}/organizations/${organizationId}/billing/attribution`, accessToken);
+  if (attributionResponse.ok) await applyInstantlyProductLifecycle(accessToken, storedAttribution(decodeFields(((await attributionResponse.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}).attributionJson), "report_generated", now);
   return { reportId, report: summary, result: persistedResult, sources: publicSources(sources), manifest };
 }
 
@@ -831,7 +839,7 @@ export async function recordGtmContactSuppression(email: string, reasons: string
   });
 }
 
-export type LifecycleEventName = "account_created" | "first_report_started" | "checkout_started" | "subscription_started";
+export type LifecycleEventName = "account_created" | "first_report_started" | "checkout_started" | "subscription_started" | "report_generated";
 
 export async function saveLifecycleEvent(user: AuthenticatedUser, event: LifecycleEventName, attributionInput: unknown = {}) {
   const accessToken = await gcpToken();
@@ -846,6 +854,7 @@ export async function saveLifecycleEvent(user: AuthenticatedUser, event: Lifecyc
     occurredAt: new Date().toISOString(),
     attributionJson: JSON.stringify(attribution)
   });
+  await applyInstantlyProductLifecycle(accessToken, attribution, event, new Date().toISOString());
   return attribution;
 }
 
@@ -884,7 +893,58 @@ export async function saveBillingEvent(snapshot: BillingEventSnapshot) {
       attributionJson: JSON.stringify(snapshot.attribution)
     });
   }
+  if (snapshot.subscriptionStatus === "active" || snapshot.subscriptionStatus === "trialing") await applyInstantlyProductLifecycle(accessToken, snapshot.attribution, "subscription_started", snapshot.updatedAt);
   return { duplicate: false, applied: shouldApplyBillingEvent(snapshot, String(prior.eventId || ""), priorEventAt) };
+}
+
+export async function saveInstantlyRecord(record: InstantlyIntegrationRecord) {
+  const accessToken = await gcpToken();
+  await writeDocument(accessToken, `gtm/instantly/records/${safeDocumentId(record.id)}`, { recordJson: JSON.stringify(record), updatedAt: record.updatedAt });
+  return record;
+}
+
+export async function readInstantlyRecords(limit = 200): Promise<InstantlyIntegrationRecord[]> {
+  const accessToken = await gcpToken();
+  const response = await authorizedFetch(`${firestoreBase}/gtm/instantly/records?pageSize=${Math.min(Math.max(limit, 1), 200)}`, accessToken);
+  if (response.status === 404) return [];
+  if (!response.ok) throw new Error(`Instantly records could not be loaded (${response.status}).`);
+  return (((await response.json()) as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> }).documents || []).flatMap((document) => {
+    try { const value = JSON.parse(String(decodeFields(document.fields || {}).recordJson || "")) as InstantlyIntegrationRecord; return value?.id ? [value] : []; } catch { return []; }
+  });
+}
+
+export async function saveInstantlyWebhookEvent(event: InstantlyWebhookEvent) {
+  const accessToken = await gcpToken();
+  return writeDocumentIfAbsent(accessToken, `gtm/instantly/events/${safeDocumentId(event.id)}`, { eventJson: JSON.stringify(event), occurredAt: event.occurredAt });
+}
+
+export async function saveInstantlyStatus(status: Record<string, unknown>) {
+  const accessToken = await gcpToken();
+  await writeDocument(accessToken, "gtm/instantly/status/current", { statusJson: JSON.stringify(status), updatedAt: new Date().toISOString() });
+}
+
+export async function readInstantlyStatus(): Promise<Record<string, unknown> | null> {
+  const accessToken = await gcpToken();
+  const response = await authorizedFetch(`${firestoreBase}/gtm/instantly/status/current`, accessToken);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Instantly status could not be loaded (${response.status}).`);
+  try { return JSON.parse(String(decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}).statusJson || "")) as Record<string, unknown>; } catch { return null; }
+}
+
+async function applyInstantlyProductLifecycle(accessToken: string, attribution: Attribution, event: LifecycleEventName, occurredAt: string) {
+  const leadId = String(attribution.lead_id || "");
+  if (!leadId) return;
+  const response = await authorizedFetch(`${firestoreBase}/gtm/instantly/records?pageSize=200`, accessToken);
+  if (response.status === 404 || !response.ok) return;
+  const records = (((await response.json()) as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> }).documents || []).flatMap((document) => {
+    try { const record = JSON.parse(String(decodeFields(document.fields || {}).recordJson || "")) as InstantlyIntegrationRecord; return record?.id ? [record] : []; } catch { return []; }
+  });
+  const record = records.find((item) => item.instantlyLeadId === leadId || item.productAttributionId === leadId);
+  if (!record) return;
+  const lifecycle = event === "first_report_started" ? { freeFirstAwardStartedAt: occurredAt } : event === "report_generated" ? { reportGeneratedAt: occurredAt } : event === "subscription_started" ? { paidAt: occurredAt } : {};
+  if (!Object.keys(lifecycle).length) return;
+  const updated = { ...record, ...lifecycle, updatedAt: occurredAt };
+  await writeDocument(accessToken, `gtm/instantly/records/${safeDocumentId(updated.id)}`, { recordJson: JSON.stringify(updated), updatedAt: updated.updatedAt });
 }
 
 export async function readBillingStatus(user: AuthenticatedUser) {
