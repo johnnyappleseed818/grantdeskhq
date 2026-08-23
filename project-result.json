@@ -1,39 +1,43 @@
 {
-  "status": "PASS",
-  "project": "gtm-human-confirmed-outreach-20260818",
-  "completed_at": "2026-08-18",
-  "tests": [
-    "npx vitest run src/test/gtmOutreach.test.ts src/test/gtmControlPlaneQueue.test.ts",
-    "npm run gtm:test",
-    "npm run lint -- --quiet",
-    "npm run build",
-    "git diff --check"
-  ],
-  "artifacts": [
-    "src/lib/gtmOutreach.ts",
-    "src/lib/gtmControlPlaneQueue.ts",
-    "server/cloudRun.ts",
-    "server/gtmControlPlaneReconcileJob.ts",
-    "server/persistence.ts",
-    "src/pages/GtmDashboardPage.tsx",
-    "src/test/gtmOutreach.test.ts",
-    "src/test/gtmControlPlaneQueue.test.ts",
-    "reports/gtm-outreach-update-20260818.md"
-  ],
-  "blocker": "No production deployment was authorized or performed; the committed reconciliation will become live only through a separately authorized deployment.",
-  "result_summary": "Recorded Project Oceanology and Rodale Institute as human-confirmed 2026-08-18 direct sends, preserved Junior Achievement's single 2026-08-17 send, and enforced a canonical organization/email duplicate-initial-send guard. Known valid business emails survive persistence decoding; malformed values remain rejected. No email was sent or scheduled.",
-  "counts": {
-    "direct_unique_contacted": 7,
-    "partner_unique_contacted": 5,
-    "total_unique_contacted": 12,
-    "total_email_events": 12,
-    "missing_unaccounted": 0,
-    "real_emails_sent_by_codex": 0
-  },
-  "production_traffic_changed": false,
-  "external_actions": 0,
+  "status": "PARTIAL",
+  "project": "canonical-gtm-search-console-live-audit-20260823",
+  "completed_at": "2026-08-23T07:28:43Z",
+  "production_revision": "grantdeskhq-prototype-00232-tom",
+  "rollback_revision": "grantdeskhq-prototype-00227-dub",
   "implementation_commits": [
-    "41810b41e904e0e5c57c5ddfce98e4df6430da7c",
-    "10fe3f4479302e689a1c94097585f25f10db3c4c"
+    "6f6ad55",
+    "651e9dc",
+    "14f6cae"
+  ],
+  "validation": [
+    "npx vitest run --exclude .worktrees/** src/test/gtm.test.tsx src/test/gtmOverview.test.ts src/test/contactEnrichment.test.ts src/test/gtmOutreach.test.ts src/test/partnerPipeline.test.ts src/test/gtmCanonical.test.ts src/test/searchConsole.test.ts --disableConsoleIntercept",
+    "npx tsc --noEmit",
+    "npm run build",
+    "npm run test:seo-static",
+    "zero-traffic Cloud Run candidate health and sitemap validation",
+    "production health and authenticated stored-only GTM/Search Console reconciliation"
+  ],
+  "completed": [
+    "Server-canonical GTM operating model with organization identity reconciliation, readiness rules, prior-contact protection, and explicit blockers",
+    "Normalized Hunter verification persistence and stored-only recovery of eight Partner verifier results",
+    "Bounded Direct replenishment hook in the existing daily GTM runtime without creating a Scheduler job",
+    "Search Console analytics persistence, sitemap verification/submission, and release-gate post-deploy submission path",
+    "Production promotion and current reconciliation without Hunter provider calls or outbound email",
+    "External-review live-site audit, route inventory, and eleven browser screenshots"
+  ],
+  "counts": {
+    "direct_ready": 0,
+    "partner_ready": 8,
+    "partner_needs_verification": 1,
+    "old_contacted_customers_shown_as_new": 0,
+    "old_contacted_partners_shown_as_new": 0,
+    "hunter_provider_calls_this_project_reconciliation": 0,
+    "search_console_pages_last_28_days": 7,
+    "search_console_queries_last_28_days": 0
+  },
+  "outbound_email_sent": false,
+  "instantly_activated": false,
+  "blockers": [
+    "No existing safe authenticated production browser fixture is available. Protected founder/customer visual review was not bypassed; server-canonical state and anonymous authentication entry behavior were validated instead."
   ]
 }
