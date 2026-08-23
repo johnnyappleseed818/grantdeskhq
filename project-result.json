@@ -1,43 +1,37 @@
 {
-  "status": "PARTIAL",
-  "project": "canonical-gtm-search-console-live-audit-20260823",
-  "completed_at": "2026-08-23T07:28:43Z",
-  "production_revision": "grantdeskhq-prototype-00232-tom",
-  "rollback_revision": "grantdeskhq-prototype-00227-dub",
+  "status": "PASS",
+  "project": "gtm-canonical-loading-repair-20260823",
+  "completed_at": "2026-08-23T09:01:00Z",
+  "production_revision": "grantdeskhq-prototype-00240-nid",
+  "rollback_revision": "grantdeskhq-prototype-00232-tom",
   "implementation_commits": [
-    "6f6ad55",
-    "651e9dc",
-    "14f6cae"
+    "e1d5ccf",
+    "f0f8bb2",
+    "0d28040"
+  ],
+  "root_cause": "The GTM page put canonical state and all secondary GTM reads in one Promise.all. The canonical endpoint returned 200, but the Search Console-state route returned 500 because its Firestore read used a relative URL. That unrelated rejection prevented setCanonical and left Leads/Partners in the loading branch.",
+  "completed": [
+    "Isolated canonical model loading from secondary GTM reads",
+    "Added bounded 15-second canonical/auth request handling, one Firebase forced-refresh retry after 401, response validation, visible error state, and Retry action",
+    "Changed secondary GTM hydration to independent Promise.allSettled results",
+    "Corrected Search Console persisted-state Firestore URL",
+    "Deployed and promoted zero-traffic candidate after health/frontend bundle validation"
   ],
   "validation": [
-    "npx vitest run --exclude .worktrees/** src/test/gtm.test.tsx src/test/gtmOverview.test.ts src/test/contactEnrichment.test.ts src/test/gtmOutreach.test.ts src/test/partnerPipeline.test.ts src/test/gtmCanonical.test.ts src/test/searchConsole.test.ts --disableConsoleIntercept",
+    "npx vitest run --exclude .worktrees/** src/test/gtmCanonicalFetch.test.tsx src/test/gtmCanonical.test.ts src/test/gtm.test.tsx --disableConsoleIntercept",
+    "npx vitest run --exclude .worktrees/** src/test/gtmCanonicalFetch.test.tsx src/test/accountSelfService.test.tsx src/test/gtmCanonical.test.ts --disableConsoleIntercept",
     "npx tsc --noEmit",
     "npm run build",
-    "npm run test:seo-static",
-    "zero-traffic Cloud Run candidate health and sitemap validation",
-    "production health and authenticated stored-only GTM/Search Console reconciliation"
+    "zero-traffic candidate /api/health and GTM frontend bundle",
+    "production /api/health and recent authenticated canonical endpoint logs"
   ],
-  "completed": [
-    "Server-canonical GTM operating model with organization identity reconciliation, readiness rules, prior-contact protection, and explicit blockers",
-    "Normalized Hunter verification persistence and stored-only recovery of eight Partner verifier results",
-    "Bounded Direct replenishment hook in the existing daily GTM runtime without creating a Scheduler job",
-    "Search Console analytics persistence, sitemap verification/submission, and release-gate post-deploy submission path",
-    "Production promotion and current reconciliation without Hunter provider calls or outbound email",
-    "External-review live-site audit, route inventory, and eleven browser screenshots"
-  ],
-  "counts": {
-    "direct_ready": 0,
-    "partner_ready": 8,
-    "partner_needs_verification": 1,
-    "old_contacted_customers_shown_as_new": 0,
-    "old_contacted_partners_shown_as_new": 0,
-    "hunter_provider_calls_this_project_reconciliation": 0,
-    "search_console_pages_last_28_days": 7,
-    "search_console_queries_last_28_days": 0
+  "side_effects": {
+    "hunter_provider_calls": 0,
+    "outbound_email_sent": 0,
+    "instantly_activated": false,
+    "search_console_provider_calls": 0
   },
-  "outbound_email_sent": false,
-  "instantly_activated": false,
-  "blockers": [
-    "No existing safe authenticated production browser fixture is available. Protected founder/customer visual review was not bypassed; server-canonical state and anonymous authentication entry behavior were validated instead."
+  "limitations": [
+    "No existing safe authenticated founder browser fixture exists, so production validation is based on the authenticated endpoint logs, deployed frontend bundle, focused UI tests, and public health rather than a live founder visual session."
   ]
 }
