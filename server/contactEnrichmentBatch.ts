@@ -1,6 +1,7 @@
 import { initialOpportunities } from "../src/data/gtmData.ts";
 import { contactEnrichmentKey, createPartnerShadowDraft, type ContactEnrichmentRecord, type EnrichmentTarget } from "../src/lib/contactEnrichment.ts";
 import { confirmedHumanOutreach, initialOutreachEligibility } from "../src/lib/gtmOutreach.ts";
+import type { CanonicalGtmCandidate } from "../src/lib/gtmCanonical.ts";
 import { enrichGtmContactWithHunter, reconcileStoredGtmContact, retryEligible } from "./contactEnrichment.ts";
 import { readGtmContactEnrichment } from "./persistence.ts";
 
@@ -20,6 +21,26 @@ const partnerCandidates: Array<{ organization: string; domain: string; source: s
  ["Strategic Nonprofit Finance","strategicnonprofitfinance.com","https://www.strategicnonprofitfinance.com/about","Larry","Bomback","Founder and CEO","fractional CFO","Nonprofit finance leadership, board reporting, and foundation reporting."],
  ["100 Degrees Consulting","100degreesconsulting.com","https://100degreesconsulting.com/our-team/","Stephanie","Skryzowski","Founder & CEO","fractional CFO","Nonprofit financial leadership, planning, reporting, and sustainability support."]
 ].map(([organization, domain, source, first, last, title, type, whyFit]) => ({ organization, domain, source, first, last, title, type, whyFit }));
+
+/** Candidate inventory only. This never contacts a provider and is shared by the read model. */
+export function canonicalGtmCandidates(): CanonicalGtmCandidate[] {
+ const direct = initialOpportunities.map((item) => {
+  const contact = item.primaryContact;
+  const names = contact?.name.trim().split(/\s+/) || [];
+  const firstName = names[0] || "Unknown"; const lastName = names.at(-1) || "Contact";
+  return {
+   id: item.id, segment: "DIRECT" as const, qualified: Boolean(item.entityVerified && item.nonprofitVerified && !item.conflicts.length),
+   target: { prospectChannel: "DIRECT_NONPROFIT" as const, organization: item.organization, organizationDomain: domainFromUrl(item.organizationUrl), domainSourceUrl: item.organizationUrl, person: { firstName, lastName, fullName: contact?.name || "Contact research required", currentTitle: contact?.title || "Contact research required", titleSourceUrl: contact?.roleSourceUrl || item.organizationUrl } },
+   sourceUrl: item.evidence[0]?.url || item.organizationUrl, whyNow: item.whyNow, subject: item.emailSubject, draft: item.draftMessage,
+   priority: item.score.pain + item.score.timing + item.score.fit + item.score.value
+  };
+ });
+ const partner = partnerTargets().map((candidate) => {
+  const draft = createPartnerShadowDraft({ firstName: candidate.target.person.firstName, organization: candidate.target.organization, partnerType: candidate.partnerType, whySelected: candidate.whyFit });
+  return { id: contactEnrichmentKey(candidate.target), segment: "PARTNER" as const, target: candidate.target, qualified: true, sourceUrl: candidate.source, whyNow: candidate.whyFit, partnerType: candidate.partnerType, subject: draft.subject, draft: draft.body, priority: 100 };
+ });
+ return [...direct, ...partner];
+}
 
 export async function runContactEnrichmentBatch(input: { segment: EnrichmentBatchSegment; limit?: number; dryRun?: boolean }, environment: NodeJS.ProcessEnv = process.env): Promise<EnrichmentBatchResult> {
  const limit = Math.min(Math.max(Number(input.limit) || 20, 1), 20);

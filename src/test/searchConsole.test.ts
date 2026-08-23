@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createSearchConsoleClient, reconcileSearchConsole, searchConsoleRecommendations, type SearchConsoleClient } from "../../server/searchConsole";
+import { canonicalPublicAcquisitionUrls, createSearchConsoleClient, reconcileSearchConsole, searchConsoleRecommendations, type SearchConsoleClient } from "../../server/searchConsole";
 
 describe("Search Console runtime", () => {
   it("uses the official Search Console endpoints and stores zero rows as no data", async () => {
@@ -12,9 +12,14 @@ describe("Search Console runtime", () => {
   });
   it("keeps SEO recommendations in MONITOR without search data", async () => {
     const client: SearchConsoleClient = { queryAnalytics: async () => [], listSitemaps: async () => ({}), getSitemap: async () => ({}), submitSitemap: async () => {} };
-    const state = await reconcileSearchConsole({ client, now: new Date("2026-08-21T12:00:00Z"), fetcher: async () => new Response("<urlset><url><loc>https://grantdeskhq.com/</loc></url><url><loc>https://grantdeskhq.com/resources</loc></url><url><loc>https://grantdeskhq.com/blog</loc></url></urlset>") });
+    const sitemap = `<urlset>${canonicalPublicAcquisitionUrls().map((url) => `<url><loc>${url}</loc></url>`).join("")}</urlset>`;
+    const state = await reconcileSearchConsole({ client, now: new Date("2026-08-21T12:00:00Z"), fetcher: async () => new Response(sitemap) });
     expect(state.analyticsStatus).toBe("NO_DATA_YET");
     expect(state.sitemap.result).toBe("PASS");
     expect(searchConsoleRecommendations(state)).toEqual([{ page: null, action: "MONITOR", reason: "No Search Console data or specific technical issue is available yet." }]);
+  });
+  it("includes every published article in sitemap validation", () => {
+    expect(canonicalPublicAcquisitionUrls()).toContain("https://grantdeskhq.com/blog/post-award-grant-reporting-checklist");
+    expect(canonicalPublicAcquisitionUrls()).toHaveLength(12);
   });
 });

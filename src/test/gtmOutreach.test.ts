@@ -29,6 +29,7 @@ describe("human-confirmed GTM outreach ledger", () => {
     expect(initialOutreachEligibility(confirmedHumanOutreach, { organization: "Unrelated organization", email: "elaine.macbeth@rodaleinstitute.org" })).toBe("DO_NOT_SEND_NEW_INITIAL_OUTREACH");
     expect(initialOutreachEligibility(confirmedHumanOutreach, { organization: "NFO", domain: "nfoyourcfo.com" })).toBe("DO_NOT_SEND_NEW_INITIAL_OUTREACH");
     expect(initialOutreachEligibility(confirmedHumanOutreach, { organization: "Perkins School for the Blind", email: "maureen.lister@perkins.org" })).toBe("DO_NOT_SEND_NEW_INITIAL_OUTREACH");
+    expect(initialOutreachEligibility(confirmedHumanOutreach, { organization: "University of Nebraska at Omaha", email: "sara.myers@unomaha.edu" })).toBe("DO_NOT_SEND_NEW_INITIAL_OUTREACH");
     expect(initialOutreachEligibility(confirmedHumanOutreach, { organization: "Future import", instantlyInitialOutreachRecorded: true })).toBe("DO_NOT_SEND_NEW_INITIAL_OUTREACH");
     expect(initialOutreachEligibility(confirmedHumanOutreach, { organization: "Project Oceanology" }, "FOLLOW_UP")).toBe("SEPARATE_HUMAN_AUTHORIZATION_REQUIRED");
     expect(initialOutreachEligibility(confirmedHumanOutreach, { organization: "Project Oceanology", suppressionStatus: "UNSUBSCRIBED" }, "FOLLOW_UP")).toBe("SUPPRESSED_DO_NOT_CONTACT");

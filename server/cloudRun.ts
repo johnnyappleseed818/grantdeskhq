@@ -26,6 +26,7 @@ import { normalizeCompilationSources } from "./sourceNormalization.ts";
 import { initialOpportunities } from "../src/data/gtmData.ts";
 import { reconcileControlPlaneQueue } from "../src/lib/gtmControlPlaneQueue.ts";
 import { buildGtmOverview } from "../src/lib/gtmOverview.ts";
+import { readCanonicalGtmModel } from "./gtmCanonical.ts";
 import type { GtmOpportunity } from "../src/lib/gtm.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
@@ -103,6 +104,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/award-signals") return await handleGtmAwardSignals(request, response);
     if (url.pathname === "/api/gtm/control-plane-queue") return await handleGtmControlPlaneQueue(request, response);
     if (url.pathname === "/api/gtm/overview") return await handleGtmOverview(request, response);
+    if (url.pathname === "/api/gtm/canonical") return await handleGtmCanonical(request, response);
     if (url.pathname === "/api/gtm/shadow-status") return await handleGtmShadowStatus(request, response);
     if (url.pathname === "/api/gtm/contact-enrichment") return await handleGtmContactEnrichment(request, response);
     if (url.pathname === "/api/gtm/contact-enrichment/batch") return await handleGtmContactEnrichmentBatch(request, response);
@@ -315,6 +317,12 @@ async function handleGtmOverview(request: IncomingMessage, response: ServerRespo
   return json(response, 200, { overview: buildGtmOverview({ reconciliation, shadowStatus, usage, hunterLookupLimit: configuredPositiveInteger("HUNTER_MAX_LOOKUPS_PER_RUN", 2) }) });
 }
 
+async function handleGtmCanonical(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  requireGtmAdmin(await requireUser(request));
+  return json(response, 200, { model: await readCanonicalGtmModel() });
+}
+
 async function handleGtmShadowStatus(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   requireGtmAdmin(await requireUser(request));
@@ -401,6 +409,17 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
   let shadowStatus;
   try { shadowStatus = await saveGtmShadowStatus(buildShadowStatus(opportunities.map(shadowLeadFromOpportunity), suggestedTopicsFromLeads(opportunities.map(shadowLeadFromOpportunity)))); }
   catch (error) { errors.push(error instanceof Error ? error.message : "GTM shadow status could not be saved."); }
+  // Reuse the established daily GTM runtime for bounded Direct replenishment.
+  // The batch suppresses contacted organizations before a provider call and
+  // never discovers a new cohort or sends a message.
+  let directReplenishment;
+  try {
+    const canonical = await readCanonicalGtmModel();
+    if (canonical.metrics.directReady < 15) {
+      directReplenishment = await runContactEnrichmentBatch({ segment: "direct", limit: 20 });
+      console.info("GTM_HUNTER_DIRECT_REPLENISHMENT " + JSON.stringify({ attempted: directReplenishment.attempted, ready: directReplenishment.ready, needsVerification: directReplenishment.needsVerification, alreadyContacted: directReplenishment.alreadyContacted, providerUsage: directReplenishment.providerUsage }));
+    }
+  } catch (error) { errors.push(error instanceof Error ? error.message : "Direct replenishment could not be completed."); }
   return json(response, 200, {
     status: errors.length ? "partial" : "completed",
     generatedAt: new Date().toISOString(),
@@ -411,6 +430,7 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
     controlPlaneUniqueOrganizationCount: reconciliation?.uniqueOrganizations || null,
     shadowMode: "SHADOW",
     shadowStatus: shadowStatus || null,
+    directReplenishment: directReplenishment || null,
     errors
   });
 }

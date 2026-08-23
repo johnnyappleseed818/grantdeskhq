@@ -71,6 +71,17 @@ export async function reconcileGtmOutreachLedger(confirmed: OutreachRecord[]): P
   return reconciled;
 }
 
+/** Read-only ledger composition for founder views; it never records a send. */
+export async function readGtmOutreachLedger(confirmed: OutreachRecord[]): Promise<OutreachRecord[]> {
+  const accessToken = await gcpToken();
+  const collection = "gtm/outreach-ledger/records";
+  const response = await authorizedFetch(firestoreBase + "/" + collection + "?pageSize=100", accessToken);
+  if (response.status !== 404 && !response.ok) throw new Error("GTM outreach ledger could not be loaded (" + response.status + ").");
+  const existing = response.status === 404 ? [] : ((await response.json()) as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> }).documents || [];
+  const imported = existing.map((document) => outreachFromRecord(decodeFields(document.fields || {}))).filter((record): record is OutreachRecord => Boolean(record));
+  return mergeOutreachRecords(imported, confirmed);
+}
+
 /** Private, human-review-only storage. This module exposes no send or auto-response operation. */
 export async function saveGtmConversionLearning(record: ConversionLearningRecord): Promise<ConversionLearningRecord> {
   if (!isConversionLearningRecord(record)) throw new Error("Invalid conversion learning record.");
@@ -695,6 +706,20 @@ export async function readGtmContactEnrichment(id: string): Promise<ContactEnric
   const record = decodeFields(document.fields || {});
   try { return record.recordJson ? JSON.parse(String(record.recordJson)) as ContactEnrichmentRecord : null; }
   catch { return null; }
+}
+
+/** Bounded read for the founder operating model; provider payloads remain private. */
+export async function listGtmContactEnrichments(limit = 100): Promise<ContactEnrichmentRecord[]> {
+  const accessToken = await gcpToken();
+  const response = await authorizedFetch(`${firestoreBase}/gtm/contact-enrichments/records?pageSize=${Math.min(Math.max(limit, 1), 100)}`, accessToken);
+  if (response.status === 404) return [];
+  if (!response.ok) throw new Error(`GTM contact enrichments could not be loaded (${response.status}).`);
+  const body = await response.json() as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> };
+  return (body.documents || []).flatMap((document) => {
+    const value = decodeFields(document.fields || {}).recordJson;
+    try { return value ? [JSON.parse(String(value)) as ContactEnrichmentRecord] : []; }
+    catch { return []; }
+  });
 }
 
 export async function saveGtmEnrichmentUsage(usage: EnrichmentUsage) {

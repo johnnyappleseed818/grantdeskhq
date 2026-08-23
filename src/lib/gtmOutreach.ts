@@ -75,7 +75,10 @@ export function outreachCount(records: OutreachRecord[], type?: OutreachType) {
 }
 
 /** Existing canonical prior-contact state may block first touch without inventing a sent-event record. */
-const PROTECTED_PRIOR_CONTACT_ORGANIZATIONS = new Set(["perkins school for blind"]);
+const PROTECTED_PRIOR_CONTACT_ORGANIZATIONS = new Set([
+  "perkins school for blind",
+  "university of nebraska at omaha"
+]);
 
 const OUTREACH_ORGANIZATION_ALIASES: Record<string, string> = {
   "interdistrict committee for project oceanology": "project oceanology",

@@ -1,5 +1,6 @@
 export const SEARCH_CONSOLE_PROPERTY = "sc-domain:grantdeskhq.com";
 export const CANONICAL_SITEMAP_URL = "https://grantdeskhq.com/sitemap.xml";
+import { BLOG_POSTS } from "../src/content/blog.ts";
 import { gcpToken } from "./persistence.ts";
 type Fetcher = (input: URL | string, init?: RequestInit) => Promise<Response>;
 export interface SearchAnalyticsRow { keys: string[]; clicks: number; impressions: number; ctr: number; position: number; }
@@ -32,7 +33,10 @@ export async function reconcileSearchConsole(options: { client?: SearchConsoleCl
  return state;
 }
 export function searchConsoleRecommendations(state: SearchConsoleState) { if (state.analyticsStatus !== "PASS") return [{ page: null, action: "MONITOR", reason: "No Search Console data or specific technical issue is available yet." }]; return state.ranges.last28Days.pages.flatMap((row) => { const page = row.keys[0] || ""; if (row.impressions >= 20 && row.position >= 8 && row.position <= 20) return [{ page, action: "REFRESH", reason: "High impressions with average position 8-20." }]; if (row.impressions >= 20 && row.ctr < 0.02) return [{ page, action: "TITLE_META", reason: "High impressions with low CTR." }]; if (row.position >= 1 && row.position <= 5) return [{ page, action: "PROTECT_MONITOR", reason: "Average position is 1-5." }]; return [{ page, action: "MONITOR", reason: "No evidence-backed change recommendation." }]; }); }
-export function canonicalPublicAcquisitionUrls() { return ["https://grantdeskhq.com/", "https://grantdeskhq.com/resources", "https://grantdeskhq.com/blog"]; }
+/** Kept alongside the published article registry so sitemap validation cannot omit live SEO pages. */
+export function canonicalPublicAcquisitionUrls() {
+ return ["https://grantdeskhq.com/", "https://grantdeskhq.com/pricing", "https://grantdeskhq.com/resources", "https://grantdeskhq.com/blog", "https://grantdeskhq.com/assessment", "https://grantdeskhq.com/contact", ...BLOG_POSTS.map((post) => `https://grantdeskhq.com/blog/${post.slug}`)];
+}
 function dateRanges(now: Date) { const end = utcDate(addDays(now, -3)); return { last7Days: { startDate: utcDate(addDays(now, -9)), endDate: end }, last28Days: { startDate: utcDate(addDays(now, -30)), endDate: end }, previous28Days: { startDate: utcDate(addDays(now, -58)), endDate: utcDate(addDays(now, -31)) } }; }
 function addDays(value: Date, days: number) { const copy = new Date(value); copy.setUTCDate(copy.getUTCDate() + days); return copy; }
 function utcDate(value: Date) { return value.toISOString().slice(0, 10); }
