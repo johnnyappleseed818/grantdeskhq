@@ -41,7 +41,7 @@ export async function runDailySocialScan(now = new Date()): Promise<DailySocialS
         type: "web_search",
         search_context_size: "low",
         external_web_access: true,
-        filters: { allowed_domains: ["reddit.com", "linkedin.com"] }
+        filters: { allowed_domains: ["reddit.com", "community.npquarterly.org", "forums.techsoup.org"] }
       }],
       tool_choice: "required",
       max_tool_calls: 6,
@@ -58,7 +58,7 @@ export async function runDailySocialScan(now = new Date()): Promise<DailySocialS
           role: "user",
           content: [{
             type: "input_text",
-            text: `Today is ${scanDate}. Run a bounded search for results published or visibly updated within the last ${WINDOW_DAYS} days. Check both Reddit and LinkedIn for: grant reporting with Excel or spreadsheets; manual funder reporting; budget-versus-actual grant work; mapping QuickBooks or GL exports to funder categories; missing receipts or evidence; finance-program handoffs; and reporting friction involving Instrumentl, Fluxx, Foundant, Blackbaud, Submittable, or Salesforce. Return at most six useful results per platform. Use the canonical public post or thread URL, not a search-results URL. If a date or author is not visible, return "unknown". If no result meets the criteria, return an empty signals array.`
+            text: `Today is ${scanDate}. Run a bounded search for public Reddit and nonprofit-finance/community discussions published or visibly updated within the last ${WINDOW_DAYS} days. Search across: grant reporting, grant report, funder reporting, grant closeout, grant compliance, grant accountant, grant management spreadsheets, post-award grant management, budget-to-actual grant reporting, grant reporting templates, collecting program data for funders, supporting documentation for grants, manual grant reporting, grant management pain, and grant audit preparation. Prefer actual pain/questions, not generic news. Return at most ten total useful results. Use a canonical public thread URL, not a search-results URL. If date or author is not visible return "unknown". Supply a brief, grounded suggested human response; never claim the source proves the poster needs GrantDeskHQ.`
           }]
         }
       ],
@@ -79,12 +79,13 @@ export function normalizeDailySocialScan(draft: SearchDraft, sourceUrls: string[
   const observedAt = now.toISOString();
   const seen = new Set<string>();
   const items: DailySocialSignal[] = [];
+  let suppressed = 0;
   for (const candidate of Array.isArray(draft.signals) ? draft.signals : []) {
     const platform = candidate.platform;
     const canonical = safeCanonicalUrl(candidate.url, platform);
     const normalized = canonical ? normalizeUrl(canonical) : "";
-    if (!canonical || !normalized || !sourceIndex.has(normalized) || seen.has(normalized)) continue;
-    if (!candidate.title?.trim() || !candidate.evidenceSummary?.trim() || !candidate.observedPain?.trim()) continue;
+    if (!canonical || !normalized || !sourceIndex.has(normalized) || seen.has(normalized)) { suppressed++; continue; }
+    if (!candidate.title?.trim() || !candidate.evidenceSummary?.trim() || !candidate.observedPain?.trim() || !candidate.suggestedResponse?.trim()) { suppressed++; continue; }
     seen.add(normalized);
     items.push({
       id: `social-${createHash("sha256").update(normalized).digest("hex").slice(0, 18)}`,
@@ -98,7 +99,8 @@ export function normalizeDailySocialScan(draft: SearchDraft, sourceUrls: string[
       observedPain: compact(candidate.observedPain, 300),
       painThemes: [...new Set((candidate.painThemes || []).filter((theme) => typeof theme === "string"))].slice(0, 6),
       whyRelevant: compact(candidate.whyRelevant || "Requires manual review before use.", 300),
-      status: "research_only"
+      suggestedResponse: compact(candidate.suggestedResponse, 700),
+      status: "ACTIONABLE"
     });
     if (items.length === 12) break;
   }
@@ -107,7 +109,11 @@ export function normalizeDailySocialScan(draft: SearchDraft, sourceUrls: string[
     windowDays: WINDOW_DAYS,
     queryCount,
     sourceCount: sourceIndex.size,
-    coverage: `${sourceIndex.size} indexed Reddit and LinkedIn source URL${sourceIndex.size === 1 ? "" : "s"} checked; ${items.length} result${items.length === 1 ? "" : "s"} passed the strict source and relevance gates. This is a bounded daily scan, not exhaustive coverage.`,
+    itemsExamined: Array.isArray(draft.signals) ? draft.signals.length : 0,
+    itemsQualified: items.length,
+    itemsSuppressed: suppressed,
+    errors: [],
+    coverage: `${sourceIndex.size} indexed public discussion URL${sourceIndex.size === 1 ? "" : "s"} checked; ${items.length} result${items.length === 1 ? "" : "s"} passed the strict source and relevance gates. This is a bounded daily scan, not exhaustive coverage.`,
     items,
     limitations: [
       "Search indexes can omit, delay, or misdate public posts.",
@@ -144,9 +150,9 @@ function safeCanonicalUrl(value: string, platform: SocialPlatform) {
     if (url.protocol !== "https:") return "";
     const host = url.hostname.toLowerCase().replace(/^www\./, "");
     if (platform === "reddit" && host !== "reddit.com" && !host.endsWith(".reddit.com")) return "";
-    if (platform === "linkedin" && host !== "linkedin.com" && !host.endsWith(".linkedin.com")) return "";
+    if (platform === "forum" && host !== "community.npquarterly.org" && host !== "forums.techsoup.org") return "";
     if (platform === "reddit" && !/\/comments\//.test(url.pathname)) return "";
-    if (platform === "linkedin" && !(/\/posts\//.test(url.pathname) || /activity-\d+/.test(url.pathname))) return "";
+    if (platform === "forum" && !url.pathname.includes("/")) return "";
     url.search = "";
     url.hash = "";
     return url.toString();

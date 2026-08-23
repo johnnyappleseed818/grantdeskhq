@@ -169,6 +169,12 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
       setCopied(null);
     }
   };
+  const reviewSocial = async (id: string, status: "RESPONDED" | "SKIPPED") => {
+    if (!dailySignalToken) return;
+    const idToken = await dailySignalToken();
+    const result = await apiRequest<{ scan: DailySocialScan }>("/api/gtm/social", idToken, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, status }) });
+    setDailyScan(result.scan);
+  };
 
   return <div className="gtm-page">
     <header className="gtm-header">
@@ -244,7 +250,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
       {activeTab === "leads" && !canonicalRuntime && <ControlPlanePanel reconciliation={controlPlane} />}
       {activeTab === "outreach" && <OutreachHistoryPanel records={outreach} canonicalOpportunityIds={controlPlane?.cards.map((card) => card.canonicalCardId) || ranked.map((opportunity) => opportunity.id)} filter={outreachFilter} query={outreachQuery} onFilter={setOutreachFilter} onQuery={setOutreachQuery} />}
       {activeTab === "partners" && (canonicalRuntime ? <CanonicalOperationalPanel model={canonical} segment="PARTNER" loading={canonicalLoading} error={canonicalError} onRetry={() => setCanonicalRetry((value) => value + 1)} /> : <PartnersPanel records={outreach} overview={overview} />)}
-      {activeTab === "social" && <SocialQueuePanel scan={dailyScan} />}
+      {activeTab === "social" && <SocialQueuePanel scan={dailyScan} onReview={reviewSocial} />}
       {activeTab === "seo" && <SeoQueuePanel state={searchConsole} />}
       {activeTab === "feedback" && <FeedbackPanel />}
       {activeTab === "system-health" && <><OverviewPanel overview={overview} inMain /><div className="mt-8"><SignalsPanel dailyScan={dailyScan} loading={signalsLoading} error={signalsError} /></div><div className="mt-8"><SourcesPanel /></div><div className="mt-8"><PipelinePanel opportunities={ranked} stages={stages} stagesOrder={pipelineStages} onStageChange={updateStage} /></div><div className="mt-8"><OutreachAutomationPanel opportunities={ranked} stages={stages} /></div><div className="mt-8"><AccuracyPanel /></div></>}
@@ -286,7 +292,10 @@ function CanonicalOperationalPanel({ model, segment, loading, error, onRetry }: 
         <h3>{record.organization}</h3><p className="gtm-why"><strong>Why now:</strong> {record.whyNow}</p>
         <div className="gtm-contact-summary"><MailCheck aria-hidden="true" /><div><span>Canonical recipient</span><strong>{record.contact || "No contact established"}{record.title ? ` · ${record.title}` : ""}</strong><span>{record.email || "No verified business email"}{record.verificationStatus ? ` · ${record.verificationStatus}` : ""}</span></div></div>
         {record.blockers.length > 0 && <div className="gtm-caveats"><AlertCircle aria-hidden="true" /><div><strong>Blocking condition</strong><p>{record.blockers.join(" ")}</p></div></div>}
-        <p className="gtm-why"><strong>Next action:</strong> {record.nextAction}</p><p><a href={record.sourceUrl} target="_blank" rel="noreferrer">Open source <ExternalLink aria-hidden="true" /></a></p>
+        <p className="gtm-why"><strong>Next action:</strong> {record.nextAction}</p>
+        {record.sentAt && <p className="gtm-why"><strong>Sent:</strong> {formatHistoryDate(record.sentAt)}</p>}
+        {record.followUpDueAt && <p className="gtm-why"><strong>Next follow-up:</strong> {formatHistoryDate(record.followUpDueAt)}</p>}
+        <p><a href={record.sourceUrl} target="_blank" rel="noreferrer">Open source <ExternalLink aria-hidden="true" /></a></p>
         {record.state === "READY_TO_SEND" && <div className="gtm-actions"><button type="button" className="button button-secondary button-small" onClick={() => copy(record, "subject")}><Copy aria-hidden="true" />{copied === `${record.id}:subject` ? "Copied" : "Copy subject"}</button><button type="button" className="button button-secondary button-small" onClick={() => copy(record, "email")}><Copy aria-hidden="true" />{copied === `${record.id}:email` ? "Copied" : "Copy email"}</button>{record.email && record.subject && <a className="button button-secondary button-small" href={`mailto:${record.email}?subject=${encodeURIComponent(record.subject)}`}>Open email</a>}<span className="status-badge status-neutral">MARK SENT REQUIRES EXPLICIT HUMAN RECORDING</span></div>}
       </div>
     </article>)}{!records.length && <div className="workspace-empty"><ClipboardCheck aria-hidden="true" /><h2>No records in this queue</h2><p>No result is inferred or manufactured. Change the canonical queue filter to inspect the next operational state.</p></div>}</div>
@@ -343,11 +352,15 @@ function isCanonicalGtmModel(value: unknown): value is CanonicalGtmModel {
     && ["directReady", "partnerReady", "directNeedsVerification", "partnerNeedsVerification", "followUpsDue", "awaitingReply", "replies", "positiveReplies", "trials", "paid", "mrr"].every((key) => Number.isFinite(metrics?.[key as keyof CanonicalGtmModel["metrics"]]));
 }
 
-function SocialQueuePanel({ scan }: { scan: DailySocialScan | null }) {
-  const items = scan?.items || [];
+function SocialQueuePanel({ scan, onReview }: { scan: DailySocialScan | null; onReview(id: string, status: "RESPONDED" | "SKIPPED"): Promise<void> }) {
+  const [copied, setCopied] = useState<string | null>(null);
+  const items = (scan?.items || []).filter((item) => item.status === "ACTIONABLE");
+  const copy = async (item: DailySocialScan["items"][number]) => {
+    try { await navigator.clipboard.writeText(item.suggestedResponse); setCopied(item.id); window.setTimeout(() => setCopied(null), 1500); } catch { setCopied(null); }
+  };
   return <section><div className="gtm-section-heading"><div><p className="eyebrow">Canonical research queue</p><h2>Social review</h2><p>Only source-linked research is shown. No post, reply, message, or automated engagement is enabled.</p></div><span className="status-badge status-neutral">MANUAL ONLY</span></div>
-    {scan && <p className="gtm-daily-summary">Last saved scan {formatDateTime(scan.generatedAt)} · {scan.coverage}</p>}
-    <div className="gtm-feed-list">{items.map((item) => <article key={item.id}><MessageSquareText aria-hidden="true" /><div><div className="flex flex-wrap items-center gap-2"><span className="status-badge status-neutral">{item.platform}</span><span className="status-badge status-review">research only</span></div><a href={item.url} target="_blank" rel="noreferrer">{item.title}<ExternalLink aria-hidden="true" /></a><p>{item.whyRelevant}</p><small>{item.publishedAt || "Publication date not recorded"}</small></div></article>)}</div>
+    {scan && <p className="gtm-daily-summary">Last scan {formatDateTime(scan.generatedAt)} · {scan.sourceCount} sources checked · {scan.itemsExamined} examined · {scan.itemsQualified} qualified · {scan.itemsSuppressed} suppressed.</p>}
+    <div className="gtm-feed-list">{items.map((item) => <article key={item.id}><MessageSquareText aria-hidden="true" /><div><div className="flex flex-wrap items-center gap-2"><span className="status-badge status-neutral">{item.platform}</span><span className="status-badge status-review">actionable</span></div><a href={item.url} target="_blank" rel="noreferrer">{item.title}<ExternalLink aria-hidden="true" /></a><p>{item.observedPain}</p><p><strong>Why relevant:</strong> {item.whyRelevant}</p><p><strong>Suggested response:</strong> {item.suggestedResponse}</p><small>{item.publishedAt || "Publication date not recorded"}</small><div className="gtm-actions"><a className="button button-secondary button-small" href={item.url} target="_blank" rel="noreferrer">Open</a><button type="button" className="button button-secondary button-small" onClick={() => copy(item)}>{copied === item.id ? "Copied" : "Copy response"}</button><button type="button" className="button button-secondary button-small" onClick={() => void onReview(item.id, "RESPONDED")}>Responded</button><button type="button" className="button button-secondary button-small" onClick={() => void onReview(item.id, "SKIPPED")}>Skip</button></div></div></article>)}</div>
     {!items.length && <div className="workspace-empty"><MessageSquareText aria-hidden="true" /><h2>No actionable social records</h2><p>No completed or speculative item is presented as an engagement task.</p></div>}
   </section>;
 }
@@ -355,18 +368,28 @@ function SocialQueuePanel({ scan }: { scan: DailySocialScan | null }) {
 function SeoQueuePanel({ state }: { state: SearchConsoleState | null }) {
   if (!state) return <section className="workspace-empty"><LoaderCircle className="animate-spin" aria-hidden="true" /><h2>Loading Search Console state</h2><p>The SEO queue waits for the persisted Search Console reconciliation.</p></section>;
   const pages = state.ranges.last28Days?.pages || [];
-  const actions = state.analyticsStatus === "PASS" ? pages.map((row) => {
-    const page = row.keys[0] || "";
-    if (row.impressions >= 20 && row.position >= 8 && row.position <= 20) return { page, action: "REFRESH", reason: "High impressions with average position 8–20." };
-    if (row.impressions >= 20 && row.ctr < 0.02) return { page, action: "TITLE / META", reason: "High impressions with low CTR." };
-    if (row.position >= 1 && row.position <= 5) return { page, action: "PROTECT / MONITOR", reason: "Average position is 1–5." };
-    return { page, action: "MONITOR", reason: "No page-specific opportunity is supported." };
-  }) : [{ page: "", action: "MONITOR", reason: "No Search Console data or specific technical issue is available yet." }];
+  const actions = seoActions(state);
+  const healthy = state.analyticsStatus !== "FAIL" && state.sitemap.result === "PASS";
   return <section><div className="gtm-section-heading"><div><p className="eyebrow">Search Console only</p><h2>SEO operating state</h2><p>{state.property} · synced {state.lastSuccessfulSync ? formatDateTime(state.lastSuccessfulSync) : "not yet"}</p></div><span className={`status-badge ${state.analyticsStatus === "FAIL" ? "status-blocked" : "status-neutral"}`}>{state.analyticsStatus.replaceAll("_", " ")}</span></div>
-    <div className="gtm-automation-metrics"><article><strong>{pages.length}</strong><span>pages with data</span></article><article><strong>{state.ranges.last28Days?.queries.length || 0}</strong><span>queries with data</span></article><article><strong>{state.sitemap.result}</strong><span>sitemap submission</span></article></div>
+    <div className="gtm-automation-metrics"><article><strong>{healthy ? "GOOD" : "ATTENTION"}</strong><span>SEO health</span></article><article><strong>{pages.length}</strong><span>pages with data</span></article><article><strong>{state.ranges.last28Days?.queries.length || 0}</strong><span>queries with data</span></article><article><strong>{state.sitemap.result}</strong><span>sitemap submission</span></article></div>
     <div className="gtm-opportunity-list mt-6">{actions.map((item, index) => <article className="gtm-opportunity" key={`${item.page}:${index}`}><div className="gtm-opportunity-main"><span className="status-badge status-neutral">{item.action}</span><h3>{item.page || "Search performance monitoring"}</h3><p>{item.reason}</p>{item.page && <a href={item.page} target="_blank" rel="noreferrer">Open affected page <ExternalLink aria-hidden="true" /></a>}</div></article>)}</div>
+    {!actions.length && <div className="workspace-empty"><ClipboardCheck aria-hidden="true" /><h2>No SEO action required</h2><p>Search Console has no page-specific, commercially meaningful task that meets the action threshold.</p></div>}
     <div className="gtm-boundary-note"><ShieldCheck aria-hidden="true" /><div><strong>Sitemap state</strong><p>{state.sitemap.publicAccessible && state.sitemap.canonicalUrlsPresent ? "Public canonical sitemap validated." : "Sitemap validation requires attention."} Submission: {state.sitemap.result}. {state.sitemap.error || ""}</p></div></div>
   </section>;
+}
+
+function seoActions(state: SearchConsoleState) {
+  if (state.analyticsStatus !== "PASS") return state.sitemap.result === "FAIL" ? [{ page: state.sitemap.url, action: "TECHNICAL SEO", reason: state.sitemap.error || "The canonical sitemap needs attention." }] : [];
+  const byPage = new Map<string, { impressions: number; ctr: number; position: number }>();
+  for (const row of state.ranges.last28Days?.pages || []) {
+    const raw = row.keys[0] || "";
+    let page = "";
+    try { const url = new URL(raw); if (!["grantdeskhq.com", "www.grantdeskhq.com"].includes(url.hostname)) continue; url.hostname = "grantdeskhq.com"; url.search = ""; url.hash = ""; if (url.pathname !== "/") url.pathname = url.pathname.replace(/\/+$/, ""); page = url.toString(); } catch { continue; }
+    if (["/privacy", "/terms", "/contact"].includes(new URL(page).pathname)) continue;
+    const previous = byPage.get(page);
+    byPage.set(page, previous ? { impressions: previous.impressions + row.impressions, ctr: 0, position: Math.min(previous.position, row.position) } : { impressions: row.impressions, ctr: row.ctr, position: row.position });
+  }
+  return [...byPage.entries()].flatMap(([page, row]) => row.impressions >= 50 && row.position >= 8 && row.position <= 20 ? [{ page, action: "CONTENT REFRESH", reason: "Meaningful impressions with average position 8–20." }] : row.impressions >= 50 && row.ctr < 0.02 ? [{ page, action: "TITLE / META", reason: "Meaningful impressions with a low click-through rate." }] : []);
 }
 
 function FunnelCard({ title, metrics, records }: { title: string; metrics: Record<string, GtmMetric> | undefined; records: OutreachRecord[] }) { const direct = title === "Direct funnel"; const manualSent = records.filter((record) => record.status === "SENT").length; const recorded = (key: string) => metrics?.[key]?.actual; const stages = (direct ? [["Qualified", recorded("qualified")], ["Ready to send", recorded("humanReview")], ["Sent", Math.max(recorded("sent") || 0, manualSent)], ["Replies", records.filter((record) => record.replied).length], ["Positive replies", records.filter((record) => record.replySentiment === "POSITIVE").length], ["Free First Award", records.filter((record) => record.trial).length], ["Paid", records.filter((record) => record.customer).length]] : [["High fit", recorded("highFit")], ["Ready to send", recorded("humanReview")], ["Sent", Math.max(recorded("contacted") || 0, manualSent)], ["Replies", records.filter((record) => record.replied).length], ["Positive replies", records.filter((record) => record.replySentiment === "POSITIVE").length], ["Trial with client or award", records.filter((record) => record.trial).length], ["Paid customers influenced", records.filter((record) => record.customer).length]]).filter(([, value]) => value !== null && value !== undefined) as Array<[string, number]>; return <div className="panel"><p className="eyebrow">{title}</p><div className="gtm-automation-metrics mt-4" aria-label={title}>{stages.map(([label, value]) => <article key={label}><strong>{value}</strong><span>{label}</span></article>)}</div></div>; }

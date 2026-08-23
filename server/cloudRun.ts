@@ -9,12 +9,13 @@ import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmContactSuppression, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmEnrichmentUsage, readGtmShadowStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview } from "./persistence.ts";
+import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmContactSuppression, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmEnrichmentUsage, readGtmShadowStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveGtmDailyScan, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview, updateGtmDailySocialItem } from "./persistence.ts";
 import { validateFeedbackInput, type FeedbackSubmission } from "../src/lib/feedback.ts";
 import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
-import { confirmedHumanOutreach } from "../src/lib/gtmOutreach.ts";
+import { confirmedHumanOutreach, summarizeOutreach } from "../src/lib/gtmOutreach.ts";
 import { reconcileGtmOutreachLedger, updateFeedbackReview } from "./persistence.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
+import { runDailySocialScan } from "./gtmDailyScanner.ts";
 import { buildShadowStatus, shadowLeadFromOpportunity, suggestedTopicsFromLeads } from "../src/lib/gtmShadow.ts";
 import { enrichGtmContactInShadow } from "./contactEnrichment.ts";
 import { reconcileStoredContactEnrichmentBatch, runContactEnrichmentBatch, type EnrichmentBatchSegment } from "./contactEnrichmentBatch.ts";
@@ -75,6 +76,14 @@ createServer(async (request, response) => {
     const url = new URL(request.url || "/", "http://localhost");
     applySecurityHeaders(response);
     applyCors(request, response);
+    // One canonical public URL per page: preserve the root slash, redirect all
+    // non-API trailing-slash variants before the React application is served.
+    if ((request.method === "GET" || request.method === "HEAD") && url.pathname.length > 1 && url.pathname.endsWith("/") && !url.pathname.startsWith("/api/")) {
+      response.statusCode = 301;
+      response.setHeader("Location", url.pathname.slice(0, -1) + url.search);
+      response.end();
+      return;
+    }
     if (url.pathname.startsWith("/api/") && request.method === "OPTIONS") {
       response.statusCode = 204;
       response.end();
@@ -95,12 +104,14 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/reports/preflight") return await handlePreflight(request, response);
     if (url.pathname === "/api/compile-report" || url.pathname === "/api/reports/compile") return await handleCompiler(request, response);
     if (url.pathname === "/api/gtm/outreach") return await handleGtmOutreach(request, response);
+    if (url.pathname === "/api/gtm/outreach/reconcile") return await handleGtmOutreachReconcile(request, response);
     if (url.pathname === "/api/readiness-assessment") return await handleReadiness(request, response);
     if (url.pathname === "/api/feedback") return await handleFeedback(request, response);
     if (url.pathname === "/api/gtm/feedback") return await handleGtmFeedback(request, response);
     if (url.pathname === "/api/gtm/access") return await handleGtmAccess(request, response);
     if (url.pathname === "/api/gtm/opportunities") return await handleGtmOpportunities(request, response);
     if (url.pathname === "/api/gtm/daily-signals") return await handleGtmDailySignals(request, response);
+    if (url.pathname === "/api/gtm/social") return await handleGtmSocial(request, response);
     if (url.pathname === "/api/gtm/award-signals") return await handleGtmAwardSignals(request, response);
     if (url.pathname === "/api/gtm/control-plane-queue") return await handleGtmControlPlaneQueue(request, response);
     if (url.pathname === "/api/gtm/overview") return await handleGtmOverview(request, response);
@@ -250,6 +261,16 @@ async function handleGtmDailySignals(request: IncomingMessage, response: ServerR
   return json(response, 200, { scan: await readGtmDailyScan() });
 }
 
+async function handleGtmSocial(request: IncomingMessage, response: ServerResponse) {
+  requireGtmAdmin(await requireUser(request));
+  if (request.method !== "PATCH") return json(response, 405, { error: "Method not allowed." });
+  const body = await readJson(request) as { id?: unknown; status?: unknown };
+  const id = String(body.id || "");
+  const status = String(body.status || "");
+  if (!/^social-[a-f0-9]{18}$/.test(id) || (status !== "RESPONDED" && status !== "SKIPPED")) return json(response, 400, { error: "A valid Social item and review status are required." });
+  return json(response, 200, { scan: await updateGtmDailySocialItem(id, status) });
+}
+
 async function handleGtmAccess(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   requireGtmAdmin(await requireUser(request));
@@ -284,6 +305,24 @@ async function handleGtmOutreach(request: IncomingMessage, response: ServerRespo
   requireGtmAdmin(await requireUser(request));
   try { return json(response, 200, { outreach: await reconcileGtmOutreachLedger(confirmedHumanOutreach), durable: true }); }
   catch { return json(response, 200, { outreach: confirmedHumanOutreach, durable: false }); }
+}
+
+/** Scheduler-protected, human-confirmed ledger reconciliation. It sends no email. */
+async function handleGtmOutreachReconcile(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const outreach = await reconcileGtmOutreachLedger(confirmedHumanOutreach);
+  const model = await readCanonicalGtmModel();
+  return json(response, 200, {
+    durable: true,
+    outreach: summarizeOutreach(outreach),
+    canonical: {
+      directReady: model.metrics.directReady,
+      partnerReady: model.metrics.partnerReady,
+      awaitingReply: model.metrics.awaitingReply,
+      followUpsDue: model.metrics.followUpsDue
+    }
+  });
 }
 
 function allowFeedbackAttempt(source: string) {
@@ -409,6 +448,9 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
   let shadowStatus;
   try { shadowStatus = await saveGtmShadowStatus(buildShadowStatus(opportunities.map(shadowLeadFromOpportunity), suggestedTopicsFromLeads(opportunities.map(shadowLeadFromOpportunity)))); }
   catch (error) { errors.push(error instanceof Error ? error.message : "GTM shadow status could not be saved."); }
+  let social;
+  try { social = await runDailySocialScan().then(saveGtmDailyScan); }
+  catch (error) { errors.push(error instanceof Error ? error.message : "Social scan failed."); }
   // Reuse the established daily GTM runtime for bounded Direct replenishment.
   // The batch suppresses contacted organizations before a provider call and
   // never discovers a new cohort or sends a message.
@@ -416,15 +458,16 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
   try {
     const canonical = await readCanonicalGtmModel();
     if (canonical.metrics.directReady < 15) {
-      directReplenishment = await runContactEnrichmentBatch({ segment: "direct", limit: 20 });
+      directReplenishment = await runContactEnrichmentBatch({ segment: "direct", limit: 20, discoveredDirect: awardScan?.opportunities || [] });
       console.info("GTM_HUNTER_DIRECT_REPLENISHMENT " + JSON.stringify({ attempted: directReplenishment.attempted, ready: directReplenishment.ready, needsVerification: directReplenishment.needsVerification, alreadyContacted: directReplenishment.alreadyContacted, providerUsage: directReplenishment.providerUsage }));
     }
   } catch (error) { errors.push(error instanceof Error ? error.message : "Direct replenishment could not be completed."); }
   return json(response, 200, {
     status: errors.length ? "partial" : "completed",
     generatedAt: new Date().toISOString(),
-    socialItemCount: null,
-    socialResearchMode: "MANUAL_REVIEW_ONLY",
+    socialItemCount: social?.items.filter((item) => item.status === "ACTIONABLE").length || 0,
+    socialResearchMode: "HUMAN_REVIEW_ONLY",
+    socialTelemetry: social ? { sourcesChecked: social.sourceCount, itemsExamined: social.itemsExamined, itemsQualified: social.itemsQualified, itemsSuppressed: social.itemsSuppressed, errors: social.errors } : null,
     awardCandidateCount: awardScan?.opportunities.length || null,
     controlPlaneCardCount: reconciliation?.cards.length || null,
     controlPlaneUniqueOrganizationCount: reconciliation?.uniqueOrganizations || null,

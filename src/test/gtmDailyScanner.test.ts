@@ -11,28 +11,30 @@ const baseSignal = {
   evidenceSummary: "A nonprofit finance user describes manual post-award reporting work.",
   observedPain: "The accounting export must be reorganized for the funder's report.",
   painThemes: ["spreadsheet_bridge", "funder_format"],
-  whyRelevant: "Direct evidence of the reporting workflow GrantDeskHQ addresses."
+  whyRelevant: "Direct evidence of the reporting workflow GrantDeskHQ addresses.",
+  suggestedResponse: "That handoff is difficult. A source-linked first draft can reduce preparation while preserving human review."
 };
 
 describe("daily GTM social signal validation", () => {
   it("keeps only canonical post URLs returned by the web-search source list", () => {
-    const linkedin = {
+    const forum = {
       ...baseSignal,
-      platform: "linkedin" as const,
+      platform: "forum" as const,
       title: "Grant reporting handoff",
-      url: "https://www.linkedin.com/posts/example_grant-reporting-activity-1234567890-aBcD"
+      url: "https://forums.techsoup.org/c/grants/grant-reporting/1"
     };
     const unlisted = { ...baseSignal, title: "Unlisted", url: "https://www.reddit.com/r/nonprofit/comments/notlisted/post/" };
     const spoofed = { ...baseSignal, title: "Spoofed", url: "https://reddit.com.example.org/r/nonprofit/comments/fake/post/" };
     const scan = normalizeDailySocialScan(
-      { summary: "Bounded scan", signals: [baseSignal, linkedin, unlisted, spoofed, baseSignal] },
-      [baseSignal.url, linkedin.url, spoofed.url],
+      { summary: "Bounded scan", signals: [baseSignal, forum, unlisted, spoofed, baseSignal] },
+      [baseSignal.url, forum.url, spoofed.url],
       new Date("2026-08-06T13:35:00.000Z"),
       4
     );
     expect(scan.items).toHaveLength(2);
-    expect(scan.items.map((item) => item.platform)).toEqual(["reddit", "linkedin"]);
-    expect(scan.items.every((item) => item.status === "research_only")).toBe(true);
+    expect(scan.items.map((item) => item.platform)).toEqual(["reddit", "forum"]);
+    expect(scan.items.every((item) => item.status === "ACTIONABLE")).toBe(true);
+    expect(scan.itemsSuppressed).toBeGreaterThan(0);
     expect(scan.queryCount).toBe(4);
   });
 

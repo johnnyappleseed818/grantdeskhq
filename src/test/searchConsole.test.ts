@@ -10,13 +10,13 @@ describe("Search Console runtime", () => {
     expect(calls[0].url).toContain("/searchAnalytics/query");
     expect(calls[1]).toMatchObject({ method: "PUT" });
   });
-  it("keeps SEO recommendations in MONITOR without search data", async () => {
+  it("does not create founder work items without evidence", async () => {
     const client: SearchConsoleClient = { queryAnalytics: async () => [], listSitemaps: async () => ({}), getSitemap: async () => ({}), submitSitemap: async () => {} };
     const sitemap = `<urlset>${canonicalPublicAcquisitionUrls().map((url) => `<url><loc>${url}</loc></url>`).join("")}</urlset>`;
     const state = await reconcileSearchConsole({ client, now: new Date("2026-08-21T12:00:00Z"), fetcher: async () => new Response(sitemap) });
     expect(state.analyticsStatus).toBe("NO_DATA_YET");
     expect(state.sitemap.result).toBe("PASS");
-    expect(searchConsoleRecommendations(state)).toEqual([{ page: null, action: "MONITOR", reason: "No Search Console data or specific technical issue is available yet." }]);
+    expect(searchConsoleRecommendations(state)).toEqual([]);
   });
   it("includes every published article in sitemap validation", () => {
     expect(canonicalPublicAcquisitionUrls()).toContain("https://grantdeskhq.com/blog/post-award-grant-reporting-checklist");

@@ -67,7 +67,22 @@ export async function reconcileGtmOutreachLedger(confirmed: OutreachRecord[]): P
   const existing = response.status === 404 ? [] : ((await response.json()) as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> }).documents || [];
   const imported = existing.map((document) => outreachFromRecord(decodeFields(document.fields || {}))).filter((record): record is OutreachRecord => Boolean(record));
   const reconciled = mergeOutreachRecords(imported, confirmed);
-  await Promise.all(confirmed.map((record) => writeDocument(accessToken, collection + "/" + safeOutreachDocumentId(record.id), { ...record, email: record.email || "", canonicalOpportunityId: record.canonicalOpportunityId || "", whyNowSignal: record.whyNowSignal || "", signalSource: record.signalSource || "", sentAt: record.sentAt || "", lastContactAt: record.lastContactAt || "", followUpDueAt: record.followUpDueAt || "" })));
+  await Promise.all(confirmed.map((record) => writeDocument(accessToken, collection + "/" + safeOutreachDocumentId(record.id), {
+    ...record,
+    email: record.email || "",
+    canonicalOpportunityId: record.canonicalOpportunityId || "",
+    whyNowSignal: record.whyNowSignal || "",
+    signalSource: record.signalSource || "",
+    sentAt: record.sentAt || "",
+    lastContactAt: record.lastContactAt || "",
+    followUpDueAt: record.followUpDueAt || "",
+    secondFollowUpDueAt: record.secondFollowUpDueAt || "",
+    finalCloseDueAt: record.finalCloseDueAt || "",
+    followUpStage: record.followUpStage || "",
+    sentBy: record.sentBy || "",
+    channel: record.channel || "",
+    messageVariant: record.messageVariant || ""
+  })));
   return reconciled;
 }
 
@@ -495,6 +510,16 @@ export async function readGtmDailyScan(): Promise<DailySocialScan | null> {
   const record = decodeFields(document.fields || {});
   if (!record.scanJson) return null;
   return JSON.parse(String(record.scanJson)) as DailySocialScan;
+}
+
+/** Human review state is canonical and survives the next social scan. */
+export async function updateGtmDailySocialItem(id: string, status: "RESPONDED" | "SKIPPED") {
+  const scan = await readGtmDailyScan();
+  if (!scan) throw new Error("No saved Social scan is available.");
+  const found = scan.items.some((item) => item.id === id);
+  if (!found) throw new Error("The Social item is not part of the current saved scan.");
+  const updated = { ...scan, items: scan.items.map((item) => item.id === id ? { ...item, status } : item) };
+  return saveGtmDailyScan(updated);
 }
 
 export async function saveReliabilityCanaryResult(result: ReliabilityCanaryResult) {
@@ -1391,7 +1416,24 @@ export function outreachFromRecord(record: Record<string, unknown>): OutreachRec
   const type = String(record.type || "");
   if (!/^outreach_(direct|partner)_[a-z0-9_]+$/.test(id) || (type !== "DIRECT_NONPROFIT" && type !== "PARTNER")) return null;
   const sentAt = String(record.sentAt || "") || null;
-  const parsed = { ...record, email: String(record.email || "") || null, canonicalOpportunityId: String(record.canonicalOpportunityId || "") || null, whyNowSignal: String(record.whyNowSignal || "") || null, signalSource: String(record.signalSource || "") || null, sentAt, sentTimePrecision: sentAt ? "DATE_CONFIRMED" : "DATE_NOT_RECORDED", lastContactAt: String(record.lastContactAt || "") || null, followUpDueAt: String(record.followUpDueAt || "") || null, initialOutreachGuard: "DO_NOT_SEND_NEW_INITIAL_OUTREACH" } as OutreachRecord;
+  const parsed = {
+    ...record,
+    email: String(record.email || "") || null,
+    canonicalOpportunityId: String(record.canonicalOpportunityId || "") || null,
+    whyNowSignal: String(record.whyNowSignal || "") || null,
+    signalSource: String(record.signalSource || "") || null,
+    sentAt,
+    sentTimePrecision: sentAt ? "DATE_CONFIRMED" : "DATE_NOT_RECORDED",
+    lastContactAt: String(record.lastContactAt || "") || null,
+    followUpDueAt: String(record.followUpDueAt || "") || null,
+    secondFollowUpDueAt: String(record.secondFollowUpDueAt || "") || null,
+    finalCloseDueAt: String(record.finalCloseDueAt || "") || null,
+    followUpStage: String(record.followUpStage || "") || undefined,
+    sentBy: String(record.sentBy || "") || null,
+    channel: String(record.channel || "") || null,
+    messageVariant: String(record.messageVariant || "") || null,
+    initialOutreachGuard: "DO_NOT_SEND_NEW_INITIAL_OUTREACH"
+  } as OutreachRecord;
   const validEmail = parsed.email === null || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(parsed.email);
   return parsed.source === "HUMAN_CONFIRMED_OUTREACH" && parsed.status === "SENT" && validEmail ? parsed : null;
 }

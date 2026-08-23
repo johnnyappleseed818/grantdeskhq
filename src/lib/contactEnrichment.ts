@@ -1,6 +1,9 @@
 export const CONTACT_ENRICHMENT_MODE = "SHADOW" as const;
 export const PROSPECT_CHANNELS = ["DIRECT_NONPROFIT", "PARTNER_FRACTIONAL_CFO", "PARTNER_ACCOUNTING", "PARTNER_GRANT_ADVISOR", "PARTNER_NONPROFIT_ADVISOR", "PARTNER_TECH_ADVISOR"] as const;
 export type ProspectChannel = typeof PROSPECT_CHANNELS[number];
+export const DIRECT_ASSESSMENT_URL = "https://grantdeskhq.com/assessment";
+export const PARTNER_DEMO_URL = "https://grantdeskhq.com/demo";
+/** Historical compatibility only; future drafts use the benefit-led helpers below. */
 export const INTRODUCTORY_GROWTH_OFFER = "We're offering introductory Growth pricing to 25 nonprofit customers at $99/month, normally $199/month.";
 export const FREE_FIRST_AWARD_CTA = "Would you be open to trying it with one award for free?";
 
@@ -8,7 +11,7 @@ export const FREE_FIRST_AWARD_CTA = "Would you be open to trying it with one awa
 export type EmailVerificationStatus = "VERIFIED" | "ACCEPT_ALL" | "RISKY" | "INVALID" | "UNKNOWN" | "ERROR" | "VERIFICATION_RESULT_MISSING" | "NOT_FOUND" | "UNAVAILABLE";
 export type ContactReadinessState = EmailVerificationStatus | "SUPPRESSED" | "ALREADY_CONTACTED" | "READY_FOR_HUMAN_APPROVAL" | "CONTACT_NOT_ESTABLISHED";
 export type SuppressionStatus = "CLEAR" | "BLOCKED" | "UNKNOWN";
-export type ContactEnrichmentProviderName = "hunter" | "apollo";
+export type ContactEnrichmentProviderName = "hunter" | "apollo" | "public";
 export type PriorContactStatus = "CLEAR" | "ALREADY_CONTACTED" | "UNKNOWN";
 export type OrganizationDedupeStatus = "PASS" | "DUPLICATE";
 export type ContactEvidenceStatus = "PASS" | "FAIL";
@@ -38,7 +41,7 @@ export interface ProviderLookupResult {
   attemptedAt: string;
   attempted: boolean;
   errorCategory?: "not_configured" | "limit_reached" | "authentication" | "rate_limited" | "provider_error" | "network" | "invalid_response";
-  providerRequestType?: "EMAIL_FINDER_AND_VERIFIER" | "EMAIL_FINDER" | "PEOPLE_MATCH";
+  providerRequestType?: "EMAIL_FINDER_AND_VERIFIER" | "EMAIL_FINDER" | "PEOPLE_MATCH" | "AUTHORITATIVE_PUBLISHED_EMAIL";
   finderResult?: FinderResult;
   verifierStatus?: EmailVerificationStatus;
   verificationTimestamp?: string;
@@ -54,7 +57,7 @@ export interface SuppressionCheck {
 
 export interface NormalizedVerificationState {
   provider: ContactEnrichmentProviderName | null;
-  providerRequestType: "EMAIL_FINDER_AND_VERIFIER" | "EMAIL_FINDER" | "PEOPLE_MATCH" | "RECOVERED_PERSISTED" | "NONE";
+  providerRequestType: "EMAIL_FINDER_AND_VERIFIER" | "EMAIL_FINDER" | "PEOPLE_MATCH" | "AUTHORITATIVE_PUBLISHED_EMAIL" | "RECOVERED_PERSISTED" | "NONE";
   email: string | null;
   finderResult: FinderResult;
   verifierStatus: EmailVerificationStatus;
@@ -254,20 +257,47 @@ export function accumulateEnrichmentUsage(current: EnrichmentUsage | null | unde
 }
 
 export function createTopicalShadowDraft(input: ShadowAwardDraftInput) {
-  const subject = `${input.awardingAgency} award reporting workflow for ${input.organization}`;
+  const subject = "Save time preparing grant reports";
   const body = [
     `Hi ${input.firstName},`,
     "",
-    "We built GrantDeskHQ to take repetitive post-award reporting work off nonprofit finance teams. Our AI-powered workflow turns the grant agreement, accounting data, program updates, and supporting evidence into a reviewable funder-report draft, while your team keeps control of review and submission.",
+    `I saw ${input.organization}'s ${input.awardingAgency} award beginning ${input.awardStartDate}. That timing may make a streamlined reporting process relevant.`,
     "",
-    `I saw ${input.organization}'s ${input.awardAmount} ${input.awardingAgency} award beginning ${input.awardStartDate}, so the timing seemed relevant.`,
+    "Preparing a funder report can mean pulling together the award terms, accounting data, program updates, and supporting evidence across several places.",
     "",
-    `${INTRODUCTORY_GROWTH_OFFER} ${FREE_FIRST_AWARD_CTA}`,
+    "GrantDeskHQ is designed to reduce that preparation work by creating a source-linked first draft and showing what still needs review. Your team remains responsible for review and submission.",
+    "",
+    `You can try it with one award here:\n${DIRECT_ASSESSMENT_URL}`,
+    "",
+    "Would you be open to giving it a try?",
     "",
     "Best,",
     "Eli"
   ].join("\n");
   return { subject, body, status: "SHADOW_DRAFT" as const };
+}
+
+export function createDirectOutreachDraft(input: { firstName: string; organization: string; timingSignal: string }) {
+  return {
+    subject: "Save time preparing grant reports",
+    body: [
+      `Hi ${input.firstName},`,
+      "",
+      `I saw ${input.timingSignal} at ${input.organization}. It may make a streamlined reporting process relevant.`,
+      "",
+      "Preparing a funder report can mean pulling together the award terms, accounting data, program updates, and supporting evidence across several places.",
+      "",
+      "GrantDeskHQ is designed to reduce that preparation work by creating a source-linked first draft and showing what still needs review. Your team remains responsible for review and submission.",
+      "",
+      `You can try it with one award here:\n${DIRECT_ASSESSMENT_URL}`,
+      "",
+      "Would you be open to giving it a try?",
+      "",
+      "Best,",
+      "Eli"
+    ].join("\n"),
+    status: "SHADOW_DRAFT" as const
+  };
 }
 
 export interface PartnerShadowDraftInput {
@@ -278,15 +308,19 @@ export interface PartnerShadowDraftInput {
 }
 
 export function createPartnerShadowDraft(input: PartnerShadowDraftInput) {
-  const subject = "A post-award reporting workflow for " + input.organization + " nonprofit clients";
+  const subject = "Helping " + input.organization + " clients save time on grant reporting";
   const body = [
     "Hi " + input.firstName + ",",
     "",
-    "I noticed " + input.organization + " work as a " + input.partnerType + " serving nonprofits. " + input.whySelected,
+    "I came across " + input.organization + " and saw the work you do helping nonprofits with " + input.partnerType + " services. " + input.whySelected,
     "",
-    "GrantDeskHQ is an AI-powered post-award workflow that turns a grant agreement, accounting data, program updates, and supporting evidence into a reviewable funder-report draft. It can help advisory teams standardize repetitive assembly work across client awards while the advisor and client retain review and submission control.",
+    "A lot of post-award reporting still means pulling together the agreement, accounting data, program updates, and supporting evidence by hand.",
     "",
-    "Would you be open to seeing whether it could be useful with one nonprofit client or award?",
+    "GrantDeskHQ is designed to cut down that preparation work by turning those inputs into a source-linked first draft, while the advisor and nonprofit retain review and submission control.",
+    "",
+    "You can see how the workflow works here:\n" + PARTNER_DEMO_URL,
+    "",
+    "Would you be open to trying it with one nonprofit client or award?",
     "",
     "Best,",
     "Eli"

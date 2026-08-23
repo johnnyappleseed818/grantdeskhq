@@ -21,8 +21,8 @@ describe("first-two real contact-enrichment SHADOW fixtures", () => {
       expect(record.email).toBeUndefined();
       expect(record.readiness).toBe("CONTACT_NOT_ESTABLISHED");
       expect(record.readyForHumanApproval).toBe(false);
-      expect(draft.body).toContain("We're offering introductory Growth pricing to 25 nonprofit customers at $99/month, normally $199/month.");
-      expect(draft.body).toContain("Would you be open to trying it with one award for free?");
+      expect(draft.subject).toBe("Save time preparing grant reports");
+      expect(draft.body).toContain("https://grantdeskhq.com/assessment");
     }
   });
 });

@@ -1,5 +1,8 @@
 export type OutreachType = "DIRECT_NONPROFIT" | "PARTNER";
 export type OutreachStatus = "SENT" | "REPLIED" | "POSITIVE_REPLY" | "FREE_FIRST_AWARD" | "ACTIVATED" | "PAID" | "CLOSED";
+export type HumanOutreachSender = "HUMAN_FOUNDER";
+export type OutreachChannel = "EMAIL";
+export type FollowUpStage = "INITIAL" | "FIRST_SENT" | "SECOND_SENT" | "FINAL_CLOSE_SENT" | "CANCELLED_BY_REPLY";
 export interface OutreachRecord {
   id: string;
   organization: string;
@@ -18,6 +21,12 @@ export interface OutreachRecord {
   lastContactAt: string | null;
   nextAction: "AWAIT_RESPONSE";
   followUpDueAt: string | null;
+  secondFollowUpDueAt?: string | null;
+  finalCloseDueAt?: string | null;
+  followUpStage?: FollowUpStage;
+  sentBy?: HumanOutreachSender | null;
+  channel?: OutreachChannel | null;
+  messageVariant?: string | null;
   replied: boolean;
   replySentiment: "NONE" | "POSITIVE" | "NEUTRAL" | "NEGATIVE";
   trial: boolean;
@@ -30,12 +39,54 @@ export interface OutreachRecord {
 
 const august17 = "2026-08-17T00:00:00.000Z";
 const august18 = "2026-08-18T00:00:00.000Z";
+const august23FounderSend = "2026-08-23T13:03:25.000Z";
 function humanConfirmedRecord(input: Omit<OutreachRecord, "initialOutreachGuard" | "sentTimePrecision" | "status" | "lastContactAt" | "nextAction" | "followUpDueAt" | "replied" | "replySentiment" | "trial" | "customer" | "source" | "createdAt" | "updatedAt">): OutreachRecord {
   const ledgerRecordedAt = input.sentAt || august18;
   return { ...input, initialOutreachGuard: "DO_NOT_SEND_NEW_INITIAL_OUTREACH", sentTimePrecision: input.sentAt ? "DATE_CONFIRMED" : "DATE_NOT_RECORDED", status: "SENT", lastContactAt: input.sentAt, nextAction: "AWAIT_RESPONSE", followUpDueAt: null, replied: false, replySentiment: "NONE", trial: false, customer: false, source: "HUMAN_CONFIRMED_OUTREACH", createdAt: ledgerRecordedAt, updatedAt: ledgerRecordedAt };
 }
 const direct = (id: string, organization: string, contact: string, persona: string, canonicalOpportunityId: string | null, whyNowSignal: string | null, signalSource: string | null, notes: string, sentAt = august17, email: string | null = null): OutreachRecord => humanConfirmedRecord({ id, organization, contact, persona, email, type: "DIRECT_NONPROFIT", whyNowSignal, signalSource, canonicalOpportunityId, canonicalRecordStatus: canonicalOpportunityId ? "LINKED" : "PENDING_CANONICAL_LEAD_LINK", sentAt, notes });
 const partner = (id: string, organization: string, contact: string, persona: string, notes: string, email: string | null = null, sentAt: string | null = august17): OutreachRecord => humanConfirmedRecord({ id, organization, contact, persona, email, type: "PARTNER", whyNowSignal: null, signalSource: null, canonicalOpportunityId: null, canonicalRecordStatus: "PENDING_CANONICAL_LEAD_LINK", sentAt, notes });
+
+/** Weekdays only: Monday through Friday. Public holidays are not inferred. */
+export function addBusinessDays(sentAt: string, days: number) {
+  const date = new Date(sentAt);
+  let remaining = days;
+  while (remaining > 0) {
+    date.setUTCDate(date.getUTCDate() + 1);
+    const day = date.getUTCDay();
+    if (day !== 0 && day !== 6) remaining--;
+  }
+  return date.toISOString();
+}
+
+export function partnerFollowUpSchedule(sentAt: string) {
+  const firstFollowUpDueAt = addBusinessDays(sentAt, 4);
+  const secondFollowUpDueAt = addBusinessDays(firstFollowUpDueAt, 5);
+  const finalCloseDueAt = addBusinessDays(secondFollowUpDueAt, 7);
+  return { firstFollowUpDueAt, secondFollowUpDueAt, finalCloseDueAt };
+}
+
+/** A reply cancels every remaining manual follow-up. Nothing is sent automatically. */
+export function nextPendingFollowUpDueAt(record: Pick<OutreachRecord, "replied" | "followUpStage" | "followUpDueAt" | "secondFollowUpDueAt" | "finalCloseDueAt">) {
+  if (record.replied || record.followUpStage === "CANCELLED_BY_REPLY" || record.followUpStage === "FINAL_CLOSE_SENT") return null;
+  if (record.followUpStage === "SECOND_SENT") return record.finalCloseDueAt || null;
+  if (record.followUpStage === "FIRST_SENT") return record.secondFollowUpDueAt || null;
+  return record.followUpDueAt || null;
+}
+
+function founderConfirmedPartnerSend(id: string, organization: string, contact: string, persona: string, email: string): OutreachRecord {
+  const schedule = partnerFollowUpSchedule(august23FounderSend);
+  return {
+    ...partner(id, organization, contact, persona, "Founder-confirmed partner email sent on 2026-08-23. Delivery, opens, and reply outcomes are not inferred.", email, august23FounderSend),
+    followUpDueAt: schedule.firstFollowUpDueAt,
+    secondFollowUpDueAt: schedule.secondFollowUpDueAt,
+    finalCloseDueAt: schedule.finalCloseDueAt,
+    followUpStage: "INITIAL",
+    sentBy: "HUMAN_FOUNDER",
+    channel: "EMAIL",
+    messageVariant: "PARTNER_BENEFIT_LED_V2"
+  };
+}
 
 /** Human-confirmed activity only. No provider delivery, reply, trial, or conversion is inferred. */
 export const confirmedHumanOutreach: OutreachRecord[] = [
@@ -55,7 +106,15 @@ export const confirmedHumanOutreach: OutreachRecord[] = [
   partner("outreach_partner_nfo_nonprofit_financial_outsourcing_confirmed", "NFO — Nonprofit Financial Outsourcing", "NFO team", "Partner / financial outsourcing", "Human-confirmed partner email. The send date was not provided, so no sent timestamp, delivery result, or follow-up date is inferred.", "info@nfoyourcfo.com", null),
   partner("outreach_partner_your_cfo_friend_confirmed", "Your CFO Friend", "Bee", "Partner / fractional CFO", "Human-confirmed partner email. The send date was not provided, so no sent timestamp, delivery result, or follow-up date is inferred.", "hello@yourcfofriend.com", null),
   partner("outreach_partner_platinum_cfo_confirmed", "Platinum CFO", "Sharon Gubinsky / team", "Partner / fractional CFO", "Human-confirmed partner email. The send date was not provided, so no sent timestamp, delivery result, or follow-up date is inferred.", "info@platinumcfo.com", null),
-  partner("outreach_partner_crown_cfo_confirmed", "Crown CFO", "Mike DeMaio", "Partner / fractional CFO", "Human-confirmed partner email. The send date was not provided, so no sent timestamp, delivery result, or follow-up date is inferred.", "mike@crowncfo.com", null)
+  partner("outreach_partner_crown_cfo_confirmed", "Crown CFO", "Mike DeMaio", "Partner / fractional CFO", "Human-confirmed partner email. The send date was not provided, so no sent timestamp, delivery result, or follow-up date is inferred.", "mike@crowncfo.com", null),
+  founderConfirmedPartnerSend("outreach_partner_100_degrees_consulting_20260823", "100 Degrees Consulting", "Stephanie Skryzowski", "Founder & CEO", "stephanie@100degreesconsulting.com"),
+  founderConfirmedPartnerSend("outreach_partner_strategic_nonprofit_finance_20260823", "Strategic Nonprofit Finance", "Larry Bomback", "Founder and CEO", "larry@strategicnonprofitfinance.com"),
+  founderConfirmedPartnerSend("outreach_partner_altruic_advisors_20260823", "Altruic Advisors", "Ryan Hagan", "Founder & Managing Partner", "rhagan@altruic.com"),
+  founderConfirmedPartnerSend("outreach_partner_c3_by_design_20260823", "c3 by Design", "Scott Turner", "Founder and CEO", "scott.turner@c3bydesign.com"),
+  founderConfirmedPartnerSend("outreach_partner_array_accounting_20260823", "Array Accounting", "Danielle Wright", "Founder, Array Accounting & Consulting", "dwright@arrayaccounting.com"),
+  founderConfirmedPartnerSend("outreach_partner_yptc_20260823", "YPTC", "Jennifer Alleva", "Chief Executive Officer", "jennifera@yptc.com"),
+  founderConfirmedPartnerSend("outreach_partner_kiwi_partners_20260823", "Kiwi Partners", "Ken Hafner", "Head of Accounting Services", "khafner@kiwipartners.com"),
+  founderConfirmedPartnerSend("outreach_partner_the_charity_cfo_20260823", "The Charity CFO", "Tosha Anderson", "Founder + Managing Partner", "tosha@thecharitycfo.com")
 ];
 
 export function mergeOutreachRecords(existing: OutreachRecord[], incoming: OutreachRecord[]) {

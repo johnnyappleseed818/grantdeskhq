@@ -32,7 +32,46 @@ export async function reconcileSearchConsole(options: { client?: SearchConsoleCl
  try { const sitemapResponse = await (options.fetcher || fetch)(sitemapUrl, { signal: AbortSignal.timeout(15_000) }); const text = sitemapResponse.ok ? await sitemapResponse.text() : ""; state.sitemap.publicAccessible = sitemapResponse.ok && /<urlset[\s>]/.test(text); state.sitemap.canonicalUrlsPresent = state.sitemap.publicAccessible && canonicalUrls.every((url) => text.includes("<loc>" + url + "</loc>")); if (!state.sitemap.publicAccessible || !state.sitemap.canonicalUrlsPresent) throw new Error("Canonical public sitemap is not accessible or is missing a public acquisition URL."); await client.submitSitemap(sitemapUrl); state.sitemap.submittedAt = now.toISOString(); state.sitemap.result = "PASS"; } catch (error) { state.sitemap.result = "FAIL"; state.sitemap.error = errorMessage(error); state.errors.push(state.sitemap.error); }
  return state;
 }
-export function searchConsoleRecommendations(state: SearchConsoleState) { if (state.analyticsStatus !== "PASS") return [{ page: null, action: "MONITOR", reason: "No Search Console data or specific technical issue is available yet." }]; return state.ranges.last28Days.pages.flatMap((row) => { const page = row.keys[0] || ""; if (row.impressions >= 20 && row.position >= 8 && row.position <= 20) return [{ page, action: "REFRESH", reason: "High impressions with average position 8-20." }]; if (row.impressions >= 20 && row.ctr < 0.02) return [{ page, action: "TITLE_META", reason: "High impressions with low CTR." }]; if (row.position >= 1 && row.position <= 5) return [{ page, action: "PROTECT_MONITOR", reason: "Average position is 1-5." }]; return [{ page, action: "MONITOR", reason: "No evidence-backed change recommendation." }]; }); }
+export type SearchConsoleAction = "CONTENT_REFRESH" | "TITLE_META_IMPROVEMENT" | "TECHNICAL_SEO";
+export interface SearchConsoleRecommendation { page: string; action: SearchConsoleAction; reason: string; }
+
+/** Founder work items only: monitoring and legal/utility URLs are deliberately excluded. */
+export function searchConsoleRecommendations(state: SearchConsoleState): SearchConsoleRecommendation[] {
+  if (state.analyticsStatus !== "PASS") return state.sitemap.result === "FAIL" ? [{ page: state.sitemap.url, action: "TECHNICAL_SEO", reason: state.sitemap.error || "The canonical sitemap needs attention." }] : [];
+  const normalized = new Map<string, SearchAnalyticsRow>();
+  for (const row of state.ranges.last28Days.pages || []) {
+    const page = canonicalSearchPage(row.keys[0] || "");
+    if (!isCommercialSeoPage(page)) continue;
+    const existing = normalized.get(page);
+    normalized.set(page, existing ? { ...row, keys: [page], clicks: existing.clicks + row.clicks, impressions: existing.impressions + row.impressions, ctr: 0, position: Math.min(existing.position, row.position) } : { ...row, keys: [page] });
+  }
+  const recommendations: SearchConsoleRecommendation[] = [];
+  for (const row of normalized.values()) {
+    const page = row.keys[0];
+    if (row.impressions >= 50 && row.position >= 8 && row.position <= 20) recommendations.push({ page, action: "CONTENT_REFRESH", reason: "Meaningful impressions with average position 8–20." });
+    else if (row.impressions >= 50 && row.ctr < 0.02) recommendations.push({ page, action: "TITLE_META_IMPROVEMENT", reason: "Meaningful impressions with a low click-through rate." });
+  }
+  return recommendations;
+}
+
+export function canonicalSearchPage(value: string) {
+  try {
+    const url = new URL(value);
+    if (url.hostname !== "grantdeskhq.com" && url.hostname !== "www.grantdeskhq.com") return "";
+    url.protocol = "https:";
+    url.hostname = "grantdeskhq.com";
+    url.search = "";
+    url.hash = "";
+    if (url.pathname !== "/") url.pathname = url.pathname.replace(/\/+$/, "");
+    return url.toString();
+  } catch { return ""; }
+}
+
+function isCommercialSeoPage(page: string) {
+  if (!page) return false;
+  const pathname = new URL(page).pathname;
+  return !["/privacy", "/terms", "/contact"].includes(pathname);
+}
 /** Kept alongside the published article registry so sitemap validation cannot omit live SEO pages. */
 export function canonicalPublicAcquisitionUrls() {
  return ["https://grantdeskhq.com/", "https://grantdeskhq.com/pricing", "https://grantdeskhq.com/resources", "https://grantdeskhq.com/blog", "https://grantdeskhq.com/assessment", "https://grantdeskhq.com/contact", ...BLOG_POSTS.map((post) => `https://grantdeskhq.com/blog/${post.slug}`)];

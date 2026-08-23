@@ -54,6 +54,10 @@ export interface CanonicalGtmRecord {
   partnerType: string | null;
   subject: string | null;
   draft: string | null;
+  sentAt?: string | null;
+  followUpDueAt?: string | null;
+  secondFollowUpDueAt?: string | null;
+  finalCloseDueAt?: string | null;
   lastUpdated: string | null;
 }
 
@@ -170,7 +174,13 @@ function toCanonicalRecord(organizationId: string, candidate: CanonicalGtmCandid
     suppressionStatus: enrichment?.verification.suppressionStatus || null,
     priorContact: Boolean(history || protectedPriorContact || enrichment?.verification.priorContactStatus === "ALREADY_CONTACTED"), blockers,
     nextAction: nextAction(state, blockers), whyNow: candidate.whyNow, sourceUrl: candidate.sourceUrl, partnerType: candidate.partnerType || null,
-    subject: candidate.subject || null, draft: candidate.draft || null, lastUpdated: history?.updatedAt || enrichment?.updatedAt || null
+    subject: candidate.subject || null,
+    draft: candidate.draft || null,
+    sentAt: history?.sentAt || null,
+    followUpDueAt: history?.followUpDueAt || null,
+    secondFollowUpDueAt: history?.secondFollowUpDueAt || null,
+    finalCloseDueAt: history?.finalCloseDueAt || null,
+    lastUpdated: history?.updatedAt || enrichment?.updatedAt || null
   };
 }
 

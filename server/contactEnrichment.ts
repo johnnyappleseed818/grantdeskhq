@@ -90,6 +90,33 @@ export async function enrichGtmContactWithHunter(target: EnrichmentTarget, envir
   return record;
 }
 
+/** Records an organization-published business email without a paid provider lookup. */
+export async function recordPublishedGtmContact(target: EnrichmentTarget, email: string, sourceUrl: string, prior?: ContactEnrichmentRecord): Promise<ContactEnrichmentRecord> {
+  const now = new Date().toISOString();
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!isVerifiedBusinessEmail(normalizedEmail, target.organizationDomain) || !/^https:\/\//.test(sourceUrl)) throw new Error("A published business email and authoritative source are required.");
+  const suppression = await readGtmContactSuppression(normalizedEmail);
+  const attempt = {
+    provider: "public" as const,
+    status: "VERIFIED" as const,
+    email: normalizedEmail,
+    confidence: 100,
+    sourceUrls: [{ url: sourceUrl }],
+    providerMetadata: { publishedByOrganization: true },
+    attemptedAt: now,
+    attempted: false,
+    providerRequestType: "AUTHORITATIVE_PUBLISHED_EMAIL" as const,
+    finderResult: "FOUND" as const,
+    verifierStatus: "VERIFIED" as const,
+    verificationTimestamp: now,
+    verificationSource: [{ url: sourceUrl }]
+  };
+  const base = buildContactEnrichmentRecord(target, [attempt], suppression, now, prior);
+  const record: ContactEnrichmentRecord = { ...base, provider: "public", result: base.readiness, ...(base.readyForHumanApproval ? {} : { failureReason: base.verification.readyBlocker || base.blockers.join(" ") }), candidateFingerprint: candidateFingerprint(target), lastEnrichmentAttempt: now, verification: { ...base.verification, lastEnrichmentAttempt: now } };
+  await saveGtmContactEnrichment(record);
+  return record;
+}
+
 /** Rebuild canonical readiness from stored attempts only. This never calls a provider or changes retry eligibility. */
 export async function reconcileStoredGtmContact(
   target: EnrichmentTarget,

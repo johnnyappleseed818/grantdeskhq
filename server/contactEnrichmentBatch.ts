@@ -1,8 +1,9 @@
 import { initialOpportunities } from "../src/data/gtmData.ts";
-import { contactEnrichmentKey, createPartnerShadowDraft, type ContactEnrichmentRecord, type EnrichmentTarget } from "../src/lib/contactEnrichment.ts";
+import type { GtmOpportunity } from "../src/lib/gtm.ts";
+import { contactEnrichmentKey, createDirectOutreachDraft, createPartnerShadowDraft, type ContactEnrichmentRecord, type EnrichmentTarget } from "../src/lib/contactEnrichment.ts";
 import { confirmedHumanOutreach, initialOutreachEligibility } from "../src/lib/gtmOutreach.ts";
 import type { CanonicalGtmCandidate } from "../src/lib/gtmCanonical.ts";
-import { enrichGtmContactWithHunter, reconcileStoredGtmContact, retryEligible } from "./contactEnrichment.ts";
+import { enrichGtmContactWithHunter, recordPublishedGtmContact, reconcileStoredGtmContact, retryEligible } from "./contactEnrichment.ts";
 import { readGtmContactEnrichment } from "./persistence.ts";
 
 export type EnrichmentBatchSegment = "partner" | "direct";
@@ -23,15 +24,16 @@ const partnerCandidates: Array<{ organization: string; domain: string; source: s
 ].map(([organization, domain, source, first, last, title, type, whyFit]) => ({ organization, domain, source, first, last, title, type, whyFit }));
 
 /** Candidate inventory only. This never contacts a provider and is shared by the read model. */
-export function canonicalGtmCandidates(): CanonicalGtmCandidate[] {
- const direct = initialOpportunities.map((item) => {
-  const contact = item.primaryContact;
+export function canonicalGtmCandidates(discoveredDirect: readonly GtmOpportunity[] = []): CanonicalGtmCandidate[] {
+ const direct = [...initialOpportunities, ...discoveredDirect].map((item) => {
+ const contact = item.primaryContact;
   const names = contact?.name.trim().split(/\s+/) || [];
   const firstName = names[0] || "Unknown"; const lastName = names.at(-1) || "Contact";
+  const draft = createDirectOutreachDraft({ firstName, organization: item.organization, timingSignal: item.whyNow });
   return {
    id: item.id, segment: "DIRECT" as const, qualified: Boolean(item.entityVerified && item.nonprofitVerified && !item.conflicts.length),
-   target: { prospectChannel: "DIRECT_NONPROFIT" as const, organization: item.organization, organizationDomain: domainFromUrl(item.organizationUrl), domainSourceUrl: item.organizationUrl, person: { firstName, lastName, fullName: contact?.name || "Contact research required", currentTitle: contact?.title || "Contact research required", titleSourceUrl: contact?.roleSourceUrl || item.organizationUrl } },
-   sourceUrl: item.evidence[0]?.url || item.organizationUrl, whyNow: item.whyNow, subject: item.emailSubject, draft: item.draftMessage,
+   target: { prospectChannel: "DIRECT_NONPROFIT" as const, organization: item.organization, organizationDomain: domainFromUrl(item.organizationUrl || ""), domainSourceUrl: item.organizationUrl || item.evidence[0]?.url || "https://grantdeskhq.com", person: { firstName, lastName, fullName: contact?.name || "Contact research required", currentTitle: contact?.title || "Contact research required", titleSourceUrl: contact?.roleSourceUrl || item.organizationUrl || item.evidence[0]?.url || "https://grantdeskhq.com" } },
+   sourceUrl: item.evidence[0]?.url || item.organizationUrl || "https://grantdeskhq.com", whyNow: item.whyNow, subject: draft.subject, draft: draft.body,
    priority: item.score.pain + item.score.timing + item.score.fit + item.score.value
   };
  });
@@ -42,9 +44,9 @@ export function canonicalGtmCandidates(): CanonicalGtmCandidate[] {
  return [...direct, ...partner];
 }
 
-export async function runContactEnrichmentBatch(input: { segment: EnrichmentBatchSegment; limit?: number; dryRun?: boolean }, environment: NodeJS.ProcessEnv = process.env): Promise<EnrichmentBatchResult> {
+export async function runContactEnrichmentBatch(input: { segment: EnrichmentBatchSegment; limit?: number; dryRun?: boolean; discoveredDirect?: readonly GtmOpportunity[] }, environment: NodeJS.ProcessEnv = process.env): Promise<EnrichmentBatchResult> {
  const limit = Math.min(Math.max(Number(input.limit) || 20, 1), 20);
- const candidates = input.segment === "partner" ? partnerTargets() : directTargets();
+ const candidates = input.segment === "partner" ? partnerTargets() : directTargets(input.discoveredDirect || []);
  const result: EnrichmentBatchResult = { segment: input.segment, attempted: 0, contactsResolved: 0, verifiedEmails: 0, ready: 0, needsVerification: 0, alreadyContacted: 0, duplicates: 0, failures: 0, providerUsage: { hunterLookups: 0, hunterVerifications: 0 }, records: [] };
  const seenOrganizations = new Set<string>(); const seenEmails = new Set<string>();
  for (const candidate of candidates) {
@@ -59,7 +61,9 @@ export async function runContactEnrichmentBatch(input: { segment: EnrichmentBatc
   result.contactsResolved++;
   if (input.dryRun) { result.records.push(present(candidate, null)); continue; }
   result.attempted++;
-  const record = await enrichGtmContactWithHunter(candidate.target, environment, previous || undefined);
+  const record = "publishedEmail" in candidate && candidate.publishedEmail
+    ? await recordPublishedGtmContact(candidate.target, candidate.publishedEmail, candidate.source, previous || undefined)
+    : await enrichGtmContactWithHunter(candidate.target, environment, previous || undefined);
   const hunterAttempts = record.providerAttempts.filter((attempt) => attempt.provider === "hunter" && attempt.attempted);
   result.providerUsage.hunterLookups += hunterAttempts.length;
   result.providerUsage.hunterVerifications += hunterAttempts.filter((attempt) => attempt.providerMetadata.verifierCalled === true).length;
@@ -99,14 +103,14 @@ export async function reconcileStoredContactEnrichmentBatch(input: { segment: En
 }
 
 function partnerTargets() { return partnerCandidates.map((candidate) => ({ target: { prospectChannel: "PARTNER_ACCOUNTING" as const, organization: candidate.organization, organizationDomain: candidate.domain, domainSourceUrl: candidate.source, person: { firstName: candidate.first, lastName: candidate.last, fullName: candidate.first + " " + candidate.last, currentTitle: candidate.title, titleSourceUrl: candidate.source } }, partnerType: candidate.type, whyFit: candidate.whyFit, source: candidate.source })); }
-function directTargets() {
- return initialOpportunities.filter((item) => item.primaryContact?.name && item.primaryContact.title && item.primaryContact.emailKind !== "direct").map((item) => {
+function directTargets(discoveredDirect: readonly GtmOpportunity[] = []) {
+ return [...initialOpportunities, ...discoveredDirect].filter((item) => item.organizationUrl && item.primaryContact?.name && item.primaryContact.title).map((item) => {
   const [first, ...rest] = item.primaryContact!.name.trim().split(/\s+/); const last = rest.at(-1) || "";
-  return { target: { prospectChannel: "DIRECT_NONPROFIT" as const, organization: item.organization, organizationDomain: domainFromUrl(item.organizationUrl), domainSourceUrl: item.organizationUrl, person: { firstName: first, lastName: last, fullName: item.primaryContact!.name, currentTitle: item.primaryContact!.title, titleSourceUrl: item.primaryContact!.roleSourceUrl } }, partnerType: "direct nonprofit", whyFit: item.whyNow, source: item.primaryContact!.roleSourceUrl, priority: item.score.pain + item.score.timing + item.score.fit + item.score.value };
+  return { target: { prospectChannel: "DIRECT_NONPROFIT" as const, organization: item.organization, organizationDomain: domainFromUrl(item.organizationUrl), domainSourceUrl: item.organizationUrl, person: { firstName: first, lastName: last, fullName: item.primaryContact!.name, currentTitle: item.primaryContact!.title, titleSourceUrl: item.primaryContact!.roleSourceUrl } }, partnerType: "direct nonprofit", whyFit: item.whyNow, source: item.primaryContact!.emailSourceUrl || item.primaryContact!.roleSourceUrl, publishedEmail: item.primaryContact!.emailKind === "direct" ? item.primaryContact!.email : undefined, priority: item.score.pain + item.score.timing + item.score.fit + item.score.value };
  }).filter((candidate) => candidate.target.person.lastName).sort((a, b) => b.priority - a.priority);
 }
 function present(candidate: { target: EnrichmentTarget; partnerType: string; whyFit: string; source: string }, record: ContactEnrichmentRecord | null) {
  const draft = candidate.target.prospectChannel === "DIRECT_NONPROFIT" ? null : createPartnerShadowDraft({ firstName: candidate.target.person.firstName, organization: candidate.target.organization, partnerType: candidate.partnerType, whySelected: candidate.whyFit });
  return { organization: candidate.target.organization, contact: candidate.target.person.fullName, title: candidate.target.person.currentTitle, email: record?.email || null, status: record?.readiness || "DRY_RUN", source: candidate.source, whyFit: candidate.whyFit, ...(draft ? { subject: draft.subject, personalizedEmail: draft.body } : {}), ...(record?.blockers.length ? { failureReason: record.blockers.join(" ") } : {}) };
 }
-function domainFromUrl(url: string) { return new URL(url).hostname.replace(/^www\./, ""); }
+function domainFromUrl(url: string) { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return "unknown.invalid"; } }

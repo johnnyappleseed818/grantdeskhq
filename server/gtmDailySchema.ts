@@ -24,9 +24,9 @@ export const dailySocialScanSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["platform", "title", "url", "author", "publishedAt", "evidenceSummary", "observedPain", "painThemes", "whyRelevant"],
+        required: ["platform", "title", "url", "author", "publishedAt", "evidenceSummary", "observedPain", "painThemes", "whyRelevant", "suggestedResponse"],
         properties: {
-          platform: { type: "string", enum: ["reddit", "linkedin"] },
+          platform: { type: "string", enum: ["reddit", "forum"] },
           title: { type: "string" },
           url: { type: "string" },
           author: { type: "string" },
@@ -34,7 +34,8 @@ export const dailySocialScanSchema = {
           evidenceSummary: { type: "string" },
           observedPain: { type: "string" },
           painThemes: { type: "array", items: painTheme },
-          whyRelevant: { type: "string" }
+          whyRelevant: { type: "string" },
+          suggestedResponse: { type: "string" }
         }
       }
     }

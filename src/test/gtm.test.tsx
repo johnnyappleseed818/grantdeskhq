@@ -102,6 +102,10 @@ describe("GTM command center", () => {
     windowDays: 7,
     queryCount: 2,
     sourceCount: 3,
+    itemsExamined: 1,
+    itemsQualified: 1,
+    itemsSuppressed: 0,
+    errors: [],
     coverage: "3 indexed sources checked; 1 passed the strict gates.",
     limitations: ["Search indexes can delay public posts."],
     items: [{
@@ -116,7 +120,8 @@ describe("GTM command center", () => {
       observedPain: "Accounting exports still require manual funder-category mapping.",
       painThemes: ["spreadsheet_bridge"],
       whyRelevant: "Supports the post-award reporting workflow.",
-      status: "research_only"
+      suggestedResponse: "A source-linked first draft can reduce the manual assembly while preserving review.",
+      status: "ACTIONABLE"
     }]
   };
   const awardCandidate: GtmOpportunity = {

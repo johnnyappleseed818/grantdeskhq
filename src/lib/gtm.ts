@@ -1,7 +1,7 @@
 export type SignalKind = "grant_award" | "job_posting" | "excel_pain" | "competitor_intent";
 export type SourceAuthority = "official" | "employer" | "professional" | "community" | "review_platform";
 export type OpportunityStage = "new" | "reviewing" | "ready" | "contacted" | "replied" | "converted" | "dismissed";
-export type SocialPlatform = "reddit" | "linkedin";
+export type SocialPlatform = "reddit" | "forum";
 export type TargetTier = "core" | "emerging" | "adjacent";
 
 export interface DailySocialSignal {
@@ -16,7 +16,8 @@ export interface DailySocialSignal {
   observedPain: string;
   painThemes: string[];
   whyRelevant: string;
-  status: "research_only";
+  suggestedResponse: string;
+  status: "ACTIONABLE" | "RESPONDED" | "SKIPPED";
 }
 
 export interface DailySocialScan {
@@ -24,6 +25,10 @@ export interface DailySocialScan {
   windowDays: number;
   queryCount: number;
   sourceCount: number;
+  itemsExamined: number;
+  itemsQualified: number;
+  itemsSuppressed: number;
+  errors: string[];
   coverage: string;
   items: DailySocialSignal[];
   limitations: string[];
