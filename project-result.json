@@ -1,37 +1,34 @@
 {
   "status": "PASS",
-  "project": "gtm-canonical-loading-repair-20260823",
-  "completed_at": "2026-08-23T09:01:00Z",
-  "production_revision": "grantdeskhq-prototype-00240-nid",
+  "project": "gtm-daily-action-queues-20260823",
+  "completed_at": "2026-08-23T13:20:00Z",
+  "production_revision": "PENDING_DEPLOYMENT",
   "rollback_revision": "grantdeskhq-prototype-00232-tom",
   "implementation_commits": [
-    "5d983a8",
-    "f3a67a3",
-    "e2937e0"
+    "f559c4b"
   ],
-  "root_cause": "The GTM page put canonical state and all secondary GTM reads in one Promise.all. The canonical endpoint returned 200, but the Search Console-state route returned 500 because its Firestore read used a relative URL. That unrelated rejection prevented setCanonical and left Leads/Partners in the loading branch.",
+  "root_cause": "The commercial engine correctly protected exhausted contact inventory but did not surface fresh award research in the canonical Direct model, did not prioritize published emails before Hunter, left Social scanning outside the daily GTM runtime, and represented SEO monitoring as founder work.",
   "completed": [
-    "Isolated canonical model loading from secondary GTM reads",
-    "Added bounded 15-second canonical/auth request handling, one Firebase forced-refresh retry after 401, response validation, visible error state, and Retry action",
-    "Changed secondary GTM hydration to independent Promise.allSettled results",
-    "Corrected Search Console persisted-state Firestore URL",
-    "Deployed and promoted zero-traffic candidate after health/frontend bundle validation"
+    "Recorded eight founder-confirmed partner sends with canonical prior-contact protection and Monday-Friday follow-up dates",
+    "Centralized future benefit-led Direct and Partner drafts with one appropriate product link",
+    "Added published-business-email-first Direct enrichment before Hunter fallback",
+    "Fed bounded fresh award research into the canonical Direct model",
+    "Added canonical Social telemetry and human-only Responded/Skipped state",
+    "Changed SEO to an evidence-threshold action queue with health separate from monitoring",
+    "Added canonical trailing-slash redirects for public pages"
   ],
   "validation": [
-    "npx vitest run --exclude .worktrees/** src/test/gtmCanonicalFetch.test.tsx src/test/gtmCanonical.test.ts src/test/gtm.test.tsx --disableConsoleIntercept",
-    "npx vitest run --exclude .worktrees/** src/test/gtmCanonicalFetch.test.tsx src/test/accountSelfService.test.tsx src/test/gtmCanonical.test.ts --disableConsoleIntercept",
-    "npx tsc --noEmit",
-    "npm run build",
-    "zero-traffic candidate /api/health and GTM frontend bundle",
-    "production /api/health and recent authenticated canonical endpoint logs"
+    "npm test -- --run src/test/gtmOutreach.test.ts src/test/gtmDailyScanner.test.ts src/test/searchConsole.test.ts src/test/contactEnrichmentTargets.test.ts src/test/gtmCanonical.test.ts",
+    "npm run build"
   ],
   "side_effects": {
     "hunter_provider_calls": 0,
     "outbound_email_sent": 0,
     "instantly_activated": false,
-    "search_console_provider_calls": 0
+    "search_console_provider_calls": 0,
+    "social_posts_made": 0
   },
   "limitations": [
-    "No existing safe authenticated founder browser fixture exists, so production validation is based on the authenticated endpoint logs, deployed frontend bundle, focused UI tests, and public health rather than a live founder visual session."
+    "Deployment and normal bounded GTM runtime validation are pending. No existing safe authenticated founder browser fixture exists, so visual validation will use deployed frontend bundle and protected endpoint evidence rather than a live founder visual session."
   ]
 }
