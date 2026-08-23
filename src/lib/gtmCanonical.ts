@@ -184,7 +184,7 @@ function applyExternalCommercialState(record: CanonicalGtmRecord, external: Cano
   if (status === "SENT") return { ...record, state: "AWAITING_REPLY", priorContact: true, blockers: [], sentAt: external.firstSentAt || record.sentAt || null, nextAction: "AWAIT RESPONSE; DELIVERY WAS RECORDED BY INSTANTLY." };
   if (status === "REPLIED") return { ...record, state: "REPLIED", priorContact: true, blockers: [], sentAt: external.firstSentAt || record.sentAt || null, nextAction: "REPLY REQUIRES HUMAN RESPONSE IN INSTANTLY." };
   if (status === "POSITIVE") return { ...record, state: "POSITIVE", priorContact: true, blockers: [], sentAt: external.firstSentAt || record.sentAt || null, nextAction: "REVIEW INTERESTED REPLY IN INSTANTLY." };
-  if (["BOUNCED", "UNSUBSCRIBED", "NOT_INTERESTED", "SEQUENCE_COMPLETE"].includes(status)) return { ...record, state: "ALREADY_CONTACTED", priorContact: true, blockers: [status], sentAt: external.firstSentAt || record.sentAt || null, nextAction: "PRESERVE EXTERNAL OUTREACH HISTORY; DO NOT CREATE A NEW FIRST-TOUCH ACTION." };
+  if (["BOUNCED", "UNSUBSCRIBED", "NOT_INTERESTED", "SEQUENCE_COMPLETE"].includes(status)) return { ...record, state: "ALREADY_CONTACTED", priorContact: true, suppressionStatus: ["BOUNCED", "UNSUBSCRIBED"].includes(status) ? "BLOCKED" : record.suppressionStatus, blockers: [status], sentAt: external.firstSentAt || record.sentAt || null, nextAction: "PRESERVE EXTERNAL OUTREACH HISTORY; DO NOT CREATE A NEW FIRST-TOUCH ACTION." };
   return record;
 }
 
