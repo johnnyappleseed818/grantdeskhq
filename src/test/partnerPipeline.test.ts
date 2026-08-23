@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { canonicalPartnerResearch, nextPartnerStage, partnerMayAdvanceToHumanApproval, summarizePartnerPipeline } from "../lib/partnerPipeline";
+import { canonicalPartnerResearch, nextPartnerStage, partnerMayAdvanceToHumanApproval, partnerStageWithOutreachHistory, summarizePartnerPipeline } from "../lib/partnerPipeline";
+import { confirmedHumanOutreach } from "../lib/gtmOutreach";
 
 describe("canonical partner acquisition pipeline", () => {
   it("persists the factual public-source inventory and A/B/C/D classification counts", () => {
@@ -15,5 +16,10 @@ describe("canonical partner acquisition pipeline", () => {
     expect(partnerMayAdvanceToHumanApproval({ relationshipClass: "B", directBusinessEmailEstablished: true, suppression: "UNKNOWN" })).toBe(false);
     expect(nextPartnerStage({ relationshipClass: "A", directBusinessEmailEstablished: true, suppression: "BLOCKED" })).toBe("SUPPRESSED");
     expect(partnerMayAdvanceToHumanApproval({ relationshipClass: "B", directBusinessEmailEstablished: true, suppression: "CLEAR" })).toBe(true);
+  });
+  it("routes a rediscovered contacted partner to ALREADY_CONTACTED rather than a new first-touch state", () => {
+    const eligiblePartner = { relationshipClass: "A" as const, directBusinessEmailEstablished: true, suppression: "CLEAR" as const };
+    expect(partnerStageWithOutreachHistory(eligiblePartner, { organization: "Crown CFO", email: "new-person@crowncfo.com" }, confirmedHumanOutreach)).toBe("ALREADY_CONTACTED");
+    expect(partnerStageWithOutreachHistory(eligiblePartner, { organization: "New partner", email: "new@example.org", suppressionStatus: "OPT_OUT" }, confirmedHumanOutreach)).toBe("SUPPRESSED");
   });
 });

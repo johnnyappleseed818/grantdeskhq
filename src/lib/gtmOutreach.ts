@@ -12,10 +12,10 @@ export interface OutreachRecord {
   canonicalOpportunityId: string | null;
   canonicalRecordStatus: "LINKED" | "PENDING_CANONICAL_LEAD_LINK";
   initialOutreachGuard: "DO_NOT_SEND_NEW_INITIAL_OUTREACH";
-  sentAt: string;
-  sentTimePrecision: "DATE_CONFIRMED";
+  sentAt: string | null;
+  sentTimePrecision: "DATE_CONFIRMED" | "DATE_NOT_RECORDED";
   status: OutreachStatus;
-  lastContactAt: string;
+  lastContactAt: string | null;
   nextAction: "AWAIT_RESPONSE";
   followUpDueAt: string | null;
   replied: boolean;
@@ -30,23 +30,32 @@ export interface OutreachRecord {
 
 const august17 = "2026-08-17T00:00:00.000Z";
 const august18 = "2026-08-18T00:00:00.000Z";
-const direct = (id: string, organization: string, contact: string, persona: string, canonicalOpportunityId: string | null, whyNowSignal: string | null, signalSource: string | null, notes: string, sentAt = august17, email: string | null = null): OutreachRecord => ({ id, organization, contact, persona, email, type: "DIRECT_NONPROFIT", whyNowSignal, signalSource, canonicalOpportunityId, canonicalRecordStatus: canonicalOpportunityId ? "LINKED" : "PENDING_CANONICAL_LEAD_LINK", initialOutreachGuard: "DO_NOT_SEND_NEW_INITIAL_OUTREACH", sentAt, sentTimePrecision: "DATE_CONFIRMED", status: "SENT", lastContactAt: sentAt, nextAction: "AWAIT_RESPONSE", followUpDueAt: null, replied: false, replySentiment: "NONE", trial: false, customer: false, notes, source: "HUMAN_CONFIRMED_OUTREACH", createdAt: sentAt, updatedAt: sentAt });
-const partner = (id: string, organization: string, contact: string, persona: string, notes: string): OutreachRecord => ({ id, organization, contact, persona, email: null, type: "PARTNER", whyNowSignal: null, signalSource: null, canonicalOpportunityId: null, canonicalRecordStatus: "PENDING_CANONICAL_LEAD_LINK", initialOutreachGuard: "DO_NOT_SEND_NEW_INITIAL_OUTREACH", sentAt: august17, sentTimePrecision: "DATE_CONFIRMED", status: "SENT", lastContactAt: august17, nextAction: "AWAIT_RESPONSE", followUpDueAt: null, replied: false, replySentiment: "NONE", trial: false, customer: false, notes, source: "HUMAN_CONFIRMED_OUTREACH", createdAt: august17, updatedAt: august17 });
+function humanConfirmedRecord(input: Omit<OutreachRecord, "initialOutreachGuard" | "sentTimePrecision" | "status" | "lastContactAt" | "nextAction" | "followUpDueAt" | "replied" | "replySentiment" | "trial" | "customer" | "source" | "createdAt" | "updatedAt">): OutreachRecord {
+  const ledgerRecordedAt = input.sentAt || august18;
+  return { ...input, initialOutreachGuard: "DO_NOT_SEND_NEW_INITIAL_OUTREACH", sentTimePrecision: input.sentAt ? "DATE_CONFIRMED" : "DATE_NOT_RECORDED", status: "SENT", lastContactAt: input.sentAt, nextAction: "AWAIT_RESPONSE", followUpDueAt: null, replied: false, replySentiment: "NONE", trial: false, customer: false, source: "HUMAN_CONFIRMED_OUTREACH", createdAt: ledgerRecordedAt, updatedAt: ledgerRecordedAt };
+}
+const direct = (id: string, organization: string, contact: string, persona: string, canonicalOpportunityId: string | null, whyNowSignal: string | null, signalSource: string | null, notes: string, sentAt = august17, email: string | null = null): OutreachRecord => humanConfirmedRecord({ id, organization, contact, persona, email, type: "DIRECT_NONPROFIT", whyNowSignal, signalSource, canonicalOpportunityId, canonicalRecordStatus: canonicalOpportunityId ? "LINKED" : "PENDING_CANONICAL_LEAD_LINK", sentAt, notes });
+const partner = (id: string, organization: string, contact: string, persona: string, notes: string, email: string | null = null, sentAt: string | null = august17): OutreachRecord => humanConfirmedRecord({ id, organization, contact, persona, email, type: "PARTNER", whyNowSignal: null, signalSource: null, canonicalOpportunityId: null, canonicalRecordStatus: "PENDING_CANONICAL_LEAD_LINK", sentAt, notes });
 
 /** Human-confirmed activity only. No provider delivery, reply, trial, or conversion is inferred. */
 export const confirmedHumanOutreach: OutreachRecord[] = [
-  direct("outreach_direct_johnson_creek_20260817", "Johnson Creek Watershed Council", "Jennifer Hamilton", "Nonprofit contact", null, null, null, "Human-confirmed direct nonprofit email. Canonical lead and verified email route must be linked without guessing."),
-  direct("outreach_direct_child_enrichment_20260817", "Child Enrichment", "Kari Viola-Brooke", "Nonprofit contact", null, null, null, "Human-confirmed direct nonprofit email. Canonical lead and verified email route must be linked without guessing."),
-  direct("outreach_direct_foodlink_20260817", "Foodlink", "Terra Keller", "Nonprofit contact", null, null, null, "Human-confirmed direct nonprofit email. Canonical lead and verified email route must be linked without guessing."),
-  direct("outreach_direct_sustainable_food_center_20260817", "Sustainable Food Center", "Anthony Cordova / Nicole Thompson route", "Finance / Grants route", "job-sustainable-food-center-2026", "Hiring a Grants Manager to coordinate reporting across program, finance, and data teams.", "https://careers.wgu.edu/jobs/sustainable-food-center-grants-manager/", "Human-confirmed direct nonprofit email. The canonical source identifies the public organization-inbox route; preserve any exact delivery address only when imported from the approved sender record."),
+  direct("outreach_direct_johnson_creek_20260817", "Johnson Creek Watershed Council", "Jennifer Hamilton", "Nonprofit contact", null, null, null, "Human-confirmed direct nonprofit email. The provided recipient is retained without inferring delivery or another event.", august17, "jennifer@jcwc.org"),
+  direct("outreach_direct_child_enrichment_20260817", "Child Enrichment", "Kari Viola-Brooke", "Nonprofit contact", null, null, null, "Human-confirmed direct nonprofit email. The provided recipient is retained without inferring delivery or another event.", august17, "kviola@childenrichment.org"),
+  direct("outreach_direct_foodlink_20260817", "Foodlink", "Terra Keller", "Nonprofit contact", null, null, null, "Human-confirmed direct nonprofit email. The provided recipient is retained without inferring delivery or another event.", august17, "tkeller@foodlinkny.org"),
+  direct("outreach_direct_sustainable_food_center_20260817", "Sustainable Food Center", "Anthony Cordova / Nicole Thompson route", "Finance / Grants route", "job-sustainable-food-center-2026", "Hiring a Grants Manager to coordinate reporting across program, finance, and data teams.", "https://careers.wgu.edu/jobs/sustainable-food-center-grants-manager/", "Human-confirmed direct nonprofit email. The provided organization-inbox recipient is retained without inferring delivery or another event.", august17, "info@sustainablefoodcenter.org"),
   direct("outreach_direct_junior_achievement_20260817", "Junior Achievement of South Florida", "Finance team route", "Finance team", "job-ja-south-florida-2026", "Hiring a Grant Accountant for the post-award financial lifecycle and funder-specific reporting templates.", "https://recruiting.paylocity.com/recruiting/jobs/Details/4290195/Junior-Achievement-South-Florida/Grant-Accountant", "Human-confirmed direct nonprofit email. Existing known recipient retained without inferring delivery or another event.", august17, "info@jasouthflorida.org"),
   direct("outreach_direct_project_oceanology_20260818", "Project Oceanology", "Lisa Colón", "Accounts Manager", "award-project-oceanology-2026", "Federal marine-science grant record detected.", "https://www.usaspending.gov/award/ASST_NON_NA26NMFX469G0026_013/", "Human-confirmed direct nonprofit email. Publicly verified contact and source retained; no delivery result or follow-up is inferred.", august18, "lmcolon@oceanology.org"),
   direct("outreach_direct_rodale_20260818", "Rodale Institute", "Elaine Macbeth", "Executive Vice President, Chief Finance and Administration Officer", "job-rodale-2026", "Hiring a Grants Accountant reporting to the CFO.", "https://rodaleinstitute.org/employment/grants-accountant/", "Human-confirmed direct nonprofit email. Publicly verified contact and source retained; no delivery result or follow-up is inferred.", august18, "elaine.macbeth@rodaleinstitute.org"),
-  partner("outreach_partner_21_light_20260817", "21 Light Accounting", "Joshua Gonzales", "Partner / fractional CFO", "Human-confirmed partner email. Canonical partner research and verified email route must be linked without guessing."),
-  partner("outreach_partner_vault_20260817", "Vault Consulting", "Chris Rauch", "Partner / fractional CFO", "Human-confirmed partner email. Canonical partner research and verified email route must be linked without guessing."),
-  partner("outreach_partner_goldin_20260817", "Goldin Group", "Alicia Coleman", "Partner / fractional CFO", "Human-confirmed partner email. Canonical partner research and verified email route must be linked without guessing."),
-  partner("outreach_partner_baas_20260817", "BAAS Advisory", "Brad Reigner", "Partner / fractional CFO", "Human-confirmed partner email. Canonical partner research and verified email route must be linked without guessing."),
-  partner("outreach_partner_cfo_leverage_20260817", "CFO Leverage", "Sam Coates", "Partner / fractional CFO", "Human-confirmed partner email. Canonical partner research and verified email route must be linked without guessing.")
+  partner("outreach_partner_21_light_20260817", "21 Light Accounting", "Joshua Gonzales", "Partner / fractional CFO", "Human-confirmed partner email. The provided recipient is retained without inferring delivery or another event.", "josh@21lightstreet.com"),
+  partner("outreach_partner_vault_20260817", "Vault Consulting", "Chris Rauch", "Partner / fractional CFO", "Human-confirmed partner email. The provided recipient is retained without inferring delivery or another event.", "crauch@vaultconsulting.com"),
+  partner("outreach_partner_goldin_20260817", "Goldin Group", "Alicia Coleman", "Partner / fractional CFO", "Human-confirmed partner email. The provided recipient is retained without inferring delivery or another event.", "acoleman@goldingroup.biz"),
+  partner("outreach_partner_baas_20260817", "BAAS Advisory", "Brad Reigner", "Partner / fractional CFO", "Human-confirmed partner email. The provided recipient is retained without inferring delivery or another event.", "brad@baasllccpa.com"),
+  partner("outreach_partner_cfo_leverage_20260817", "CFO Leverage", "Sam Coates", "Partner / fractional CFO", "Human-confirmed partner email. The provided recipient is retained without inferring delivery or another event.", "sc@cfoleverage.com"),
+  partner("outreach_partner_closing_your_books_confirmed", "Closing Your Books", "Lozelle Mathai", "Partner / accounting firm", "Human-confirmed partner email. The send date was not provided, so no sent timestamp, delivery result, or follow-up date is inferred.", "lozelle@closingyourbooks.com", null),
+  partner("outreach_partner_nfo_nonprofit_financial_outsourcing_confirmed", "NFO — Nonprofit Financial Outsourcing", "NFO team", "Partner / financial outsourcing", "Human-confirmed partner email. The send date was not provided, so no sent timestamp, delivery result, or follow-up date is inferred.", "info@nfoyourcfo.com", null),
+  partner("outreach_partner_your_cfo_friend_confirmed", "Your CFO Friend", "Bee", "Partner / fractional CFO", "Human-confirmed partner email. The send date was not provided, so no sent timestamp, delivery result, or follow-up date is inferred.", "hello@yourcfofriend.com", null),
+  partner("outreach_partner_platinum_cfo_confirmed", "Platinum CFO", "Sharon Gubinsky / team", "Partner / fractional CFO", "Human-confirmed partner email. The send date was not provided, so no sent timestamp, delivery result, or follow-up date is inferred.", "info@platinumcfo.com", null),
+  partner("outreach_partner_crown_cfo_confirmed", "Crown CFO", "Mike DeMaio", "Partner / fractional CFO", "Human-confirmed partner email. The send date was not provided, so no sent timestamp, delivery result, or follow-up date is inferred.", "mike@crowncfo.com", null)
 ];
 
 export function mergeOutreachRecords(existing: OutreachRecord[], incoming: OutreachRecord[]) {
@@ -54,7 +63,7 @@ export function mergeOutreachRecords(existing: OutreachRecord[], incoming: Outre
   // The supplied ledger is the canonical record of a human-confirmed event.
   // Replaying it repairs incomplete prior imports without fuzzy matching.
   for (const item of incoming) byId.set(item.id, item);
-  return [...byId.values()].sort((left, right) => left.sentAt.localeCompare(right.sentAt) || left.id.localeCompare(right.id));
+  return [...byId.values()].sort((left, right) => (left.sentAt || "").localeCompare(right.sentAt || "") || left.id.localeCompare(right.id));
 }
 
 export function outreachOrganizations(records: OutreachRecord[], type: OutreachType) {
@@ -65,20 +74,46 @@ export function outreachCount(records: OutreachRecord[], type?: OutreachType) {
   return records.filter((record) => !type || record.type === type).length;
 }
 
+/** Existing canonical prior-contact state may block first touch without inventing a sent-event record. */
+const PROTECTED_PRIOR_CONTACT_ORGANIZATIONS = new Set(["perkins school for blind"]);
+
+const OUTREACH_ORGANIZATION_ALIASES: Record<string, string> = {
+  "interdistrict committee for project oceanology": "project oceanology",
+  "nfo": "nfo nonprofit financial outsourcing",
+  "nfo your cfo": "nfo nonprofit financial outsourcing",
+  "21 light street": "21 light accounting",
+  "baas llc cpa": "baas advisory",
+  "platinum cfo llc": "platinum cfo",
+  "crown cfo llc": "crown cfo"
+};
+
 export function normalizeOutreachOrganization(value: string) {
   const normalized = value.toLowerCase().replace(/\b(the|inc|incorporated|corp|corporation|co|company|foundation)\b/g, " ").replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
-  return normalized === "interdistrict committee for project oceanology" ? "project oceanology" : normalized;
+  return OUTREACH_ORGANIZATION_ALIASES[normalized] || normalized;
 }
 
-export interface InitialOutreachCandidate { organization: string; email?: string | null; }
-export type InitialOutreachEligibility = "ELIGIBLE_FOR_INITIAL_OUTREACH" | "DO_NOT_SEND_NEW_INITIAL_OUTREACH" | "SEPARATE_HUMAN_AUTHORIZATION_REQUIRED";
+export type OutreachSuppressionState = "CLEAR" | "BLOCKED" | "UNSUBSCRIBED" | "DO_NOT_CONTACT" | "OPT_OUT" | "BOUNCE_SUPPRESSION" | "NEGATIVE_RESPONSE_DO_NOT_CONTACT";
+export interface InitialOutreachCandidate { organization: string; email?: string | null; domain?: string | null; suppressionStatus?: OutreachSuppressionState; instantlyInitialOutreachRecorded?: boolean; }
+export type InitialOutreachEligibility = "ELIGIBLE_FOR_INITIAL_OUTREACH" | "DO_NOT_SEND_NEW_INITIAL_OUTREACH" | "SUPPRESSED_DO_NOT_CONTACT" | "SEPARATE_HUMAN_AUTHORIZATION_REQUIRED";
+
+function normalizeDomain(value: string | null | undefined) {
+  const raw = String(value || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0];
+  return raw.includes("@") ? raw.split("@").at(-1)! : raw;
+}
+
+function isStrongSuppression(status: OutreachSuppressionState | undefined) {
+  return status === "BLOCKED" || status === "UNSUBSCRIBED" || status === "DO_NOT_CONTACT" || status === "OPT_OUT" || status === "BOUNCE_SUPPRESSION" || status === "NEGATIVE_RESPONSE_DO_NOT_CONTACT";
+}
 
 // This reconciliation guard authorizes neither delivery nor follow-up.
 export function initialOutreachEligibility(records: OutreachRecord[], candidate: InitialOutreachCandidate, event: "INITIAL" | "FOLLOW_UP" = "INITIAL"): InitialOutreachEligibility {
+  if (isStrongSuppression(candidate.suppressionStatus)) return "SUPPRESSED_DO_NOT_CONTACT";
   if (event === "FOLLOW_UP") return "SEPARATE_HUMAN_AUTHORIZATION_REQUIRED";
   const organization = normalizeOutreachOrganization(candidate.organization);
   const email = candidate.email?.trim().toLowerCase();
-  return records.some((record) => record.initialOutreachGuard === "DO_NOT_SEND_NEW_INITIAL_OUTREACH" && (normalizeOutreachOrganization(record.organization) === organization || Boolean(email && record.email?.toLowerCase() === email))) ? "DO_NOT_SEND_NEW_INITIAL_OUTREACH" : "ELIGIBLE_FOR_INITIAL_OUTREACH";
+  const domain = normalizeDomain(candidate.domain || candidate.email);
+  if (!organization || candidate.instantlyInitialOutreachRecorded || PROTECTED_PRIOR_CONTACT_ORGANIZATIONS.has(organization)) return "DO_NOT_SEND_NEW_INITIAL_OUTREACH";
+  return records.some((record) => record.initialOutreachGuard === "DO_NOT_SEND_NEW_INITIAL_OUTREACH" && (normalizeOutreachOrganization(record.organization) === organization || Boolean(email && record.email?.toLowerCase() === email) || Boolean(domain && normalizeDomain(record.email) === domain))) ? "DO_NOT_SEND_NEW_INITIAL_OUTREACH" : "ELIGIBLE_FOR_INITIAL_OUTREACH";
 }
 export interface OutreachMetrics {
   totalSent: number;

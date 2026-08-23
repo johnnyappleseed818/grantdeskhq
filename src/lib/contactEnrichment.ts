@@ -4,10 +4,15 @@ export type ProspectChannel = typeof PROSPECT_CHANNELS[number];
 export const INTRODUCTORY_GROWTH_OFFER = "We're offering introductory Growth pricing to 25 nonprofit customers at $99/month, normally $199/month.";
 export const FREE_FIRST_AWARD_CTA = "Would you be open to trying it with one award for free?";
 
-export type EmailVerificationStatus = "VERIFIED" | "ACCEPT_ALL" | "UNKNOWN" | "INVALID" | "NOT_FOUND" | "UNAVAILABLE";
-export type ContactReadinessState = EmailVerificationStatus | "SUPPRESSED" | "READY_FOR_HUMAN_APPROVAL" | "CONTACT_NOT_ESTABLISHED";
+/** Stable internal verification states; business logic never depends on raw provider strings. */
+export type EmailVerificationStatus = "VERIFIED" | "ACCEPT_ALL" | "RISKY" | "INVALID" | "UNKNOWN" | "ERROR" | "VERIFICATION_RESULT_MISSING" | "NOT_FOUND" | "UNAVAILABLE";
+export type ContactReadinessState = EmailVerificationStatus | "SUPPRESSED" | "ALREADY_CONTACTED" | "READY_FOR_HUMAN_APPROVAL" | "CONTACT_NOT_ESTABLISHED";
 export type SuppressionStatus = "CLEAR" | "BLOCKED" | "UNKNOWN";
 export type ContactEnrichmentProviderName = "hunter" | "apollo";
+export type PriorContactStatus = "CLEAR" | "ALREADY_CONTACTED" | "UNKNOWN";
+export type OrganizationDedupeStatus = "PASS" | "DUPLICATE";
+export type ContactEvidenceStatus = "PASS" | "FAIL";
+export type FinderResult = "FOUND" | "NOT_FOUND" | "ERROR" | "NOT_RECORDED";
 
 export interface EnrichmentTarget {
   prospectChannel?: ProspectChannel;
@@ -33,6 +38,11 @@ export interface ProviderLookupResult {
   attemptedAt: string;
   attempted: boolean;
   errorCategory?: "not_configured" | "limit_reached" | "authentication" | "rate_limited" | "provider_error" | "network" | "invalid_response";
+  providerRequestType?: "EMAIL_FINDER_AND_VERIFIER" | "EMAIL_FINDER" | "PEOPLE_MATCH";
+  finderResult?: FinderResult;
+  verifierStatus?: EmailVerificationStatus;
+  verificationTimestamp?: string;
+  verificationSource?: EmailSource[];
 }
 
 export interface SuppressionCheck {
@@ -40,6 +50,34 @@ export interface SuppressionCheck {
   reasons: string[];
   checkedAt: string;
   sourcesChecked: string[];
+}
+
+export interface NormalizedVerificationState {
+  provider: ContactEnrichmentProviderName | null;
+  providerRequestType: "EMAIL_FINDER_AND_VERIFIER" | "EMAIL_FINDER" | "PEOPLE_MATCH" | "RECOVERED_PERSISTED" | "NONE";
+  email: string | null;
+  finderResult: FinderResult;
+  verifierStatus: EmailVerificationStatus;
+  providerScore: number | null;
+  verificationTimestamp: string | null;
+  verificationSource: EmailSource[];
+  suppressionStatus: SuppressionStatus;
+  priorContactStatus: PriorContactStatus;
+  organizationDedupe: OrganizationDedupeStatus;
+  contactEvidence: ContactEvidenceStatus;
+  blockers: string[];
+  readyToSend: boolean;
+  readyBlocker: string | null;
+  lastEnrichmentAttempt: string | null;
+  nextEligibleRetry: string | null;
+}
+
+export interface ContactReadinessContext {
+  qualifiedOrganization?: boolean;
+  priorContactStatus?: PriorContactStatus;
+  organizationDedupe?: OrganizationDedupeStatus;
+  lastEnrichmentAttempt?: string | null;
+  nextEligibleRetry?: string | null;
 }
 
 export interface ContactEnrichmentRecord {
@@ -58,6 +96,13 @@ export interface ContactEnrichmentRecord {
   blockers: string[];
   createdAt: string;
   updatedAt: string;
+  lastEnrichmentAttempt?: string;
+  provider?: ContactEnrichmentProviderName;
+  result?: string;
+  failureReason?: string;
+  candidateFingerprint?: string;
+  nextEligibleRetry?: string;
+  verification: NormalizedVerificationState;
 }
 
 export interface EnrichmentUsage {
@@ -94,7 +139,7 @@ export function isVerifiedBusinessEmail(email: string | undefined, domain: strin
 
 export function shouldRefreshContactEnrichment(record: ContactEnrichmentRecord | null | undefined, now = Date.now(), verifiedMaxAgeDays = 30) {
   if (!record) return true;
-  if (record.emailVerificationStatus === "UNKNOWN" || record.emailVerificationStatus === "NOT_FOUND" || record.emailVerificationStatus === "UNAVAILABLE") return true;
+  if (["UNKNOWN", "ERROR", "VERIFICATION_RESULT_MISSING", "NOT_FOUND", "UNAVAILABLE"].includes(record.emailVerificationStatus)) return true;
   const updatedAt = Date.parse(record.updatedAt);
   if (!Number.isFinite(updatedAt)) return true;
   return now - updatedAt > verifiedMaxAgeDays * 86_400_000;
@@ -115,38 +160,77 @@ export function buildContactEnrichmentRecord(
   providerAttempts: ProviderLookupResult[],
   suppression: SuppressionCheck,
   now = new Date().toISOString(),
-  prior?: Pick<ContactEnrichmentRecord, "createdAt">
+  prior?: Pick<ContactEnrichmentRecord, "createdAt" | "lastEnrichmentAttempt" | "nextEligibleRetry" | "verification">,
+  context: ContactReadinessContext = {}
 ): ContactEnrichmentRecord {
   const normalizedAttempts = providerAttempts.map((attempt) => normalizeProviderResult(attempt, target.organizationDomain));
-  const verified = normalizedAttempts.find((attempt) => attempt.status === "VERIFIED" && isVerifiedBusinessEmail(attempt.email, target.organizationDomain));
-  const latest = verified || normalizedAttempts.at(-1);
-  const status = verified?.status || latest?.status || "NOT_FOUND";
-  const email = verified?.email;
-  const blockers = buildBlockers(target, verified, status, suppression);
-  const readiness = suppression.status === "BLOCKED"
-    ? "SUPPRESSED"
-    : verified && suppression.status === "CLEAR" && blockers.length === 0
-      ? "READY_FOR_HUMAN_APPROVAL"
-      : verified
-        ? "VERIFIED"
-        : status === "NOT_FOUND" || status === "UNAVAILABLE"
-          ? "CONTACT_NOT_ESTABLISHED"
-          : status;
+  const latest = normalizedAttempts.at(-1);
+  const latestEmail = latest?.email || prior?.verification?.email || null;
+  const verification = evaluateContactReadiness({
+    provider: latest?.provider || prior?.verification?.provider || null,
+    providerRequestType: latest?.providerRequestType || (latest ? "EMAIL_FINDER_AND_VERIFIER" : prior?.verification ? "RECOVERED_PERSISTED" : "NONE"),
+    email: latestEmail,
+    finderResult: latest?.finderResult || (latest?.email ? "FOUND" : prior?.verification?.finderResult || "NOT_RECORDED"),
+    verifierStatus: normalizedVerifierStatus(latest, prior?.verification),
+    providerScore: latest?.confidence ?? prior?.verification?.providerScore ?? null,
+    verificationTimestamp: latest?.verificationTimestamp || latest?.attemptedAt || prior?.verification?.verificationTimestamp || null,
+    verificationSource: latest?.verificationSource || latest?.sourceUrls || prior?.verification?.verificationSource || [],
+    suppressionStatus: suppression.status,
+    priorContactStatus: context.priorContactStatus || prior?.verification?.priorContactStatus || "CLEAR",
+    organizationDedupe: context.organizationDedupe || prior?.verification?.organizationDedupe || "PASS",
+    contactEvidence: hasContactEvidence(target) ? "PASS" : "FAIL",
+    lastEnrichmentAttempt: context.lastEnrichmentAttempt ?? prior?.lastEnrichmentAttempt ?? prior?.verification?.lastEnrichmentAttempt ?? latest?.attemptedAt ?? null,
+    nextEligibleRetry: context.nextEligibleRetry ?? prior?.nextEligibleRetry ?? prior?.verification?.nextEligibleRetry ?? null
+  }, context.qualifiedOrganization ?? true);
+  const readiness: ContactReadinessState = verification.readyToSend
+    ? "READY_FOR_HUMAN_APPROVAL"
+    : verification.priorContactStatus === "ALREADY_CONTACTED"
+      ? "ALREADY_CONTACTED"
+      : suppression.status === "BLOCKED"
+      ? "SUPPRESSED"
+      : ["NOT_FOUND", "UNAVAILABLE", "VERIFICATION_RESULT_MISSING"].includes(verification.verifierStatus)
+        ? "CONTACT_NOT_ESTABLISHED"
+        : verification.verifierStatus;
   return {
     id: contactEnrichmentKey(target),
     mode: CONTACT_ENRICHMENT_MODE,
     target: normalizedTarget(target),
-    ...(email ? { email } : {}),
-    ...(verified ? { emailProvider: verified.provider, providerConfidence: verified.confidence, emailProvenance: verified.sourceUrls } : { emailProvenance: [] }),
-    emailVerificationStatus: status,
+    ...(latestEmail ? { email: latestEmail } : {}),
+    ...(latest?.provider ? { emailProvider: latest.provider, providerConfidence: latest.confidence, emailProvenance: verification.verificationSource } : { emailProvenance: verification.verificationSource }),
+    emailVerificationStatus: verification.verifierStatus,
     providerAttempts: normalizedAttempts,
     suppression,
     readiness,
-    readyForHumanApproval: readiness === "READY_FOR_HUMAN_APPROVAL",
-    blockers,
+    readyForHumanApproval: verification.readyToSend,
+    blockers: verification.blockers,
     createdAt: prior?.createdAt || now,
-    updatedAt: now
+    updatedAt: now,
+    verification
   };
+}
+
+/** One authoritative fail-closed READY_TO_SEND decision. */
+export function evaluateContactReadiness(
+  state: Omit<NormalizedVerificationState, "blockers" | "readyToSend" | "readyBlocker">,
+  qualifiedOrganization = true
+): NormalizedVerificationState {
+  const blockers: string[] = [];
+  if (!qualifiedOrganization) blockers.push("The organization is not qualified for this outreach segment.");
+  if (state.organizationDedupe !== "PASS") blockers.push("Organization dedupe did not pass.");
+  if (state.priorContactStatus === "ALREADY_CONTACTED") blockers.push("Previously contacted organizations are not eligible for first-touch outreach.");
+  if (state.priorContactStatus === "UNKNOWN") blockers.push("Prior-contact status is not available.");
+  if (state.contactEvidence !== "PASS") blockers.push("The current finance or grants contact needs an authoritative role source.");
+  if (state.verifierStatus === "ACCEPT_ALL") blockers.push("Hunter returned ACCEPT_ALL; a direct verified result is required.");
+  else if (state.verifierStatus === "RISKY") blockers.push("Hunter returned RISKY; a direct verified result is required.");
+  else if (state.verifierStatus === "INVALID") blockers.push("Hunter returned INVALID.");
+  else if (state.verifierStatus === "ERROR") blockers.push("Hunter verification ended in a provider error.");
+  else if (state.verifierStatus === "VERIFICATION_RESULT_MISSING") blockers.push("VERIFICATION_RESULT_MISSING: Finder result exists but no durable verifier result was recorded.");
+  else if (state.verifierStatus !== "VERIFIED") blockers.push("A verified direct business email has not been established.");
+  if (state.suppressionStatus === "UNKNOWN") blockers.push("Suppression and contact-history status is not available.");
+  if (state.suppressionStatus === "BLOCKED") blockers.push("Suppressed by contact-history or unsubscribe policy.");
+  if (!state.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(state.email)) blockers.push("A provider-returned business email is required.");
+  const readyToSend = blockers.length === 0;
+  return { ...state, blockers, readyToSend, readyBlocker: readyToSend ? null : blockers[0] || null };
 }
 
 export function accumulateEnrichmentUsage(current: EnrichmentUsage | null | undefined, attempts: ProviderLookupResult[], updatedAt = new Date().toISOString()): EnrichmentUsage {
@@ -218,7 +302,9 @@ function normalizeProviderResult(result: ProviderLookupResult, domain: string): 
     ...withoutEmail,
     status,
     ...(email && isVerifiedBusinessEmail(email, domain) ? { email } : {}),
-    sourceUrls: uniqueSources(result.sourceUrls)
+    sourceUrls: uniqueSources(result.sourceUrls),
+    verifierStatus: mapProviderVerificationStatus(result.verifierStatus || status),
+    ...(result.verificationSource ? { verificationSource: uniqueSources(result.verificationSource) } : {})
   };
 }
 
@@ -250,14 +336,26 @@ function uniqueSources(sources: EmailSource[]) {
   }).map((source) => ({ ...source, url: source.url.trim() }));
 }
 
-function buildBlockers(target: EnrichmentTarget, verified: ProviderLookupResult | undefined, status: EmailVerificationStatus, suppression: SuppressionCheck) {
-  const blockers: string[] = [];
-  if (!target.organizationDomain || !/^https:\/\//.test(target.domainSourceUrl)) blockers.push("The organization domain needs a verified source.");
-  if (!target.person.fullName || !target.person.currentTitle || !/^https:\/\//.test(target.person.titleSourceUrl)) blockers.push("The current finance or grants contact needs an authoritative role source.");
-  if (!verified) blockers.push(status === "ACCEPT_ALL" ? "The candidate email is accept-all and needs an additional verified result." : "A verified direct business email has not been established.");
-  if (suppression.status === "UNKNOWN") blockers.push("Suppression and contact-history status is not available.");
-  if (suppression.status === "BLOCKED") blockers.push(...suppression.reasons.map((reason) => `Suppressed: ${reason}`));
-  return blockers;
+function hasContactEvidence(target: EnrichmentTarget) {
+  return Boolean(target.organizationDomain && /^https:\/\//.test(target.domainSourceUrl) && target.person.fullName && target.person.currentTitle && /^https:\/\//.test(target.person.titleSourceUrl));
+}
+
+function normalizedVerifierStatus(attempt: ProviderLookupResult | undefined, prior: NormalizedVerificationState | undefined): EmailVerificationStatus {
+  if (attempt) return mapProviderVerificationStatus(attempt.verifierStatus || attempt.status);
+  if (prior) return mapProviderVerificationStatus(prior.verifierStatus);
+  return "VERIFICATION_RESULT_MISSING";
+}
+
+export function mapProviderVerificationStatus(value: string | undefined): EmailVerificationStatus {
+  switch (String(value || "").trim().toUpperCase()) {
+    case "VERIFIED": case "VALID": return "VERIFIED";
+    case "ACCEPT_ALL": case "ACCEPT-ALL": return "ACCEPT_ALL";
+    case "RISKY": return "RISKY";
+    case "INVALID": return "INVALID";
+    case "ERROR": case "UNAVAILABLE": return "ERROR";
+    case "NOT_FOUND": case "VERIFICATION_RESULT_MISSING": return "VERIFICATION_RESULT_MISSING";
+    default: return "UNKNOWN";
+  }
 }
 
 function normalize(value: string) {

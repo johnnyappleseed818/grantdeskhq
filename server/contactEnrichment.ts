@@ -1,6 +1,7 @@
 import {
   accumulateEnrichmentUsage,
   buildContactEnrichmentRecord,
+  isVerifiedBusinessEmail,
   contactEnrichmentKey,
   runProviderWaterfall,
   shouldRefreshContactEnrichment,
@@ -68,6 +69,65 @@ export async function enrichGtmContactInShadow(target: EnrichmentTarget, environ
   await saveGtmContactEnrichment(record);
   await saveGtmEnrichmentUsage(accumulateEnrichmentUsage(usage, attempts, now));
   return record;
+}
+
+
+/** Hunter-only path for bounded production batches; no secondary provider is invoked. */
+export async function enrichGtmContactWithHunter(target: EnrichmentTarget, environment: NodeJS.ProcessEnv = process.env, prior?: ContactEnrichmentRecord): Promise<ContactEnrichmentRecord> {
+  const now = new Date().toISOString();
+  const configuration = contactEnrichmentRuntimeConfiguration(environment);
+  const usage = await readGtmEnrichmentUsage();
+  const hunter = createHunterProvider({ enabled: configuration.providerCallsEnabled, apiKey: environment.HUNTER_API_KEY?.trim(), lookupLimit: configuration.hunter.lookupLimit, lookupsUsed: 0 });
+  const attempt = await hunter.discover(target);
+  const suppression = attempt.status === "VERIFIED" && attempt.email ? await readGtmContactSuppression(attempt.email) : noEmailSuppressionCheck(now);
+  const base = buildContactEnrichmentRecord(target, [attempt], suppression, now, prior);
+  const transient = ["UNAVAILABLE", "ERROR"].includes(attempt.status) && ["network", "rate_limited", "provider_error"].includes(attempt.errorCategory || "");
+  const retryDays = transient ? 1 : 14;
+  const nextEligibleRetry = base.readyForHumanApproval ? undefined : new Date(Date.now() + retryDays * 86_400_000).toISOString();
+  const record: ContactEnrichmentRecord = { ...base, lastEnrichmentAttempt: now, provider: "hunter", result: base.readiness, failureReason: base.readyForHumanApproval ? undefined : base.blockers.join(" "), candidateFingerprint: candidateFingerprint(target), ...(nextEligibleRetry ? { nextEligibleRetry } : {}), verification: { ...base.verification, lastEnrichmentAttempt: now, nextEligibleRetry: nextEligibleRetry || null } };
+  await saveGtmContactEnrichment(record);
+  await saveGtmEnrichmentUsage(accumulateEnrichmentUsage(usage, [attempt], now));
+  return record;
+}
+
+/** Rebuild canonical readiness from stored attempts only. This never calls a provider or changes retry eligibility. */
+export async function reconcileStoredGtmContact(
+  target: EnrichmentTarget,
+  prior: ContactEnrichmentRecord | null | undefined,
+  context: { priorContactStatus?: "CLEAR" | "ALREADY_CONTACTED" | "UNKNOWN"; organizationDedupe?: "PASS" | "DUPLICATE"; qualifiedOrganization?: boolean } = {}
+): Promise<ContactEnrichmentRecord> {
+  const now = new Date().toISOString();
+  const persistedEmail = prior?.providerAttempts.at(-1)?.email || prior?.verification?.email || prior?.email;
+  const suppression = persistedEmail && isVerifiedBusinessEmail(persistedEmail, target.organizationDomain)
+    ? await readGtmContactSuppression(persistedEmail)
+    : prior?.suppression || noEmailSuppressionCheck(now);
+  const base = buildContactEnrichmentRecord(target, prior?.providerAttempts || [], suppression, now, prior || undefined, {
+    ...context,
+    lastEnrichmentAttempt: prior?.lastEnrichmentAttempt || null,
+    nextEligibleRetry: prior?.nextEligibleRetry || null
+  });
+  const record: ContactEnrichmentRecord = {
+    ...base,
+    ...(prior?.provider ? { provider: prior.provider } : {}),
+    result: base.readiness,
+    ...(base.readyForHumanApproval ? {} : { failureReason: base.verification.readyBlocker || base.blockers.join(" ") }),
+    ...(prior?.candidateFingerprint ? { candidateFingerprint: prior.candidateFingerprint } : {}),
+    ...(prior?.lastEnrichmentAttempt ? { lastEnrichmentAttempt: prior.lastEnrichmentAttempt } : {}),
+    ...(prior?.nextEligibleRetry ? { nextEligibleRetry: prior.nextEligibleRetry } : {})
+  };
+  await saveGtmContactEnrichment(record);
+  return record;
+}
+
+export function retryEligible(record: ContactEnrichmentRecord | null | undefined, target: EnrichmentTarget, now = Date.now()) {
+  if (!record) return true;
+  if (record.candidateFingerprint && record.candidateFingerprint !== candidateFingerprint(target)) return true;
+  if (record.readyForHumanApproval) return false;
+  return !record.nextEligibleRetry || Date.parse(record.nextEligibleRetry) <= now;
+}
+
+function candidateFingerprint(target: EnrichmentTarget) {
+  return [target.organization, target.organizationDomain, target.person.fullName, target.person.currentTitle, target.person.titleSourceUrl].map((value) => value.trim().toLowerCase()).join("|");
 }
 
 function configuredLimit(value: string | undefined) {

@@ -36,7 +36,7 @@ export function createHunterProvider(configuration: HunterProviderConfiguration)
         if (!finderResponse.ok) return providerFailure("hunter", finderResponse.status);
         const finder = await parseJson(finderResponse);
         const candidate = stringAt(finder, ["data", "email"]);
-        if (!candidate || !isVerifiedBusinessEmail(candidate, target.organizationDomain)) return providerResult("hunter", "NOT_FOUND", { attempted: true, providerMetadata: { finderCalled: true } });
+        if (!candidate || !isVerifiedBusinessEmail(candidate, target.organizationDomain)) return providerResult("hunter", "NOT_FOUND", { attempted: true, providerRequestType: "EMAIL_FINDER", finderResult: "NOT_FOUND", verifierStatus: "VERIFICATION_RESULT_MISSING", verificationTimestamp: new Date().toISOString(), providerMetadata: { finderCalled: true } });
 
         const verifierUrl = new URL("https://api.hunter.io/v2/email-verifier");
         verifierUrl.searchParams.set("email", candidate);
@@ -51,6 +51,11 @@ export function createHunterProvider(configuration: HunterProviderConfiguration)
           acceptAll: verificationStatus === "ACCEPT_ALL",
           sourceUrls: dedupeSources([...hunterSources(finder), ...hunterSources(verifier)]),
           attempted: true,
+          providerRequestType: "EMAIL_FINDER_AND_VERIFIER",
+          finderResult: "FOUND",
+          verifierStatus: verificationStatus,
+          verificationTimestamp: new Date().toISOString(),
+          verificationSource: dedupeSources([...hunterSources(finder), ...hunterSources(verifier)]),
           providerMetadata: { finderCalled: true, verifierCalled: true, smtpCheck: booleanAt(verifier, ["data", "smtp_check"]) ?? false }
         });
       } catch (error) {
@@ -127,6 +132,7 @@ function hunterVerificationStatus(status: string | undefined, acceptAll: boolean
   if (acceptAll || status === "accept_all") return "ACCEPT_ALL";
   if (status === "valid") return "VERIFIED";
   if (status === "invalid") return "INVALID";
+  if (status === "risky") return "RISKY";
   return "UNKNOWN";
 }
 

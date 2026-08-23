@@ -1,0 +1,180 @@
+{
+  "version": 1,
+  "updated_at": "2026-08-18T00:00:00.000Z",
+  "purpose": "Controller queue for the bounded recurring SEO growth engine. SEO opportunities live separately in ops/seo-content-queue.json.",
+  "tasks": [
+    {
+      "id": "seo-engine-initial-setup",
+      "title": "Build the bounded recurring SEO and AI-search growth engine",
+      "category": "REPO_CODING",
+      "task_type": "SEO_ENGINE",
+      "priority": 1,
+      "status": "PASS",
+      "created_at": "2026-08-18T00:00:00.000Z",
+      "updated_at": "2026-08-18T10:24:00.163Z",
+      "description": "Implement only the durable SEO engine: a machine-readable opportunity queue and 20-query AI-search evaluation set; a deterministic inventory, scoring, freshness, internal-link, and technical-SEO validator; and a runner that prepares only explicit content tasks then invokes this existing governed controller. Reuse the six existing articles and current reports. Do not publish any new page during setup. Add a twice-weekly schedule manifest and a concise runbook that states the official ChatGPT Scheduled UI is required to create the calendar trigger. Keep all page production asynchronous and gated by quality checks.",
+      "acceptance_criteria": [
+        "The opportunity queue records existing-page coverage, high-value new/refresh opportunities, priority factors, evidence, cannibalization risk, lifecycle status, and refresh dates without fabricated volume.",
+        "The evaluator validates sitemap, robots, known content URLs, canonical/indexability expectations, internal links, AI-search query targets, and content-quality preconditions deterministically.",
+        "The runner uses scripts/codex-project-runner/queue.mjs with this SEO budget policy and never creates work outside explicit selected opportunities.",
+        "The schedule manifest is twice weekly and documents the narrow human action needed to create it through ChatGPT Scheduled.",
+        "No new public article, production traffic change, external submission, outbound action, or Stripe work occurs in this setup task."
+      ],
+      "dependencies": [],
+      "blocked_by": [],
+      "attempt_count": 1,
+      "max_attempts": 1,
+      "estimated_scope": "bounded",
+      "expected_scope": [
+        "ops/seo-content-queue.json",
+        "ops/ai-search-evaluation.json",
+        "ops/seo-schedule.json",
+        "ops/seo-budget-policy.json",
+        "ops/seo-operating-policy.md",
+        "scripts/seo/",
+        "scripts/codex-project-runner/queue.mjs",
+        "package.json",
+        "reports/seo-content-asset-inventory.json",
+        "reports/seo-recurring-engine.md"
+      ],
+      "allowed_actions": [
+        "inspect targeted source and existing reports",
+        "edit scoped SEO engine files",
+        "run targeted tests",
+        "write reports"
+      ],
+      "forbidden_actions": [
+        "production traffic changes",
+        "new article publication during setup",
+        "external-account actions",
+        "outbound",
+        "purchases",
+        "Stripe changes",
+        "force push"
+      ],
+      "artifacts_expected": [
+        "ops/seo-content-queue.json",
+        "ops/ai-search-evaluation.json",
+        "ops/seo-schedule.json",
+        "scripts/seo/seo-growth-engine.mjs",
+        "scripts/seo/seo-growth-engine.test.mjs",
+        "scripts/seo/run-seo-growth.mjs",
+        "reports/seo-content-asset-inventory.json",
+        "reports/seo-recurring-engine.md"
+      ],
+      "tests_expected": [
+        "node --test scripts/seo/seo-growth-engine.test.mjs",
+        "npm run test:seo-static",
+        "npm run build"
+      ],
+      "branch": "codex/acquisition-finish-20260818",
+      "commit_sha": "e0234f4156a0514489ab2dc68d118af8a01f027e",
+      "started_at": "2026-08-18T10:16:54.374Z",
+      "completed_at": "2026-08-18T10:24:00.163Z",
+      "blocker": "",
+      "result_summary": "Built and validated the bounded SEO/AI-search engine with 20 query targets, six-article inventory, explicit-only dry-run controller integration, publishing lock, and ChatGPT Scheduled UI manifest. No public page or production traffic changed. Pre-existing unrelated controller/policy edits remain uncommitted.",
+      "risk_level": "MODERATE",
+      "business_value": "HIGH",
+      "urgency": "MEDIUM",
+      "estimated_cost_class": "MEDIUM",
+      "validation_level": "WORKSTREAM",
+      "production_traffic_authorized": false,
+      "finalization_task": false,
+      "checkpoint_summary": "Initial setup only. Existing production contains six post-award articles and a 13-URL sitemap. Use the existing hard controller; do not create a second scheduler or a bulk-content batch.",
+      "selected_tier": "STANDARD",
+      "selected_model": "gpt-5.6-terra",
+      "reasoning_level": "medium",
+      "why_selected": "Normal repository implementation or test work with no high-risk indicators.",
+      "route_step": 0,
+      "max_escalations": 1,
+      "max_runtime_minutes": 20,
+      "validation_status": "PASS",
+      "runtime_ms": 425779,
+      "run_dir": "/home/eli_katz/grantdesk-project-runs/seo-growth/runs/seo-engine-initial-setup/2026-08-18T10-16-54-375Z"
+    },
+    {
+      "id": "seo-engine-recurring-runner",
+      "title": "Complete the scheduled SEO selection and governed-run integration",
+      "category": "REPO_CODING",
+      "task_type": "SEO_ENGINE",
+      "priority": 2,
+      "status": "RUNNING",
+      "created_at": "2026-08-18T10:25:00.000Z",
+      "updated_at": "2026-08-18T10:25:56.621Z",
+      "description": "Complete only the missing recurring-run behavior. Extend the SEO engine so --scheduled deterministically selects the single highest-priority eligible, non-cannibalized opportunity, creates exactly one controller task in ops/seo-content-run-queue.json, and invokes scripts/codex-project-runner/queue.mjs under ops/seo-budget-policy.json. Keep --dry-run non-mutating beyond a planned-task preview. The controller task must require the content worker to update the canonical opportunity status and a change log only after the existing quality, technical SEO, and targeted regression gates pass; it must record PARTIAL or BLOCKED otherwise. Make low-risk educational new/refresh content eligible for auto-publish only after those gates. Add a status command, package scripts, deterministic tests for selection/task construction/zero-xhigh budget, and update the runbook plus schedule manifest. Do not run a content task, publish any page, or create an external calendar trigger in this task.",
+      "acceptance_criteria": [
+        "A scheduled run has a deterministic, explicit, single-opportunity selection path and cannot manufacture unrelated work.",
+        "The runner delegates actual work only through the existing governed controller using the SEO-specific 8-worker, 60-minute, zero-xhigh/Sol budget.",
+        "Dry runs preview the selected task without dispatching a content worker or changing public content.",
+        "Future content task prompts require canonical queue lifecycle updates, a refresh log, sitemap/robots/canonical/internal-link/CTA checks, and targeted tests before publication is recorded.",
+        "The schedule manifest and runbook show the real twice-weekly command and the exact ChatGPT Scheduled UI human action.",
+        "No content publication, traffic change, external action, billing work, or unrelated acquisition work occurs during this implementation task."
+      ],
+      "dependencies": [
+        "seo-engine-initial-setup"
+      ],
+      "blocked_by": [],
+      "attempt_count": 1,
+      "max_attempts": 1,
+      "estimated_scope": "bounded",
+      "expected_scope": [
+        "ops/seo-content-queue.json",
+        "ops/seo-content-run-queue.json",
+        "ops/seo-schedule.json",
+        "scripts/seo/seo-growth-engine.mjs",
+        "scripts/seo/seo-growth-engine.test.mjs",
+        "scripts/seo/run-seo-growth.mjs",
+        "package.json",
+        "reports/seo-recurring-engine.md",
+        "reports/seo-change-log.json"
+      ],
+      "allowed_actions": [
+        "inspect scoped engine files",
+        "edit scoped engine files",
+        "run targeted tests",
+        "write reports"
+      ],
+      "forbidden_actions": [
+        "content publication",
+        "production traffic changes",
+        "external-account actions",
+        "outbound",
+        "purchases",
+        "Stripe changes",
+        "force push"
+      ],
+      "artifacts_expected": [
+        "scripts/seo/seo-growth-engine.mjs",
+        "scripts/seo/seo-growth-engine.test.mjs",
+        "scripts/seo/run-seo-growth.mjs",
+        "reports/seo-change-log.json",
+        "reports/seo-recurring-engine.md"
+      ],
+      "tests_expected": [
+        "node --test scripts/seo/seo-growth-engine.test.mjs",
+        "npm run test:seo-static"
+      ],
+      "branch": "codex/acquisition-finish-20260818",
+      "commit_sha": null,
+      "started_at": "2026-08-18T10:25:56.621Z",
+      "completed_at": null,
+      "blocker": "",
+      "result_summary": "",
+      "risk_level": "MODERATE",
+      "business_value": "HIGH",
+      "urgency": "MEDIUM",
+      "estimated_cost_class": "MEDIUM",
+      "validation_level": "WORKSTREAM",
+      "production_traffic_authorized": false,
+      "finalization_task": false,
+      "checkpoint_summary": "Initial engine is present, but its runner only reports dry-run readiness. Implement the recurring selection/controller handoff, not a content batch.",
+      "selected_tier": "STANDARD",
+      "selected_model": "gpt-5.6-terra",
+      "reasoning_level": "medium",
+      "why_selected": "Normal repository implementation or test work with no high-risk indicators.",
+      "route_step": 0,
+      "max_escalations": 1,
+      "max_runtime_minutes": 20
+    }
+  ]
+}

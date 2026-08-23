@@ -5,6 +5,7 @@ import type { AwardDiscoveryScan, DailySocialScan } from "../src/lib/gtm.ts";
 import type { ShadowPipelineStatus } from "../src/lib/gtmShadow.ts";
 import type { ControlPlaneQueueReconciliation } from "../src/lib/gtmControlPlaneQueue.ts";
 import type { ContactEnrichmentRecord, EnrichmentUsage, SuppressionCheck } from "../src/lib/contactEnrichment.ts";
+import type { SearchConsoleState } from "./searchConsole.ts";
 import type { FeedbackSubmission } from "../src/lib/feedback.ts";
 import type { OutreachRecord } from "../src/lib/gtmOutreach.ts";
 import { mergeOutreachRecords } from "../src/lib/gtmOutreach.ts";
@@ -66,7 +67,7 @@ export async function reconcileGtmOutreachLedger(confirmed: OutreachRecord[]): P
   const existing = response.status === 404 ? [] : ((await response.json()) as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> }).documents || [];
   const imported = existing.map((document) => outreachFromRecord(decodeFields(document.fields || {}))).filter((record): record is OutreachRecord => Boolean(record));
   const reconciled = mergeOutreachRecords(imported, confirmed);
-  await Promise.all(confirmed.map((record) => writeDocument(accessToken, collection + "/" + safeOutreachDocumentId(record.id), { ...record, email: record.email || "", canonicalOpportunityId: record.canonicalOpportunityId || "", whyNowSignal: record.whyNowSignal || "", signalSource: record.signalSource || "", followUpDueAt: record.followUpDueAt || "" })));
+  await Promise.all(confirmed.map((record) => writeDocument(accessToken, collection + "/" + safeOutreachDocumentId(record.id), { ...record, email: record.email || "", canonicalOpportunityId: record.canonicalOpportunityId || "", whyNowSignal: record.whyNowSignal || "", signalSource: record.signalSource || "", sentAt: record.sentAt || "", lastContactAt: record.lastContactAt || "", followUpDueAt: record.followUpDueAt || "" })));
   return reconciled;
 }
 
@@ -716,6 +717,28 @@ export async function readGtmEnrichmentUsage(): Promise<EnrichmentUsage | null> 
   catch { return null; }
 }
 
+
+/** Search Console state is stored separately from acquisition data and contains no GA4 metrics. */
+export async function saveSearchConsoleState(state: SearchConsoleState) {
+  const accessToken = await gcpToken();
+  await writeDocument(accessToken, "seo/search-console/state/current", {
+    updatedAt: state.updatedAt,
+    lastSuccessfulSync: state.lastSuccessfulSync || "",
+    dataThrough: state.dataThrough || "",
+    stateJson: JSON.stringify(state)
+  });
+  return state;
+}
+
+export async function readSearchConsoleState(): Promise<SearchConsoleState | null> {
+  const response = await authorizedFetch("/seo/search-console/state/current", await gcpToken());
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("Search Console state could not be loaded (" + response.status + ").");
+  const record = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
+  try { return record.stateJson ? JSON.parse(String(record.stateJson)) as SearchConsoleState : null; }
+  catch { return null; }
+}
+
 export async function readGtmContactSuppression(email: string): Promise<SuppressionCheck> {
   const normalizedEmail = email.trim().toLowerCase();
   const checkedAt = new Date().toISOString();
@@ -1289,7 +1312,7 @@ async function writeDocument(accessToken: string, path: string, record: Record<s
   if (!response?.ok) throw new Error(`Workspace record could not be saved (${response?.status || 503}).`);
 }
 
-async function gcpToken() {
+export async function gcpToken() {
   if (tokenCache && tokenCache.expiresAt > Date.now() + 60_000) return tokenCache.token;
   const response = await fetch("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token", { headers: { "Metadata-Flavor": "Google" } });
   if (!response.ok) throw new Error("Cloud service credentials are unavailable.");
@@ -1342,7 +1365,8 @@ export function outreachFromRecord(record: Record<string, unknown>): OutreachRec
   const id = String(record.id || "");
   const type = String(record.type || "");
   if (!/^outreach_(direct|partner)_[a-z0-9_]+$/.test(id) || (type !== "DIRECT_NONPROFIT" && type !== "PARTNER")) return null;
-  const parsed = { ...record, email: String(record.email || "") || null, canonicalOpportunityId: String(record.canonicalOpportunityId || "") || null, whyNowSignal: String(record.whyNowSignal || "") || null, signalSource: String(record.signalSource || "") || null, followUpDueAt: String(record.followUpDueAt || "") || null } as OutreachRecord;
+  const sentAt = String(record.sentAt || "") || null;
+  const parsed = { ...record, email: String(record.email || "") || null, canonicalOpportunityId: String(record.canonicalOpportunityId || "") || null, whyNowSignal: String(record.whyNowSignal || "") || null, signalSource: String(record.signalSource || "") || null, sentAt, sentTimePrecision: sentAt ? "DATE_CONFIRMED" : "DATE_NOT_RECORDED", lastContactAt: String(record.lastContactAt || "") || null, followUpDueAt: String(record.followUpDueAt || "") || null, initialOutreachGuard: "DO_NOT_SEND_NEW_INITIAL_OUTREACH" } as OutreachRecord;
   const validEmail = parsed.email === null || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(parsed.email);
   return parsed.source === "HUMAN_CONFIRMED_OUTREACH" && parsed.status === "SENT" && validEmail ? parsed : null;
 }

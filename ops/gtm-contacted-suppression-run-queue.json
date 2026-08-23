@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "purpose": "One routine, no-external-action GTM contacted-organization reconciliation.",
+  "tasks": [
+    {
+      "id": "gtm-contacted-organization-suppression-20260818",
+      "title": "Reconcile all human-confirmed contacted organizations into canonical outreach guards",
+      "category": "GTM",
+      "task_type": "GTM_RECONCILIATION",
+      "priority": 1,
+      "status": "BLOCKED",
+      "created_at": "2026-08-18T11:00:00.000Z",
+      "updated_at": "2026-08-18T11:46:31.228Z",
+      "description": "Reconcile the human-confirmed source-of-truth outreach ledger so it contains exactly 7 direct nonprofit organizations and 10 partner organizations: Johnson Creek Watershed Council (Jennifer Hamilton, jennifer@jcwc.org), Child Enrichment (Kari Viola-Brooke, KViola@ChildEnrichment.org), Foodlink (Terra Keller, tkeller@foodlinkny.org), Sustainable Food Center (Anthony Cordova / Nicole Thompson route, info@sustainablefoodcenter.org), Junior Achievement of South Florida (Finance team route, info@jasouthflorida.org; retain its one existing event), Project Oceanology (Lisa Colón, lmcolon@oceanology.org only when canonical ledger confirms), Rodale Institute (Elaine Macbeth, Elaine.Macbeth@RodaleInstitute.org only when canonical ledger confirms), 21 Light Accounting (Joshua Gonzales, josh@21lightstreet.com), Vault Consulting (Chris Rauch, crauch@vaultconsulting.com), Goldin Group (Alicia Coleman, acoleman@goldingroup.biz), BAAS Advisory (Brad Reigner, brad@baasllccpa.com), CFO Leverage (Sam Coates, sc@cfoleverage.com), Closing Your Books (Lozelle Mathai, lozelle@closingyourbooks.com), NFO — Nonprofit Financial Outsourcing (NFO team, info@NFOyourCFO.com), Your CFO Friend (Bee, hello@yourcfofriend.com), Platinum CFO (Sharon Gubinsky / team, info@platinumcfo.com), and Crown CFO (Mike DeMaio, mike@crowncfo.com). Human-confirmed sent status is authoritative. Match existing records by normalized organization identity, aliases, website/domain, recipient email, or known canonical ID. Merge, never create duplicate organizations. Preserve existing signals, provenance, priority, notes, and history. Every prior initial outreach must block a later new initial candidate by organization OR known recipient email, including a newly discovered different employee. A prior event must lead to ALREADY_CONTACTED / human-review-follow-up logic rather than READY_TO_SEND. Preserve unsubscribe, do-not-contact, opt-out, bounce, and negative-response suppression as stronger than ordinary follow-up logic. Add the same preflight gate shape for a future Instantly import without integrating or calling Instantly. Do not invent a follow-up date; render null as NOT CONFIGURED. Update focused GTM metrics and a factual report with direct unique=7, partner unique=10, unique total=17, duplicate organizations=0, missing/unaccounted=0, and email events separately from unique organizations. No send or external action is allowed.",
+      "acceptance_criteria": [
+        "All 17 supplied organizations are represented once in the canonical ledger with SENT initial-outreach history.",
+        "Junior Achievement of South Florida remains a single unique contacted organization and a new signal cannot make it first-send eligible.",
+        "Rediscovery by grant, hiring signal, manual import, later partner discovery, different employee, or recipient email is blocked from creating a duplicate initial send.",
+        "Reply and separately approved follow-up states remain possible while stronger recipient suppression persists.",
+        "The canonical metrics show 7 direct, 10 partner, and 17 unique contacted organizations with zero missing or duplicate organizations.",
+        "The report explicitly states that no email was sent by Codex."
+      ],
+      "dependencies": [],
+      "blocked_by": [],
+      "attempt_count": 1,
+      "max_attempts": 1,
+      "estimated_scope": "focused",
+      "expected_scope": [
+        "src/lib/gtmOutreach.ts",
+        "src/lib/gtmControlPlaneQueue.ts",
+        "server/cloudRun.ts",
+        "server/gtmControlPlaneReconcileJob.ts",
+        "src/pages/GtmDashboardPage.tsx",
+        "src/test/gtmOutreach.test.ts",
+        "src/test/gtmControlPlaneQueue.test.ts",
+        "reports/gtm-contacted-organization-suppression-20260818.md"
+      ],
+      "allowed_actions": [
+        "inspect scoped source",
+        "edit scoped source",
+        "run focused validation",
+        "write factual report"
+      ],
+      "forbidden_actions": [
+        "email send",
+        "enrichment",
+        "web research",
+        "Instantly action",
+        "external account action",
+        "traffic change",
+        "billing",
+        "Stripe",
+        "force push"
+      ],
+      "artifacts_expected": [
+        "src/lib/gtmOutreach.ts",
+        "src/test/gtmOutreach.test.ts",
+        "reports/gtm-contacted-organization-suppression-20260818.md"
+      ],
+      "tests_expected": [],
+      "branch": "codex/acquisition-finish-20260818",
+      "commit_sha": null,
+      "started_at": "2026-08-18T11:46:15.114Z",
+      "completed_at": "2026-08-18T11:46:31.228Z",
+      "blocker": "The workspace command runner failed during sandbox initialization (`bwrap: setting up uid map: Permission denied`). No files could be inspected, edited, tested, or committed.",
+      "result_summary": "Repository state is unchanged.",
+      "risk_level": "LOW",
+      "business_value": "HIGH",
+      "urgency": "HIGH",
+      "estimated_cost_class": "LOW",
+      "validation_level": "FOCUSED",
+      "production_traffic_authorized": false,
+      "finalization_task": false,
+      "checkpoint_summary": "Existing ledger has seven direct and five partner sent events. This reconciliation adds five human-confirmed partner records and strengthens canonical organization/email duplicate-initial-outreach safety.",
+      "max_escalations": 1,
+      "max_runtime_minutes": 20,
+      "validation_status": "BLOCKED",
+      "selected_tier": "ROUTINE",
+      "selected_model": "gpt-5.6-luna",
+      "reasoning_level": "low",
+      "why_selected": "Routine category with no production, payment, security, or implementation indicators.",
+      "route_step": 0,
+      "runtime_ms": 16105,
+      "run_dir": "/home/eli_katz/grantdesk-project-runs/gtm-contacted-suppression-actual-20260818/runs/gtm-contacted-organization-suppression-20260818/2026-08-18T11-46-15-115Z"
+    }
+  ]
+}

@@ -9,7 +9,7 @@ import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmContactSuppression, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmEnrichmentUsage, readGtmShadowStatus, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveReview } from "./persistence.ts";
+import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmContactSuppression, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmEnrichmentUsage, readGtmShadowStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview } from "./persistence.ts";
 import { validateFeedbackInput, type FeedbackSubmission } from "../src/lib/feedback.ts";
 import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
 import { confirmedHumanOutreach } from "../src/lib/gtmOutreach.ts";
@@ -17,6 +17,8 @@ import { reconcileGtmOutreachLedger, updateFeedbackReview } from "./persistence.
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { buildShadowStatus, shadowLeadFromOpportunity, suggestedTopicsFromLeads } from "../src/lib/gtmShadow.ts";
 import { enrichGtmContactInShadow } from "./contactEnrichment.ts";
+import { reconcileStoredContactEnrichmentBatch, runContactEnrichmentBatch, type EnrichmentBatchSegment } from "./contactEnrichmentBatch.ts";
+import { reconcileSearchConsole } from "./searchConsole.ts";
 import type { EnrichmentTarget } from "../src/lib/contactEnrichment.ts";
 import { requireGtmScheduler, requireHealthScheduler } from "./schedulerAuth.ts";
 import { BillingError, billingSnapshotFromEvent, changeSubscriptionPlan, createCheckoutSession, createCustomerPortalSession, foundingPricingActive, isBillingConfigured, validateBillingSelection, verifyStripeSignature, type StripeWebhookEvent } from "./billing.ts";
@@ -103,6 +105,11 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/overview") return await handleGtmOverview(request, response);
     if (url.pathname === "/api/gtm/shadow-status") return await handleGtmShadowStatus(request, response);
     if (url.pathname === "/api/gtm/contact-enrichment") return await handleGtmContactEnrichment(request, response);
+    if (url.pathname === "/api/gtm/contact-enrichment/batch") return await handleGtmContactEnrichmentBatch(request, response);
+    if (url.pathname === "/api/gtm/contact-enrichment/reconcile") return await handleStoredContactEnrichmentReconcile(request, response);
+    if (url.pathname === "/api/gtm/partner-reconciliation") return await handleScheduledPartnerHunterReconciliation(request, response);
+    if (url.pathname === "/api/gtm/search-console/reconcile" || url.pathname === "/api/gtm/seo-reconciliation") return await handleSearchConsoleReconcile(request, response);
+    if (url.pathname === "/api/gtm/search-console") return await handleSearchConsoleState(request, response);
     if (url.pathname === "/api/gtm/daily-scan") return await handleGtmDailyScan(request, response);
     if (url.pathname === "/api/internal/reliability/access") return await handleReliabilityAccess(request, response);
     if (url.pathname === "/api/internal/reliability/summary") return await handleReliabilitySummary(request, response);
@@ -321,6 +328,50 @@ async function handleGtmContactEnrichment(request: IncomingMessage, response: Se
   const errors = validateContactEnrichmentTarget(target);
   if (errors.length) return json(response, 400, { error: errors.join(" ") });
   return json(response, 200, { record: await enrichGtmContactInShadow(target) });
+}
+
+async function handleGtmContactEnrichmentBatch(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const input = await readJson(request) as { segment?: unknown; limit?: unknown; dryRun?: unknown };
+  if (input.segment !== "partner" && input.segment !== "direct") return json(response, 400, { error: "segment must be partner or direct." });
+  const limit = Number(input.limit || 20);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 20) return json(response, 400, { error: "limit must be an integer from 1 through 20." });
+  return json(response, 200, { batch: await runContactEnrichmentBatch({ segment: input.segment as EnrichmentBatchSegment, limit, dryRun: input.dryRun === true }) });
+}
+
+async function handleStoredContactEnrichmentReconcile(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const input = await readJson(request) as { segment?: unknown; limit?: unknown };
+  if (input.segment !== "partner" && input.segment !== "direct") return json(response, 400, { error: "segment must be partner or direct." });
+  const limit = Number(input.limit || 20);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 20) return json(response, 400, { error: "limit must be an integer from 1 through 20." });
+  const reconciliation = await reconcileStoredContactEnrichmentBatch({ segment: input.segment as EnrichmentBatchSegment, limit });
+  console.info("GTM_HUNTER_STORED_RECONCILE " + JSON.stringify({ segment: reconciliation.segment, reconciled: reconciliation.reconciled, ready: reconciliation.ready, needsVerification: reconciliation.needsVerification, alreadyContacted: reconciliation.alreadyContacted, verified: reconciliation.verified, acceptAll: reconciliation.acceptAll, risky: reconciliation.risky, invalid: reconciliation.invalid, resultMissing: reconciliation.resultMissing }));
+  return json(response, 200, { reconciliation });
+}
+
+async function handleScheduledPartnerHunterReconciliation(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const partner = await runContactEnrichmentBatch({ segment: "partner", limit: 20 });
+  console.info("GTM_HUNTER_BATCH " + JSON.stringify({ segment: partner.segment, attempted: partner.attempted, contactsResolved: partner.contactsResolved, verifiedEmails: partner.verifiedEmails, ready: partner.ready, needsVerification: partner.needsVerification, alreadyContacted: partner.alreadyContacted, duplicates: partner.duplicates, failures: partner.failures, providerUsage: partner.providerUsage }));
+  return json(response, 200, { partner });
+}
+
+async function handleSearchConsoleReconcile(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const state = await saveSearchConsoleState(await reconcileSearchConsole());
+  console.info("SEARCH_CONSOLE_RECONCILE " + JSON.stringify({ analyticsStatus: state.analyticsStatus, pages: state.ranges.last28Days?.pages.length || 0, queries: state.ranges.last28Days?.queries.length || 0, sitemap: state.sitemap.result, dataThrough: state.dataThrough, errors: state.errors }));
+  return json(response, 200, { state });
+}
+
+async function handleSearchConsoleState(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  requireGtmAdmin(await requireUser(request));
+  return json(response, 200, { state: await readSearchConsoleState() });
 }
 
 export function validateContactEnrichmentTarget(target: Partial<EnrichmentTarget> | null | undefined) {

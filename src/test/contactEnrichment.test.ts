@@ -103,6 +103,42 @@ describe("SHADOW contact enrichment", () => {
 
 });
 
+describe("normalized READY_TO_SEND policy", () => {
+  it("promotes a verified provider result with clear suppression and evidence", () => {
+    const record = buildContactEnrichmentRecord(target, [result("hunter", "VERIFIED", "jordan.finance@example.org")], clear);
+    expect(record).toMatchObject({ readyForHumanApproval: true, verification: { verifierStatus: "VERIFIED", readyToSend: true, readyBlocker: null } });
+  });
+
+  it("keeps accept-all, risky, and invalid outcomes explicitly blocked", () => {
+    for (const status of ["ACCEPT_ALL", "RISKY", "INVALID"] as const) {
+      const record = buildContactEnrichmentRecord(target, [result("hunter", status, "jordan.finance@example.org")], clear);
+      expect(record.readyForHumanApproval).toBe(false);
+      expect(record.verification.verifierStatus).toBe(status);
+      expect(record.verification.readyBlocker).toBeTruthy();
+    }
+  });
+
+  it("blocks a verified email when prior contact or suppression blocks it", () => {
+    const attempt = [result("hunter", "VERIFIED", "jordan.finance@example.org")];
+    const priorContact = buildContactEnrichmentRecord(target, attempt, clear, undefined, undefined, { priorContactStatus: "ALREADY_CONTACTED" });
+    const suppressed = buildContactEnrichmentRecord(target, attempt, { ...clear, status: "BLOCKED", reasons: ["unsubscribe"] });
+    expect(priorContact.verification.readyBlocker).toContain("Previously contacted");
+    expect(priorContact.readiness).toBe("ALREADY_CONTACTED");
+    expect(suppressed.verification.readyBlocker).toContain("Suppressed");
+    expect(priorContact.readyForHumanApproval).toBe(false);
+    expect(suppressed.readyForHumanApproval).toBe(false);
+  });
+
+  it("records missing verifier payload and provider errors as explicit non-ready outcomes", () => {
+    const missing = buildContactEnrichmentRecord(target, [], clear);
+    const error = buildContactEnrichmentRecord(target, [result("hunter", "ERROR", "jordan.finance@example.org")], clear);
+    expect(missing.verification.verifierStatus).toBe("VERIFICATION_RESULT_MISSING");
+    expect(missing.verification.readyBlocker).toContain("VERIFICATION_RESULT_MISSING");
+    expect(error.verification.verifierStatus).toBe("ERROR");
+    expect(error.verification.readyBlocker).toContain("provider error");
+  });
+});
+
 describe("provider adapters", () => {
   it("uses Hunter Email Finder then Email Verifier and retains provider provenance", async () => {
     const fetcher = vi.fn()
@@ -113,6 +149,7 @@ describe("provider adapters", () => {
     expect(discovered.status).toBe("VERIFIED");
     expect(discovered.email).toBe("jordan.finance@example.org");
     expect(discovered.sourceUrls).toEqual([{ url: "https://example.org/leadership", lastSeenAt: "2026-08-16" }]);
+    expect(discovered).toMatchObject({ providerRequestType: "EMAIL_FINDER_AND_VERIFIER", finderResult: "FOUND", verifierStatus: "VERIFIED" });
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(String(fetcher.mock.calls[0][0])).toContain("email-finder");
     expect(String(fetcher.mock.calls[1][0])).toContain("email-verifier");
