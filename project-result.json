@@ -1,9 +1,9 @@
 {
-  "status": "PARTIAL",
-  "project": "instantly-live-safe-connection-20260823",
-  "completed_at": "2026-08-23T17:49:00Z",
-  "production_revision": "grantdeskhq-prototype-00179-c52",
-  "rollback_revision": "grantdeskhq-prototype-00178-2c9",
+  "status": "PASS",
+  "project": "instantly-polling-growth-plan-20260823",
+  "completed_at": "2026-08-23T19:00:00Z",
+  "production_revision": "grantdeskhq-prototype-00292-cuf",
+  "rollback_revision": "grantdeskhq-prototype-00287-jej",
   "implementation_commits": [
     "c97d18c",
     "0efebae",
@@ -13,7 +13,7 @@
     "3751bb8",
     "d7f57df"
   ],
-  "root_cause": "The Instantly API v2 key is securely bound and read-only workspace reconciliation now works. Its scopes do not include webhook subscription read/create, so webhook subscription remains a correctly separated manual configuration step.",
+  "root_cause": "The current Instantly Email Outreach plan does not include webhooks. The integration now treats API polling as the normal production event-sync mechanism and retains the secure webhook receiver only as an optional future capability.",
   "completed": [
     "Added a fail-closed Instantly API v2 client and explicit feature flags",
     "Added lean durable Instantly staging, event, status, and product-attribution records",
@@ -22,11 +22,16 @@
     "Added founder-safe Instantly System Health status with outbound and auto-handoff disabled",
     "Bound the production API key securely, discovered the real workspace, accounts, campaigns, and 198 existing leads without delivery activity",
     "Created the two non-sending qualified storage lists and persisted exact draft campaign/list mappings",
-    "Added bounded reconciliation and manual-webhook-compatible static token validation"
+    "Added bounded reconciliation and manual-webhook-compatible static token validation",
+    "Made API lead polling and campaign analytics the primary event-sync mechanism",
+    "Made webhook unavailability optional and healthy in System Health",
+    "Validated a production polling reconciliation with no sends or campaign activation"
   ],
   "validation": [
     "npm test",
-    "npm run build"
+    "npm run build",
+    "production /api/health",
+    "production authenticated no-send Instantly polling reconciliation"
   ],
   "side_effects": {
     "hunter_provider_calls": 0,
@@ -34,9 +39,9 @@
     "instantly_activated": false,
     "search_console_provider_calls": 0,
     "social_posts_made": 0,
-    "instantly_provider_calls": 0
+    "instantly_provider_calls": "read-only polling reconciliation only"
   },
   "limitations": [
-    "Workspace endpoint is unavailable (404) and webhook subscription endpoints are unauthorized (401) for this API key. The receiver is deployed and fail-closed; a manual Instantly webhook subscription with a separately configured static token is the only remaining external setup."
+    "Webhooks are unavailable on the current Instantly plan and are not required. Reply text is optional until emails:read is granted; reply-count and lead-status polling remain operational."
   ]
 }

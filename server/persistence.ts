@@ -943,7 +943,11 @@ async function applyInstantlyProductLifecycle(accessToken: string, attribution: 
   if (!record) return;
   const lifecycle = event === "first_report_started" ? { freeFirstAwardStartedAt: occurredAt } : event === "report_generated" ? { reportGeneratedAt: occurredAt } : event === "subscription_started" ? { paidAt: occurredAt } : {};
   if (!Object.keys(lifecycle).length) return;
-  const updated = { ...record, ...lifecycle, updatedAt: occurredAt };
+  // Product engagement is canonical evidence that cold outreach must stop. The
+  // current Instantly API key is intentionally read-first; this durable stop
+  // request prevents a later reconciliation from treating the contact as an
+  // eligible cold-sequence candidate while preserving the provider record.
+  const updated = { ...record, ...lifecycle, sequenceStopRequestedAt: occurredAt, sequenceStopReason: event === "first_report_started" ? "FREE_FIRST_AWARD_STARTED" : event === "report_generated" ? "REPORT_GENERATED" : "PAID", updatedAt: occurredAt };
   await writeDocument(accessToken, `gtm/instantly/records/${safeDocumentId(updated.id)}`, { recordJson: JSON.stringify(updated), updatedAt: updated.updatedAt });
 }
 

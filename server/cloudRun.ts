@@ -31,7 +31,7 @@ import { readCanonicalGtmModel } from "./gtmCanonical.ts";
 import type { GtmOpportunity } from "../src/lib/gtm.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
-import { applyInstantlyEvent, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyPreviewRecord, normalizeInstantlyWebhook, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
+import { applyInstantlyEvent, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
@@ -403,45 +403,75 @@ async function handleGtmInstantlyStage(request: IncomingMessage, response: Serve
   return json(response, 200, { mode: "STAGED_PENDING_APPROVAL", staged: staged.length, records: staged });
 }
 
-/** Scheduler-protected reconciliation remains read-only until a key is configured. */
-async function handleInstantlyReconcile(request: IncomingMessage, response: ServerResponse) {
-  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
-  await requireGtmScheduler(request);
+/** Scheduler-protected reconciliation uses read-only API polling. Webhooks are
+ * optional plan-dependent acceleration, not a correctness dependency. */
+async function reconcileInstantlyPolling() {
   const health = instantlyHealth();
   if (!health.apiKeyConfigured || !health.integrationEnabled) {
     await saveInstantlyStatus({ ...health, checkedAt: new Date().toISOString(), reconciliation: "API_KEY_NOT_CONFIGURED" });
-    return json(response, 200, { mode: "PREVIEW_ONLY", health });
+    return { mode: "PREVIEW_ONLY", health };
   }
   const client = new InstantlyClient();
-  const results = await Promise.allSettled([client.listWorkspaces(), client.listLeadLists(), client.listCampaigns(), client.listAccounts(), client.listRecentLeads(), client.listWebhooks(), client.listWebhookEventTypes()]);
-  const [workspaces, lists, campaigns, accounts, leads, webhooks, webhookEventTypes] = results.map((result) => result.status === "fulfilled" ? result.value : null);
+  const [records, priorStatus] = await Promise.all([readInstantlyRecords(), readInstantlyStatus()]);
+  const results = await Promise.allSettled([client.listLeadLists(), client.listCampaigns(), client.listAccounts(), client.listRecentLeads(200), client.listCampaignAnalytics(), client.listRecentEmails()]);
+  const [lists, campaigns, accounts, leads, campaignAnalytics, recentEmails] = results.map((result) => result.status === "fulfilled" ? result.value : null);
   const model = await readCanonicalGtmModel();
   const leadItems = instantlyItems(leads);
   const canonicalByEmail = new Map(model.records.flatMap((record) => record.email ? [[record.email.toLowerCase(), record] as const] : []));
   const matched = leadItems.flatMap((lead) => canonicalByEmail.has(String(lead.email || "").toLowerCase()) ? [canonicalByEmail.get(String(lead.email || "").toLowerCase())!] : []);
   const priorContactExcluded = matched.filter((record) => record.priorContact).length;
   const duplicateEmails = leadItems.length - new Set(leadItems.map((lead) => String(lead.email || "").toLowerCase()).filter(Boolean)).size;
-  const errors = results.flatMap((result, index) => result.status === "rejected" ? [`${["workspaces", "lead_lists", "campaigns", "accounts", "leads", "webhooks", "webhook_event_types"][index]}: ${result.reason instanceof Error ? result.reason.message : "request failed"}`] : []);
+  const recordsByLead = new Map(records.filter((record) => record.instantlyLeadId).map((record) => [record.instantlyLeadId, record]));
+  const recordsByEmail = new Map(records.filter((record) => record.email).map((record) => [record.email.toLowerCase(), record]));
+  const transitions: Record<string, number> = {};
+  let polledRecords = 0;
+  for (const lead of leadItems) {
+    const record = recordsByLead.get(String(lead.id || "")) || recordsByEmail.get(String(lead.email || "").toLowerCase());
+    if (!record) continue;
+    polledRecords++;
+    const transition = reconcileInstantlyLead(record, lead);
+    const providerChanged = transition.record.lastProviderUpdatedAt !== record.lastProviderUpdatedAt;
+    if (transition.event || providerChanged) await saveInstantlyRecord(transition.record);
+    if (transition.event) transitions[transition.event] = (transitions[transition.event] || 0) + 1;
+    if (transition.suppressEmail && transition.record.email) await recordGtmContactSuppression(transition.record.email, [transition.suppressEmail], "instantly_polling");
+  }
+  const mappedCampaignIds = new Set([health.directCampaignId, health.partnerCampaignId].filter(Boolean));
+  const analyticsItems = Array.isArray(campaignAnalytics) ? campaignAnalytics.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object") : instantlyItems(campaignAnalytics);
+  const mappedAnalytics = analyticsItems.filter((item) => mappedCampaignIds.has(String(item.campaign_id || item.id || "")));
+  const requiredErrors = results.slice(0, 5).flatMap((result, index) => result.status === "rejected" ? [`${["lead_lists", "campaigns", "accounts", "leads", "campaign_analytics"][index]}: ${result.reason instanceof Error ? result.reason.message : "request failed"}`] : []);
+  const emailReadError = results[5]?.status === "rejected" ? (results[5].reason instanceof Error ? results[5].reason.message : "request failed") : "";
   const snapshot = {
     ...health,
     checkedAt: new Date().toISOString(),
-    reconciliation: errors.length ? "PARTIAL" : "PASS",
-    workspaces: instantSafeSummary(workspaces, ["id", "name", "status"]),
+    lastSuccessfulSync: requiredErrors.length ? String(priorStatus?.lastSuccessfulSync || "") : new Date().toISOString(),
+    reconciliation: requiredErrors.length ? "PARTIAL" : "PASS",
+    eventSync: "POLLING",
+    pollingCadence: process.env.INSTANTLY_POLLING_SCHEDULE || "0 * * * *",
+    webhookRequirement: "OPTIONAL",
     lists: instantSafeSummary(lists, ["id", "name", "timestamp_created"]),
     campaigns: instantSafeSummary(campaigns, ["id", "name", "status", "daily_limit", "daily_max_leads", "stop_on_reply", "stop_on_auto_reply", "timestamp_created"]),
     accounts: instantSafeSummary(accounts, ["email", "status", "warmup_status", "warmup_limit", "daily_limit", "setup_pending", "timestamp_created"]),
-    leads: instantSafeSummary(leads, ["id", "email", "first_name", "last_name", "company_name", "campaign", "list_id"]),
+    leads: instantSafeSummary(leads, ["id", "email", "first_name", "last_name", "company_name", "campaign", "list_id", "status", "email_reply_count", "timestamp_updated", "last_step_timestamp_executed", "lt_interest_status"]),
     leadCount: leadItems.length,
     leadReadTruncated: Boolean(leads && typeof leads === "object" && (leads as { truncated?: boolean }).truncated),
     matchedCanonicalContacts: matched.length,
     previouslyContactedExcluded: priorContactExcluded,
     duplicatesPrevented: duplicateEmails,
-    webhooks: instantSafeSummary(webhooks, ["id", "name", "event_type", "campaign", "status", "target_hook_url"]),
-    webhookEventTypes: instantSafeSummary(webhookEventTypes, ["id", "name", "event_type"]),
-    errors
+    campaignAnalytics: mappedAnalytics.map((item) => Object.fromEntries(["campaign_id", "campaign_name", "campaign_status", "leads_count", "contacted_count", "emails_sent_count", "reply_count", "reply_count_unique", "reply_count_automatic", "bounced_count", "unsubscribed_count", "completed_count", "total_opportunities"].flatMap((field) => typeof item[field] === "string" || typeof item[field] === "number" || typeof item[field] === "boolean" ? [[field, item[field]]] : []))),
+    polledRecords,
+    transitions,
+    replyContent: recentEmails ? "AVAILABLE" : "OPTIONAL_EMAILS_READ_REQUIRED",
+    replyContentError: emailReadError || undefined,
+    errors: requiredErrors
   };
   await saveInstantlyStatus(snapshot);
-  return json(response, 200, { mode: "READ_ONLY", status: snapshot });
+  return { mode: "READ_ONLY", status: snapshot };
+}
+
+async function handleInstantlyReconcile(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  return json(response, 200, await reconcileInstantlyPolling());
 }
 
 /** Creates only named storage lists—never a campaign, lead, or email. */
@@ -527,7 +557,11 @@ async function handleScheduledPartnerHunterReconciliation(request: IncomingMessa
   await requireGtmScheduler(request);
   const partner = await runContactEnrichmentBatch({ segment: "partner", limit: 20 });
   console.info("GTM_HUNTER_BATCH " + JSON.stringify({ segment: partner.segment, attempted: partner.attempted, contactsResolved: partner.contactsResolved, verifiedEmails: partner.verifiedEmails, ready: partner.ready, needsVerification: partner.needsVerification, alreadyContacted: partner.alreadyContacted, duplicates: partner.duplicates, failures: partner.failures, providerUsage: partner.providerUsage }));
-  return json(response, 200, { partner });
+  // While live delivery is disabled, the existing daily GTM runtime provides a
+  // low-cost polling cadence. A separate hourly Scheduler is reserved for the
+  // explicit future live-outbound phase, avoiding duplicate jobs today.
+  const instantly = await reconcileInstantlyPolling();
+  return json(response, 200, { partner, instantly });
 }
 
 async function handleSearchConsoleReconcile(request: IncomingMessage, response: ServerResponse) {

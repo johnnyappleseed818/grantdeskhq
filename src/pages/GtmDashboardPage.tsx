@@ -50,7 +50,8 @@ type StageState = Record<string, OpportunityStage>;
 type OutreachFilter = "all" | "awaiting" | "follow_up_due" | "replied" | "positive" | "trial" | "paid" | "direct" | "partner";
 type GtmTokenProvider = (forceRefresh?: boolean) => Promise<string>;
 type GtmRequest = <T>(path: string, token: string, init?: RequestInit) => Promise<T>;
-type InstantlyHealth = { status: string; integrationEnabled: boolean; apiKeyConfigured: boolean; webhookSecretConfigured: boolean; outboundEnabled: boolean; autoHandoffEnabled: boolean; directEnabled: boolean; partnerEnabled: boolean; firstTouchLinkEnabled: boolean; mappings: { directList: boolean; partnerList: boolean; directCampaign: boolean; partnerCampaign: boolean } };
+type InstantlyHealth = { status: string; integrationEnabled: boolean; apiKeyConfigured: boolean; webhookSecretConfigured: boolean; outboundEnabled: boolean; autoHandoffEnabled: boolean; directEnabled: boolean; partnerEnabled: boolean; firstTouchLinkEnabled: boolean; eventSyncMode: "POLLING" | "WEBHOOKS"; webhookSubscription: string; mappings: { directList: boolean; partnerList: boolean; directCampaign: boolean; partnerCampaign: boolean } };
+type InstantlyPersistedStatus = { lastSuccessfulSync?: string; reconciliation?: string; pollingCadence?: string; replyContent?: string; polledRecords?: number; errors?: string[] };
 
 const STORAGE_KEY = "grantdeskhq:gtm-stages:v1";
 
@@ -90,7 +91,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   const [canonicalError, setCanonicalError] = useState("");
   const [canonicalRetry, setCanonicalRetry] = useState(0);
   const [searchConsole, setSearchConsole] = useState<SearchConsoleState | null>(null);
-  const [instantly, setInstantly] = useState<InstantlyHealth | null>(null);
+  const [instantly, setInstantly] = useState<{ health: InstantlyHealth; persisted: InstantlyPersistedStatus | null } | null>(null);
   const [signalsLoading, setSignalsLoading] = useState(Boolean(dailySignalToken));
   const [signalsError, setSignalsError] = useState("");
   const [outreach, setOutreach] = useState<OutreachRecord[]>(confirmedHumanOutreach);
@@ -130,8 +131,8 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   useEffect(() => {
     if (!dailySignalToken) return;
     let active = true;
-    requestGtmWithFreshToken<{ health: InstantlyHealth }>(dailySignalToken, "/api/gtm/instantly")
-      .then((body) => { if (active) setInstantly(body.health); })
+    requestGtmWithFreshToken<{ health: InstantlyHealth; persisted: InstantlyPersistedStatus | null }>(dailySignalToken, "/api/gtm/instantly")
+      .then((body) => { if (active) setInstantly(body); })
       .catch(() => { /* System Health remains truthful: unavailable is not inferred as healthy. */ });
     return () => { active = false; };
   }, [dailySignalToken]);
@@ -264,13 +265,13 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
       {activeTab === "social" && <SocialQueuePanel scan={dailyScan} onReview={reviewSocial} />}
       {activeTab === "seo" && <SeoQueuePanel state={searchConsole} />}
       {activeTab === "feedback" && <FeedbackPanel />}
-      {activeTab === "system-health" && <><OverviewPanel overview={overview} inMain /><div className="mt-8"><InstantlyHealthPanel health={instantly} /></div><div className="mt-8"><SignalsPanel dailyScan={dailyScan} loading={signalsLoading} error={signalsError} /></div><div className="mt-8"><SourcesPanel /></div><div className="mt-8"><PipelinePanel opportunities={ranked} stages={stages} stagesOrder={pipelineStages} onStageChange={updateStage} /></div><div className="mt-8"><OutreachAutomationPanel opportunities={ranked} stages={stages} /></div><div className="mt-8"><AccuracyPanel /></div></>}
+      {activeTab === "system-health" && <><OverviewPanel overview={overview} inMain /><div className="mt-8"><InstantlyHealthPanel health={instantly?.health || null} persisted={instantly?.persisted || null} /></div><div className="mt-8"><SignalsPanel dailyScan={dailyScan} loading={signalsLoading} error={signalsError} /></div><div className="mt-8"><SourcesPanel /></div><div className="mt-8"><PipelinePanel opportunities={ranked} stages={stages} stagesOrder={pipelineStages} onStageChange={updateStage} /></div><div className="mt-8"><OutreachAutomationPanel opportunities={ranked} stages={stages} /></div><div className="mt-8"><AccuracyPanel /></div></>}
     </div>
   </div>;
 }
 
-function InstantlyHealthPanel({ health }: { health: InstantlyHealth | null }) {
-  return <section className="panel" aria-label="Instantly integration health"><div className="panel-heading"><div><p className="eyebrow">Outbound delivery integration</p><h3>Instantly</h3></div><span className={`status-badge ${health?.apiKeyConfigured ? "status-info" : "status-neutral"}`}>{health?.status || "UNAVAILABLE"}</span></div>{!health ? <p>Instantly health could not be read. No delivery state is assumed.</p> : <div className="grid gap-3 text-sm sm:grid-cols-2"><p>API credential: <strong>{health.apiKeyConfigured ? "configured" : "not configured"}</strong></p><p>Webhook secret: <strong>{health.webhookSecretConfigured ? "configured" : "not configured"}</strong></p><p>Outbound: <strong>{health.outboundEnabled ? "enabled" : "disabled"}</strong></p><p>Automatic handoff: <strong>{health.autoHandoffEnabled ? "enabled" : "disabled"}</strong></p><p>Direct live routing: <strong>{health.directEnabled ? "enabled" : "disabled"}</strong></p><p>Partner live routing: <strong>{health.partnerEnabled ? "enabled" : "disabled"}</strong></p></div>}<p className="mt-3 text-sm text-slate-600">GrantDeskHQ stages only eligible, uncontacted records. Instantly owns sequences and inbox handling when explicitly enabled.</p></section>;
+function InstantlyHealthPanel({ health, persisted }: { health: InstantlyHealth | null; persisted: InstantlyPersistedStatus | null }) {
+  return <section className="panel" aria-label="Instantly integration health"><div className="panel-heading"><div><p className="eyebrow">Outbound delivery integration</p><h3>Instantly</h3></div><span className={`status-badge ${health?.apiKeyConfigured ? "status-info" : "status-neutral"}`}>{health?.status || "UNAVAILABLE"}</span></div>{!health ? <p>Instantly health could not be read. No delivery state is assumed.</p> : <div className="grid gap-3 text-sm sm:grid-cols-2"><p>API credential: <strong>{health.apiKeyConfigured ? "configured" : "not configured"}</strong></p><p>Event sync: <strong>{health.eventSyncMode}</strong></p><p>Webhooks: <strong>{health.webhookSubscription === "NOT_AVAILABLE_ON_CURRENT_PLAN_OPTIONAL" ? "optional — not available on current plan" : health.webhookSubscription}</strong></p><p>Last reconciliation: <strong>{persisted?.lastSuccessfulSync ? formatHistoryDate(persisted.lastSuccessfulSync) : "not yet recorded"}</strong></p><p>Outbound: <strong>{health.outboundEnabled ? "enabled" : "disabled"}</strong></p><p>Automatic handoff: <strong>{health.autoHandoffEnabled ? "enabled" : "disabled"}</strong></p><p>Reply content: <strong>{persisted?.replyContent === "AVAILABLE" ? "available" : "optional emails:read scope"}</strong></p><p>Polling cadence: <strong>{persisted?.pollingCadence || "hourly when live"}</strong></p></div>}<p className="mt-3 text-sm text-slate-600">Polling is the normal event-sync path on the current plan. GrantDeskHQ stages only eligible, uncontacted records; Instantly owns sequences and inbox handling when explicitly enabled.</p></section>;
 }
 
 function FounderOverview({ records, overview, onOpenOutreach, onOpenFeedback }: { records: OutreachRecord[]; overview: GtmOverview | null; onOpenOutreach(): void; onOpenFeedback(): void }) {
