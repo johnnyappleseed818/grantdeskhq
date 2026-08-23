@@ -145,7 +145,19 @@ export class InstantlyClient {
   listAccounts() { return this.api<unknown>("/accounts?limit=100"); }
   listWebhooks() { return this.api<unknown>("/webhooks?limit=100"); }
   listWebhookEventTypes() { return this.api<unknown>("/webhooks/event-types"); }
-  listRecentLeads() { return this.api<unknown>("/leads/list", { method: "POST", body: JSON.stringify({ limit: 100 }) }); }
+  async listRecentLeads(maximum = 500) {
+    const items: Record<string, unknown>[] = [];
+    let startingAfter = "";
+    while (items.length < maximum) {
+      const page = await this.api<{ items?: Record<string, unknown>[]; next_starting_after?: string }>("/leads/list", { method: "POST", body: JSON.stringify({ limit: Math.min(100, maximum - items.length), ...(startingAfter ? { starting_after: startingAfter } : {}) }) });
+      const pageItems = Array.isArray(page.items) ? page.items.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object") : [];
+      items.push(...pageItems);
+      const next = String(page.next_starting_after || "");
+      if (!pageItems.length || !next || next === startingAfter) return { items, truncated: false };
+      startingAfter = next;
+    }
+    return { items, truncated: true };
+  }
 
   /** Staging is list-only. Campaign assignment remains impossible unless all live gates are true. */
   async createLeadInList(input: { email: string; firstName: string; lastName: string; companyName: string; listId: string; customVariables: Record<string, string> }) {
@@ -204,6 +216,15 @@ export function verifyInstantlyWebhookSignature(payload: Buffer, signature: stri
   const actual = Buffer.from(signature.replace(/^sha256=/, ""), "hex");
   const expectedBuffer = Buffer.from(expected, "hex");
   return actual.length === expectedBuffer.length && timingSafeEqual(actual, expectedBuffer);
+}
+
+/** Instantly's Webhooks UI supports a static custom header; accept it over TLS
+ * alongside signed payloads, with constant-time comparison and no fallback. */
+export function verifyInstantlyWebhookToken(token: string | undefined, secret: string) {
+  if (!token || !secret) return false;
+  const actual = Buffer.from(token);
+  const expected = Buffer.from(secret);
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
 export function applyInstantlyEvent(record: InstantlyIntegrationRecord, event: InstantlyWebhookEvent): InstantlyIntegrationRecord {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyInstantlyEvent, InstantlyClient, instantlyConfig, instantlyPreviewRecord, normalizeInstantlyWebhook, stagingEligibility, verifyInstantlyWebhookSignature } from "../../server/instantly";
+import { applyInstantlyEvent, InstantlyClient, instantlyConfig, instantlyPreviewRecord, normalizeInstantlyWebhook, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "../../server/instantly";
 import type { CanonicalGtmRecord } from "../lib/gtmCanonical";
 
 const record: CanonicalGtmRecord = {
@@ -51,5 +51,11 @@ describe("Instantly fail-closed integration", () => {
     const payload = Buffer.from('{"id":"evt_1"}');
     expect(verifyInstantlyWebhookSignature(payload, "bad", "secret")).toBe(false);
     expect(verifyInstantlyWebhookSignature(payload, undefined, "secret")).toBe(false);
+  });
+
+  it("also accepts only an exact configured static webhook token", () => {
+    expect(verifyInstantlyWebhookToken("correct", "correct")).toBe(true);
+    expect(verifyInstantlyWebhookToken("incorrect", "correct")).toBe(false);
+    expect(verifyInstantlyWebhookToken(undefined, "correct")).toBe(false);
   });
 });

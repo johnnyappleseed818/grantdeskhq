@@ -31,7 +31,7 @@ import { readCanonicalGtmModel } from "./gtmCanonical.ts";
 import type { GtmOpportunity } from "../src/lib/gtm.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
-import { applyInstantlyEvent, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyPreviewRecord, normalizeInstantlyWebhook, stagingEligibility, verifyInstantlyWebhookSignature } from "./instantly.ts";
+import { applyInstantlyEvent, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyPreviewRecord, normalizeInstantlyWebhook, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
@@ -414,6 +414,12 @@ async function handleInstantlyReconcile(request: IncomingMessage, response: Serv
   const client = new InstantlyClient();
   const results = await Promise.allSettled([client.listLeadLists(), client.listCampaigns(), client.listAccounts(), client.listRecentLeads(), client.listWebhooks(), client.listWebhookEventTypes()]);
   const [lists, campaigns, accounts, leads, webhooks, webhookEventTypes] = results.map((result) => result.status === "fulfilled" ? result.value : null);
+  const model = await readCanonicalGtmModel();
+  const leadItems = instantlyItems(leads);
+  const canonicalByEmail = new Map(model.records.flatMap((record) => record.email ? [[record.email.toLowerCase(), record] as const] : []));
+  const matched = leadItems.flatMap((lead) => canonicalByEmail.has(String(lead.email || "").toLowerCase()) ? [canonicalByEmail.get(String(lead.email || "").toLowerCase())!] : []);
+  const priorContactExcluded = matched.filter((record) => record.priorContact).length;
+  const duplicateEmails = leadItems.length - new Set(leadItems.map((lead) => String(lead.email || "").toLowerCase()).filter(Boolean)).size;
   const errors = results.flatMap((result, index) => result.status === "rejected" ? [`${["lead_lists", "campaigns", "accounts", "leads", "webhooks", "webhook_event_types"][index]}: ${result.reason instanceof Error ? result.reason.message : "request failed"}`] : []);
   const snapshot = {
     ...health,
@@ -423,6 +429,11 @@ async function handleInstantlyReconcile(request: IncomingMessage, response: Serv
     campaigns: instantSafeSummary(campaigns, ["id", "name", "status", "timestamp_created"]),
     accounts: instantSafeSummary(accounts, ["email", "warmup_status", "setup_pending", "timestamp_created"]),
     leads: instantSafeSummary(leads, ["id", "email", "first_name", "last_name", "company_name", "campaign", "list_id"]),
+    leadCount: leadItems.length,
+    leadReadTruncated: Boolean(leads && typeof leads === "object" && (leads as { truncated?: boolean }).truncated),
+    matchedCanonicalContacts: matched.length,
+    previouslyContactedExcluded: priorContactExcluded,
+    duplicatesPrevented: duplicateEmails,
     webhooks: instantSafeSummary(webhooks, ["id", "name", "event_type", "campaign", "status", "target_hook_url"]),
     webhookEventTypes: instantSafeSummary(webhookEventTypes, ["id", "name", "event_type"]),
     errors
@@ -436,7 +447,9 @@ async function handleInstantlyWebhook(request: IncomingMessage, response: Server
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   const secret = process.env.INSTANTLY_WEBHOOK_SECRET || "";
   const payload = await readBody(request);
-  if (!verifyInstantlyWebhookSignature(payload, String(request.headers["x-instantly-signature"] || request.headers["x-webhook-signature"] || ""), secret)) return json(response, 401, { error: "Webhook signature is invalid." });
+  const signed = verifyInstantlyWebhookSignature(payload, String(request.headers["x-instantly-signature"] || request.headers["x-webhook-signature"] || ""), secret);
+  const staticToken = verifyInstantlyWebhookToken(String(request.headers["x-grantdeskhq-webhook-token"] || ""), secret);
+  if (!signed && !staticToken) return json(response, 401, { error: "Webhook authorization is invalid." });
   let event;
   try { event = normalizeInstantlyWebhook(JSON.parse(payload.toString("utf8"))); } catch { event = null; }
   if (!event) return json(response, 400, { error: "Webhook payload is invalid." });
