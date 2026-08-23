@@ -1,6 +1,6 @@
-import type { ContactEnrichmentRecord, EnrichmentTarget } from "./contactEnrichment";
-import { normalizeBusinessDomain } from "./contactEnrichment";
-import { normalizeOutreachOrganization, type OutreachRecord } from "./gtmOutreach";
+import type { ContactEnrichmentRecord, EnrichmentTarget } from "./contactEnrichment.ts";
+import { normalizeBusinessDomain } from "./contactEnrichment.ts";
+import { normalizeOutreachOrganization, type OutreachRecord } from "./gtmOutreach.ts";
 
 /**
  * The founder console consumes this read model instead of deriving commercial
