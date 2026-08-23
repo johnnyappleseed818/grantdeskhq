@@ -31,7 +31,7 @@ import { readCanonicalGtmModel } from "./gtmCanonical.ts";
 import type { GtmOpportunity } from "../src/lib/gtm.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
-import { applyInstantlyEvent, InstantlyClient, instantlyConfig, instantlyHealth, instantlyPreviewRecord, normalizeInstantlyWebhook, stagingEligibility, verifyInstantlyWebhookSignature } from "./instantly.ts";
+import { applyInstantlyEvent, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyPreviewRecord, normalizeInstantlyWebhook, stagingEligibility, verifyInstantlyWebhookSignature } from "./instantly.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
@@ -407,8 +407,28 @@ async function handleInstantlyReconcile(request: IncomingMessage, response: Serv
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
   const health = instantlyHealth();
-  await saveInstantlyStatus({ ...health, checkedAt: new Date().toISOString(), reconciliation: health.apiKeyConfigured ? "PENDING_CLIENT_READ" : "API_KEY_NOT_CONFIGURED" });
-  return json(response, 200, { mode: health.apiKeyConfigured ? "CONFIGURED_READ_PENDING" : "PREVIEW_ONLY", health });
+  if (!health.apiKeyConfigured || !health.integrationEnabled) {
+    await saveInstantlyStatus({ ...health, checkedAt: new Date().toISOString(), reconciliation: "API_KEY_NOT_CONFIGURED" });
+    return json(response, 200, { mode: "PREVIEW_ONLY", health });
+  }
+  const client = new InstantlyClient();
+  const results = await Promise.allSettled([client.listLeadLists(), client.listCampaigns(), client.listAccounts(), client.listRecentLeads(), client.listWebhooks(), client.listWebhookEventTypes()]);
+  const [lists, campaigns, accounts, leads, webhooks, webhookEventTypes] = results.map((result) => result.status === "fulfilled" ? result.value : null);
+  const errors = results.flatMap((result, index) => result.status === "rejected" ? [`${["lead_lists", "campaigns", "accounts", "leads", "webhooks", "webhook_event_types"][index]}: ${result.reason instanceof Error ? result.reason.message : "request failed"}`] : []);
+  const snapshot = {
+    ...health,
+    checkedAt: new Date().toISOString(),
+    reconciliation: errors.length ? "PARTIAL" : "PASS",
+    lists: instantSafeSummary(lists, ["id", "name", "timestamp_created"]),
+    campaigns: instantSafeSummary(campaigns, ["id", "name", "status", "timestamp_created"]),
+    accounts: instantSafeSummary(accounts, ["email", "warmup_status", "setup_pending", "timestamp_created"]),
+    leads: instantSafeSummary(leads, ["id", "email", "first_name", "last_name", "company_name", "campaign", "list_id"]),
+    webhooks: instantSafeSummary(webhooks, ["id", "name", "event_type", "campaign", "status", "target_hook_url"]),
+    webhookEventTypes: instantSafeSummary(webhookEventTypes, ["id", "name", "event_type"]),
+    errors
+  };
+  await saveInstantlyStatus(snapshot);
+  return json(response, 200, { mode: "READ_ONLY", status: snapshot });
 }
 
 /** Public only after cryptographic verification; replayed event ids are ignored. */

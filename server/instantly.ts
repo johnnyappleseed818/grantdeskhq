@@ -140,10 +140,11 @@ export class InstantlyClient {
     return response.json() as Promise<T>;
   }
 
-  listLeadLists() { return this.api<unknown>("/lead-lists"); }
-  listCampaigns() { return this.api<unknown>("/campaigns"); }
-  listAccounts() { return this.api<unknown>("/accounts"); }
-  listWebhooks() { return this.api<unknown>("/webhooks"); }
+  listLeadLists() { return this.api<unknown>("/lead-lists?limit=100"); }
+  listCampaigns() { return this.api<unknown>("/campaigns?limit=100"); }
+  listAccounts() { return this.api<unknown>("/accounts?limit=100"); }
+  listWebhooks() { return this.api<unknown>("/webhooks?limit=100"); }
+  listWebhookEventTypes() { return this.api<unknown>("/webhooks/event-types"); }
   listRecentLeads() { return this.api<unknown>("/leads/list", { method: "POST", body: JSON.stringify({ limit: 100 }) }); }
 
   /** Staging is list-only. Campaign assignment remains impossible unless all live gates are true. */
@@ -151,6 +152,19 @@ export class InstantlyClient {
     if (this.config.outboundEnabled) throw new Error("List staging refuses to run while outbound is enabled; campaign movement requires explicit approval.");
     return this.api<unknown>("/leads", { method: "POST", body: JSON.stringify({ email: input.email, first_name: input.firstName, last_name: input.lastName, company_name: input.companyName, list_id: input.listId, custom_variables: input.customVariables, skip_if_in_workspace: true, skip_if_in_list: true }) });
   }
+}
+
+export function instantlyItems(value: unknown): Array<Record<string, unknown>> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  const items = (value as Record<string, unknown>).items;
+  return Array.isArray(items) ? items.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item)) : [];
+}
+
+export function instantSafeSummary(value: unknown, fields: string[]) {
+  return instantlyItems(value).map((item) => Object.fromEntries(fields.flatMap((field) => {
+    const value = item[field];
+    return typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? [[field, value]] : [];
+  })));
 }
 
 export function stagingEligibility(record: CanonicalGtmRecord, outreach: OutreachRecord[], config = instantlyConfig()) {
