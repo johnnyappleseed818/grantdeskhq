@@ -116,7 +116,15 @@ export function instantlyPreviewRecord(record: CanonicalGtmRecord, now = new Dat
 
 /** No request can be made until integration is deliberately enabled and keyed. */
 export class InstantlyClient {
-  constructor(private readonly config = instantlyConfig(), private readonly apiKey = process.env.INSTANTLY_API_KEY || "", private readonly request: typeof fetch = fetch) {}
+  private readonly config: InstantlyConfig;
+  private readonly apiKey: string;
+  private readonly request: typeof fetch;
+
+  constructor(config = instantlyConfig(), apiKey = process.env.INSTANTLY_API_KEY || "", request: typeof fetch = fetch) {
+    this.config = config;
+    this.apiKey = apiKey;
+    this.request = request;
+  }
 
   private assertReadable() {
     if (!this.config.integrationEnabled || !this.apiKey.trim()) throw new Error("Instantly API is not configured.");
