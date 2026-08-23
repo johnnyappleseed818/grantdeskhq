@@ -1,21 +1,27 @@
 {
   "status": "PARTIAL",
-  "project": "instantly-fail-closed-integration-20260823",
-  "completed_at": "2026-08-23T15:58:00Z",
-  "production_revision": "grantdeskhq-prototype-instantlyv2",
-  "rollback_revision": "grantdeskhq-prototype-00169-p2j",
+  "project": "instantly-live-safe-connection-20260823",
+  "completed_at": "2026-08-23T17:47:00Z",
+  "production_revision": "grantdeskhq-prototype-00178-2c9",
+  "rollback_revision": "grantdeskhq-prototype-instantlyv2",
   "implementation_commits": [
     "c97d18c",
     "0efebae",
-    "04baedd"
+    "04baedd",
+    "2fa34e5",
+    "a1b4f3f",
+    "3751bb8"
   ],
-  "root_cause": "Instantly had no production integration boundary or durable attribution/event model. The API v2 secret remains absent, so all delivery and provider operations are deliberately fail-closed.",
+  "root_cause": "The Instantly API v2 key is securely bound and read-only workspace reconciliation now works. Its scopes do not include webhook subscription read/create, so webhook subscription remains a correctly separated manual configuration step.",
   "completed": [
     "Added a fail-closed Instantly API v2 client and explicit feature flags",
     "Added lean durable Instantly staging, event, status, and product-attribution records",
     "Added idempotent signed webhook normalization and canonical external-outreach reconciliation",
     "Added first-party attribution for Free First Award start, report generation, and paid subscription",
-    "Added founder-safe Instantly System Health status with outbound and auto-handoff disabled"
+    "Added founder-safe Instantly System Health status with outbound and auto-handoff disabled",
+    "Bound the production API key securely, discovered the real workspace, accounts, campaigns, and 198 existing leads without delivery activity",
+    "Created the two non-sending qualified storage lists and persisted exact draft campaign/list mappings",
+    "Added bounded reconciliation and manual-webhook-compatible static token validation"
   ],
   "validation": [
     "npm test",
@@ -30,6 +36,6 @@
     "instantly_provider_calls": 0
   },
   "limitations": [
-    "The external Instantly API v2 key is absent. API reads/writes, actual CRM staging, campaign mapping discovery, webhook registration, and live reconciliation remain intentionally disabled until the one required credential is stored securely. The deployed fail-closed integration and health path have been validated."
+    "Workspace endpoint is unavailable (404) and webhook subscription endpoints are unauthorized (401) for this API key. The receiver is deployed and fail-closed; a manual Instantly webhook subscription with a separately configured static token is the only remaining external setup."
   ]
 }
