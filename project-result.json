@@ -5,9 +5,9 @@
   "production_revision": "grantdeskhq-prototype-00240-nid",
   "rollback_revision": "grantdeskhq-prototype-00232-tom",
   "implementation_commits": [
-    "e1d5ccf",
-    "f0f8bb2",
-    "0d28040"
+    "5d983a8",
+    "f3a67a3",
+    "e2937e0"
   ],
   "root_cause": "The GTM page put canonical state and all secondary GTM reads in one Promise.all. The canonical endpoint returned 200, but the Search Console-state route returned 500 because its Firestore read used a relative URL. That unrelated rejection prevented setCanonical and left Leads/Partners in the loading branch.",
   "completed": [
