@@ -1,16 +1,17 @@
 {
   "status": "PARTIAL",
   "project": "instantly-live-safe-connection-20260823",
-  "completed_at": "2026-08-23T17:47:00Z",
-  "production_revision": "grantdeskhq-prototype-00178-2c9",
-  "rollback_revision": "grantdeskhq-prototype-instantlyv2",
+  "completed_at": "2026-08-23T17:49:00Z",
+  "production_revision": "grantdeskhq-prototype-00179-c52",
+  "rollback_revision": "grantdeskhq-prototype-00178-2c9",
   "implementation_commits": [
     "c97d18c",
     "0efebae",
     "04baedd",
     "2fa34e5",
     "a1b4f3f",
-    "3751bb8"
+    "3751bb8",
+    "d7f57df"
   ],
   "root_cause": "The Instantly API v2 key is securely bound and read-only workspace reconciliation now works. Its scopes do not include webhook subscription read/create, so webhook subscription remains a correctly separated manual configuration step.",
   "completed": [
