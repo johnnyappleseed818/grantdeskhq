@@ -58,4 +58,12 @@ describe("Instantly fail-closed integration", () => {
     expect(verifyInstantlyWebhookToken("incorrect", "correct")).toBe(false);
     expect(verifyInstantlyWebhookToken(undefined, "correct")).toBe(false);
   });
+
+  it("uses explicit false defaults for every delivery-affecting flag", () => {
+    const config = instantlyConfig({});
+    expect(config.outboundEnabled).toBe(false);
+    expect(config.autoHandoffEnabled).toBe(false);
+    expect(config.directEnabled).toBe(false);
+    expect(config.partnerEnabled).toBe(false);
+  });
 });

@@ -120,6 +120,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/instantly") return await handleGtmInstantly(request, response);
     if (url.pathname === "/api/gtm/instantly/stage") return await handleGtmInstantlyStage(request, response);
     if (url.pathname === "/api/gtm/instantly/reconcile") return await handleInstantlyReconcile(request, response);
+    if (url.pathname === "/api/gtm/instantly/ensure-lists") return await handleInstantlyEnsureLists(request, response);
     if (url.pathname === "/api/gtm/instantly/webhook") return await handleInstantlyWebhook(request, response);
     if (url.pathname === "/api/gtm/shadow-status") return await handleGtmShadowStatus(request, response);
     if (url.pathname === "/api/gtm/contact-enrichment") return await handleGtmContactEnrichment(request, response);
@@ -412,19 +413,20 @@ async function handleInstantlyReconcile(request: IncomingMessage, response: Serv
     return json(response, 200, { mode: "PREVIEW_ONLY", health });
   }
   const client = new InstantlyClient();
-  const results = await Promise.allSettled([client.listLeadLists(), client.listCampaigns(), client.listAccounts(), client.listRecentLeads(), client.listWebhooks(), client.listWebhookEventTypes()]);
-  const [lists, campaigns, accounts, leads, webhooks, webhookEventTypes] = results.map((result) => result.status === "fulfilled" ? result.value : null);
+  const results = await Promise.allSettled([client.listWorkspaces(), client.listLeadLists(), client.listCampaigns(), client.listAccounts(), client.listRecentLeads(), client.listWebhooks(), client.listWebhookEventTypes()]);
+  const [workspaces, lists, campaigns, accounts, leads, webhooks, webhookEventTypes] = results.map((result) => result.status === "fulfilled" ? result.value : null);
   const model = await readCanonicalGtmModel();
   const leadItems = instantlyItems(leads);
   const canonicalByEmail = new Map(model.records.flatMap((record) => record.email ? [[record.email.toLowerCase(), record] as const] : []));
   const matched = leadItems.flatMap((lead) => canonicalByEmail.has(String(lead.email || "").toLowerCase()) ? [canonicalByEmail.get(String(lead.email || "").toLowerCase())!] : []);
   const priorContactExcluded = matched.filter((record) => record.priorContact).length;
   const duplicateEmails = leadItems.length - new Set(leadItems.map((lead) => String(lead.email || "").toLowerCase()).filter(Boolean)).size;
-  const errors = results.flatMap((result, index) => result.status === "rejected" ? [`${["lead_lists", "campaigns", "accounts", "leads", "webhooks", "webhook_event_types"][index]}: ${result.reason instanceof Error ? result.reason.message : "request failed"}`] : []);
+  const errors = results.flatMap((result, index) => result.status === "rejected" ? [`${["workspaces", "lead_lists", "campaigns", "accounts", "leads", "webhooks", "webhook_event_types"][index]}: ${result.reason instanceof Error ? result.reason.message : "request failed"}`] : []);
   const snapshot = {
     ...health,
     checkedAt: new Date().toISOString(),
     reconciliation: errors.length ? "PARTIAL" : "PASS",
+    workspaces: instantSafeSummary(workspaces, ["id", "name", "status"]),
     lists: instantSafeSummary(lists, ["id", "name", "timestamp_created"]),
     campaigns: instantSafeSummary(campaigns, ["id", "name", "status", "timestamp_created"]),
     accounts: instantSafeSummary(accounts, ["email", "warmup_status", "setup_pending", "timestamp_created"]),
@@ -440,6 +442,27 @@ async function handleInstantlyReconcile(request: IncomingMessage, response: Serv
   };
   await saveInstantlyStatus(snapshot);
   return json(response, 200, { mode: "READ_ONLY", status: snapshot });
+}
+
+/** Creates only named storage lists—never a campaign, lead, or email. */
+async function handleInstantlyEnsureLists(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const config = instantlyConfig();
+  if (!config.integrationEnabled || !config.apiKeyConfigured) return json(response, 409, { error: "Instantly API is not configured." });
+  const client = new InstantlyClient();
+  const existing = instantlyItems(await client.listLeadLists());
+  const required = ["DIRECT — QUALIFIED", "PARTNERS — QUALIFIED"];
+  const mappings: Record<string, string> = {};
+  for (const name of required) {
+    const match = existing.find((item) => item.name === name);
+    const created = match || await client.createLeadList(name);
+    const id = String(created.id || "");
+    if (!id) throw new Error(`Instantly did not return an id for ${name}.`);
+    mappings[name] = id;
+  }
+  await saveInstantlyStatus({ ...(await readInstantlyStatus() || {}), listMappings: mappings, listProvisionedAt: new Date().toISOString(), listProvisioning: "SAFE_STORAGE_ONLY" });
+  return json(response, 200, { mode: "SAFE_STORAGE_ONLY", mappings });
 }
 
 /** Public only after cryptographic verification; replayed event ids are ignored. */

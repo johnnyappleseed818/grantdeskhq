@@ -141,6 +141,8 @@ export class InstantlyClient {
   }
 
   listLeadLists() { return this.api<unknown>("/lead-lists?limit=100"); }
+  createLeadList(name: string) { return this.api<{ id?: string; name?: string }>("/lead-lists", { method: "POST", body: JSON.stringify({ name }) }); }
+  listWorkspaces() { return this.api<unknown>("/workspaces?limit=100"); }
   listCampaigns() { return this.api<unknown>("/campaigns?limit=100"); }
   listAccounts() { return this.api<unknown>("/accounts?limit=100"); }
   listWebhooks() { return this.api<unknown>("/webhooks?limit=100"); }
