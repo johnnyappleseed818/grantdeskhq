@@ -756,7 +756,7 @@ export async function saveSearchConsoleState(state: SearchConsoleState) {
 }
 
 export async function readSearchConsoleState(): Promise<SearchConsoleState | null> {
-  const response = await authorizedFetch("/seo/search-console/state/current", await gcpToken());
+  const response = await authorizedFetch(`${firestoreBase}/seo/search-console/state/current`, await gcpToken());
   if (response.status === 404) return null;
   if (!response.ok) throw new Error("Search Console state could not be loaded (" + response.status + ").");
   const record = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
