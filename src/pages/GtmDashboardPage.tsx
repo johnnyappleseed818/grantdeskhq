@@ -48,6 +48,8 @@ import type { SearchConsoleState } from "../../server/searchConsole";
 type DashboardTab = "overview" | "outreach" | "leads" | "partners" | "social" | "seo" | "feedback" | "system-health" | "research";
 type StageState = Record<string, OpportunityStage>;
 type OutreachFilter = "all" | "awaiting" | "follow_up_due" | "replied" | "positive" | "trial" | "paid" | "direct" | "partner";
+type GtmTokenProvider = (forceRefresh?: boolean) => Promise<string>;
+type GtmRequest = <T>(path: string, token: string, init?: RequestInit) => Promise<T>;
 
 const STORAGE_KEY = "grantdeskhq:gtm-stages:v1";
 
@@ -56,10 +58,11 @@ export function GtmDashboardPage() {
   const [access, setAccess] = useState<"checking" | "allowed" | "denied">("checking");
   useEffect(() => {
     if (!user) return;
-    token()
-      .then((idToken) => apiRequest<{ allowed: boolean }>("/api/gtm/access", idToken))
+    let active = true;
+    requestGtmWithFreshToken<{ allowed: boolean }>(token, "/api/gtm/access")
       .then(() => setAccess("allowed"))
-      .catch(() => setAccess("denied"));
+      .catch(() => { if (active) setAccess("denied"); });
+    return () => { active = false; };
   }, [user, token]);
   if (loading) return <div className="workspace-loading"><LoaderCircle className="animate-spin" aria-hidden="true" />Loading GTM command center…</div>;
   if (!user) return <Navigate replace to="/login?next=/gtm" />;
@@ -68,7 +71,7 @@ export function GtmDashboardPage() {
   return <GtmDashboardContent dailySignalToken={token} />;
 }
 
-export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null, initialAwardScan = null, initialControlPlane = null, initialOverview = null, seedOpportunities = [] }: { dailySignalToken?: () => Promise<string>; initialDailyScan?: DailySocialScan | null; initialAwardScan?: AwardDiscoveryScan | null; initialControlPlane?: ControlPlaneQueueReconciliation | null; initialOverview?: GtmOverview | null; seedOpportunities?: GtmOpportunity[] } = {}) {
+export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null, initialAwardScan = null, initialControlPlane = null, initialOverview = null, seedOpportunities = [] }: { dailySignalToken?: GtmTokenProvider; initialDailyScan?: DailySocialScan | null; initialAwardScan?: AwardDiscoveryScan | null; initialControlPlane?: ControlPlaneQueueReconciliation | null; initialOverview?: GtmOverview | null; seedOpportunities?: GtmOpportunity[] } = {}) {
   const canonicalRuntime = Boolean(dailySignalToken);
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
   const [filter, setFilter] = useState<"all" | SignalKind>("all");
@@ -82,6 +85,9 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   const [controlPlane, setControlPlane] = useState<ControlPlaneQueueReconciliation | null>(initialControlPlane);
   const [overview, setOverview] = useState<GtmOverview | null>(initialOverview);
   const [canonical, setCanonical] = useState<CanonicalGtmModel | null>(null);
+  const [canonicalLoading, setCanonicalLoading] = useState(Boolean(dailySignalToken));
+  const [canonicalError, setCanonicalError] = useState("");
+  const [canonicalRetry, setCanonicalRetry] = useState(0);
   const [searchConsole, setSearchConsole] = useState<SearchConsoleState | null>(null);
   const [signalsLoading, setSignalsLoading] = useState(Boolean(dailySignalToken));
   const [signalsError, setSignalsError] = useState("");
@@ -92,30 +98,44 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   useEffect(() => {
     if (!dailySignalToken) return;
     let active = true;
-    dailySignalToken().then(async (idToken) => Promise.all([
+    dailySignalToken().then(async (idToken) => Promise.allSettled([
       apiRequest<{ opportunities: GtmOpportunity[] }>("/api/gtm/opportunities", idToken),
       apiRequest<{ scan: DailySocialScan | null }>("/api/gtm/daily-signals", idToken),
       apiRequest<{ scan: AwardDiscoveryScan | null }>("/api/gtm/award-signals", idToken),
       apiRequest<{ reconciliation: ControlPlaneQueueReconciliation | null }>("/api/gtm/control-plane-queue", idToken),
       apiRequest<{ overview: GtmOverview }>("/api/gtm/overview", idToken),
-      apiRequest<{ model: CanonicalGtmModel }>("/api/gtm/canonical", idToken),
       apiRequest<{ state: SearchConsoleState | null }>("/api/gtm/search-console", idToken)
     ]))
-      .then(([opportunityBody, socialBody, awardBody, controlPlaneBody, overviewBody, canonicalBody, searchConsoleBody]) => {
+      .then(([opportunityResult, socialResult, awardResult, controlPlaneResult, overviewResult, searchConsoleResult]) => {
         if (!active) return;
-        setDailyScan(socialBody.scan);
-        setAwardScan(awardBody.scan);
-        setControlPlane(controlPlaneBody.reconciliation);
-        setOverview(overviewBody.overview);
-        setCanonical(canonicalBody.model);
-        setSearchConsole(searchConsoleBody.state);
-        setLiveOpportunities(mergeAwardCandidates(awardBody.scan?.opportunities || [], opportunityBody.opportunities));
-        setExpanded((current) => current || opportunityBody.opportunities[0]?.id || null);
+        const failures = [opportunityResult, socialResult, awardResult, controlPlaneResult, overviewResult, searchConsoleResult].filter((result) => result.status === "rejected");
+        if (failures.length) setSignalsError("Some secondary GTM data could not be loaded. Commercial queues remain available.");
+        if (socialResult.status === "fulfilled") setDailyScan(socialResult.value.scan);
+        if (awardResult.status === "fulfilled") setAwardScan(awardResult.value.scan);
+        if (controlPlaneResult.status === "fulfilled") setControlPlane(controlPlaneResult.value.reconciliation);
+        if (overviewResult.status === "fulfilled") setOverview(overviewResult.value.overview);
+        if (searchConsoleResult.status === "fulfilled") setSearchConsole(searchConsoleResult.value.state);
+        if (opportunityResult.status === "fulfilled") {
+          setLiveOpportunities(mergeAwardCandidates(awardResult.status === "fulfilled" ? awardResult.value.scan?.opportunities || [] : [], opportunityResult.value.opportunities));
+          setExpanded((current) => current || opportunityResult.value.opportunities[0]?.id || null);
+        }
       })
       .catch((requestError) => { if (active) setSignalsError(requestError instanceof Error ? requestError.message : "Daily signals could not be loaded."); })
       .finally(() => { if (active) setSignalsLoading(false); });
     return () => { active = false; };
   }, [dailySignalToken]);
+
+  useEffect(() => {
+    if (!dailySignalToken) return;
+    let active = true;
+    setCanonicalLoading(true);
+    setCanonicalError("");
+    loadCanonicalGtmModel(dailySignalToken)
+      .then((model) => { if (active) setCanonical(model); })
+      .catch(() => { if (active) setCanonicalError("Unable to load GTM records."); })
+      .finally(() => { if (active) setCanonicalLoading(false); });
+    return () => { active = false; };
+  }, [dailySignalToken, canonicalRetry]);
 
   useEffect(() => {
     if (!dailySignalToken) return;
@@ -177,7 +197,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
     </div>
 
     <div className="site-shell py-8 lg:py-12">
-      {activeTab === "overview" && (canonicalRuntime ? <CanonicalOperationalPanel model={canonical} /> : <FounderOverview records={outreach} overview={overview} onOpenOutreach={() => setActiveTab("outreach")} onOpenFeedback={() => setActiveTab("feedback")} />)}
+      {activeTab === "overview" && (canonicalRuntime ? <CanonicalOperationalPanel model={canonical} loading={canonicalLoading} error={canonicalError} onRetry={() => setCanonicalRetry((value) => value + 1)} /> : <FounderOverview records={outreach} overview={overview} onOpenOutreach={() => setActiveTab("outreach")} onOpenFeedback={() => setActiveTab("feedback")} />)}
       {(activeTab === "research" || activeTab === "leads" && !canonicalRuntime) && <section aria-labelledby="hot-list-heading">
         <InventorySummary title="Direct lead inventory" metrics={overview?.direct.metrics} sent={outreachMetrics.directSent} />
         <div className="gtm-section-heading"><div><p className="eyebrow">Today’s review queue</p><h2 id="hot-list-heading">Prioritized by pain, timing, fit, and potential value</h2><p>A high score never replaces evidence. Every row shows what is known, what is inferred, and what still needs confirmation.</p></div><div className="status-badge status-success"><RefreshCw aria-hidden="true" /> Award feed scheduled daily</div></div>
@@ -220,10 +240,10 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
         </div>
       </section>}
 
-      {activeTab === "leads" && canonicalRuntime && <CanonicalOperationalPanel model={canonical} segment="DIRECT" />}
+      {activeTab === "leads" && canonicalRuntime && <CanonicalOperationalPanel model={canonical} segment="DIRECT" loading={canonicalLoading} error={canonicalError} onRetry={() => setCanonicalRetry((value) => value + 1)} />}
       {activeTab === "leads" && !canonicalRuntime && <ControlPlanePanel reconciliation={controlPlane} />}
       {activeTab === "outreach" && <OutreachHistoryPanel records={outreach} canonicalOpportunityIds={controlPlane?.cards.map((card) => card.canonicalCardId) || ranked.map((opportunity) => opportunity.id)} filter={outreachFilter} query={outreachQuery} onFilter={setOutreachFilter} onQuery={setOutreachQuery} />}
-      {activeTab === "partners" && (canonicalRuntime ? <CanonicalOperationalPanel model={canonical} segment="PARTNER" /> : <PartnersPanel records={outreach} overview={overview} />)}
+      {activeTab === "partners" && (canonicalRuntime ? <CanonicalOperationalPanel model={canonical} segment="PARTNER" loading={canonicalLoading} error={canonicalError} onRetry={() => setCanonicalRetry((value) => value + 1)} /> : <PartnersPanel records={outreach} overview={overview} />)}
       {activeTab === "social" && <SocialQueuePanel scan={dailyScan} />}
       {activeTab === "seo" && <SeoQueuePanel state={searchConsole} />}
       {activeTab === "feedback" && <FeedbackPanel />}
@@ -240,10 +260,11 @@ function FounderOverview({ records, overview, onOpenOutreach, onOpenFeedback }: 
 }
 
 /** Server-derived action queues. Browser state never changes commercial status. */
-function CanonicalOperationalPanel({ model, segment }: { model: CanonicalGtmModel | null; segment?: "DIRECT" | "PARTNER" }) {
+function CanonicalOperationalPanel({ model, segment, loading, error, onRetry }: { model: CanonicalGtmModel | null; segment?: "DIRECT" | "PARTNER"; loading: boolean; error: string; onRetry(): void }) {
   const [state, setState] = useState<CanonicalGtmState>("READY_TO_SEND");
   const [copied, setCopied] = useState<string | null>(null);
-  if (!model) return <section className="workspace-empty"><LoaderCircle className="animate-spin" aria-hidden="true" /><h2>Loading canonical GTM records</h2><p>Commercial queues remain unavailable until the protected canonical model is read.</p></section>;
+  if (!model && loading) return <section className="workspace-empty"><LoaderCircle className="animate-spin" aria-hidden="true" /><h2>Loading canonical GTM records</h2><p>Commercial queues remain unavailable until the protected canonical model is read.</p></section>;
+  if (!model) return <section className="workspace-empty"><AlertCircle aria-hidden="true" /><h2>Unable to load GTM records.</h2><p>{error || "The protected canonical model is unavailable right now."}</p><button type="button" className="button button-primary" onClick={onRetry}>Retry</button></section>;
   const records = model.records.filter((record) => (!segment || record.segment === segment) && record.state === state);
   const states: CanonicalGtmState[] = segment
     ? ["READY_TO_SEND", "FOLLOW_UP_DUE", "AWAITING_REPLY", "REPLIED", "POSITIVE", "TRIAL", "PAID", "NEEDS_VERIFICATION", "RESEARCH_BACKLOG", "ALREADY_CONTACTED"]
@@ -270,6 +291,56 @@ function CanonicalOperationalPanel({ model, segment }: { model: CanonicalGtmMode
       </div>
     </article>)}{!records.length && <div className="workspace-empty"><ClipboardCheck aria-hidden="true" /><h2>No records in this queue</h2><p>No result is inferred or manufactured. Change the canonical queue filter to inspect the next operational state.</p></div>}</div>
   </section>;
+}
+
+const GTM_REQUEST_TIMEOUT_MS = 15_000;
+
+/** A bounded, one-refresh request path for founder-only GTM reads. */
+export async function requestGtmWithFreshToken<T>(tokenProvider: GtmTokenProvider, path: string, request: GtmRequest = apiRequest): Promise<T> {
+  try {
+    return await requestGtmOnce(tokenProvider, false, path, request);
+  } catch (error) {
+    if (!isAuthenticationFailure(error)) throw error;
+    return requestGtmOnce(tokenProvider, true, path, request);
+  }
+}
+
+export async function loadCanonicalGtmModel(tokenProvider: GtmTokenProvider, request: GtmRequest = apiRequest): Promise<CanonicalGtmModel> {
+  const body = await requestGtmWithFreshToken<{ model: CanonicalGtmModel }>(tokenProvider, "/api/gtm/canonical", request);
+  if (!isCanonicalGtmModel(body?.model)) throw new Error("The canonical GTM response is invalid.");
+  return body.model;
+}
+
+async function requestGtmOnce<T>(tokenProvider: GtmTokenProvider, forceRefresh: boolean, path: string, request: GtmRequest) {
+  const token = await withinTimeout(tokenProvider(forceRefresh), "GTM authentication took too long.");
+  const controller = new AbortController();
+  try {
+    return await withinTimeout(request<T>(path, token, { signal: controller.signal }), "GTM records took too long to load.");
+  } catch (error) {
+    controller.abort();
+    throw error;
+  }
+}
+
+function withinTimeout<T>(promise: Promise<T>, timeoutMessage: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error(timeoutMessage)), GTM_REQUEST_TIMEOUT_MS);
+    promise.then(resolve, reject).finally(() => window.clearTimeout(timeout));
+  });
+}
+
+function isAuthenticationFailure(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  return /\b401\b|session expired|sign in to continue|account session/.test(message);
+}
+
+function isCanonicalGtmModel(value: unknown): value is CanonicalGtmModel {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<CanonicalGtmModel>;
+  const metrics = candidate.metrics;
+  return Array.isArray(candidate.records)
+    && Boolean(metrics)
+    && ["directReady", "partnerReady", "directNeedsVerification", "partnerNeedsVerification", "followUpsDue", "awaitingReply", "replies", "positiveReplies", "trials", "paid", "mrr"].every((key) => Number.isFinite(metrics?.[key as keyof CanonicalGtmModel["metrics"]]));
 }
 
 function SocialQueuePanel({ scan }: { scan: DailySocialScan | null }) {
