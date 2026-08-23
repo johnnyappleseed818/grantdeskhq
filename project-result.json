@@ -1,11 +1,12 @@
 {
   "status": "PARTIAL",
   "project": "instantly-fail-closed-integration-20260823",
-  "completed_at": "2026-08-23T15:45:00Z",
-  "production_revision": "PENDING_CANDIDATE",
+  "completed_at": "2026-08-23T15:53:00Z",
+  "production_revision": "grantdeskhq-prototype-00169-p2j",
   "rollback_revision": "grantdeskhq-prototype-00244-tim",
   "implementation_commits": [
-    "PENDING_COMMIT"
+    "c97d18c",
+    "0efebae"
   ],
   "root_cause": "Instantly had no production integration boundary or durable attribution/event model. The API v2 secret remains absent, so all delivery and provider operations are deliberately fail-closed.",
   "completed": [
@@ -28,6 +29,6 @@
     "instantly_provider_calls": 0
   },
   "limitations": [
-    "The external Instantly API v2 key is absent. API reads/writes, actual CRM staging, campaign mapping discovery, webhook registration, and live reconciliation remain intentionally disabled until the one required credential is stored securely."
+    "The external Instantly API v2 key is absent. API reads/writes, actual CRM staging, campaign mapping discovery, webhook registration, and live reconciliation remain intentionally disabled until the one required credential is stored securely. The deployed fail-closed integration and health path have been validated."
   ]
 }
