@@ -1,12 +1,13 @@
 {
   "status": "PARTIAL",
   "project": "instantly-fail-closed-integration-20260823",
-  "completed_at": "2026-08-23T15:53:00Z",
-  "production_revision": "grantdeskhq-prototype-00169-p2j",
-  "rollback_revision": "grantdeskhq-prototype-00244-tim",
+  "completed_at": "2026-08-23T15:58:00Z",
+  "production_revision": "grantdeskhq-prototype-instantlyv2",
+  "rollback_revision": "grantdeskhq-prototype-00169-p2j",
   "implementation_commits": [
     "c97d18c",
-    "0efebae"
+    "0efebae",
+    "04baedd"
   ],
   "root_cause": "Instantly had no production integration boundary or durable attribution/event model. The API v2 secret remains absent, so all delivery and provider operations are deliberately fail-closed.",
   "completed": [
