@@ -538,12 +538,15 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
     if (Number(paused.status) !== 2) return json(response, 409, { error: "The Partner campaign could not be paused for pre-send repair." });
     await client.configureControlledCampaign(partnerCampaignId, controlledCampaignPatch("PARTNER", 5, approvedSender), batchId);
     const configured = await client.getCampaign(partnerCampaignId);
-    if (!controlledCampaignReady(configured, approvedSender)) return json(response, 409, { error: "Partner campaign read-back did not satisfy sender, reply-stop, tracking, CTA, and safety requirements." });
+    if (!controlledCampaignReady(configured, approvedSender, [2])) return json(response, 409, { error: "Partner campaign read-back did not satisfy sender, reply-stop, tracking, CTA, and safety requirements." });
     const repaired = await Promise.all(unsent.map(async (record) => {
       const canonical = byId.get(record.canonicalOrganizationId)!;
       const subjectLine = controlledSubject(canonical);
       const openingLine = controlledOpening(canonical);
       await client.patchControlledLeadVariables(record.instantlyLeadId, { openingLine, subjectLine }, batchId);
+      const providerLead = await client.getLead(record.instantlyLeadId);
+      const payload = providerLead.payload && typeof providerLead.payload === "object" && !Array.isArray(providerLead.payload) ? providerLead.payload as Record<string, unknown> : {};
+      if (String(payload.openingLine || "") !== openingLine || String(payload.subjectLine || "") !== subjectLine) throw new HttpError(409, "Partner lead read-back did not preserve the personalized first-touch copy.");
       return { organization: record.organization, instantlyLeadId: record.instantlyLeadId, subjectLine, emailBody: controlledEmail(canonical) };
     }));
     await client.activateControlledCampaign(partnerCampaignId, batchId);
@@ -634,10 +637,10 @@ function controlledCampaignPatch(segment: "DIRECT" | "PARTNER", maximum: number,
   };
 }
 
-function controlledCampaignReady(campaign: Record<string, unknown>, sender: string) {
+function controlledCampaignReady(campaign: Record<string, unknown>, sender: string, allowedStatuses = [0]) {
   const summary = controlledCampaignSafetySummary(campaign);
   const first = summary.firstEmailVariants.find((variant) => !variant.disabled);
-  return Number(summary.status) === 0 && campaignUsesOnlySender(campaign, sender) && summary.stopOnReply && summary.bounceProtectionEnabled && !summary.openTracking && !summary.linkTracking && Number(summary.dailyMaxLeads) === 5 && Boolean(first?.body.includes("https://grantdeskhq.com/assessment") && first.body.toLowerCase().includes("free"));
+  return allowedStatuses.includes(Number(summary.status)) && campaignUsesOnlySender(campaign, sender) && summary.stopOnReply && summary.bounceProtectionEnabled && !summary.openTracking && !summary.linkTracking && Number(summary.dailyMaxLeads) === 5 && Boolean(first?.body.includes("https://grantdeskhq.com/assessment") && first.body.toLowerCase().includes("free"));
 }
 
 /** Scheduler-protected reconciliation uses read-only API polling. Webhooks are

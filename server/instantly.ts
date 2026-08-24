@@ -231,6 +231,7 @@ export class InstantlyClient {
   listWorkspaces() { return this.api<unknown>("/workspaces?limit=100"); }
   listCampaigns() { return this.api<unknown>("/campaigns?limit=100"); }
   getCampaign(id: string) { return this.api<Record<string, unknown>>(`/campaigns/${encodeURIComponent(id)}`); }
+  getLead(id: string) { return this.api<Record<string, unknown>>(`/leads/${encodeURIComponent(id)}`); }
   listAccounts() { return this.api<unknown>("/accounts?limit=100"); }
   getAccount(email: string) { return this.api<Record<string, unknown>>(`/accounts/${encodeURIComponent(email)}`); }
   listCampaignAnalytics() { return this.api<unknown>("/campaigns/analytics"); }
