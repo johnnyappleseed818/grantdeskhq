@@ -833,6 +833,9 @@ async function handleStoredDirectDiscoveryReconcile(request: IncomingMessage, re
 async function handleScheduledPartnerHunterReconciliation(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
+  // Provider evidence must be applied before inventory is evaluated: a Partner
+  // already staged, scheduled, or sent is consumed inventory, never Ready.
+  const instantly = await reconcileInstantlyPolling();
   const before = await readCanonicalGtmModel();
   const decision = inventoryDecision("partner", before.metrics.partnerReady);
   let discovery = await readGtmPartnerDiscoveryScan();
@@ -847,10 +850,6 @@ async function handleScheduledPartnerHunterReconciliation(request: IncomingMessa
   }
   const stored = await reconcileStoredContactEnrichmentBatch({ segment: "partner", limit: 20, discoveredPartner: discovery?.opportunities || [] });
   console.info("GTM_HUNTER_BATCH " + JSON.stringify(partner ? { segment: partner.segment, attempted: partner.attempted, contactsResolved: partner.contactsResolved, verifiedEmails: partner.verifiedEmails, ready: partner.ready, needsVerification: partner.needsVerification, alreadyContacted: partner.alreadyContacted, duplicates: partner.duplicates, failures: partner.failures, providerUsage: partner.providerUsage } : { segment: "partner", skipped: "HEALTHY_READY_INVENTORY" }));
-  // While live delivery is disabled, the existing daily GTM runtime provides a
-  // low-cost polling cadence. A separate hourly Scheduler is reserved for the
-  // explicit future live-outbound phase, avoiding duplicate jobs today.
-  const instantly = await reconcileInstantlyPolling();
   const inventory = await persistInventoryAutopilot();
   return json(response, 200, { decision, discovery, partner, stored, instantly, inventory });
 }
@@ -887,6 +886,10 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
   const errors: string[] = [];
+  // Reconcile provider state first so Ready is a post-reconciliation canonical
+  // count. This is a bounded Instantly read and cannot hand off or send a lead.
+  try { await reconcileInstantlyPolling(); }
+  catch (error) { errors.push(error instanceof Error ? error.message : "Instantly reconciliation failed before Direct inventory evaluation."); }
   const before = await readCanonicalGtmModel();
   const directDecision = inventoryDecision("direct", before.metrics.directReady);
   let awardScan;
