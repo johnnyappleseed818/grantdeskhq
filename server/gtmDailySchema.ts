@@ -20,7 +20,7 @@ export const dailySocialScanSchema = {
     summary: { type: "string" },
     signals: {
       type: "array",
-      maxItems: 12,
+      maxItems: 36,
       items: {
         type: "object",
         additionalProperties: false,

@@ -62,6 +62,16 @@ describe("daily GTM social signal validation", () => {
     expect(registry.find((source) => source.name === "USAspending recent federal awards")?.status).toBe("PASS");
     expect(registry.every((source) => source.lastAttempt === "2026-08-24T12:00:00.000Z" || source.mode === "MANUAL_AUTHENTICATED")).toBe(true);
   });
+
+  it("keeps high-recall Reddit semantic pain fixtures through strict qualification", () => {
+    const qbo = { ...baseSignal, title: "How do nonprofits avoid Excel for QBO grant budget vs actual?", url: "https://www.reddit.com/r/nonprofit/comments/qbo/grant_budget_actual/", evidenceSummary: "A nonprofit asks for a grant-management workflow beyond QuickBooks and spreadsheets.", observedPain: "Budget-to-actual reporting across multiple grants is time consuming.", publishedAt: "2026-08-20" };
+    const ownership = { ...baseSignal, title: "Who owns grant reports across finance, development, and programs?", url: "https://www.reddit.com/r/nonprofittech/comments/owners/grant_reporting_workflow/", evidenceSummary: "A nonprofit team is trying to assign grant reporting workflow ownership.", observedPain: "Program and finance data must be reconciled before funder deadlines.", publishedAt: "2026-08-19" };
+    const stale = { ...baseSignal, title: "Old grant report thread", url: "https://www.reddit.com/r/grantwriters/comments/old/reporting_workload/", publishedAt: "2026-07-01" };
+    const scan = normalizeDailySocialScan({ summary: "Recall", signals: [qbo, ownership, stale] }, [qbo.url, ownership.url, stale.url], new Date("2026-08-24T12:00:00.000Z"), 12);
+    expect(scan.items.map((item) => item.title)).toEqual([qbo.title, ownership.title]);
+    expect(scan.itemsStale).toBe(1);
+    expect(scan.searchResultsReturned).toBe(3);
+  });
 });
 
 describe("private GTM admin gate", () => {

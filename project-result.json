@@ -1,32 +1,29 @@
 {
-  "status": "PASS",
-  "project": "direct-social-sourcing-engine-20260824",
-  "completed_at": "2026-08-24T05:35:00Z",
+  "status": "PARTIAL",
+  "project": "direct-contact-resolution-social-recall-20260824",
+  "completed_at": "2026-08-24T06:04:00Z",
   "production_revision": "grantdeskhq-prototype-00307-qen",
   "rollback_revision": "grantdeskhq-prototype-00304-kaj",
   "completed": [
-    "Implemented bounded Direct source registry, public discovery, canonical dedupe, and daily replenishment controls.",
-    "Implemented source-backed Social discovery across Reddit, public forums/web, and public-only LinkedIn search, with manual private LinkedIn handling.",
-    "Persisted Direct and Social source telemetry for founder and System Health views.",
-    "Added a Direct finance/grants operating-recipient gate to centralized readiness and canonical queue construction.",
-    "Preserved Instantly polling, non-sending staging controls, prior-contact protection, suppression, outbound disablement, and no-social-post policy."
+    "Added a bounded public, official-source recipient-resolution pass for existing qualified Direct organizations.",
+    "Added expanded finance/grants role equivalence and responsibility-backed operations fallback gating.",
+    "Added person-first Hunter eligibility so only resolved operating recipients can reach the existing bounded enrichment batch.",
+    "Expanded bounded Social discovery to explicit Reddit community and pain-term coverage with a 30-day primary window.",
+    "Preserved Instantly polling, non-sending staging, suppression, prior-contact protection, and outbound disablement."
   ],
   "validation": [
-    "Focused Direct, Social, canonical GTM, Instantly, and scheduler tests passed.",
-    "TypeScript check and production build passed.",
-    "Zero-traffic candidate health and protected canonical sourcing-status validation passed.",
-    "Production health, canonical sourcing status, prior-contact protection, and safe Instantly polling reconciliation passed."
+    "Thirty focused Direct, Social, canonical GTM, Instantly, and scheduler tests passed.",
+    "TypeScript check and production build passed."
   ],
   "side_effects": {
-    "hunter_finder_calls": 2,
-    "hunter_verifier_calls": 1,
+    "hunter_finder_calls": 0,
+    "hunter_verifier_calls": 0,
     "outbound_email_sent": 0,
     "social_posts_made": 0,
     "instantly_campaigns_activated": false,
     "instantly_auto_handoff_enabled": false
   },
   "limitations": [
-    "The completed bounded scan found no current Direct record meeting every finance/grants-recipient and verification gate; it did not manufacture readiness.",
-    "The next daily bounded replenishment run will revisit eligible new public signals while preserving retry windows and the ten-Finder validation cap."
+    "Production recipient-resolution and improved Social scan validation remain in progress."
   ]
 }

@@ -37,6 +37,7 @@ export interface DailySocialScan {
   windowDays: number;
   queryCount: number;
   sourceCount: number;
+  searchResultsReturned?: number;
   itemsExamined: number;
   itemsQualified: number;
   itemsSuppressed: number;
@@ -70,6 +71,22 @@ export interface DirectDiscoveryTelemetry {
   readyCreated: number;
   stagedInInstantly: number;
   mainBottleneck: string;
+  recipientsFound?: number;
+  officialPublishedEmails?: number;
+  executiveFallbackReview?: number;
+}
+
+export interface DirectRecipientResolution {
+  organization: string;
+  signal: SignalKind;
+  recipientFound: boolean;
+  contact: string | null;
+  title: string | null;
+  roleEvidence: string | null;
+  contactSource: "OFFICIAL_PUBLISHED" | "OFFICIAL_ROLE" | "EXECUTIVE_FALLBACK_REVIEW" | "NOT_FOUND";
+  email: string | null;
+  blocker: string | null;
+  hunterUsed: boolean;
 }
 
 export interface DirectDiscoveryScan {
@@ -77,6 +94,7 @@ export interface DirectDiscoveryScan {
   sourceRegistry: GtmSourceRegistryEntry[];
   telemetry: DirectDiscoveryTelemetry;
   opportunities: GtmOpportunity[];
+  recipientResolutions?: DirectRecipientResolution[];
   limitations: string[];
 }
 
@@ -126,6 +144,7 @@ export interface GtmContact {
   emailSourceUrl: string;
   verifiedAt: string;
   note: string;
+  responsibilityEvidence?: string;
 }
 
 export interface OpportunityScoringInput {

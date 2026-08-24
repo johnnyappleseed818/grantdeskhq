@@ -4,7 +4,7 @@ import { dailySocialScanSchema } from "./gtmDailySchema.ts";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = "gpt-5.5";
-const WINDOW_DAYS = 7;
+const WINDOW_DAYS = 30;
 const FORUM_HOSTS = new Set(["community.npquarterly.org", "forums.techsoup.org", "grantprofessionals.org", "www.grantprofessionals.org", "nonprofitquarterly.org"]);
 
 function sourceRegistry(now: string, urls: string[] = [], error?: string): GtmSourceRegistryEntry[] {
@@ -51,26 +51,26 @@ export async function runDailySocialScan(now = new Date()): Promise<DailySocialS
       reasoning: { effort: "low" },
       tools: [{
         type: "web_search",
-        search_context_size: "low",
+        search_context_size: "medium",
         external_web_access: true,
         filters: { allowed_domains: ["reddit.com", "community.npquarterly.org", "forums.techsoup.org", "grantprofessionals.org", "linkedin.com"] }
       }],
       tool_choice: "required",
-      max_tool_calls: 6,
+      max_tool_calls: 12,
       include: ["web_search_call.action.sources"],
       input: [
         {
           role: "system",
           content: [{
             type: "input_text",
-            text: "You are GrantDeskHQ's evidence-first market researcher. Find public, indexed discussions that reveal real post-award grant reporting work. Never invent a person, organization, quote, date, URL, complaint, or product usage. A search result is research evidence, not permission to contact anyone. Exclude grant discovery, proposal writing, fundraising, vendor promotion, generic evergreen articles, job listings, duplicated results, and posts without a clear post-award workflow connection. Reddit and public forums are allowed. LinkedIn is allowed only for pages discoverable by ordinary public web search; never access a login-only page or private group. Summarize in your own words; do not present a paraphrase as a direct quote."
+            text: "You are GrantDeskHQ's evidence-first market researcher. Discovery has high recall; qualification remains strict. Find public, indexed discussions that may reveal actual grant-management, reporting, reconciliation, compliance, deadline, documentation, or cross-team ownership pain. Never invent a person, organization, quote, date, URL, complaint, or product usage. A search result is research evidence, not permission to contact anyone. Exclude grant discovery, proposal writing, fundraising, vendor promotion, generic evergreen articles, job listings, duplicates, and pre-award-only discussions. Explicitly cover public Reddit r/nonprofit, r/grantwriters, and r/nonprofittech where accessible, plus other demonstrably relevant public subreddits. Reddit and public forums are allowed. LinkedIn is allowed only for pages discoverable by ordinary public web search; never access a login-only page or private group. Return dates as ISO YYYY-MM-DD when visible; if a thread is older than 30 days, return it only when a separately visible recent update date is supplied. Summarize in your own words; do not present a paraphrase as a direct quote."
           }]
         },
         {
           role: "user",
           content: [{
             type: "input_text",
-            text: `Today is ${scanDate}. Run a bounded search for public Reddit, public nonprofit-finance/grant forums, and legitimately public LinkedIn discussions published or visibly updated within the last ${WINDOW_DAYS} days. Search multiple themes: grant reporting, funder reporting, post-award grant management, grant closeout, grant compliance, grant accountant, grant management spreadsheets, budget-to-actual grant reporting, collecting program data for funders, supporting documentation, manual grant reporting, nonprofit finance reporting, and grant audit preparation. Prefer actual questions and workflow pain, not generic news. Return at most twelve useful public thread/post URLs. Use canonical public URLs, never a search-results URL. If date or author is not visible return "unknown". Supply a brief, helpful human response that answers first and mentions GrantDeskHQ only when genuinely relevant.`
+            text: `Today is ${scanDate}. Run a bounded high-recall search for public Reddit, public nonprofit-finance/grant forums, and legitimately public LinkedIn discussions published or visibly updated within the last ${WINDOW_DAYS} days. Run explicit Reddit coverage for r/nonprofit, r/grantwriters, and r/nonprofittech. Search combinations including grant reporting, managing grant reporting, grant management, post-award, grant compliance, grant closeout, grant reporting software, grant management software, QBO grants, QuickBooks grants, grant budget vs actual, budget vs actual grants, grant spreadsheet, grant tracker, grant finance, grant accountant, restricted funds reporting, funder reporting, supporting documentation, grant reporting workflow, collecting program data, grant deadlines, reporting workload, and grant reporting staff. Favor pain terms such as spreadsheet, manual, hours, time consuming, workflow, deadline, reporting burden, reconcile, documentation, compliance, ownership, tool, software, recommendation, and multiple grants. Return up to 36 candidate thread/post URLs for content/context qualification. Use canonical public URLs, never search-result URLs. If date or author is not visible return "unknown". Supply a brief, helpful human response that answers first and mentions GrantDeskHQ only when genuinely relevant.`
           }]
         }
       ],
@@ -123,6 +123,7 @@ export function normalizeDailySocialScan(draft: SearchDraft, sourceUrls: string[
     windowDays: WINDOW_DAYS,
     queryCount,
     sourceCount: sourceIndex.size,
+    searchResultsReturned: sourceIndex.size,
     itemsExamined: Array.isArray(draft.signals) ? draft.signals.length : 0,
     itemsQualified: items.length,
     itemsSuppressed: suppressed,
@@ -184,12 +185,13 @@ function safeCanonicalUrl(value: string, platform: SocialPlatform) {
 
 function weakDiscussion(candidate: Omit<DailySocialSignal, "id" | "observedAt" | "status">) {
   const text = `${candidate.title} ${candidate.evidenceSummary} ${candidate.observedPain}`.toLowerCase();
-  const postAward = /grant report|funder report|post-award|closeout|grant compliance|budget.?to.?actual|supporting documentation|manual.*report|reporting spreadsheet|grant accountant|grant audit|financial reporting/.test(text);
+  const postAward = /grant report|funder report|post-award|closeout|grant compliance|budget.?to.?actual|supporting documentation|manual.*report|reporting spreadsheet|grant accountant|grant audit|financial reporting|quickbooks|\bqbo\b|restricted funds|grant tracker|multiple grants|reporting workload|who owns.*report|grant management software/.test(text);
   return !postAward || /funding opportunity|grant application|grant writing|proposal writing|webinar|sponsored|buy now/.test(text);
 }
 
 function isStale(value: string, now: Date) {
-  const at = Date.parse(value || "");
+  const match = String(value || "").match(/\d{4}-\d{2}-\d{2}/);
+  const at = Date.parse(match?.[0] || value || "");
   return Number.isFinite(at) && now.getTime() - at > 30 * 24 * 60 * 60 * 1_000;
 }
 

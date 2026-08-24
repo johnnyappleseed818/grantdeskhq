@@ -192,7 +192,8 @@ function toCanonicalRecord(organizationId: string, candidate: CanonicalGtmCandid
   const organization = candidate.target.organization;
   const protectedPriorContact = PROTECTED_PRIOR_CONTACT_ORGANIZATIONS.has(ORGANIZATION_ALIASES[normalizeOutreachOrganization(organization)] || normalizeOutreachOrganization(organization));
   const recipientTitle = enrichment?.target.person.currentTitle || candidate.target.person.currentTitle;
-  const directRecipientAppropriate = candidate.segment !== "DIRECT" || hasAppropriateDirectRecipientTitle(recipientTitle);
+  const recipientResponsibilityEvidence = enrichment?.target.person.responsibilityEvidence || candidate.target.person.responsibilityEvidence || "";
+  const directRecipientAppropriate = candidate.segment !== "DIRECT" || hasAppropriateDirectRecipientTitle(recipientTitle, recipientResponsibilityEvidence);
   const state = history ? stateFromOutreach(history) : protectedPriorContact || enrichment?.verification.priorContactStatus === "ALREADY_CONTACTED" ? "ALREADY_CONTACTED" : enrichment?.verification.readyToSend && directRecipientAppropriate ? "READY_TO_SEND" : enrichment ? "NEEDS_VERIFICATION" : "RESEARCH_BACKLOG";
   const blockers = state === "NEEDS_VERIFICATION" ? (directRecipientAppropriate ? (enrichment?.verification.blockers.length ? enrichment.verification.blockers : ["VERIFICATION_MISSING"]) : ["INAPPROPRIATE_DIRECT_RECIPIENT: a finance or grants operating owner is required."]) : state === "ALREADY_CONTACTED" ? ["ALREADY_CONTACTED"] : [];
   return {

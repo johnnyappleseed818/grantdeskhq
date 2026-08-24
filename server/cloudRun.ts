@@ -17,6 +17,7 @@ import { reconcileGtmOutreachLedger, updateFeedbackReview } from "./persistence.
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { runDailySocialScan } from "./gtmDailyScanner.ts";
 import { runDirectPublicDiscovery } from "./gtmDirectDiscovery.ts";
+import { resolveDirectRecipients } from "./gtmDirectRecipientResolution.ts";
 import { buildShadowStatus, shadowLeadFromOpportunity, suggestedTopicsFromLeads } from "../src/lib/gtmShadow.ts";
 import { enrichGtmContactInShadow } from "./contactEnrichment.ts";
 import { reconcileStoredContactEnrichmentBatch, runContactEnrichmentBatch, type EnrichmentBatchSegment } from "./contactEnrichmentBatch.ts";
@@ -30,6 +31,7 @@ import { reconcileControlPlaneQueue } from "../src/lib/gtmControlPlaneQueue.ts";
 import { buildGtmOverview } from "../src/lib/gtmOverview.ts";
 import { readCanonicalGtmModel } from "./gtmCanonical.ts";
 import type { GtmOpportunity } from "../src/lib/gtm.ts";
+import { canonicalOrganizationId } from "../src/lib/gtmCanonical.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
 import { applyInstantlyEvent, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
@@ -37,6 +39,11 @@ import { applyInstantlyEvent, InstantlyClient, instantlyConfig, instantlyHealth,
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
 const maxBodyBytes = configuredPositiveInteger("MAX_REQUEST_BODY_BYTES", 24_000_000);
+
+function domainFromUrl(value: string) {
+  try { return new URL(value).hostname.toLowerCase().replace(/^www\./, ""); }
+  catch { return ""; }
+}
 const allowedOrigins = new Set(
   (process.env.CORS_ORIGINS || "https://grantdeskhq.com,https://www.grantdeskhq.com")
     .split(",")
@@ -116,6 +123,8 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/social") return await handleGtmSocial(request, response);
     if (url.pathname === "/api/gtm/award-signals") return await handleGtmAwardSignals(request, response);
     if (url.pathname === "/api/gtm/direct-discovery") return await handleGtmDirectDiscovery(request, response);
+    if (url.pathname === "/api/gtm/direct-recipient-resolution") return await handleGtmDirectRecipientResolution(request, response);
+    if (url.pathname === "/api/gtm/social-discovery/reconcile") return await handleGtmSocialDiscoveryReconcile(request, response);
     if (url.pathname === "/api/gtm/control-plane-queue") return await handleGtmControlPlaneQueue(request, response);
     if (url.pathname === "/api/gtm/overview") return await handleGtmOverview(request, response);
     if (url.pathname === "/api/gtm/canonical") return await handleGtmCanonical(request, response);
@@ -357,6 +366,42 @@ async function handleGtmDirectDiscovery(request: IncomingMessage, response: Serv
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   requireGtmAdmin(await requireUser(request));
   return json(response, 200, { scan: await readGtmDirectDiscoveryScan() });
+}
+
+/** Existing-inventory recipient resolution. This path is bounded and never discovers organizations. */
+async function handleGtmDirectRecipientResolution(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const scan = await readGtmDirectDiscoveryScan();
+  if (!scan) return json(response, 200, { status: "no_existing_inventory", recipients: null, enrichment: null });
+  const canonicalBefore = await readCanonicalGtmModel();
+  const blocked = new Set(canonicalBefore.records.filter((record) => record.priorContact || record.suppressionStatus === "BLOCKED").map((record) => record.organizationId));
+  const eligible = scan.opportunities.filter((opportunity) => !blocked.has(canonicalOrganizationId(opportunity.organization, domainFromUrl(opportunity.organizationUrl))));
+  const resolved = await resolveDirectRecipients({ opportunities: eligible });
+  const resolvedById = new Map(resolved.opportunities.map((opportunity) => [opportunity.id, opportunity]));
+  const merged = scan.opportunities.map((opportunity) => resolvedById.get(opportunity.id) || opportunity);
+  const recipientsFound = resolved.resolutions.filter((item) => item.recipientFound).length;
+  const officialPublishedEmails = resolved.resolutions.filter((item) => item.contactSource === "OFFICIAL_PUBLISHED").length;
+  const executiveFallbackReview = resolved.resolutions.filter((item) => item.contactSource === "EXECUTIVE_FALLBACK_REVIEW").length;
+  let saved = await saveGtmDirectDiscoveryScan({ ...scan, generatedAt: resolved.generatedAt, opportunities: merged, recipientResolutions: resolved.resolutions, telemetry: { ...scan.telemetry, lastScan: resolved.generatedAt, recipientsFound, officialPublishedEmails, executiveFallbackReview, mainBottleneck: recipientsFound ? "Authoritative recipient evidence was found; only verified finance or grants owners may proceed." : "No appropriate finance or grants operating owner was found in the existing qualified inventory." } });
+  const enrichment = await runContactEnrichmentBatch({ segment: "direct", limit: 10, discoveredDirect: saved.opportunities, directOnly: true });
+  const canonicalAfter = await readCanonicalGtmModel();
+  const readyCreated = canonicalAfter.records.filter((record) => record.segment === "DIRECT" && record.state === "READY_TO_SEND" && saved.opportunities.some((opportunity) => opportunity.id === record.id)).length;
+  const hunterByOrganization = new Map(enrichment.records.map((record) => [record.organization.toLowerCase(), record.hunterUsed]));
+  saved = await saveGtmDirectDiscoveryScan({ ...saved, recipientResolutions: saved.recipientResolutions?.map((resolution) => ({ ...resolution, hunterUsed: hunterByOrganization.get(resolution.organization.toLowerCase()) || false })), telemetry: { ...saved.telemetry, hunterFinderCalls: enrichment.providerUsage.hunterLookups, hunterVerifierCalls: enrichment.providerUsage.hunterVerifications, verified: enrichment.verifiedEmails, readyCreated, mainBottleneck: readyCreated ? "Qualified Direct recipients passed the canonical readiness gates." : saved.telemetry.mainBottleneck } });
+  return json(response, 200, { status: resolved.errors.length ? "partial" : "completed", recipients: resolved, enrichment, scan: saved });
+}
+
+/** Bounded Social-only scan for immediate validation without re-running Direct discovery. */
+async function handleGtmSocialDiscoveryReconcile(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const scan = await runDailySocialScan().then(saveGtmDailyScan);
+  return json(response, 200, {
+    status: scan.errors.length ? "partial" : "completed",
+    scan,
+    actionable: scan.items.filter((item) => item.status === "ACTIONABLE")
+  });
 }
 
 async function handleGtmControlPlaneQueue(request: IncomingMessage, response: ServerResponse) {

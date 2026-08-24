@@ -22,7 +22,7 @@ export interface EnrichmentTarget {
   organization: string;
   organizationDomain: string;
   domainSourceUrl: string;
-  person: { firstName: string; lastName: string; fullName: string; currentTitle: string; titleSourceUrl: string; titleObservedAt?: string };
+  person: { firstName: string; lastName: string; fullName: string; currentTitle: string; titleSourceUrl: string; titleObservedAt?: string; responsibilityEvidence?: string };
 }
 
 export interface EmailSource {
@@ -370,8 +370,11 @@ function uniqueSources(sources: EmailSource[]) {
   }).map((source) => ({ ...source, url: source.url.trim() }));
 }
 
-export function hasAppropriateDirectRecipientTitle(title: string) {
-  return /(chief financial|\bcfo\b|vp.{0,8}finance|(finance|grants).{0,12}director|director.{0,12}(finance|grants)|controller|grants? manager|grant finance|grant accountant|finance manager)/i.test(title);
+export function hasAppropriateDirectRecipientTitle(title: string, responsibilityEvidence = "") {
+  const financeOrGrants = /(chief financial|chief finance|\bcfo\b|vp.{0,12}finance|(finance|grants).{0,18}director|director.{0,18}(finance|grants)|controller|comptroller|director.{0,8}accounting|accounting.{0,8}director|grants? manager|grants?.{0,12}contracts?|grant finance|grant accountant|grants? administrator|grant compliance|post.?award.{0,18}(manager|grants?))/i.test(title);
+  if (financeOrGrants) return true;
+  const operatingFallback = /(chief operating|\bcoo\b|chief administrative|director.{0,12}operations|operations.{0,12}director|vp.{0,12}operations|director.{0,18}administration)/i.test(title);
+  return operatingFallback && /(grant reporting|grant compliance|financial reporting|restricted funds|grant accounting|post.?award|grant budgets?|budget.?to.?actual|funding compliance|grants?.{0,12}contracts?)/i.test(responsibilityEvidence);
 }
 
 function hasContactEvidence(target: EnrichmentTarget) {
@@ -379,7 +382,7 @@ function hasContactEvidence(target: EnrichmentTarget) {
   // Direct first-touch records must use a finance or grants operating owner.
   // Partner titles intentionally remain broader because that segment is an
   // advisory/distribution motion, not the nonprofit reporting owner itself.
-  if (target.prospectChannel === "DIRECT_NONPROFIT" && !hasAppropriateDirectRecipientTitle(target.person.currentTitle)) return false;
+  if (target.prospectChannel === "DIRECT_NONPROFIT" && !hasAppropriateDirectRecipientTitle(target.person.currentTitle, target.person.responsibilityEvidence)) return false;
   return true;
 }
 
