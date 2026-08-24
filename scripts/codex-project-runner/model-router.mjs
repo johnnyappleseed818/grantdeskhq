@@ -71,7 +71,13 @@ function hasProtectedOperation(context) {
 
 export function classifyTask(task, policy) {
   const context = taskContext(task);
-  const detectedHighSignals = includesAny(context, policy.classification.high_risk_indicators).filter((signal) => !isNegatedSignal(context, signal));
+  const detectedHighSignals = includesAny(context, policy.classification.high_risk_indicators)
+    .filter((signal) => !isNegatedSignal(context, signal))
+    // "production" alone is not an operation. A bounded content task can
+    // legitimately say that publication is gated or asynchronous. Keep the
+    // high-risk route for an actual production operation, which
+    // hasProtectedOperation detects from the surrounding task context.
+    .filter((signal) => !["production", "prod"].includes(signal) || hasProtectedOperation(context));
   const highSignals = isPublicCopyOrUiWork(task, context) && !hasProtectedOperation(context) ? [] : detectedHighSignals;
   const complexSignals = includesAny(context, policy.classification.complex_indicators);
   const explicitRisk = normalize(task.risk_level);

@@ -1,20 +1,22 @@
 {
   "status": "PASS",
-  "project": "seo-content-article-review-ux-20260824",
-  "completed_at": "2026-08-24T08:06:00Z",
-  "production_revision": "grantdeskhq-prototype-00319-nil",
-  "rollback_revision": "grantdeskhq-prototype-00315-van",
+  "project": "proactive-seo-content-distribution-engine-20260824",
+  "completed_at": "2026-08-24T07:15:00Z",
+  "production_revision": "grantdeskhq-prototype-00315-van",
+  "rollback_revision": "grantdeskhq-prototype-00311-raj",
+  "commit": "e3deebdca325b8b3986342e83eec09bf7f8dc8b2",
   "completed": [
-    "Fixed the desktop grid placement that put scoreless SEO/content cards into the fixed 120px score column.",
-    "Added a protected full-width review route with Review, Preview, and Edit modes for canonical content drafts.",
-    "Added canonical title, meta description, body, and CTA-copy editing with validation and saved review-state transitions.",
-    "Kept approval separate from publication and preserved all current GTM, Search Console, Instantly, and outbound safeguards."
+    "Added a canonical, founder-review-only content opportunity state backed by Firestore.",
+    "Separated existing-page Search Console actions from proactive content opportunities in the SEO & Content tab.",
+    "Created seven bounded evidence-based opportunities, two Ready for Review drafts, and four manual-only Medium/LinkedIn distribution tasks.",
+    "Integrated opportunity reconciliation into the existing Search Console scheduler runtime without adding a scheduler.",
+    "Preserved existing Search Console, sitemap, GTM, Direct, Social, Instantly polling, suppression, and outbound safeguards."
   ],
   "validation": [
-    "27 focused content-engine, Search Console, canonical GTM, and Instantly tests passed.",
+    "20 focused content-engine, Search Console, and Instantly tests passed.",
     "TypeScript validation and production build passed.",
-    "Zero-traffic candidate revision and protected review-route shell passed health checks before promotion.",
-    "Production health and protected review-route shell were verified after promotion."
+    "Zero-traffic candidate revision was healthy before promotion.",
+    "Production health, Search Console PASS, sitemap PASS, and persisted content state were verified after promotion."
   ],
   "side_effects": {
     "articles_auto_published": 0,
@@ -25,7 +27,7 @@
     "instantly_auto_handoff_enabled": false
   },
   "limitations": [
-    "No authenticated production browser fixture exists for an automated visual review; the protected route shell, build, and canonical contract were validated instead.",
-    "Publication remains deliberately human-approved and requires a later release workflow; no draft is publicly routable or in the sitemap yet."
+    "Publication remains deliberately human-approved and requires a later release workflow; no draft is publicly routable or in the sitemap yet.",
+    "No Quora, Reddit, or forum distribution task was fabricated without a current exact discussion match."
   ]
 }

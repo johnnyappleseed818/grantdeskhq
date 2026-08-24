@@ -75,6 +75,12 @@ test("forbidden safety constraints do not inflate a routine task to high risk", 
   assert.equal(selected.selected_model, "gpt-5.6-luna");
 });
 
+test("a gated SEO implementation does not become high risk merely by mentioning production", () => {
+  const selected = route({ title: "Build SEO content queue", category: "REPO_CODING", description: "Implement a bounded SEO queue. Keep public-page publication gated; do not change live traffic." });
+  assert.equal(selected.selected_tier, "STANDARD");
+  assert.equal(selected.reasoning_level, "medium");
+});
+
 test("Sol is an explicit exceptional high-risk escalation only", () => {
   const normal = route({ title: "Stripe webhook", description: "Stripe webhook handling." }); assert.equal(normal.selected_model, "gpt-5.6-terra");
   const exceptional = route({ title: "Stripe webhook", description: "Stripe webhook handling.", route_step: 1, exceptional_escalation_approved: true, escalation_reason: "Terra xhigh failed with reproducible high-risk defect." }); assert.equal(exceptional.selected_model, "gpt-5.6-sol"); assert.equal(exceptional.reasoning_level, "xhigh");
