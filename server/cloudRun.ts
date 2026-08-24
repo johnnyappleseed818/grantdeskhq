@@ -101,7 +101,15 @@ createServer(async (request, response) => {
       return;
     }
     if (url.pathname === "/healthz" || url.pathname === "/api/health") {
-      return json(response, 200, { status: "ok", service: "grantdeskhq-prototype", environment: applicationEnvironment(), applicationRevision: applicationRevision(), deploymentRevision: deploymentRevision() });
+      return json(response, 200, {
+        status: "ok",
+        service: "grantdeskhq-prototype",
+        environment: applicationEnvironment(),
+        applicationRevision: applicationRevision(),
+        deploymentRevision: deploymentRevision(),
+        buildSourceRef: process.env.BUILD_SOURCE_REF?.trim() || "unknown",
+        buildTimestampUtc: process.env.BUILD_TIMESTAMP_UTC?.trim() || "unknown"
+      });
     }
     if (url.pathname === "/api/config") return handleConfig(request, response);
     if (url.pathname === "/api/billing/checkout") return await handleBillingCheckout(request, response);
