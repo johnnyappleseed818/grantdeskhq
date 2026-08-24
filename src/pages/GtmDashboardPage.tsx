@@ -23,9 +23,7 @@ import {
   UsersRound
 } from "lucide-react";
 import { Link, Navigate } from "react-router-dom";
-import redditSignals from "../../gtm/data/reddit-signals.json";
-import linkedinItems from "../../gtm/data/linkedin-engagement.json";
-import { referralChannels, signalSources } from "../data/gtmData";
+import { referralChannels } from "../data/gtmData";
 import { apiRequest } from "../lib/api";
 import {
   assessOpportunityAccuracy,
@@ -34,6 +32,7 @@ import {
   rankGtmOpportunities,
   type AwardDiscoveryScan,
   type DailySocialScan,
+  type DirectDiscoveryScan,
   type GtmOpportunity,
   type OpportunityStage,
   type SignalKind
@@ -84,6 +83,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   const [stages, setStages] = useState<StageState>(() => readStages());
   const [dailyScan, setDailyScan] = useState<DailySocialScan | null>(initialDailyScan);
   const [awardScan, setAwardScan] = useState<AwardDiscoveryScan | null>(initialAwardScan);
+  const [directDiscovery, setDirectDiscovery] = useState<DirectDiscoveryScan | null>(null);
   const [controlPlane, setControlPlane] = useState<ControlPlaneQueueReconciliation | null>(initialControlPlane);
   const [overview, setOverview] = useState<GtmOverview | null>(initialOverview);
   const [canonical, setCanonical] = useState<CanonicalGtmModel | null>(null);
@@ -105,16 +105,18 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
       apiRequest<{ opportunities: GtmOpportunity[] }>("/api/gtm/opportunities", idToken),
       apiRequest<{ scan: DailySocialScan | null }>("/api/gtm/daily-signals", idToken),
       apiRequest<{ scan: AwardDiscoveryScan | null }>("/api/gtm/award-signals", idToken),
+      apiRequest<{ scan: DirectDiscoveryScan | null }>("/api/gtm/direct-discovery", idToken),
       apiRequest<{ reconciliation: ControlPlaneQueueReconciliation | null }>("/api/gtm/control-plane-queue", idToken),
       apiRequest<{ overview: GtmOverview }>("/api/gtm/overview", idToken),
       apiRequest<{ state: SearchConsoleState | null }>("/api/gtm/search-console", idToken)
     ]))
-      .then(([opportunityResult, socialResult, awardResult, controlPlaneResult, overviewResult, searchConsoleResult]) => {
+      .then(([opportunityResult, socialResult, awardResult, directResult, controlPlaneResult, overviewResult, searchConsoleResult]) => {
         if (!active) return;
-        const failures = [opportunityResult, socialResult, awardResult, controlPlaneResult, overviewResult, searchConsoleResult].filter((result) => result.status === "rejected");
+        const failures = [opportunityResult, socialResult, awardResult, directResult, controlPlaneResult, overviewResult, searchConsoleResult].filter((result) => result.status === "rejected");
         if (failures.length) setSignalsError("Some secondary GTM data could not be loaded. Commercial queues remain available.");
         if (socialResult.status === "fulfilled") setDailyScan(socialResult.value.scan);
         if (awardResult.status === "fulfilled") setAwardScan(awardResult.value.scan);
+        if (directResult.status === "fulfilled") setDirectDiscovery(directResult.value.scan);
         if (controlPlaneResult.status === "fulfilled") setControlPlane(controlPlaneResult.value.reconciliation);
         if (overviewResult.status === "fulfilled") setOverview(overviewResult.value.overview);
         if (searchConsoleResult.status === "fulfilled") setSearchConsole(searchConsoleResult.value.state);
@@ -258,14 +260,14 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
         </div>
       </section>}
 
-      {activeTab === "leads" && canonicalRuntime && <CanonicalOperationalPanel model={canonical} segment="DIRECT" loading={canonicalLoading} error={canonicalError} onRetry={() => setCanonicalRetry((value) => value + 1)} />}
+      {activeTab === "leads" && canonicalRuntime && <CanonicalOperationalPanel model={canonical} segment="DIRECT" directDiscovery={directDiscovery} loading={canonicalLoading} error={canonicalError} onRetry={() => setCanonicalRetry((value) => value + 1)} />}
       {activeTab === "leads" && !canonicalRuntime && <ControlPlanePanel reconciliation={controlPlane} />}
       {activeTab === "outreach" && <OutreachHistoryPanel records={outreach} canonicalOpportunityIds={controlPlane?.cards.map((card) => card.canonicalCardId) || ranked.map((opportunity) => opportunity.id)} filter={outreachFilter} query={outreachQuery} onFilter={setOutreachFilter} onQuery={setOutreachQuery} />}
       {activeTab === "partners" && (canonicalRuntime ? <CanonicalOperationalPanel model={canonical} segment="PARTNER" loading={canonicalLoading} error={canonicalError} onRetry={() => setCanonicalRetry((value) => value + 1)} /> : <PartnersPanel records={outreach} overview={overview} />)}
       {activeTab === "social" && <SocialQueuePanel scan={dailyScan} onReview={reviewSocial} />}
       {activeTab === "seo" && <SeoQueuePanel state={searchConsole} />}
       {activeTab === "feedback" && <FeedbackPanel />}
-      {activeTab === "system-health" && <><OverviewPanel overview={overview} inMain /><div className="mt-8"><InstantlyHealthPanel health={instantly?.health || null} persisted={instantly?.persisted || null} /></div><div className="mt-8"><SignalsPanel dailyScan={dailyScan} loading={signalsLoading} error={signalsError} /></div><div className="mt-8"><SourcesPanel /></div><div className="mt-8"><PipelinePanel opportunities={ranked} stages={stages} stagesOrder={pipelineStages} onStageChange={updateStage} /></div><div className="mt-8"><OutreachAutomationPanel opportunities={ranked} stages={stages} /></div><div className="mt-8"><AccuracyPanel /></div></>}
+      {activeTab === "system-health" && <><OverviewPanel overview={overview} inMain /><div className="mt-8"><InstantlyHealthPanel health={instantly?.health || null} persisted={instantly?.persisted || null} /></div><div className="mt-8"><SignalsPanel dailyScan={dailyScan} directDiscovery={directDiscovery} loading={signalsLoading} error={signalsError} /></div><div className="mt-8"><SourcesPanel dailyScan={dailyScan} directDiscovery={directDiscovery} /></div><div className="mt-8"><PipelinePanel opportunities={ranked} stages={stages} stagesOrder={pipelineStages} onStageChange={updateStage} /></div><div className="mt-8"><OutreachAutomationPanel opportunities={ranked} stages={stages} /></div><div className="mt-8"><AccuracyPanel /></div></>}
     </div>
   </div>;
 }
@@ -282,7 +284,7 @@ function FounderOverview({ records, overview, onOpenOutreach, onOpenFeedback }: 
 }
 
 /** Server-derived action queues. Browser state never changes commercial status. */
-function CanonicalOperationalPanel({ model, segment, loading, error, onRetry }: { model: CanonicalGtmModel | null; segment?: "DIRECT" | "PARTNER"; loading: boolean; error: string; onRetry(): void }) {
+function CanonicalOperationalPanel({ model, segment, directDiscovery, loading, error, onRetry }: { model: CanonicalGtmModel | null; segment?: "DIRECT" | "PARTNER"; directDiscovery?: DirectDiscoveryScan | null; loading: boolean; error: string; onRetry(): void }) {
   const [state, setState] = useState<CanonicalGtmState>("READY_TO_SEND");
   const [copied, setCopied] = useState<string | null>(null);
   if (!model && loading) return <section className="workspace-empty"><LoaderCircle className="animate-spin" aria-hidden="true" /><h2>Loading canonical GTM records</h2><p>Commercial queues remain unavailable until the protected canonical model is read.</p></section>;
@@ -303,6 +305,7 @@ function CanonicalOperationalPanel({ model, segment, loading, error, onRetry }: 
       const count = model.records.filter((record) => (!segment || record.segment === segment) && record.state === item).length;
       return <button type="button" key={item} className={state === item ? "is-active" : ""} aria-pressed={state === item} onClick={() => setState(item)}>{item.replaceAll("_", " ")} · {count}</button>;
     })}</div>
+    {segment === "DIRECT" && directDiscovery && <div className="gtm-criteria-note mt-5"><Radar aria-hidden="true" /><div><strong>Direct replenishment telemetry</strong><p>Last scan {formatDateTime(directDiscovery.telemetry.lastScan)} · {directDiscovery.telemetry.rawCandidatesExamined} examined · {directDiscovery.telemetry.qualified} qualified · {directDiscovery.telemetry.readyCreated} Ready · {directDiscovery.telemetry.hunterFinderCalls} Hunter Finder call(s).</p><small>Main bottleneck: {directDiscovery.telemetry.mainBottleneck}</small></div></div>}
     <div className="gtm-opportunity-list mt-6" aria-live="polite">{records.map((record) => <article className="gtm-opportunity" key={record.id}>
       <div className="gtm-opportunity-main"><div className="gtm-opportunity-top"><span className="status-badge status-info">{record.state.replaceAll("_", " ")}</span><span className="status-badge status-neutral">{record.segment === "DIRECT" ? "Direct" : record.partnerType || "Partner"}</span></div>
         <h3>{record.organization}</h3><p className="gtm-why"><strong>Why now:</strong> {record.whyNow}</p>
@@ -375,7 +378,7 @@ function SocialQueuePanel({ scan, onReview }: { scan: DailySocialScan | null; on
     try { await navigator.clipboard.writeText(item.suggestedResponse); setCopied(item.id); window.setTimeout(() => setCopied(null), 1500); } catch { setCopied(null); }
   };
   return <section><div className="gtm-section-heading"><div><p className="eyebrow">Canonical research queue</p><h2>Social review</h2><p>Only source-linked research is shown. No post, reply, message, or automated engagement is enabled.</p></div><span className="status-badge status-neutral">MANUAL ONLY</span></div>
-    {scan && <p className="gtm-daily-summary">Last scan {formatDateTime(scan.generatedAt)} · {scan.sourceCount} sources checked · {scan.itemsExamined} examined · {scan.itemsQualified} qualified · {scan.itemsSuppressed} suppressed.</p>}
+    {scan && <><p className="gtm-daily-summary">Last scan {formatDateTime(scan.generatedAt)} · {scan.sourceCount} sources checked · {scan.itemsExamined} examined · {scan.itemsQualified} qualified · {scan.itemsSuppressed} filtered.</p><p className="gtm-daily-summary">Duplicates {scan.itemsDuplicate || 0} · stale {scan.itemsStale || 0} · irrelevant {scan.itemsIrrelevant || 0} · reviewed suppression {scan.itemsRespondedSkipped || 0}.</p><div className="flex flex-wrap gap-2 text-sm">{(scan.sourceRegistry || []).map((source) => <span className="status-badge status-neutral" key={source.name}>{source.name}: {source.status}</span>)}</div></>}
     <div className="gtm-feed-list">{items.map((item) => <article key={item.id}><MessageSquareText aria-hidden="true" /><div><div className="flex flex-wrap items-center gap-2"><span className="status-badge status-neutral">{item.platform}</span><span className="status-badge status-review">actionable</span></div><a href={item.url} target="_blank" rel="noreferrer">{item.title}<ExternalLink aria-hidden="true" /></a><p>{item.observedPain}</p><p><strong>Why relevant:</strong> {item.whyRelevant}</p><p><strong>Suggested response:</strong> {item.suggestedResponse}</p><small>{item.publishedAt || "Publication date not recorded"}</small><div className="gtm-actions"><a className="button button-secondary button-small" href={item.url} target="_blank" rel="noreferrer">Open</a><button type="button" className="button button-secondary button-small" onClick={() => copy(item)}>{copied === item.id ? "Copied" : "Copy response"}</button><button type="button" className="button button-secondary button-small" onClick={() => void onReview(item.id, "RESPONDED")}>Responded</button><button type="button" className="button button-secondary button-small" onClick={() => void onReview(item.id, "SKIPPED")}>Skip</button></div></div></article>)}</div>
     {!items.length && <div className="workspace-empty"><MessageSquareText aria-hidden="true" /><h2>No actionable social records</h2><p>No completed or speculative item is presented as an engagement task.</p></div>}
   </section>;
@@ -452,22 +455,22 @@ function InventorySummary({ title, metrics, sent }: { title: string; metrics: Re
   return <div className="panel mb-6" aria-label={title}><p className="eyebrow">Canonical inventory</p><h3>{title}</h3><div className="gtm-automation-metrics mt-4">{items.map(([label, metric]) => <article key={label}><strong>{metric.actual}</strong><span>{label}{metric.target !== null ? ` / ${metric.target} target` : ""}</span></article>)}</div></div>;
 }
 
-function SignalsPanel({ dailyScan, loading, error }: { dailyScan: DailySocialScan | null; loading: boolean; error: string }) {
+function SignalsPanel({ dailyScan, directDiscovery, loading, error }: { dailyScan: DailySocialScan | null; directDiscovery: DirectDiscoveryScan | null; loading: boolean; error: string }) {
   return <section><div className="gtm-section-heading"><div><p className="eyebrow">Voice of the market</p><h2>Public pain signals stay separate from contactable leads</h2><p>Anonymous or unresolved posts help refine positioning. They do not become outreach targets unless the organization and role are independently verified.</p></div></div>
     <div className="gtm-signal-grid">
-      <div className="panel gtm-daily-panel"><div className="panel-heading"><div><p className="eyebrow">Manual Reddit + LinkedIn research</p><h3>{loading ? "Loading saved manual research…" : dailyScan ? `${dailyScan.items.length} source-linked result${dailyScan.items.length === 1 ? "" : "s"}` : "No manual research has been saved"}</h3></div><span className="status-badge status-success">Manual only</span></div>
+      <div className="panel gtm-daily-panel"><div className="panel-heading"><div><p className="eyebrow">Direct discovery</p><h3>{directDiscovery ? `${directDiscovery.telemetry.qualified} qualified from ${directDiscovery.telemetry.rawCandidatesExamined} reviewed` : "No Direct discovery scan saved"}</h3></div><span className="status-badge status-neutral">bounded daily</span></div>{directDiscovery && <><p className="gtm-daily-summary">Last run {formatDateTime(directDiscovery.telemetry.lastScan)} · Ready created {directDiscovery.telemetry.readyCreated} · Hunter Finder {directDiscovery.telemetry.hunterFinderCalls} · verifier {directDiscovery.telemetry.hunterVerifierCalls}</p><p className="text-sm">{directDiscovery.telemetry.mainBottleneck}</p></>}</div>
+      <div className="panel gtm-daily-panel"><div className="panel-heading"><div><p className="eyebrow">Public Social discovery</p><h3>{loading ? "Loading saved Social research…" : dailyScan ? `${dailyScan.items.length} source-linked result${dailyScan.items.length === 1 ? "" : "s"}` : "No Social research has been saved"}</h3></div><span className="status-badge status-success">Human review</span></div>
         {error && <div className="compiler-error" role="alert"><AlertCircle aria-hidden="true" />{error}</div>}
         {dailyScan && <><p className="gtm-daily-summary">Last completed {formatDateTime(dailyScan.generatedAt)} · {dailyScan.coverage}</p><div className="gtm-feed-list">{dailyScan.items.map((item) => <article key={item.id}>{item.platform === "reddit" ? <MessageSquareText aria-hidden="true" /> : <UsersRound aria-hidden="true" />}<div><div className="flex flex-wrap items-center gap-2"><span className="status-badge status-neutral">{item.platform}</span><span className="status-badge status-review">research only</span></div><a href={item.url} target="_blank" rel="noreferrer">{item.title}<ExternalLink aria-hidden="true" /></a><p>{item.observedPain}</p><small>{item.author !== "unknown" ? `${item.author} · ` : ""}{item.publishedAt !== "unknown" ? item.publishedAt : "publication date needs verification"}</small></div></article>)}</div><details className="gtm-scan-limitations"><summary>Coverage and limitations</summary><ul>{dailyScan.limitations.map((item) => <li key={item}>{item}</li>)}</ul></details></>}
       </div>
-      <div className="panel"><div className="panel-heading"><div><p className="eyebrow">Reddit research</p><h3>{redditSignals.length} reviewed threads</h3></div><span className="status-badge status-success">Manual only</span></div><div className="gtm-feed-list">{redditSignals.slice(0, 6).map((item) => <article key={item.id}><MessageSquareText aria-hidden="true" /><div><a href={item.url} target="_blank" rel="noreferrer">{item.title}<ExternalLink aria-hidden="true" /></a><p>{item.evidenceSummary}</p><small>{item.community} · {item.confidence} confidence</small></div></article>)}</div></div>
-      <div className="panel"><div className="panel-heading"><div><p className="eyebrow">LinkedIn review queue</p><h3>{linkedinItems.length} posts and communities</h3></div><span className="status-badge status-neutral">No automated engagement</span></div><div className="gtm-feed-list">{linkedinItems.slice(0, 6).map((item) => <article key={item.url}><UsersRound aria-hidden="true" /><div><a href={item.url} target="_blank" rel="noreferrer">{item.title}<ExternalLink aria-hidden="true" /></a><p>{item.observedPain}</p><small>{item.status.replaceAll("_", " ")} · draft response requires review</small></div></article>)}</div></div>
     </div>
-    <div className="gtm-boundary-note"><ShieldCheck aria-hidden="true" /><div><strong>Social research is manual-only.</strong><p>No Reddit or LinkedIn discovery job runs automatically. The workspace preserves previously reviewed public evidence, but does not crawl profiles, discover contacts, post, comment, message, or email anyone.</p></div></div>
+    <div className="gtm-boundary-note"><ShieldCheck aria-hidden="true" /><div><strong>Social engagement is manual-only.</strong><p>Public Reddit, forum/web, and public LinkedIn-search coverage run as bounded research. Private LinkedIn groups remain manual authenticated watchlists. The workspace never crawls private profiles, posts, comments, messages, or emails anyone.</p></div></div>
   </section>;
 }
 
-function SourcesPanel() {
-  return <section><div className="gtm-section-heading"><div><p className="eyebrow">Signal engines</p><h2>Know exactly which scanners are active—and which are not</h2><p>The dashboard never labels an unconfigured source as connected. Each lane shows its cadence, coverage, and practical boundary.</p></div></div><div className="gtm-source-registry">{signalSources.map((source) => <article key={source.name}><div className="gtm-source-icon"><Radar aria-hidden="true" /></div><div><div className="flex flex-wrap items-center gap-2"><h3>{source.name}</h3><span className={`status-badge ${source.status === "active" ? "status-success" : source.status === "configuration" ? "status-review" : "status-neutral"}`}>{source.status}</span></div><p>{source.coverage}</p><small>{source.cadence}</small></div><div className="gtm-source-boundary"><strong>Boundary</strong><p>{source.boundary}</p><a href={source.url} target="_blank" rel="noreferrer">Source policy or configuration <ExternalLink aria-hidden="true" /></a></div></article>)}</div></section>;
+function SourcesPanel({ dailyScan, directDiscovery }: { dailyScan: DailySocialScan | null; directDiscovery: DirectDiscoveryScan | null }) {
+  const sources = [...(directDiscovery?.sourceRegistry || []), ...(dailyScan?.sourceRegistry || [])];
+  return <section><div className="gtm-section-heading"><div><p className="eyebrow">Signal engines</p><h2>Know exactly which scanners are active—and which are not</h2><p>The registry reflects the latest bounded Direct and Social runs. It does not imply that private networks are searched.</p></div></div><div className="gtm-source-registry">{sources.length ? sources.map((source) => <article key={source.name}><div className="gtm-source-icon"><Radar aria-hidden="true" /></div><div><div className="flex flex-wrap items-center gap-2"><h3>{source.name}</h3><span className={`status-badge ${source.status === "PASS" ? "status-success" : source.status === "ERROR" ? "status-review" : "status-neutral"}`}>{source.status}</span></div><p>{source.type} · {source.mode.replaceAll("_", " ")}</p><small>Last attempt {source.lastAttempt ? formatDateTime(source.lastAttempt) : "not run"}{source.lastSuccess ? ` · last success ${formatDateTime(source.lastSuccess)}` : ""}</small></div><div className="gtm-source-boundary"><strong>Boundary</strong><p>{source.enabled ? "Bounded source-backed research only; no automated outreach or social posting." : "Manual authenticated watchlist only; no automated access."}</p>{source.error && <p>{source.error}</p>}</div></article>) : <article className="panel"><p>No source registry has been saved yet.</p></article>}</div></section>;
 }
 
 function PartnersPanel({ records, overview }: { records: OutreachRecord[]; overview: GtmOverview | null }) {

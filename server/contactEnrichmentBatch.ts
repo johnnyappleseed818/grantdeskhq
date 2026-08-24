@@ -78,9 +78,9 @@ export async function runContactEnrichmentBatch(input: { segment: EnrichmentBatc
 }
 
 /** Stored-data-only reconciliation; it cannot make a provider request or alter retry eligibility. */
-export async function reconcileStoredContactEnrichmentBatch(input: { segment: EnrichmentBatchSegment; limit?: number }): Promise<StoredEnrichmentReconciliationResult> {
+export async function reconcileStoredContactEnrichmentBatch(input: { segment: EnrichmentBatchSegment; limit?: number; discoveredDirect?: readonly GtmOpportunity[]; directOnly?: boolean }): Promise<StoredEnrichmentReconciliationResult> {
  const limit = Math.min(Math.max(Number(input.limit) || 20, 1), 20);
- const candidates = input.segment === "partner" ? partnerTargets() : directTargets();
+ const candidates = input.segment === "partner" ? partnerTargets() : directTargets(input.discoveredDirect || [], input.directOnly === true);
  const result: StoredEnrichmentReconciliationResult = { segment: input.segment, reconciled: 0, ready: 0, needsVerification: 0, alreadyContacted: 0, verified: 0, acceptAll: 0, risky: 0, invalid: 0, resultMissing: 0, records: [] };
  for (const candidate of candidates.slice(0, limit)) {
   const key = contactEnrichmentKey(candidate.target);
@@ -103,8 +103,8 @@ export async function reconcileStoredContactEnrichmentBatch(input: { segment: En
 }
 
 function partnerTargets() { return partnerCandidates.map((candidate) => ({ target: { prospectChannel: "PARTNER_ACCOUNTING" as const, organization: candidate.organization, organizationDomain: candidate.domain, domainSourceUrl: candidate.source, person: { firstName: candidate.first, lastName: candidate.last, fullName: candidate.first + " " + candidate.last, currentTitle: candidate.title, titleSourceUrl: candidate.source } }, partnerType: candidate.type, whyFit: candidate.whyFit, source: candidate.source })); }
-function directTargets(discoveredDirect: readonly GtmOpportunity[] = []) {
- return [...initialOpportunities, ...discoveredDirect].filter((item) => item.organizationUrl && item.primaryContact?.name && item.primaryContact.title).map((item) => {
+function directTargets(discoveredDirect: readonly GtmOpportunity[] = [], directOnly = false) {
+ return (directOnly ? discoveredDirect : [...initialOpportunities, ...discoveredDirect]).filter((item) => item.organizationUrl && item.primaryContact?.name && item.primaryContact.title).map((item) => {
   const [first, ...rest] = item.primaryContact!.name.trim().split(/\s+/); const last = rest.at(-1) || "";
   return { target: { prospectChannel: "DIRECT_NONPROFIT" as const, organization: item.organization, organizationDomain: domainFromUrl(item.organizationUrl), domainSourceUrl: item.organizationUrl, person: { firstName: first, lastName: last, fullName: item.primaryContact!.name, currentTitle: item.primaryContact!.title, titleSourceUrl: item.primaryContact!.roleSourceUrl } }, partnerType: "direct nonprofit", whyFit: item.whyNow, source: item.primaryContact!.emailSourceUrl || item.primaryContact!.roleSourceUrl, publishedEmail: item.primaryContact!.emailKind === "direct" ? item.primaryContact!.email : undefined, priority: item.score.pain + item.score.timing + item.score.fit + item.score.value };
  }).filter((candidate) => candidate.target.person.lastName).sort((a, b) => b.priority - a.priority);

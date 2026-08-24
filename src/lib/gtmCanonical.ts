@@ -1,5 +1,5 @@
 import type { ContactEnrichmentRecord, EnrichmentTarget } from "./contactEnrichment.ts";
-import { normalizeBusinessDomain } from "./contactEnrichment.ts";
+import { hasAppropriateDirectRecipientTitle, normalizeBusinessDomain } from "./contactEnrichment.ts";
 import { normalizeOutreachOrganization, type OutreachRecord } from "./gtmOutreach.ts";
 
 /**
@@ -191,8 +191,10 @@ function applyExternalCommercialState(record: CanonicalGtmRecord, external: Cano
 function toCanonicalRecord(organizationId: string, candidate: CanonicalGtmCandidate, enrichment?: ContactEnrichmentRecord, history?: OutreachRecord): CanonicalGtmRecord {
   const organization = candidate.target.organization;
   const protectedPriorContact = PROTECTED_PRIOR_CONTACT_ORGANIZATIONS.has(ORGANIZATION_ALIASES[normalizeOutreachOrganization(organization)] || normalizeOutreachOrganization(organization));
-  const state = history ? stateFromOutreach(history) : protectedPriorContact || enrichment?.verification.priorContactStatus === "ALREADY_CONTACTED" ? "ALREADY_CONTACTED" : enrichment?.verification.readyToSend ? "READY_TO_SEND" : enrichment ? "NEEDS_VERIFICATION" : "RESEARCH_BACKLOG";
-  const blockers = state === "NEEDS_VERIFICATION" ? (enrichment?.verification.blockers.length ? enrichment.verification.blockers : ["VERIFICATION_MISSING"]) : state === "ALREADY_CONTACTED" ? ["ALREADY_CONTACTED"] : [];
+  const recipientTitle = enrichment?.target.person.currentTitle || candidate.target.person.currentTitle;
+  const directRecipientAppropriate = candidate.segment !== "DIRECT" || hasAppropriateDirectRecipientTitle(recipientTitle);
+  const state = history ? stateFromOutreach(history) : protectedPriorContact || enrichment?.verification.priorContactStatus === "ALREADY_CONTACTED" ? "ALREADY_CONTACTED" : enrichment?.verification.readyToSend && directRecipientAppropriate ? "READY_TO_SEND" : enrichment ? "NEEDS_VERIFICATION" : "RESEARCH_BACKLOG";
+  const blockers = state === "NEEDS_VERIFICATION" ? (directRecipientAppropriate ? (enrichment?.verification.blockers.length ? enrichment.verification.blockers : ["VERIFICATION_MISSING"]) : ["INAPPROPRIATE_DIRECT_RECIPIENT: a finance or grants operating owner is required."]) : state === "ALREADY_CONTACTED" ? ["ALREADY_CONTACTED"] : [];
   return {
     id: candidate.id, organizationId, organization, organizationDomain: candidate.target.organizationDomain, segment: candidate.segment, state,
     qualified: candidate.qualified, contact: enrichment?.target.person.fullName || candidate.target.person.fullName || null,

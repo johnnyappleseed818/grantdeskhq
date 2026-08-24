@@ -109,6 +109,13 @@ describe("normalized READY_TO_SEND policy", () => {
     expect(record).toMatchObject({ readyForHumanApproval: true, verification: { verifierStatus: "VERIFIED", readyToSend: true, readyBlocker: null } });
   });
 
+  it("does not promote a verified Direct email for a non-operating recipient title", () => {
+    const policyContact = { ...target, prospectChannel: "DIRECT_NONPROFIT" as const, person: { ...target.person, currentTitle: "Legislative and Policy Director" } };
+    const record = buildContactEnrichmentRecord(policyContact, [result("hunter", "VERIFIED", "jordan.finance@example.org")], clear);
+    expect(record.readyForHumanApproval).toBe(false);
+    expect(record.verification.readyBlocker).toContain("finance or grants contact");
+  });
+
   it("keeps accept-all, risky, and invalid outcomes explicitly blocked", () => {
     for (const status of ["ACCEPT_ALL", "RISKY", "INVALID"] as const) {
       const record = buildContactEnrichmentRecord(target, [result("hunter", status, "jordan.finance@example.org")], clear);

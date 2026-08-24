@@ -1,10 +1,22 @@
 import { createHash } from "node:crypto";
-import type { DailySocialScan, DailySocialSignal, SocialPlatform } from "../src/lib/gtm.ts";
+import type { DailySocialScan, DailySocialSignal, GtmSourceRegistryEntry, SocialPlatform } from "../src/lib/gtm.ts";
 import { dailySocialScanSchema } from "./gtmDailySchema.ts";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = "gpt-5.5";
 const WINDOW_DAYS = 7;
+const FORUM_HOSTS = new Set(["community.npquarterly.org", "forums.techsoup.org", "grantprofessionals.org", "www.grantprofessionals.org", "nonprofitquarterly.org"]);
+
+function sourceRegistry(now: string, urls: string[] = [], error?: string): GtmSourceRegistryEntry[] {
+  const hosts = new Set(urls.map((url) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return ""; } }));
+  const status = (host: string) => error ? "ERROR" as const : hosts.has(host) ? "PASS" as const : "PARTIAL" as const;
+  return [
+    { name: "Reddit public discussions", type: "Public discussion", mode: "PUBLIC_AUTOMATED", enabled: true, lastAttempt: now, lastSuccess: hosts.has("reddit.com") ? now : null, status: status("reddit.com"), ...(error ? { error } : {}) },
+    { name: "Public nonprofit finance and grant forums", type: "Public search discovery", mode: "PUBLIC_SEARCH_DISCOVERY", enabled: true, lastAttempt: now, lastSuccess: [...hosts].some((host) => FORUM_HOSTS.has(host)) ? now : null, status: error ? "ERROR" : [...hosts].some((host) => FORUM_HOSTS.has(host)) ? "PASS" : "PARTIAL", ...(error ? { error } : {}) },
+    { name: "LinkedIn public search", type: "Public search discovery", mode: "PUBLIC_SEARCH_DISCOVERY", enabled: true, lastAttempt: now, lastSuccess: hosts.has("linkedin.com") ? now : null, status: status("linkedin.com"), ...(error ? { error } : {}) },
+    { name: "LinkedIn private groups", type: "Manual authenticated watchlist", mode: "MANUAL_AUTHENTICATED", enabled: false, lastAttempt: null, lastSuccess: null, status: "MANUAL" }
+  ];
+}
 
 interface SearchDraft {
   summary: string;
@@ -41,7 +53,7 @@ export async function runDailySocialScan(now = new Date()): Promise<DailySocialS
         type: "web_search",
         search_context_size: "low",
         external_web_access: true,
-        filters: { allowed_domains: ["reddit.com", "community.npquarterly.org", "forums.techsoup.org"] }
+        filters: { allowed_domains: ["reddit.com", "community.npquarterly.org", "forums.techsoup.org", "grantprofessionals.org", "linkedin.com"] }
       }],
       tool_choice: "required",
       max_tool_calls: 6,
@@ -51,14 +63,14 @@ export async function runDailySocialScan(now = new Date()): Promise<DailySocialS
           role: "system",
           content: [{
             type: "input_text",
-            text: "You are GrantDeskHQ's evidence-first market researcher. Find public, indexed discussions that reveal real post-award grant reporting work. Never invent a person, organization, quote, date, URL, complaint, or product usage. A search result is research evidence, not permission to contact anyone. Exclude grant discovery, proposal writing, fundraising, vendor promotion, generic evergreen articles, job listings, duplicated results, and posts without a clear post-award workflow connection. Summarize in your own words; do not present a paraphrase as a direct quote."
+            text: "You are GrantDeskHQ's evidence-first market researcher. Find public, indexed discussions that reveal real post-award grant reporting work. Never invent a person, organization, quote, date, URL, complaint, or product usage. A search result is research evidence, not permission to contact anyone. Exclude grant discovery, proposal writing, fundraising, vendor promotion, generic evergreen articles, job listings, duplicated results, and posts without a clear post-award workflow connection. Reddit and public forums are allowed. LinkedIn is allowed only for pages discoverable by ordinary public web search; never access a login-only page or private group. Summarize in your own words; do not present a paraphrase as a direct quote."
           }]
         },
         {
           role: "user",
           content: [{
             type: "input_text",
-            text: `Today is ${scanDate}. Run a bounded search for public Reddit and nonprofit-finance/community discussions published or visibly updated within the last ${WINDOW_DAYS} days. Search across: grant reporting, grant report, funder reporting, grant closeout, grant compliance, grant accountant, grant management spreadsheets, post-award grant management, budget-to-actual grant reporting, grant reporting templates, collecting program data for funders, supporting documentation for grants, manual grant reporting, grant management pain, and grant audit preparation. Prefer actual pain/questions, not generic news. Return at most ten total useful results. Use a canonical public thread URL, not a search-results URL. If date or author is not visible return "unknown". Supply a brief, grounded suggested human response; never claim the source proves the poster needs GrantDeskHQ.`
+            text: `Today is ${scanDate}. Run a bounded search for public Reddit, public nonprofit-finance/grant forums, and legitimately public LinkedIn discussions published or visibly updated within the last ${WINDOW_DAYS} days. Search multiple themes: grant reporting, funder reporting, post-award grant management, grant closeout, grant compliance, grant accountant, grant management spreadsheets, budget-to-actual grant reporting, collecting program data for funders, supporting documentation, manual grant reporting, nonprofit finance reporting, and grant audit preparation. Prefer actual questions and workflow pain, not generic news. Return at most twelve useful public thread/post URLs. Use canonical public URLs, never a search-results URL. If date or author is not visible return "unknown". Supply a brief, helpful human response that answers first and mentions GrantDeskHQ only when genuinely relevant.`
           }]
         }
       ],
@@ -79,13 +91,15 @@ export function normalizeDailySocialScan(draft: SearchDraft, sourceUrls: string[
   const observedAt = now.toISOString();
   const seen = new Set<string>();
   const items: DailySocialSignal[] = [];
-  let suppressed = 0;
+  let suppressed = 0; let stale = 0; let irrelevant = 0; let duplicate = 0;
   for (const candidate of Array.isArray(draft.signals) ? draft.signals : []) {
     const platform = candidate.platform;
     const canonical = safeCanonicalUrl(candidate.url, platform);
     const normalized = canonical ? normalizeUrl(canonical) : "";
-    if (!canonical || !normalized || !sourceIndex.has(normalized) || seen.has(normalized)) { suppressed++; continue; }
-    if (!candidate.title?.trim() || !candidate.evidenceSummary?.trim() || !candidate.observedPain?.trim() || !candidate.suggestedResponse?.trim()) { suppressed++; continue; }
+    if (!canonical || !normalized || !sourceIndex.has(normalized)) { suppressed++; continue; }
+    if (seen.has(normalized)) { suppressed++; duplicate++; continue; }
+    if (!candidate.title?.trim() || !candidate.evidenceSummary?.trim() || !candidate.observedPain?.trim() || !candidate.suggestedResponse?.trim() || weakDiscussion(candidate)) { suppressed++; irrelevant++; continue; }
+    if (isStale(candidate.publishedAt, now)) { suppressed++; stale++; continue; }
     seen.add(normalized);
     items.push({
       id: `social-${createHash("sha256").update(normalized).digest("hex").slice(0, 18)}`,
@@ -112,8 +126,13 @@ export function normalizeDailySocialScan(draft: SearchDraft, sourceUrls: string[
     itemsExamined: Array.isArray(draft.signals) ? draft.signals.length : 0,
     itemsQualified: items.length,
     itemsSuppressed: suppressed,
+    itemsStale: stale,
+    itemsIrrelevant: irrelevant,
+    itemsDuplicate: duplicate,
+    itemsRespondedSkipped: 0,
+    sourceRegistry: sourceRegistry(observedAt, sourceUrls),
     errors: [],
-    coverage: `${sourceIndex.size} indexed public discussion URL${sourceIndex.size === 1 ? "" : "s"} checked; ${items.length} result${items.length === 1 ? "" : "s"} passed the strict source and relevance gates. This is a bounded daily scan, not exhaustive coverage.`,
+    coverage: `${sourceIndex.size} indexed public discussion URL${sourceIndex.size === 1 ? "" : "s"} checked across Reddit, public forums/web, and public LinkedIn search; ${items.length} result${items.length === 1 ? "" : "s"} passed the strict source, recency, and relevance gates. This is a bounded daily scan, not exhaustive coverage.`,
     items,
     limitations: [
       "Search indexes can omit, delay, or misdate public posts.",
@@ -150,15 +169,28 @@ function safeCanonicalUrl(value: string, platform: SocialPlatform) {
     if (url.protocol !== "https:") return "";
     const host = url.hostname.toLowerCase().replace(/^www\./, "");
     if (platform === "reddit" && host !== "reddit.com" && !host.endsWith(".reddit.com")) return "";
-    if (platform === "forum" && host !== "community.npquarterly.org" && host !== "forums.techsoup.org") return "";
+    if (platform === "forum" && !FORUM_HOSTS.has(host)) return "";
+    if (platform === "linkedin" && host !== "linkedin.com" && !host.endsWith(".linkedin.com")) return "";
     if (platform === "reddit" && !/\/comments\//.test(url.pathname)) return "";
     if (platform === "forum" && !url.pathname.includes("/")) return "";
+    if (platform === "linkedin" && !/(\/posts\/|\/feed\/update|\/pulse\/)/.test(url.pathname)) return "";
     url.search = "";
     url.hash = "";
     return url.toString();
   } catch {
     return "";
   }
+}
+
+function weakDiscussion(candidate: Omit<DailySocialSignal, "id" | "observedAt" | "status">) {
+  const text = `${candidate.title} ${candidate.evidenceSummary} ${candidate.observedPain}`.toLowerCase();
+  const postAward = /grant report|funder report|post-award|closeout|grant compliance|budget.?to.?actual|supporting documentation|manual.*report|reporting spreadsheet|grant accountant|grant audit|financial reporting/.test(text);
+  return !postAward || /funding opportunity|grant application|grant writing|proposal writing|webinar|sponsored|buy now/.test(text);
+}
+
+function isStale(value: string, now: Date) {
+  const at = Date.parse(value || "");
+  return Number.isFinite(at) && now.getTime() - at > 30 * 24 * 60 * 60 * 1_000;
 }
 
 function normalizeUrl(value: string) {

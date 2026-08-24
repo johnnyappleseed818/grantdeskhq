@@ -26,7 +26,7 @@ export const dailySocialScanSchema = {
         additionalProperties: false,
         required: ["platform", "title", "url", "author", "publishedAt", "evidenceSummary", "observedPain", "painThemes", "whyRelevant", "suggestedResponse"],
         properties: {
-          platform: { type: "string", enum: ["reddit", "forum"] },
+          platform: { type: "string", enum: ["reddit", "forum", "linkedin"] },
           title: { type: "string" },
           url: { type: "string" },
           author: { type: "string" },

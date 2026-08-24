@@ -9,13 +9,14 @@ import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmContactSuppression, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmEnrichmentUsage, readGtmShadowStatus, readInstantlyRecords, readInstantlyStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, recordGtmContactSuppression, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveGtmDailyScan, saveInstantlyRecord, saveInstantlyStatus, saveInstantlyWebhookEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview, updateGtmDailySocialItem } from "./persistence.ts";
+import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmContactSuppression, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmDirectDiscoveryScan, readGtmEnrichmentUsage, readGtmShadowStatus, readInstantlyRecords, readInstantlyStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, recordGtmContactSuppression, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveGtmDailyScan, saveGtmDirectDiscoveryScan, saveInstantlyRecord, saveInstantlyStatus, saveInstantlyWebhookEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview, updateGtmDailySocialItem } from "./persistence.ts";
 import { validateFeedbackInput, type FeedbackSubmission } from "../src/lib/feedback.ts";
 import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
 import { confirmedHumanOutreach, summarizeOutreach } from "../src/lib/gtmOutreach.ts";
 import { reconcileGtmOutreachLedger, updateFeedbackReview } from "./persistence.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { runDailySocialScan } from "./gtmDailyScanner.ts";
+import { runDirectPublicDiscovery } from "./gtmDirectDiscovery.ts";
 import { buildShadowStatus, shadowLeadFromOpportunity, suggestedTopicsFromLeads } from "../src/lib/gtmShadow.ts";
 import { enrichGtmContactInShadow } from "./contactEnrichment.ts";
 import { reconcileStoredContactEnrichmentBatch, runContactEnrichmentBatch, type EnrichmentBatchSegment } from "./contactEnrichmentBatch.ts";
@@ -114,6 +115,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/daily-signals") return await handleGtmDailySignals(request, response);
     if (url.pathname === "/api/gtm/social") return await handleGtmSocial(request, response);
     if (url.pathname === "/api/gtm/award-signals") return await handleGtmAwardSignals(request, response);
+    if (url.pathname === "/api/gtm/direct-discovery") return await handleGtmDirectDiscovery(request, response);
     if (url.pathname === "/api/gtm/control-plane-queue") return await handleGtmControlPlaneQueue(request, response);
     if (url.pathname === "/api/gtm/overview") return await handleGtmOverview(request, response);
     if (url.pathname === "/api/gtm/canonical") return await handleGtmCanonical(request, response);
@@ -126,10 +128,12 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/contact-enrichment") return await handleGtmContactEnrichment(request, response);
     if (url.pathname === "/api/gtm/contact-enrichment/batch") return await handleGtmContactEnrichmentBatch(request, response);
     if (url.pathname === "/api/gtm/contact-enrichment/reconcile") return await handleStoredContactEnrichmentReconcile(request, response);
+    if (url.pathname === "/api/gtm/direct-sourcing-reconcile") return await handleStoredDirectDiscoveryReconcile(request, response);
     if (url.pathname === "/api/gtm/partner-reconciliation") return await handleScheduledPartnerHunterReconciliation(request, response);
     if (url.pathname === "/api/gtm/search-console/reconcile" || url.pathname === "/api/gtm/seo-reconciliation") return await handleSearchConsoleReconcile(request, response);
     if (url.pathname === "/api/gtm/search-console") return await handleSearchConsoleState(request, response);
     if (url.pathname === "/api/gtm/daily-scan") return await handleGtmDailyScan(request, response);
+    if (url.pathname === "/api/gtm/sourcing-status") return await handleGtmSourcingStatus(request, response);
     if (url.pathname === "/api/internal/reliability/access") return await handleReliabilityAccess(request, response);
     if (url.pathname === "/api/internal/reliability/summary") return await handleReliabilitySummary(request, response);
     if (url.pathname === "/api/internal/reliability/dependencies") return await handleReliabilityDependencies(request, response);
@@ -349,6 +353,12 @@ async function handleGtmAwardSignals(request: IncomingMessage, response: ServerR
   return json(response, 200, { scan: await readGtmAwardScan() });
 }
 
+async function handleGtmDirectDiscovery(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  requireGtmAdmin(await requireUser(request));
+  return json(response, 200, { scan: await readGtmDirectDiscoveryScan() });
+}
+
 async function handleGtmControlPlaneQueue(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   requireGtmAdmin(await requireUser(request));
@@ -552,6 +562,25 @@ async function handleStoredContactEnrichmentReconcile(request: IncomingMessage, 
   return json(response, 200, { reconciliation });
 }
 
+/** Re-evaluate the current bounded public Direct inventory from stored provider data only. */
+async function handleStoredDirectDiscoveryReconcile(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const scan = await readGtmDirectDiscoveryScan();
+  const reconciliation = await reconcileStoredContactEnrichmentBatch({ segment: "direct", limit: 20, discoveredDirect: scan?.opportunities || [], directOnly: true });
+  if (!scan) return json(response, 200, { reconciliation, scan: null });
+  const canonical = await readCanonicalGtmModel();
+  const sourceUrls = new Set(scan.opportunities.map((opportunity) => opportunity.evidence[0]?.url || opportunity.organizationUrl));
+  const readyCreated = canonical.records.filter((record) => record.segment === "DIRECT" && record.state === "READY_TO_SEND" && sourceUrls.has(record.sourceUrl)).length;
+  const telemetry = {
+    ...scan.telemetry,
+    readyCreated,
+    mainBottleneck: readyCreated ? "Qualified candidates passed the canonical readiness gates." : "No qualified, never-contacted discovery record currently has an appropriate finance or grants operating owner with verified contact evidence."
+  };
+  const saved = await saveGtmDirectDiscoveryScan({ ...scan, telemetry });
+  return json(response, 200, { reconciliation, scan: saved });
+}
+
 async function handleScheduledPartnerHunterReconciliation(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
@@ -593,13 +622,25 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
   const errors: string[] = [];
+  const before = await readCanonicalGtmModel();
   let awardScan;
   try { awardScan = await runDailyAwardScan().then(saveGtmAwardScan); }
   catch (error) { errors.push(error instanceof Error ? error.message : "Award scan failed."); }
   const opportunities = awardScan?.opportunities || [];
+  let directDiscovery;
+  try {
+    directDiscovery = await runDirectPublicDiscovery({
+      knownOrganizationIds: before.records.map((record) => record.organizationId),
+      priorContactOrganizationIds: before.records.filter((record) => record.priorContact).map((record) => record.organizationId),
+      suppressedDomains: before.records.filter((record) => record.suppressionStatus === "BLOCKED").map((record) => record.organizationDomain)
+    });
+    directDiscovery = { ...directDiscovery, sourceRegistry: directDiscovery.sourceRegistry.map((source) => source.name === "USAspending recent federal awards" ? { ...source, status: awardScan ? "PASS" : "ERROR", lastSuccess: awardScan ? directDiscovery!.generatedAt : null } : source) };
+    directDiscovery = await saveGtmDirectDiscoveryScan(directDiscovery);
+  } catch (error) { errors.push(error instanceof Error ? error.message : "Public Direct discovery could not be saved."); }
+  const directOpportunities = directDiscovery?.opportunities || [];
   let reconciliation;
-  if (awardScan) {
-    try { reconciliation = await reconcileAndSaveControlPlane([...initialOpportunities, ...opportunities]); }
+  if (awardScan || directDiscovery) {
+    try { reconciliation = await reconcileAndSaveControlPlane([...initialOpportunities, ...opportunities, ...directOpportunities]); }
     catch (error) { errors.push(error instanceof Error ? error.message : "GTM Control Plane reconciliation could not be saved."); }
   }
   let shadowStatus;
@@ -614,8 +655,21 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
   let directReplenishment;
   try {
     const canonical = await readCanonicalGtmModel();
-    if (canonical.metrics.directReady < 15) {
-      directReplenishment = await runContactEnrichmentBatch({ segment: "direct", limit: 20, discoveredDirect: awardScan?.opportunities || [] });
+    const ready = canonical.metrics.directReady;
+    const configuredLimit = Math.min(configuredPositiveInteger("HUNTER_MAX_LOOKUPS_PER_RUN", 10), 10);
+    const limit = ready < 10 ? configuredLimit : ready < 15 ? Math.min(configuredLimit, 15 - ready) : 0;
+    if (limit > 0) {
+      directReplenishment = await runContactEnrichmentBatch({ segment: "direct", limit, discoveredDirect: [...opportunities, ...directOpportunities] });
+      if (directDiscovery) {
+        directDiscovery = await saveGtmDirectDiscoveryScan({ ...directDiscovery, telemetry: {
+          ...directDiscovery.telemetry,
+          hunterFinderCalls: directReplenishment.providerUsage.hunterLookups,
+          hunterVerifierCalls: directReplenishment.providerUsage.hunterVerifications,
+          verified: directReplenishment.verifiedEmails,
+          readyCreated: directReplenishment.ready,
+          mainBottleneck: directReplenishment.ready ? "Qualified candidates passed the canonical readiness gates." : directReplenishment.records.find((record) => record.failureReason)?.failureReason || directDiscovery.telemetry.mainBottleneck
+        } });
+      }
       console.info("GTM_HUNTER_DIRECT_REPLENISHMENT " + JSON.stringify({ attempted: directReplenishment.attempted, ready: directReplenishment.ready, needsVerification: directReplenishment.needsVerification, alreadyContacted: directReplenishment.alreadyContacted, providerUsage: directReplenishment.providerUsage }));
     }
   } catch (error) { errors.push(error instanceof Error ? error.message : "Direct replenishment could not be completed."); }
@@ -626,6 +680,7 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
     socialResearchMode: "HUMAN_REVIEW_ONLY",
     socialTelemetry: social ? { sourcesChecked: social.sourceCount, itemsExamined: social.itemsExamined, itemsQualified: social.itemsQualified, itemsSuppressed: social.itemsSuppressed, errors: social.errors } : null,
     awardCandidateCount: awardScan?.opportunities.length || null,
+    directDiscovery: directDiscovery || null,
     controlPlaneCardCount: reconciliation?.cards.length || null,
     controlPlaneUniqueOrganizationCount: reconciliation?.uniqueOrganizations || null,
     shadowMode: "SHADOW",
@@ -633,6 +688,14 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
     directReplenishment: directReplenishment || null,
     errors
   });
+}
+
+/** Scheduler-protected, read-only telemetry for runtime validation and System Health. */
+async function handleGtmSourcingStatus(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const [direct, social, awards, canonical] = await Promise.all([readGtmDirectDiscoveryScan(), readGtmDailyScan(), readGtmAwardScan(), readCanonicalGtmModel()]);
+  return json(response, 200, { direct, social, awards, canonical: { metrics: canonical.metrics, records: canonical.records.filter((record) => record.segment === "DIRECT") } });
 }
 
 async function reconcileAndSaveControlPlane(opportunities: GtmOpportunity[]) {

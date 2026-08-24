@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { canGenerateReviewPackage, encodedFileSize, isValidCompilationRequestId, MAX_EVIDENCE_FILE_BYTES, MAX_EVIDENCE_FILES, MAX_EVIDENCE_TOTAL_BYTES } from "../src/lib/prototype.ts";
 import type { CompilationRequest, CompilationResult, CompilerFile, PersistedCompilationResponse, PersistedReportSource, SavedReportSummary, SupportingEvidenceFile } from "../src/types/prototype.ts";
-import type { AwardDiscoveryScan, DailySocialScan } from "../src/lib/gtm.ts";
+import type { AwardDiscoveryScan, DailySocialScan, DirectDiscoveryScan } from "../src/lib/gtm.ts";
 import type { ShadowPipelineStatus } from "../src/lib/gtmShadow.ts";
 import type { ControlPlaneQueueReconciliation } from "../src/lib/gtmControlPlaneQueue.ts";
 import type { ContactEnrichmentRecord, EnrichmentUsage, SuppressionCheck } from "../src/lib/contactEnrichment.ts";
@@ -501,13 +501,20 @@ export async function confirmEvidenceMatch(user: AuthenticatedUser, reportId: st
 }
 
 export async function saveGtmDailyScan(scan: DailySocialScan) {
+  const prior = await readGtmDailyScan();
+  const priorStatus = new Map((prior?.items || []).map((item) => [item.id, item.status]));
+  const merged: DailySocialScan = {
+    ...scan,
+    items: scan.items.map((item) => ({ ...item, status: priorStatus.get(item.id) || item.status })),
+    itemsRespondedSkipped: scan.items.filter((item) => ["RESPONDED", "SKIPPED"].includes(priorStatus.get(item.id) || "")).length
+  };
   const accessToken = await gcpToken();
   await writeDocument(accessToken, "gtm/daily-social", {
-    generatedAt: scan.generatedAt,
-    itemCount: scan.items.length,
-    scanJson: JSON.stringify(scan)
+    generatedAt: merged.generatedAt,
+    itemCount: merged.items.length,
+    scanJson: JSON.stringify(merged)
   });
-  return scan;
+  return merged;
 }
 
 export async function readGtmDailyScan(): Promise<DailySocialScan | null> {
@@ -683,6 +690,26 @@ export async function readGtmAwardScan(): Promise<AwardDiscoveryScan | null> {
   const record = decodeFields(document.fields || {});
   if (!record.scanJson) return null;
   return JSON.parse(String(record.scanJson)) as AwardDiscoveryScan;
+}
+
+/** Durable, bounded public Direct discovery. Raw evidence stays attached to each opportunity. */
+export async function saveGtmDirectDiscoveryScan(scan: DirectDiscoveryScan) {
+  const accessToken = await gcpToken();
+  const existing = await readGtmDirectDiscoveryScan();
+  const known = new Map((existing?.opportunities || []).map((opportunity) => [opportunity.id, opportunity]));
+  for (const opportunity of scan.opportunities) known.set(opportunity.id, opportunity);
+  const persisted: DirectDiscoveryScan = { ...scan, opportunities: [...known.values()].sort((left, right) => String(right.observedAt).localeCompare(String(left.observedAt))).slice(0, 250) };
+  await writeDocument(accessToken, "gtm/direct-discovery", { generatedAt: persisted.generatedAt, itemCount: persisted.opportunities.length, scanJson: JSON.stringify(persisted) });
+  return persisted;
+}
+
+export async function readGtmDirectDiscoveryScan(): Promise<DirectDiscoveryScan | null> {
+  const response = await authorizedFetch(`${firestoreBase}/gtm/direct-discovery`, await gcpToken());
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Direct discovery state could not be loaded (${response.status}).`);
+  const record = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
+  try { return record.scanJson ? JSON.parse(String(record.scanJson)) as DirectDiscoveryScan : null; }
+  catch { return null; }
 }
 
 export async function saveGtmControlPlaneReconciliation(reconciliation: ControlPlaneQueueReconciliation) {

@@ -370,8 +370,17 @@ function uniqueSources(sources: EmailSource[]) {
   }).map((source) => ({ ...source, url: source.url.trim() }));
 }
 
+export function hasAppropriateDirectRecipientTitle(title: string) {
+  return /(chief financial|\bcfo\b|vp.{0,8}finance|(finance|grants).{0,12}director|director.{0,12}(finance|grants)|controller|grants? manager|grant finance|grant accountant|finance manager)/i.test(title);
+}
+
 function hasContactEvidence(target: EnrichmentTarget) {
-  return Boolean(target.organizationDomain && /^https:\/\//.test(target.domainSourceUrl) && target.person.fullName && target.person.currentTitle && /^https:\/\//.test(target.person.titleSourceUrl));
+  if (!target.organizationDomain || !/^https:\/\//.test(target.domainSourceUrl) || !target.person.fullName || !target.person.currentTitle || !/^https:\/\//.test(target.person.titleSourceUrl)) return false;
+  // Direct first-touch records must use a finance or grants operating owner.
+  // Partner titles intentionally remain broader because that segment is an
+  // advisory/distribution motion, not the nonprofit reporting owner itself.
+  if (target.prospectChannel === "DIRECT_NONPROFIT" && !hasAppropriateDirectRecipientTitle(target.person.currentTitle)) return false;
+  return true;
 }
 
 function normalizedVerifierStatus(attempt: ProviderLookupResult | undefined, prior: NormalizedVerificationState | undefined): EmailVerificationStatus {

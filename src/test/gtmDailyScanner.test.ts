@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { HttpError, requireGtmAdmin } from "../../server/auth";
 import { normalizeDailySocialScan } from "../../server/gtmDailyScanner";
+import { directSourceRegistry } from "../../server/gtmDirectDiscovery";
 
 const baseSignal = {
   platform: "reddit" as const,
@@ -41,6 +42,25 @@ describe("daily GTM social signal validation", () => {
   it("drops model-provided URLs that were not returned as search sources", () => {
     const scan = normalizeDailySocialScan({ summary: "No supported sources", signals: [baseSignal] }, [], new Date("2026-08-06T13:35:00.000Z"));
     expect(scan.items).toEqual([]);
+  });
+
+  it("keeps public LinkedIn only when it has a public post URL and rejects stale or pre-award noise", () => {
+    const linkedIn = { ...baseSignal, platform: "linkedin" as const, url: "https://www.linkedin.com/posts/example_grant-reporting-spreadsheet-activity-123/" };
+    const stale = { ...baseSignal, title: "Stale reporting pain", url: "https://www.reddit.com/r/nonprofit/comments/stale/manual_grant_reporting/", publishedAt: "2026-06-01" };
+    const preAward = { ...baseSignal, title: "Grant writing opportunity", url: "https://www.reddit.com/r/nonprofit/comments/preaward/grant_writing/", observedPain: "We are applying for funding." };
+    const scan = normalizeDailySocialScan({ summary: "Coverage", signals: [linkedIn, stale, preAward] }, [linkedIn.url, stale.url, preAward.url], new Date("2026-08-24T12:00:00.000Z"), 6);
+    expect(scan.items).toHaveLength(1);
+    expect(scan.items[0].platform).toBe("linkedin");
+    expect(scan.itemsStale).toBe(1);
+    expect(scan.itemsIrrelevant).toBe(1);
+    expect(scan.sourceRegistry?.find((source) => source.name === "LinkedIn private groups")?.status).toBe("MANUAL");
+  });
+
+  it("records transparent bounded source registry rather than implying universal coverage", () => {
+    const registry = directSourceRegistry("2026-08-24T12:00:00.000Z", { "USAspending recent federal awards": "PASS" });
+    expect(registry.map((source) => source.name)).toContain("Public nonprofit finance and grants hiring");
+    expect(registry.find((source) => source.name === "USAspending recent federal awards")?.status).toBe("PASS");
+    expect(registry.every((source) => source.lastAttempt === "2026-08-24T12:00:00.000Z" || source.mode === "MANUAL_AUTHENTICATED")).toBe(true);
   });
 });
 

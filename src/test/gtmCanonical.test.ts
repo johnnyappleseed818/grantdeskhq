@@ -12,7 +12,14 @@ function outreach(organization = "Project Oceanology"): OutreachRecord { return 
 
 describe("canonical GTM model", () => {
  it("uses one canonical identity for name/domain variants", () => expect(canonicalOrganizationId("Interdistrict Committee for Project Oceanology", "oceanology.org")).toBe(canonicalOrganizationId("Project Oceanology", "oceanology.org")));
- it("promotes a clear verified enrichment to READY_TO_SEND", () => expect(buildCanonicalGtmModel({ candidates: [candidate], enrichments: [enrichment("VERIFIED", true)], outreach: [] }).records[0].state).toBe("READY_TO_SEND"));
+  it("promotes a clear verified enrichment to READY_TO_SEND", () => expect(buildCanonicalGtmModel({ candidates: [candidate], enrichments: [enrichment("VERIFIED", true)], outreach: [] }).records[0].state).toBe("READY_TO_SEND"));
+  it("keeps a verified Direct email out of READY_TO_SEND when its stored title is not a finance or grants operating role", () => {
+    const policyCandidate = { ...candidate, target: { ...candidate.target, person: { ...candidate.target.person, currentTitle: "Legislative and Policy Director" } } };
+    const stored = { ...enrichment("VERIFIED", true), target: policyCandidate.target };
+    const record = buildCanonicalGtmModel({ candidates: [policyCandidate], enrichments: [stored], outreach: [] }).records[0];
+    expect(record.state).toBe("NEEDS_VERIFICATION");
+    expect(record.blockers).toContain("INAPPROPRIATE_DIRECT_RECIPIENT: a finance or grants operating owner is required.");
+  });
  it("keeps a missing verifier result explicit", () => { const record = buildCanonicalGtmModel({ candidates: [candidate], enrichments: [enrichment("VERIFICATION_RESULT_MISSING")], outreach: [] }).records[0]; expect(record.state).toBe("NEEDS_VERIFICATION"); expect(record.blockers).toContain("VERIFICATION_MISSING"); });
  it("never returns a contacted organization to first touch", () => expect(buildCanonicalGtmModel({ candidates: [candidate], enrichments: [enrichment("VERIFIED", true)], outreach: [outreach()] }).records[0].state).toBe("AWAITING_REPLY"));
  it("protects the explicit historical prior-contact record without inventing a send", () => { const perkins = { ...candidate, target: { ...candidate.target, organization: "Perkins School for the Blind", organizationDomain: "perkins.org" } }; expect(buildCanonicalGtmModel({ candidates: [perkins], enrichments: [enrichment("VERIFIED", true)], outreach: [] }).records[0].state).toBe("ALREADY_CONTACTED"); });

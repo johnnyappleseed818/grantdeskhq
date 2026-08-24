@@ -1,7 +1,7 @@
-export type SignalKind = "grant_award" | "job_posting" | "excel_pain" | "competitor_intent";
+export type SignalKind = "grant_award" | "job_posting" | "grant_announcement" | "excel_pain" | "competitor_intent";
 export type SourceAuthority = "official" | "employer" | "professional" | "community" | "review_platform";
 export type OpportunityStage = "new" | "reviewing" | "ready" | "contacted" | "replied" | "converted" | "dismissed";
-export type SocialPlatform = "reddit" | "forum";
+export type SocialPlatform = "reddit" | "forum" | "linkedin";
 export type TargetTier = "core" | "emerging" | "adjacent";
 
 export interface DailySocialSignal {
@@ -20,6 +20,18 @@ export interface DailySocialSignal {
   status: "ACTIONABLE" | "RESPONDED" | "SKIPPED";
 }
 
+export type GtmSourceMode = "PUBLIC_AUTOMATED" | "PUBLIC_SEARCH_DISCOVERY" | "MANUAL_AUTHENTICATED" | "DISABLED";
+export interface GtmSourceRegistryEntry {
+  name: string;
+  type: string;
+  mode: GtmSourceMode;
+  enabled: boolean;
+  lastAttempt: string | null;
+  lastSuccess: string | null;
+  status: "PASS" | "PARTIAL" | "MANUAL" | "DISABLED" | "ERROR" | "NOT_RUN";
+  error?: string;
+}
+
 export interface DailySocialScan {
   generatedAt: string;
   windowDays: number;
@@ -28,9 +40,43 @@ export interface DailySocialScan {
   itemsExamined: number;
   itemsQualified: number;
   itemsSuppressed: number;
+  itemsStale?: number;
+  itemsIrrelevant?: number;
+  itemsDuplicate?: number;
+  itemsRespondedSkipped?: number;
+  sourceRegistry?: GtmSourceRegistryEntry[];
   errors: string[];
   coverage: string;
   items: DailySocialSignal[];
+  limitations: string[];
+}
+
+export interface DirectDiscoveryTelemetry {
+  lastScan: string;
+  sourcesAttempted: string[];
+  sourcesSuccessful: string[];
+  sourceErrors: string[];
+  rawCandidatesExamined: number;
+  newOrganizations: number;
+  duplicates: number;
+  priorContactRemoved: number;
+  suppressed: number;
+  outsideIcpOrLowQuality: number;
+  qualified: number;
+  contactsResolvedPublicly: number;
+  hunterFinderCalls: number;
+  hunterVerifierCalls: number;
+  verified: number;
+  readyCreated: number;
+  stagedInInstantly: number;
+  mainBottleneck: string;
+}
+
+export interface DirectDiscoveryScan {
+  generatedAt: string;
+  sourceRegistry: GtmSourceRegistryEntry[];
+  telemetry: DirectDiscoveryTelemetry;
+  opportunities: GtmOpportunity[];
   limitations: string[];
 }
 
@@ -203,6 +249,7 @@ export function labelForSignal(kind: SignalKind) {
   return ({
     grant_award: "New grant",
     job_posting: "Hiring signal",
+    grant_announcement: "Funding announcement",
     excel_pain: "Manual-work signal",
     competitor_intent: "Competitor signal"
   } as const)[kind];
