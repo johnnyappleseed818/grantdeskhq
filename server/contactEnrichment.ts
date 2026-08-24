@@ -94,7 +94,8 @@ export async function enrichGtmContactWithHunter(target: EnrichmentTarget, envir
 export async function recordPublishedGtmContact(target: EnrichmentTarget, email: string, sourceUrl: string, prior?: ContactEnrichmentRecord): Promise<ContactEnrichmentRecord> {
   const now = new Date().toISOString();
   const normalizedEmail = email.trim().toLowerCase();
-  if (!isVerifiedBusinessEmail(normalizedEmail, target.organizationDomain) || !/^https:\/\//.test(sourceUrl)) throw new Error("A published business email and authoritative source are required.");
+  const emailDomain = normalizedEmail.split("@")[1] || "";
+  if (!isVerifiedBusinessEmail(normalizedEmail, emailDomain) || !/^https:\/\//.test(sourceUrl)) throw new Error("A published business email and authoritative source are required.");
   const suppression = await readGtmContactSuppression(normalizedEmail);
   const attempt = {
     provider: "public" as const,

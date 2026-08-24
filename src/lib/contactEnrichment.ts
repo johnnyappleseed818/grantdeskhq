@@ -331,15 +331,33 @@ export function createPartnerShadowDraft(input: PartnerShadowDraftInput) {
 function normalizeProviderResult(result: ProviderLookupResult, domain: string): ProviderLookupResult {
   const { email: rawEmail, ...withoutEmail } = result;
   const email = rawEmail?.trim().toLowerCase();
-  const status = result.status === "VERIFIED" && !isVerifiedBusinessEmail(email, domain) ? "UNKNOWN" : result.status;
+  // A Hunter/provider answer must match the organization domain.  A direct
+  // business address explicitly published on the organization's own page may
+  // legitimately use an operating/parent domain, but only on the narrowly
+  // typed authoritative-public evidence path—not on guesses or Finder output.
+  const authoritativePublishedEmail = result.provider === "public"
+    && result.providerRequestType === "AUTHORITATIVE_PUBLISHED_EMAIL"
+    && result.providerMetadata.publishedByOrganization === true
+    && isPlausibleBusinessEmail(email)
+    && result.sourceUrls.some((source) => /^https:\/\//.test(source.url));
+  const acceptedBusinessEmail = isVerifiedBusinessEmail(email, domain) || authoritativePublishedEmail;
+  const status = result.status === "VERIFIED" && !acceptedBusinessEmail ? "UNKNOWN" : result.status;
   return {
     ...withoutEmail,
     status,
-    ...(email && isVerifiedBusinessEmail(email, domain) ? { email } : {}),
+    ...(email && acceptedBusinessEmail ? { email } : {}),
     sourceUrls: uniqueSources(result.sourceUrls),
     verifierStatus: mapProviderVerificationStatus(result.verifierStatus || status),
     ...(result.verificationSource ? { verificationSource: uniqueSources(result.verificationSource) } : {})
   };
+}
+
+function isPlausibleBusinessEmail(email: string | undefined) {
+  const value = String(email || "").trim().toLowerCase();
+  const domain = value.split("@")[1] || "";
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value) && !new Set([
+    "gmail.com", "googlemail.com", "yahoo.com", "outlook.com", "hotmail.com", "live.com", "icloud.com", "aol.com", "proton.me", "protonmail.com"
+  ]).has(domain);
 }
 
 function normalizedTarget(target: EnrichmentTarget): EnrichmentTarget {

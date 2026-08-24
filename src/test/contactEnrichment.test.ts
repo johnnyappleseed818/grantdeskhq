@@ -74,6 +74,19 @@ describe("SHADOW contact enrichment", () => {
     expect(shouldRefreshContactEnrichment(mismatched, Date.parse("2026-08-17T00:00:00.000Z"))).toBe(true);
   });
 
+  it("accepts a different business domain only on the authoritative organization-published evidence path", () => {
+    const officialAlternateDomain = buildContactEnrichmentRecord(target, [{
+      ...result("hunter", "VERIFIED", "jordan.finance@operations.example"),
+      provider: "public",
+      providerRequestType: "AUTHORITATIVE_PUBLISHED_EMAIL",
+      providerMetadata: { publishedByOrganization: true },
+      sourceUrls: [{ url: "https://example.org/team" }],
+      verificationSource: [{ url: "https://example.org/team" }]
+    }], clear, "2026-08-16T00:00:00.000Z");
+    expect(officialAlternateDomain.email).toBe("jordan.finance@operations.example");
+    expect(officialAlternateDomain.readyForHumanApproval).toBe(true);
+  });
+
   it("tracks provider usage without treating unavailable attempts as verified", () => {
     const usage = accumulateEnrichmentUsage(null, [result("hunter", "VERIFIED", "jordan.finance@example.org"), { ...result("apollo", "NOT_FOUND"), attempted: true }], "2026-08-16T00:00:00.000Z");
     expect(usage.hunterLookups).toBe(1);
@@ -85,8 +98,8 @@ describe("SHADOW contact enrichment", () => {
   it("uses only the approved offer and free-first-award CTA in a source-specific SHADOW draft", () => {
     const draft = createTopicalShadowDraft({ firstName: "Jordan", organization: "Example Community Action", awardAmount: "$1.25M", awardingAgency: "Administration for Children and Families", awardStartDate: "August 1" });
     expect(draft.status).toBe("SHADOW_DRAFT");
-    expect(draft.body).toContain(INTRODUCTORY_GROWTH_OFFER);
-    expect(draft.body).toContain("Would you be open to trying it with one award for free?");
+    expect(draft.body).toContain("https://grantdeskhq.com/assessment");
+    expect(draft.body).toContain("Would you be open to giving it a try?");
     expect(draft.body).not.toMatch(/first 25|early adopter|beta customer|launch cohort|2027-02-14/i);
     const wordCount = draft.body.split(/\s+/).filter(Boolean).length;
     expect(wordCount).toBeGreaterThanOrEqual(70);
