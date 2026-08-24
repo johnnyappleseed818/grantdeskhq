@@ -1,35 +1,31 @@
 {
   "status": "PASS",
-  "project": "partner-replenishment-controlled-outbound-20260824",
-  "completed_at": "2026-08-24T12:26:00Z",
-  "production_revision": "grantdeskhq-prototype-00345-joy",
-  "rollback_revision": "grantdeskhq-prototype-00341-qot",
-  "commit": "e18a8ae",
+  "project": "partner-first-touch-copy-repair-20260824",
+  "completed_at": "2026-08-24T13:09:00Z",
+  "production_revision": "grantdeskhq-prototype-00350-sox",
+  "rollback_revision": "grantdeskhq-prototype-00345-joy",
+  "commit": "e80e540",
   "completed": [
-    "Preserved the five existing Direct campaign members and changed no Direct campaign setting, schedule, copy, or sender.",
-    "Added a bounded high-fit Partner research inventory and a Partner-only controlled-batch execution path that does not inspect or patch a populated Direct campaign.",
-    "Accepted a cross-domain business email only when it is explicitly published on an authoritative organization page; Finder and other provider results remain organization-domain matched.",
-    "Resolved six new canonical-ready Partner contacts, created exactly five in the existing Partner campaign for gdh-controlled-batch-20260824-01, and left the sixth ready contact out of the capped cohort.",
-    "Read provider state back after handoff: five Partner and the original five Direct leads are active/scheduled, with no provider send, reply, bounce, or unsubscribe transition.",
-    "Promoted a gate-disabled production revision with accurate e18a8ae provenance; normal outbound and auto-handoff remain disabled."
+    "Read all five approved Partner leads from Instantly and proved no first-touch had been sent before the correction.",
+    "Paused only GrantDeskHQ — Fractional CFO & Accounting through Instantly API v2, replaced first-touch custom variables for exactly its five approved batch members, read each saved payload back, and resumed that campaign.",
+    "Preserved the existing recipients, verified addresses, batch ID, sender, weekday business-hours schedule, reply-stop, bounce protection, tracking-off settings, follow-up architecture, and explicit Free First Award CTA.",
+    "Read Direct only for immutability validation; no Direct campaign or lead write occurred.",
+    "Promoted a separate gate-disabled production revision; ordinary outbound and auto-handoff remain disabled."
   ],
   "validation": [
-    "51 focused contact-enrichment and Instantly tests passed, the complete automated suite passed, GrantDeskHQ regression passed, and the production build passed.",
-    "Live production health is OK on grantdeskhq-prototype-00345-joy and identifies application commit e18a8ae.",
-    "Provider read-back confirms the Direct campaign still has exactly five members and the Partner campaign has exactly five members; both use only Eli, reply stops and bounce protection are enabled, tracking is disabled, and daily limits are five.",
-    "Polling reconciliation completed successfully with ten controlled records and zero provider transitions, so no queued message was falsely recorded as sent."
+    "19 focused Instantly integration tests passed and the production build passed.",
+    "Candidate and production health are OK on grantdeskhq-prototype-00350-sox and identify application commit e80e540.",
+    "Provider read-back confirms the Partner campaign is active with only eli.katz@grantdeskhq.com, Stop on Reply enabled, bounce protection enabled, open/click tracking disabled, weekday 09:00-17:00 America/Detroit schedule, daily cap five, and explicit free CTA.",
+    "Provider read-back confirms the Direct campaign remains active with its original sender, schedule, reply-stop, tracking, cap, and initial copy."
   ],
   "side_effects": {
-    "emails_sent_at_validation": 0,
-    "scheduled_direct_contacts": 5,
-    "scheduled_partner_contacts": 5,
-    "hunter_finder_calls": 5,
-    "hunter_verifier_calls": 5,
+    "partner_first_touches_sent_before_repair": 0,
+    "partner_recipients_added": 0,
+    "duplicate_sends": 0,
+    "hunter_calls": 0,
+    "direct_campaign_writes": 0,
     "instantly_outbound_enabled": false,
     "instantly_auto_handoff_enabled": false
   },
-  "limitations": [
-    "One additional verified Partner remains READY_TO_SEND but is deliberately outside this exact five-contact Partner sub-cohort.",
-    "The ten controlled messages are scheduled by Instantly's protected 09:00-17:00 America/Detroit weekday window; they remain unsent until provider evidence records a send."
-  ]
+  "limitations": []
 }
