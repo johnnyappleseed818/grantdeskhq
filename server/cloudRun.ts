@@ -535,7 +535,7 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
     }
     await client.pauseControlledCampaign(partnerCampaignId, batchId);
     const paused = await client.getCampaign(partnerCampaignId);
-    if (Number(paused.status) !== 0) return json(response, 409, { error: "The Partner campaign could not be paused for pre-send repair." });
+    if (Number(paused.status) !== 2) return json(response, 409, { error: "The Partner campaign could not be paused for pre-send repair." });
     await client.configureControlledCampaign(partnerCampaignId, controlledCampaignPatch("PARTNER", 5, approvedSender), batchId);
     const configured = await client.getCampaign(partnerCampaignId);
     if (!controlledCampaignReady(configured, approvedSender)) return json(response, 409, { error: "Partner campaign read-back did not satisfy sender, reply-stop, tracking, CTA, and safety requirements." });

@@ -84,6 +84,14 @@ describe("Instantly fail-closed integration", () => {
     expect(request).toHaveBeenCalledWith("https://api.instantly.ai/api/v2/campaigns/campaign_1", expect.objectContaining({ method: "PATCH" }));
   });
 
+  it("uses Instantly's dedicated pause endpoint only for the exact enabled batch", async () => {
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "campaign_1", status: 2 }), { status: 200 }));
+    const config = instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true", INSTANTLY_API_KEY: "configured", INSTANTLY_CONTROLLED_BATCH_ENABLED: "true", INSTANTLY_CONTROLLED_BATCH_ID: "gdh-controlled-batch-20260824-01" });
+    const client = new InstantlyClient(config, "key", request);
+    await expect(client.pauseControlledCampaign("campaign_1", "gdh-controlled-batch-20260824-01")).resolves.toEqual({ id: "campaign_1", status: 2 });
+    expect(request).toHaveBeenCalledWith("https://api.instantly.ai/api/v2/campaigns/campaign_1/pause", expect.objectContaining({ method: "POST" }));
+  });
+
   it("requires every controlled campaign to expose only the approved sender", () => {
     const onlyEli = { email_list: ["eli.katz@grantdeskhq.com"] };
     const mixed = { email_accounts: [{ email: "eli.katz@grantdeskhq.com" }, { email: "jay@virtualaiassistants.com" }] };
