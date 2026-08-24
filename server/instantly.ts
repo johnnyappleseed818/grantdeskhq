@@ -23,6 +23,8 @@ export interface InstantlyConfig {
   partnerListId: string;
   directCampaignId: string;
   partnerCampaignId: string;
+  controlledBatchEnabled: boolean;
+  controlledBatchId: string;
 }
 
 export interface InstantlyIntegrationRecord {
@@ -64,6 +66,7 @@ export interface InstantlyIntegrationRecord {
   failureReason: string;
   createdAt: string;
   updatedAt: string;
+  controlledBatchId?: string;
 }
 
 export interface InstantlyWebhookEvent {
@@ -99,6 +102,8 @@ export function instantlyConfig(env: NodeJS.ProcessEnv = process.env): Instantly
     partnerListId: String(env.INSTANTLY_PARTNER_LIST_ID || "").trim(),
     directCampaignId: String(env.INSTANTLY_DIRECT_CAMPAIGN_ID || "").trim(),
     partnerCampaignId: String(env.INSTANTLY_PARTNER_CAMPAIGN_ID || "").trim()
+    ,controlledBatchEnabled: enabled("INSTANTLY_CONTROLLED_BATCH_ENABLED"),
+    controlledBatchId: String(env.INSTANTLY_CONTROLLED_BATCH_ID || "").trim()
   };
 }
 
@@ -174,6 +179,7 @@ export class InstantlyClient {
   createLeadList(name: string) { return this.api<{ id?: string; name?: string }>("/lead-lists", { method: "POST", body: JSON.stringify({ name }) }); }
   listWorkspaces() { return this.api<unknown>("/workspaces?limit=100"); }
   listCampaigns() { return this.api<unknown>("/campaigns?limit=100"); }
+  getCampaign(id: string) { return this.api<Record<string, unknown>>(`/campaigns/${encodeURIComponent(id)}`); }
   listAccounts() { return this.api<unknown>("/accounts?limit=100"); }
   listCampaignAnalytics() { return this.api<unknown>("/campaigns/analytics"); }
   listRecentEmails() { return this.api<unknown>("/emails?limit=10&preview_only=true"); }
@@ -197,6 +203,16 @@ export class InstantlyClient {
   async createLeadInList(input: { email: string; firstName: string; lastName: string; companyName: string; listId: string; customVariables: Record<string, string> }) {
     if (this.config.outboundEnabled) throw new Error("List staging refuses to run while outbound is enabled; campaign movement requires explicit approval.");
     return this.api<unknown>("/leads", { method: "POST", body: JSON.stringify({ email: input.email, first_name: input.firstName, last_name: input.lastName, company_name: input.companyName, list_id: input.listId, custom_variables: input.customVariables, skip_if_in_workspace: true, skip_if_in_list: true }) });
+  }
+  /** Used only by the explicit, exact controlled batch handler. It never runs
+   * from scheduler replenishment or ordinary staging. */
+  async createLeadInControlledCampaign(input: { email: string; firstName: string; lastName: string; companyName: string; jobTitle: string; campaignId: string; personalization: string; customVariables: Record<string, string> }, batchId: string) {
+    if (!this.config.controlledBatchEnabled || !this.config.controlledBatchId || this.config.controlledBatchId !== batchId) throw new Error("Controlled outbound batch is not enabled for this exact batch ID.");
+    return this.api<{ id?: string; lead_id?: string }>("/leads", { method: "POST", body: JSON.stringify({ email: input.email, first_name: input.firstName, last_name: input.lastName, company_name: input.companyName, job_title: input.jobTitle, campaign: input.campaignId, personalization: input.personalization, custom_variables: input.customVariables, skip_if_in_workspace: true, skip_if_in_campaign: true }) });
+  }
+  async activateControlledCampaign(campaignId: string, batchId: string) {
+    if (!this.config.controlledBatchEnabled || !this.config.controlledBatchId || this.config.controlledBatchId !== batchId) throw new Error("Controlled outbound batch is not enabled for this exact batch ID.");
+    return this.api<Record<string, unknown>>(`/campaigns/${encodeURIComponent(campaignId)}/activate`, { method: "POST" });
   }
 }
 

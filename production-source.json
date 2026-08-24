@@ -1,0 +1,8 @@
+{
+  "sourceOfTruth": "Cloud Run source archive recorded on each deployed revision",
+  "service": "grantdeskhq-prototype",
+  "project": "grantdeskhq-proto-ek-2026",
+  "region": "us-central1",
+  "deploymentMetadata": ["COMMIT_SHA", "BUILD_SOURCE_REF", "BUILD_TIMESTAMP_UTC"],
+  "recoveryRule": "When Git lineage and a running revision disagree, recover the revision's run.googleapis.com/build-source-location archive before deploying."
+}

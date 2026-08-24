@@ -132,6 +132,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/canonical") return await handleGtmCanonical(request, response);
     if (url.pathname === "/api/gtm/instantly") return await handleGtmInstantly(request, response);
     if (url.pathname === "/api/gtm/instantly/stage") return await handleGtmInstantlyStage(request, response);
+    if (url.pathname === "/api/gtm/instantly/controlled-batch") return await handleControlledInstantlyBatch(request, response);
     if (url.pathname === "/api/gtm/instantly/reconcile") return await handleInstantlyReconcile(request, response);
     if (url.pathname === "/api/gtm/instantly/ensure-lists") return await handleInstantlyEnsureLists(request, response);
     if (url.pathname === "/api/gtm/instantly/webhook") return await handleInstantlyWebhook(request, response);
@@ -459,6 +460,61 @@ async function handleGtmInstantlyStage(request: IncomingMessage, response: Serve
     return persisted;
   }));
   return json(response, 200, { mode: "STAGED_PENDING_APPROVAL", staged: staged.length, records: staged });
+}
+
+/** Founder-authorized, exact-cohort route. It is scheduler-authenticated, capped
+ * at five contacts per segment, and does not share ordinary auto-handoff paths. */
+async function handleControlledInstantlyBatch(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const input = await readJson(request) as { batchId?: string; execute?: boolean };
+  const batchId = String(input.batchId || "");
+  if (!/^gdh-controlled-batch-\d{8}-\d{2}$/.test(batchId)) return json(response, 400, { error: "A valid controlled batch ID is required." });
+  const config = instantlyConfig();
+  const [model, outreach, existingRecords] = await Promise.all([readCanonicalGtmModel(), reconcileGtmOutreachLedger(confirmedHumanOutreach), readInstantlyRecords()]);
+  const existingEmails = new Set(existingRecords.map((record) => record.email.toLowerCase()).filter(Boolean));
+  const eligible = model.records.filter((record) => {
+    const gate = record.state === "READY_TO_SEND" && Boolean(record.email && record.contact) && !record.priorContact && record.suppressionStatus === "CLEAR" && !existingEmails.has(String(record.email).toLowerCase());
+    if (!gate) return false;
+    return stagingEligibility(record, outreach, { ...config, directEnabled: true, partnerEnabled: true }).eligible;
+  });
+  const direct = eligible.filter((record) => record.segment === "DIRECT").slice(0, 5);
+  const partner = eligible.filter((record) => record.segment === "PARTNER").slice(0, 5);
+  const cohort = [...direct, ...partner];
+  const client = config.apiKeyConfigured && config.integrationEnabled ? new InstantlyClient(config) : null;
+  const campaignDetails = client ? await Promise.all([config.directCampaignId ? client.getCampaign(config.directCampaignId) : null, config.partnerCampaignId ? client.getCampaign(config.partnerCampaignId) : null]) : [null, null];
+  const leadInventory = client ? await client.listRecentLeads(200) : { items: [], truncated: false };
+  const campaignLeadCount = new Map<string, number>();
+  for (const lead of leadInventory.items) { const id = String(lead.campaign || ""); if (id) campaignLeadCount.set(id, (campaignLeadCount.get(id) || 0) + 1); }
+  const senderReady = Boolean(client && config.integrationEnabled && config.apiKeyConfigured && campaignDetails.every((campaign) => campaign && Number(campaign.status) === 0));
+  const summary = (record: Awaited<typeof model>["records"][number]) => ({ organization: record.organization, person: record.contact, title: record.title, email: record.email, verification: record.verificationStatus, whyNowOrFit: record.whyNow, campaign: record.segment === "DIRECT" ? config.directCampaignId : config.partnerCampaignId, subject: controlledSubject(record), emailBody: controlledEmail(record) });
+  if (!input.execute) return json(response, 200, { mode: "PREFLIGHT", batchId, senderReady, flags: { integrationEnabled: config.integrationEnabled, outboundEnabled: config.outboundEnabled, autoHandoffEnabled: config.autoHandoffEnabled, directEnabled: config.directEnabled, partnerEnabled: config.partnerEnabled, controlledBatchEnabled: config.controlledBatchEnabled }, campaigns: campaignDetails.map((campaign) => campaign ? { id: campaign.id, name: campaign.name, status: campaign.status, schedule: campaign.campaign_schedule, stopOnReply: campaign.stop_on_reply } : null), campaignLeadCount: Object.fromEntries(campaignLeadCount), direct: direct.map(summary), partner: partner.map(summary), exclusions: { priorContact: model.records.filter((record) => record.priorContact).length, suppressed: model.records.filter((record) => record.suppressionStatus !== "CLEAR").length, existingInstantly: existingEmails.size } });
+  if (!senderReady || !client) return json(response, 409, { error: "Sender or mapped inactive campaigns are not ready for a controlled batch." });
+  if (!config.controlledBatchEnabled || config.controlledBatchId !== batchId) return json(response, 409, { error: "This exact controlled batch is not enabled." });
+  if (campaignLeadCount.get(config.directCampaignId) || campaignLeadCount.get(config.partnerCampaignId)) return json(response, 409, { error: "Mapped campaign already contains leads; refusing to risk an outside-batch send." });
+  const created = await Promise.all(cohort.map(async (record) => {
+    const [firstName, ...rest] = String(record.contact || "").split(/\s+/);
+    const campaignId = record.segment === "DIRECT" ? config.directCampaignId : config.partnerCampaignId;
+    const provider = await client.createLeadInControlledCampaign({ email: record.email || "", firstName, lastName: rest.join(" "), companyName: record.organization, jobTitle: record.title || "", campaignId, personalization: controlledEmail(record), customVariables: { batch_id: batchId, canonical_organization_id: record.organizationId, canonical_contact_id: `${record.organizationId}:${record.email}`, segment: record.segment, source: record.sourceUrl, why_now_or_fit: record.whyNow, message_version: "controlled-benefit-led-v1" } }, batchId);
+    const preview = instantlyPreviewRecord(record);
+    const persisted = { ...preview, instantlyCampaignId: campaignId, instantlyLeadId: String(provider.id || provider.lead_id || ""), instantlySyncStatus: "IN_CAMPAIGN" as const, messageVersion: "controlled-benefit-led-v1", controlledBatchId: batchId, failureReason: "", updatedAt: new Date().toISOString() };
+    await saveInstantlyRecord(persisted);
+    return persisted;
+  }));
+  await Promise.all([...new Set(created.map((record) => record.instantlyCampaignId))].map((campaignId) => client.activateControlledCampaign(campaignId, batchId)));
+  return json(response, 200, { mode: "HANDOFF_COMPLETE_AWAITING_PROVIDER_SEND", batchId, created: created.map((record) => ({ organization: record.organization, email: record.email, segment: record.segment, campaign: record.instantlyCampaignId, state: record.instantlySyncStatus })) });
+}
+
+function controlledSubject(record: Awaited<ReturnType<typeof readCanonicalGtmModel>>["records"][number]) {
+  return record.segment === "DIRECT" ? "Less time preparing grant reports" : `Helping ${record.organization} clients save time on grant reports`;
+}
+
+function controlledEmail(record: Awaited<ReturnType<typeof readCanonicalGtmModel>>["records"][number]) {
+  const first = String(record.contact || "there").split(/\s+/)[0];
+  const context = record.segment === "DIRECT" ? `I came across ${record.organization} and saw ${record.whyNow}` : `I came across ${record.organization} and saw ${record.whyNow}`;
+  const value = record.segment === "DIRECT" ? "Preparing a funder report can mean pulling together award terms, accounting data, program updates, and supporting evidence from several places." : "A lot of nonprofit client reporting still means pulling together award terms, accounting data, program updates, and supporting evidence by hand.";
+  const close = record.segment === "DIRECT" ? "You can try it with one real award for free here: https://grantdeskhq.com/assessment" : "You can try it with one client award for free here: https://grantdeskhq.com/assessment";
+  return `Hi ${first},\n\n${context}\n\n${value}\n\nGrantDeskHQ turns those inputs into a source-linked first draft for human review. People remain responsible for the final review and submission.\n\n${close}\n\nBest,\nEli`;
 }
 
 /** Scheduler-protected reconciliation uses read-only API polling. Webhooks are
