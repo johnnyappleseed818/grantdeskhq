@@ -7,6 +7,8 @@ import type { ContentEngineState } from "../src/lib/gtmContentEngine.ts";
 import type { ControlPlaneQueueReconciliation } from "../src/lib/gtmControlPlaneQueue.ts";
 import type { ContactEnrichmentRecord, EnrichmentUsage, SuppressionCheck } from "../src/lib/contactEnrichment.ts";
 import type { SearchConsoleState } from "./searchConsole.ts";
+import type { PartnerDiscoveryScan } from "./gtmPartnerDiscovery.ts";
+import type { InventoryAutopilotSnapshot } from "../src/lib/gtmInventoryPolicy.ts";
 import type { FeedbackSubmission } from "../src/lib/feedback.ts";
 import type { OutreachRecord } from "../src/lib/gtmOutreach.ts";
 import { mergeOutreachRecords } from "../src/lib/gtmOutreach.ts";
@@ -711,6 +713,42 @@ export async function readGtmDirectDiscoveryScan(): Promise<DirectDiscoveryScan 
   if (!response.ok) throw new Error(`Direct discovery state could not be loaded (${response.status}).`);
   const record = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
   try { return record.scanJson ? JSON.parse(String(record.scanJson)) as DirectDiscoveryScan : null; }
+  catch { return null; }
+}
+
+/** Durable public Partner research candidates. These are research only until
+ * the normal canonical contact and suppression gates approve them. */
+export async function saveGtmPartnerDiscoveryScan(scan: PartnerDiscoveryScan) {
+  const accessToken = await gcpToken();
+  const existing = await readGtmPartnerDiscoveryScan();
+  const known = new Map((existing?.opportunities || []).map((opportunity) => [opportunity.id, opportunity]));
+  for (const opportunity of scan.opportunities) known.set(opportunity.id, opportunity);
+  const persisted: PartnerDiscoveryScan = { ...scan, opportunities: [...known.values()].sort((left, right) => right.observedAt.localeCompare(left.observedAt)).slice(0, 250) };
+  await writeDocument(accessToken, "gtm/partner-discovery", { generatedAt: persisted.generatedAt, itemCount: persisted.opportunities.length, scanJson: JSON.stringify(persisted) });
+  return persisted;
+}
+
+export async function readGtmPartnerDiscoveryScan(): Promise<PartnerDiscoveryScan | null> {
+  const response = await authorizedFetch(`${firestoreBase}/gtm/partner-discovery`, await gcpToken());
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Partner discovery state could not be loaded (${response.status}).`);
+  const record = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
+  try { return record.scanJson ? JSON.parse(String(record.scanJson)) as PartnerDiscoveryScan : null; }
+  catch { return null; }
+}
+
+export async function saveGtmInventoryAutopilot(snapshot: InventoryAutopilotSnapshot) {
+  const accessToken = await gcpToken();
+  await writeDocument(accessToken, "gtm/inventory-autopilot", { generatedAt: snapshot.generatedAt, stateJson: JSON.stringify(snapshot) });
+  return snapshot;
+}
+
+export async function readGtmInventoryAutopilot(): Promise<InventoryAutopilotSnapshot | null> {
+  const response = await authorizedFetch(`${firestoreBase}/gtm/inventory-autopilot`, await gcpToken());
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`GTM inventory autopilot state could not be loaded (${response.status}).`);
+  const record = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
+  try { return record.stateJson ? JSON.parse(String(record.stateJson)) as InventoryAutopilotSnapshot : null; }
   catch { return null; }
 }
 

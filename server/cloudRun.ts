@@ -9,17 +9,18 @@ import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmContactSuppression, readGtmContentEngineState, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmDirectDiscoveryScan, readGtmEnrichmentUsage, readGtmShadowStatus, readInstantlyRecords, readInstantlyStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, recordGtmContactSuppression, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveGtmContentEngineState, saveGtmDailyScan, saveGtmDirectDiscoveryScan, saveInstantlyRecord, saveInstantlyStatus, saveInstantlyWebhookEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview, updateGtmDailySocialItem } from "./persistence.ts";
+import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmContactSuppression, readGtmContentEngineState, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmDirectDiscoveryScan, readGtmEnrichmentUsage, readGtmInventoryAutopilot, readGtmPartnerDiscoveryScan, readGtmShadowStatus, readInstantlyRecords, readInstantlyStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, recordGtmContactSuppression, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveGtmContentEngineState, saveGtmDailyScan, saveGtmDirectDiscoveryScan, saveGtmInventoryAutopilot, saveGtmPartnerDiscoveryScan, saveInstantlyRecord, saveInstantlyStatus, saveInstantlyWebhookEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview, updateGtmDailySocialItem } from "./persistence.ts";
 import { validateFeedbackInput, type FeedbackSubmission } from "../src/lib/feedback.ts";
 import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
 import { confirmedHumanOutreach, summarizeOutreach } from "../src/lib/gtmOutreach.ts";
 import { reconcileGtmOutreachLedger, updateFeedbackReview } from "./persistence.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { runDailySocialScan } from "./gtmDailyScanner.ts";
+import { runPartnerPublicDiscovery } from "./gtmPartnerDiscovery.ts";
 import { runDirectPublicDiscovery } from "./gtmDirectDiscovery.ts";
 import { resolveDirectRecipients } from "./gtmDirectRecipientResolution.ts";
 import { buildShadowStatus, shadowLeadFromOpportunity, suggestedTopicsFromLeads } from "../src/lib/gtmShadow.ts";
-import { editContentDraft, reconcileContentEngine, updateContentEngineState } from "../src/lib/gtmContentEngine.ts";
+import { editContentDraft, reconcileContentEngine, reconcileContentInventory, updateContentEngineState } from "../src/lib/gtmContentEngine.ts";
 import { enrichGtmContactInShadow } from "./contactEnrichment.ts";
 import { reconcileStoredContactEnrichmentBatch, runContactEnrichmentBatch, type EnrichmentBatchSegment } from "./contactEnrichmentBatch.ts";
 import { reconcileSearchConsole } from "./searchConsole.ts";
@@ -33,6 +34,7 @@ import { buildGtmOverview } from "../src/lib/gtmOverview.ts";
 import { readCanonicalGtmModel } from "./gtmCanonical.ts";
 import type { GtmOpportunity } from "../src/lib/gtm.ts";
 import { canonicalOrganizationId } from "../src/lib/gtmCanonical.ts";
+import { boundedEnrichmentLimit, GTM_INVENTORY_POLICY, inventoryDecision, socialDiscoveryBreadth, type InventoryAutopilotSnapshot } from "../src/lib/gtmInventoryPolicy.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
 import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
@@ -155,6 +157,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/search-console") return await handleSearchConsoleState(request, response);
     if (url.pathname === "/api/gtm/daily-scan") return await handleGtmDailyScan(request, response);
     if (url.pathname === "/api/gtm/sourcing-status") return await handleGtmSourcingStatus(request, response);
+    if (url.pathname === "/api/gtm/inventory-autopilot/reconcile") return await handleGtmInventoryAutopilotReconcile(request, response);
     if (url.pathname === "/api/internal/reliability/access") return await handleReliabilityAccess(request, response);
     if (url.pathname === "/api/internal/reliability/summary") return await handleReliabilitySummary(request, response);
     if (url.pathname === "/api/internal/reliability/dependencies") return await handleReliabilityDependencies(request, response);
@@ -425,8 +428,8 @@ async function handleGtmControlPlaneQueue(request: IncomingMessage, response: Se
 async function handleGtmOverview(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   requireGtmAdmin(await requireUser(request));
-  const [reconciliation, shadowStatus, usage] = await Promise.all([readGtmControlPlaneReconciliation(), readGtmShadowStatus(), readGtmEnrichmentUsage()]);
-  return json(response, 200, { overview: buildGtmOverview({ reconciliation, shadowStatus, usage, hunterLookupLimit: configuredPositiveInteger("HUNTER_MAX_LOOKUPS_PER_RUN", 2) }) });
+  const [reconciliation, shadowStatus, usage, inventory] = await Promise.all([readGtmControlPlaneReconciliation(), readGtmShadowStatus(), readGtmEnrichmentUsage(), readGtmInventoryAutopilot()]);
+  return json(response, 200, { overview: buildGtmOverview({ reconciliation, shadowStatus, usage, hunterLookupLimit: configuredPositiveInteger("HUNTER_MAX_LOOKUPS_PER_RUN", 2) }), inventory });
 }
 
 async function handleGtmCanonical(request: IncomingMessage, response: ServerResponse) {
@@ -830,22 +833,37 @@ async function handleStoredDirectDiscoveryReconcile(request: IncomingMessage, re
 async function handleScheduledPartnerHunterReconciliation(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
-  const partner = await runContactEnrichmentBatch({ segment: "partner", limit: 20 });
-  console.info("GTM_HUNTER_BATCH " + JSON.stringify({ segment: partner.segment, attempted: partner.attempted, contactsResolved: partner.contactsResolved, verifiedEmails: partner.verifiedEmails, ready: partner.ready, needsVerification: partner.needsVerification, alreadyContacted: partner.alreadyContacted, duplicates: partner.duplicates, failures: partner.failures, providerUsage: partner.providerUsage }));
+  const before = await readCanonicalGtmModel();
+  const decision = inventoryDecision("partner", before.metrics.partnerReady);
+  let discovery = await readGtmPartnerDiscoveryScan();
+  let partner = null;
+  if (decision.triggered) {
+    const knownDomains = before.records.filter((record) => record.segment === "PARTNER").map((record) => record.organizationDomain);
+    const priorContactDomains = before.records.filter((record) => record.segment === "PARTNER" && record.priorContact).map((record) => record.organizationDomain);
+    try { discovery = await runPartnerPublicDiscovery({ knownDomains, priorContactDomains, maximum: 25 }).then(saveGtmPartnerDiscoveryScan); }
+    catch (error) { console.error("GTM_PARTNER_DISCOVERY", error); }
+    const limit = boundedEnrichmentLimit("partner", before.metrics.partnerReady, Math.min(configuredPositiveInteger("HUNTER_MAX_LOOKUPS_PER_RUN", 10), 10));
+    if (limit > 0) partner = await runContactEnrichmentBatch({ segment: "partner", limit, discoveredPartner: discovery?.opportunities || [] });
+  }
+  const stored = await reconcileStoredContactEnrichmentBatch({ segment: "partner", limit: 20, discoveredPartner: discovery?.opportunities || [] });
+  console.info("GTM_HUNTER_BATCH " + JSON.stringify(partner ? { segment: partner.segment, attempted: partner.attempted, contactsResolved: partner.contactsResolved, verifiedEmails: partner.verifiedEmails, ready: partner.ready, needsVerification: partner.needsVerification, alreadyContacted: partner.alreadyContacted, duplicates: partner.duplicates, failures: partner.failures, providerUsage: partner.providerUsage } : { segment: "partner", skipped: "HEALTHY_READY_INVENTORY" }));
   // While live delivery is disabled, the existing daily GTM runtime provides a
   // low-cost polling cadence. A separate hourly Scheduler is reserved for the
   // explicit future live-outbound phase, avoiding duplicate jobs today.
   const instantly = await reconcileInstantlyPolling();
-  return json(response, 200, { partner, instantly });
+  const inventory = await persistInventoryAutopilot();
+  return json(response, 200, { decision, discovery, partner, stored, instantly, inventory });
 }
 
 async function handleSearchConsoleReconcile(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
   const state = await saveSearchConsoleState(await reconcileSearchConsole());
-  const content = await saveGtmContentEngineState(reconcileContentEngine(await readGtmContentEngineState()));
+  const contentReplenishment = reconcileContentInventory(await readGtmContentEngineState());
+  const content = await saveGtmContentEngineState(contentReplenishment.state);
   console.info("SEARCH_CONSOLE_RECONCILE " + JSON.stringify({ analyticsStatus: state.analyticsStatus, pages: state.ranges.last28Days?.pages.length || 0, queries: state.ranges.last28Days?.queries.length || 0, sitemap: state.sitemap.result, dataThrough: state.dataThrough, errors: state.errors }));
-  return json(response, 200, { state, content });
+  const inventory = await persistInventoryAutopilot();
+  return json(response, 200, { state, content, contentReplenishment: { decision: contentReplenishment.decision, generated: contentReplenishment.generated, supplyConstrained: contentReplenishment.supplyConstrained, bottleneck: contentReplenishment.bottleneck }, inventory });
 }
 
 async function handleSearchConsoleState(request: IncomingMessage, response: ServerResponse) {
@@ -870,12 +888,15 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
   await requireGtmScheduler(request);
   const errors: string[] = [];
   const before = await readCanonicalGtmModel();
+  const directDecision = inventoryDecision("direct", before.metrics.directReady);
   let awardScan;
-  try { awardScan = await runDailyAwardScan().then(saveGtmAwardScan); }
-  catch (error) { errors.push(error instanceof Error ? error.message : "Award scan failed."); }
+  if (before.metrics.directReady < GTM_INVENTORY_POLICY.direct.target) {
+    try { awardScan = await runDailyAwardScan().then(saveGtmAwardScan); }
+    catch (error) { errors.push(error instanceof Error ? error.message : "Award scan failed."); }
+  }
   const opportunities = awardScan?.opportunities || [];
   let directDiscovery;
-  try {
+  if (before.metrics.directReady < GTM_INVENTORY_POLICY.direct.target) try {
     directDiscovery = await runDirectPublicDiscovery({
       knownOrganizationIds: before.records.map((record) => record.organizationId),
       priorContactOrganizationIds: before.records.filter((record) => record.priorContact).map((record) => record.organizationId),
@@ -894,7 +915,8 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
   try { shadowStatus = await saveGtmShadowStatus(buildShadowStatus(opportunities.map(shadowLeadFromOpportunity), suggestedTopicsFromLeads(opportunities.map(shadowLeadFromOpportunity)))); }
   catch (error) { errors.push(error instanceof Error ? error.message : "GTM shadow status could not be saved."); }
   let social;
-  try { social = await runDailySocialScan().then(saveGtmDailyScan); }
+  const priorSocial = await readGtmDailyScan();
+  try { social = await runDailySocialScan(new Date(), socialDiscoveryBreadth((priorSocial?.items || []).filter((item) => item.status === "ACTIONABLE").length)).then(saveGtmDailyScan); }
   catch (error) { errors.push(error instanceof Error ? error.message : "Social scan failed."); }
   // Reuse the established daily GTM runtime for bounded Direct replenishment.
   // The batch suppresses contacted organizations before a provider call and
@@ -904,7 +926,7 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
     const canonical = await readCanonicalGtmModel();
     const ready = canonical.metrics.directReady;
     const configuredLimit = Math.min(configuredPositiveInteger("HUNTER_MAX_LOOKUPS_PER_RUN", 10), 10);
-    const limit = ready < 10 ? configuredLimit : ready < 15 ? Math.min(configuredLimit, 15 - ready) : 0;
+    const limit = boundedEnrichmentLimit("direct", ready, configuredLimit);
     if (limit > 0) {
       directReplenishment = await runContactEnrichmentBatch({ segment: "direct", limit, discoveredDirect: [...opportunities, ...directOpportunities] });
       if (directDiscovery) {
@@ -921,6 +943,7 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
       console.info("GTM_HUNTER_DIRECT_REPLENISHMENT " + JSON.stringify({ attempted: directReplenishment.attempted, ready: directReplenishment.ready, needsVerification: directReplenishment.needsVerification, alreadyContacted: directReplenishment.alreadyContacted, providerUsage: directReplenishment.providerUsage }));
     }
   } catch (error) { errors.push(error instanceof Error ? error.message : "Direct replenishment could not be completed."); }
+  const inventory = await persistInventoryAutopilot();
   return json(response, 200, {
     status: errors.length ? "partial" : "completed",
     generatedAt: new Date().toISOString(),
@@ -934,6 +957,8 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
     shadowMode: "SHADOW",
     shadowStatus: shadowStatus || null,
     directReplenishment: directReplenishment || null,
+    directDecision,
+    inventory,
     errors
   });
 }
@@ -944,6 +969,37 @@ async function handleGtmSourcingStatus(request: IncomingMessage, response: Serve
   await requireGtmScheduler(request);
   const [direct, social, awards, canonical] = await Promise.all([readGtmDirectDiscoveryScan(), readGtmDailyScan(), readGtmAwardScan(), readCanonicalGtmModel()]);
   return json(response, 200, { direct, social, awards, canonical: { metrics: canonical.metrics, records: canonical.records.filter((record) => record.segment === "DIRECT") } });
+}
+
+/** Scheduler-authenticated, calculation-only inventory refresh. It intentionally
+ * performs no public research, enrichment, Instantly action, publishing, or posting. */
+async function handleGtmInventoryAutopilotReconcile(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  return json(response, 200, { inventory: await persistInventoryAutopilot() });
+}
+
+/** One durable, founder-readable inventory snapshot. This function never
+ * discovers, enriches, stages, sends, publishes, or posts. */
+async function persistInventoryAutopilot(): Promise<InventoryAutopilotSnapshot> {
+  const [canonical, directScan, partnerScan, content, social] = await Promise.all([
+    readCanonicalGtmModel(), readGtmDirectDiscoveryScan(), readGtmPartnerDiscoveryScan(), readGtmContentEngineState(), readGtmDailyScan()
+  ]);
+  const directDecision = inventoryDecision("direct", canonical.metrics.directReady);
+  const partnerDecision = inventoryDecision("partner", canonical.metrics.partnerReady);
+  const contentReady = (content?.drafts || []).filter((draft) => draft.status === "READY_FOR_REVIEW").length;
+  const contentDecision = inventoryDecision("content", contentReady);
+  const socialActionable = (social?.items || []).filter((item) => item.status === "ACTIONABLE").length;
+  const socialBreadth = socialDiscoveryBreadth(socialActionable);
+  const snapshot: InventoryAutopilotSnapshot = {
+    generatedAt: new Date().toISOString(),
+    direct: { decision: directDecision, replenishmentTriggered: directDecision.triggered, supplyConstrained: directDecision.triggered && Boolean(directScan && directScan.telemetry.readyCreated === 0), bottleneck: directScan?.telemetry.mainBottleneck || "Awaiting the next daily Direct inventory evaluation.", telemetry: { rawCandidates: directScan?.telemetry.rawCandidatesExamined ?? null, qualified: directScan?.telemetry.qualified ?? null, readyCreated: directScan?.telemetry.readyCreated ?? null, hunterFinder: directScan?.telemetry.hunterFinderCalls ?? null, hunterVerifier: directScan?.telemetry.hunterVerifierCalls ?? null } },
+    partner: { decision: partnerDecision, replenishmentTriggered: partnerDecision.triggered, supplyConstrained: partnerDecision.triggered && Boolean(partnerScan && partnerScan.qualified === 0), bottleneck: partnerScan?.mainBottleneck || "Awaiting the next daily Partner inventory evaluation.", telemetry: { rawCandidates: partnerScan?.rawCandidatesExamined ?? null, qualified: partnerScan?.qualified ?? null, priorContactRemoved: partnerScan?.priorContactRemoved ?? null } },
+    content: { decision: contentDecision, replenishmentTriggered: contentDecision.triggered, supplyConstrained: contentDecision.triggered && Boolean(content && !content.opportunities.some((item) => item.status === "OPPORTUNITY" && item.recommendedAction === "NEW")), bottleneck: contentDecision.triggered ? "Founder review inventory is below its operating floor." : "Founder review inventory is healthy.", telemetry: { activeReadyForReview: contentReady, activeDrafts: content?.drafts.length ?? 0 } },
+    social: { actionable: socialActionable, preferredFloor: GTM_INVENTORY_POLICY.social.preferredFloor, targetRange: [GTM_INVENTORY_POLICY.social.targetMin, GTM_INVENTORY_POLICY.social.targetMax], breadth: socialBreadth, state: !social ? "BLOCKED" : socialActionable < GTM_INVENTORY_POLICY.social.preferredFloor ? "SUPPLY_CONSTRAINED" : "HEALTHY", bottleneck: social?.coverage || "Awaiting the next daily Social scan.", telemetry: { queries: social?.queryCount ?? null, urlsChecked: social?.searchResultsReturned ?? social?.sourceCount ?? null, discussionsExamined: social?.itemsExamined ?? null, stale: social?.itemsStale ?? null, irrelevant: social?.itemsIrrelevant ?? null, duplicates: social?.itemsDuplicate ?? null, respondedSkipped: social?.itemsRespondedSkipped ?? null } },
+    safeguards: { autoHandoff: false, contentAutoPublish: false, socialAutoPost: false }
+  };
+  return saveGtmInventoryAutopilot(snapshot);
 }
 
 async function reconcileAndSaveControlPlane(opportunities: GtmOpportunity[]) {

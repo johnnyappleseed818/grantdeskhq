@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildContactEnrichmentRecord, createTopicalShadowDraft, type SuppressionCheck } from "../lib/contactEnrichment";
 import { firstTwoShadowContactEnrichmentCandidates } from "../data/gtmContactEnrichmentTargets";
 import { partnerTargets } from "../../server/contactEnrichmentBatch";
+import { normalizePartnerDiscovery } from "../../server/gtmPartnerDiscovery";
 
 const unknownSuppression: SuppressionCheck = {
   status: "UNKNOWN",
@@ -37,5 +38,15 @@ describe("bounded Partner replenishment inventory", () => {
     expect(future?.target.person.fullName).toBe("Andrew Minck");
     expect(total?.publishedEmail).toBe("dlevias@gotatp.com");
     expect(future?.publishedEmail).toBe("andrew.minck@ffsnonprofits.com");
+  });
+
+  it("removes known/prior-contact Partner domains before enrichment and retains a named public decision maker", () => {
+    const scan = normalizePartnerDiscovery({ candidates: [
+      { organization: "Prior Contact", organizationDomain: "prior.example", organizationUrl: "https://prior.example", sourceUrl: "https://prior.example/team", partnerType: "nonprofit accounting", whyFit: "Nonprofit accounting practice", contact: { firstName: "Prior", lastName: "Person", fullName: "Prior Person", title: "Founder", titleSourceUrl: "https://prior.example/team" } },
+      { organization: "New Partner", organizationDomain: "new.example", organizationUrl: "https://new.example", sourceUrl: "https://new.example/services", partnerType: "nonprofit fractional CFO", whyFit: "Dedicated nonprofit finance and grant compliance practice", contact: { firstName: "New", lastName: "Person", fullName: "New Person", title: "Managing Partner", titleSourceUrl: "https://new.example/team" }, publicEmail: "new@new.example" }
+    ] }, { knownDomains: [], priorContactDomains: ["prior.example"] }, "2026-08-24T00:00:00.000Z");
+    expect(scan.priorContactRemoved).toBe(1);
+    expect(scan.opportunities).toHaveLength(1);
+    expect(partnerTargets(scan.opportunities)[0]).toMatchObject({ target: { organization: "New Partner", person: { currentTitle: "Managing Partner" } }, publishedEmail: "new@new.example" });
   });
 });

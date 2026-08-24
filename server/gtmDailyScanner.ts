@@ -37,7 +37,7 @@ interface OpenAIWebSearchResponse {
   error?: { message?: string };
 }
 
-export async function runDailySocialScan(now = new Date()): Promise<DailySocialScan> {
+export async function runDailySocialScan(now = new Date(), breadth: "STANDARD" | "EXPANDED" = "STANDARD"): Promise<DailySocialScan> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured.");
   const scanDate = now.toISOString().slice(0, 10);
@@ -56,7 +56,7 @@ export async function runDailySocialScan(now = new Date()): Promise<DailySocialS
         filters: { allowed_domains: ["reddit.com", "community.npquarterly.org", "forums.techsoup.org", "grantprofessionals.org", "linkedin.com"] }
       }],
       tool_choice: "required",
-      max_tool_calls: 12,
+      max_tool_calls: breadth === "EXPANDED" ? 18 : 12,
       include: ["web_search_call.action.sources"],
       input: [
         {
@@ -70,7 +70,7 @@ export async function runDailySocialScan(now = new Date()): Promise<DailySocialS
           role: "user",
           content: [{
             type: "input_text",
-            text: `Today is ${scanDate}. Run a bounded high-recall search for public Reddit, public nonprofit-finance/grant forums, and legitimately public LinkedIn discussions published or visibly updated within the last ${WINDOW_DAYS} days. Run explicit Reddit coverage for r/nonprofit, r/grantwriters, and r/nonprofittech. Search combinations including grant reporting, managing grant reporting, grant management, post-award, grant compliance, grant closeout, grant reporting software, grant management software, QBO grants, QuickBooks grants, grant budget vs actual, budget vs actual grants, grant spreadsheet, grant tracker, grant finance, grant accountant, restricted funds reporting, funder reporting, supporting documentation, grant reporting workflow, collecting program data, grant deadlines, reporting workload, and grant reporting staff. Favor pain terms such as spreadsheet, manual, hours, time consuming, workflow, deadline, reporting burden, reconcile, documentation, compliance, ownership, tool, software, recommendation, and multiple grants. Return up to 36 candidate thread/post URLs for content/context qualification. Use canonical public URLs, never search-result URLs. If date or author is not visible return "unknown". Supply a brief, helpful human response that answers first and mentions GrantDeskHQ only when genuinely relevant.`
+            text: `Today is ${scanDate}. Run a bounded ${breadth === "EXPANDED" ? "expanded-breadth" : "standard"} high-recall search for public Reddit, public nonprofit-finance/grant forums, and legitimately public LinkedIn discussions published or visibly updated within the last ${WINDOW_DAYS} days. Run explicit Reddit coverage for r/nonprofit, r/grantwriters, and r/nonprofittech. Search combinations including grant reporting, managing grant reporting, grant management, post-award, grant compliance, grant closeout, grant reporting software, grant management software, QBO grants, QuickBooks grants, grant budget vs actual, budget vs actual grants, grant spreadsheet, grant tracker, grant finance, grant accountant, restricted funds reporting, funder reporting, supporting documentation, grant reporting workflow, collecting program data, grant deadlines, reporting workload, and grant reporting staff. Favor pain terms such as spreadsheet, manual, hours, time consuming, workflow, deadline, reporting burden, reconcile, documentation, compliance, ownership, tool, software, recommendation, and multiple grants. Return up to ${breadth === "EXPANDED" ? 60 : 36} candidate thread/post URLs for content/context qualification. Use canonical public URLs, never search-result URLs. If date or author is not visible return "unknown". Supply a brief, helpful human response that answers first and mentions GrantDeskHQ only when genuinely relevant.`
           }]
         }
       ],
@@ -83,7 +83,7 @@ export async function runDailySocialScan(now = new Date()): Promise<DailySocialS
   if (!outputText) throw new Error("Daily social search returned no structured output.");
   const sourceUrls = collectSourceUrls(body);
   const queries = collectQueries(body);
-  return normalizeDailySocialScan(JSON.parse(outputText) as SearchDraft, sourceUrls, now, queries.length);
+  return { ...normalizeDailySocialScan(JSON.parse(outputText) as SearchDraft, sourceUrls, now, queries.length), discoveryBreadth: breadth };
 }
 
 export function normalizeDailySocialScan(draft: SearchDraft, sourceUrls: string[], now = new Date(), queryCount = 0): DailySocialScan {

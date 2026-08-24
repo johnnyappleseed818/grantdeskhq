@@ -5,6 +5,7 @@ import { confirmedHumanOutreach, initialOutreachEligibility } from "../src/lib/g
 import type { CanonicalGtmCandidate } from "../src/lib/gtmCanonical.ts";
 import { enrichGtmContactWithHunter, recordPublishedGtmContact, reconcileStoredGtmContact, retryEligible } from "./contactEnrichment.ts";
 import { readGtmContactEnrichment } from "./persistence.ts";
+import type { PartnerDiscoveryOpportunity } from "./gtmPartnerDiscovery.ts";
 
 export type EnrichmentBatchSegment = "partner" | "direct";
 export interface StoredEnrichmentReconciliationResult { segment: EnrichmentBatchSegment; reconciled: number; ready: number; needsVerification: number; alreadyContacted: number; verified: number; acceptAll: number; risky: number; invalid: number; resultMissing: number; records: Array<{ organization: string; email: string | null; verifierStatus: string; suppressionStatus: string; priorContactStatus: string; readyToSend: boolean; blocker: string | null }>; }
@@ -35,7 +36,7 @@ const partnerCandidates: Array<{ organization: string; domain: string; source: s
 }));
 
 /** Candidate inventory only. This never contacts a provider and is shared by the read model. */
-export function canonicalGtmCandidates(discoveredDirect: readonly GtmOpportunity[] = []): CanonicalGtmCandidate[] {
+export function canonicalGtmCandidates(discoveredDirect: readonly GtmOpportunity[] = [], discoveredPartner: readonly PartnerDiscoveryOpportunity[] = []): CanonicalGtmCandidate[] {
  const direct = [...initialOpportunities, ...discoveredDirect].map((item) => {
  const contact = item.primaryContact;
   const names = contact?.name.trim().split(/\s+/) || [];
@@ -49,16 +50,16 @@ export function canonicalGtmCandidates(discoveredDirect: readonly GtmOpportunity
    blockers: item.unknowns.filter((value) => /recipient|contact|email|executive fallback/i.test(value))
   };
  });
- const partner = partnerTargets().map((candidate) => {
+ const partner = partnerTargets(discoveredPartner).map((candidate) => {
   const draft = createPartnerShadowDraft({ firstName: candidate.target.person.firstName, organization: candidate.target.organization, partnerType: candidate.partnerType, whySelected: candidate.whyFit });
   return { id: contactEnrichmentKey(candidate.target), segment: "PARTNER" as const, target: candidate.target, qualified: true, sourceUrl: candidate.source, whyNow: candidate.whyFit, partnerType: candidate.partnerType, subject: draft.subject, draft: draft.body, priority: 100 };
  });
  return [...direct, ...partner];
 }
 
-export async function runContactEnrichmentBatch(input: { segment: EnrichmentBatchSegment; limit?: number; dryRun?: boolean; discoveredDirect?: readonly GtmOpportunity[]; directOnly?: boolean }, environment: NodeJS.ProcessEnv = process.env): Promise<EnrichmentBatchResult> {
+export async function runContactEnrichmentBatch(input: { segment: EnrichmentBatchSegment; limit?: number; dryRun?: boolean; discoveredDirect?: readonly GtmOpportunity[]; discoveredPartner?: readonly PartnerDiscoveryOpportunity[]; directOnly?: boolean }, environment: NodeJS.ProcessEnv = process.env): Promise<EnrichmentBatchResult> {
  const limit = Math.min(Math.max(Number(input.limit) || 20, 1), 20);
- const candidates: BatchCandidate[] = input.segment === "partner" ? partnerTargets() : directTargets(input.discoveredDirect || [], input.directOnly === true);
+ const candidates: BatchCandidate[] = input.segment === "partner" ? partnerTargets(input.discoveredPartner) : directTargets(input.discoveredDirect || [], input.directOnly === true);
  const result: EnrichmentBatchResult = { segment: input.segment, attempted: 0, contactsResolved: 0, verifiedEmails: 0, ready: 0, needsVerification: 0, alreadyContacted: 0, duplicates: 0, failures: 0, providerUsage: { hunterLookups: 0, hunterVerifications: 0 }, records: [] };
  const seenOrganizations = new Set<string>(); const seenEmails = new Set<string>();
  for (const candidate of candidates) {
@@ -90,9 +91,9 @@ export async function runContactEnrichmentBatch(input: { segment: EnrichmentBatc
 }
 
 /** Stored-data-only reconciliation; it cannot make a provider request or alter retry eligibility. */
-export async function reconcileStoredContactEnrichmentBatch(input: { segment: EnrichmentBatchSegment; limit?: number; discoveredDirect?: readonly GtmOpportunity[]; directOnly?: boolean }): Promise<StoredEnrichmentReconciliationResult> {
+export async function reconcileStoredContactEnrichmentBatch(input: { segment: EnrichmentBatchSegment; limit?: number; discoveredDirect?: readonly GtmOpportunity[]; discoveredPartner?: readonly PartnerDiscoveryOpportunity[]; directOnly?: boolean }): Promise<StoredEnrichmentReconciliationResult> {
  const limit = Math.min(Math.max(Number(input.limit) || 20, 1), 20);
- const candidates: BatchCandidate[] = input.segment === "partner" ? partnerTargets() : directTargets(input.discoveredDirect || [], input.directOnly === true);
+ const candidates: BatchCandidate[] = input.segment === "partner" ? partnerTargets(input.discoveredPartner) : directTargets(input.discoveredDirect || [], input.directOnly === true);
  const result: StoredEnrichmentReconciliationResult = { segment: input.segment, reconciled: 0, ready: 0, needsVerification: 0, alreadyContacted: 0, verified: 0, acceptAll: 0, risky: 0, invalid: 0, resultMissing: 0, records: [] };
  for (const candidate of candidates.slice(0, limit)) {
   const key = contactEnrichmentKey(candidate.target);
@@ -114,7 +115,16 @@ export async function reconcileStoredContactEnrichmentBatch(input: { segment: En
  return result;
 }
 
-export function partnerTargets(): BatchCandidate[] { return partnerCandidates.map((candidate) => ({ target: { prospectChannel: "PARTNER_ACCOUNTING" as const, organization: candidate.organization, organizationDomain: candidate.domain, domainSourceUrl: candidate.source, person: { firstName: candidate.first, lastName: candidate.last, fullName: candidate.first + " " + candidate.last, currentTitle: candidate.title, titleSourceUrl: candidate.source } }, partnerType: candidate.type, whyFit: candidate.whyFit, source: candidate.source, ...(candidate.publishedEmail ? { publishedEmail: candidate.publishedEmail } : {}) })); }
+export function partnerTargets(discovered: readonly PartnerDiscoveryOpportunity[] = []): BatchCandidate[] {
+ const staticCandidates = partnerCandidates.map((candidate) => ({ target: { prospectChannel: "PARTNER_ACCOUNTING" as const, organization: candidate.organization, organizationDomain: candidate.domain, domainSourceUrl: candidate.source, person: { firstName: candidate.first, lastName: candidate.last, fullName: candidate.first + " " + candidate.last, currentTitle: candidate.title, titleSourceUrl: candidate.source } }, partnerType: candidate.type, whyFit: candidate.whyFit, source: candidate.source, ...(candidate.publishedEmail ? { publishedEmail: candidate.publishedEmail } : {}) }));
+ const publicCandidates = discovered.map((candidate) => ({ target: { prospectChannel: "PARTNER_ACCOUNTING" as const, organization: candidate.organization, organizationDomain: candidate.organizationDomain, domainSourceUrl: candidate.organizationUrl, person: { firstName: candidate.contact.firstName, lastName: candidate.contact.lastName, fullName: candidate.contact.fullName, currentTitle: candidate.contact.title, titleSourceUrl: candidate.contact.titleSourceUrl } }, partnerType: candidate.partnerType, whyFit: candidate.whyFit, source: candidate.sourceUrl, ...(candidate.publicEmail ? { publishedEmail: candidate.publicEmail } : {}) }));
+ const seen = new Set<string>();
+ return [...publicCandidates, ...staticCandidates].filter((candidate) => {
+   const key = candidate.target.organizationDomain.toLowerCase();
+   if (seen.has(key)) return false;
+   seen.add(key); return true;
+ });
+}
 function directTargets(discoveredDirect: readonly GtmOpportunity[] = [], directOnly = false): BatchCandidate[] {
  return (directOnly ? discoveredDirect : [...initialOpportunities, ...discoveredDirect]).filter((item) => item.organizationUrl && item.primaryContact?.name && item.primaryContact.title).map((item) => {
   const organizationUrl = item.organizationUrl!;

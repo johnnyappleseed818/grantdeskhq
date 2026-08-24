@@ -1,3 +1,5 @@
+import { GTM_INVENTORY_POLICY, inventoryDecision } from "./gtmInventoryPolicy.ts";
+
 export type ContentOpportunityStatus = "OPPORTUNITY" | "DRAFTING" | "READY_FOR_REVIEW" | "APPROVED" | "PUBLISHED" | "SKIPPED" | "REFRESH";
 export type DistributionStatus = "READY" | "POSTED" | "SKIPPED";
 export type DistributionPlatform = "MEDIUM" | "REDDIT" | "QUORA" | "LINKEDIN" | "FORUM";
@@ -97,10 +99,43 @@ export function buildInitialContentEngineState(generatedAt = now()): ContentEngi
 export function reconcileContentEngine(existing: ContentEngineState | null, generatedAt = now()): ContentEngineState {
   if (!existing) return buildInitialContentEngineState(generatedAt);
   const starter = buildInitialContentEngineState(generatedAt);
-  const opportunityStatus = new Map(existing.opportunities.map((item) => [item.id, item.status]));
-  const draftStatus = new Map(existing.drafts.map((item) => [item.id, item.status]));
-  const distributionStatus = new Map(existing.distributionTasks.map((item) => [item.id, item.status]));
-  return { ...starter, generatedAt, opportunities: starter.opportunities.map((item) => ({ ...item, status: opportunityStatus.get(item.id) || item.status })), drafts: starter.drafts.map((item) => ({ ...item, status: draftStatus.get(item.id) || item.status })), distributionTasks: starter.distributionTasks.map((item) => ({ ...item, status: distributionStatus.get(item.id) || item.status })) };
+  const merge = <T extends { id: string }>(base: readonly T[], persisted: readonly T[]) => {
+    const values = new Map(base.map((item) => [item.id, item]));
+    for (const item of persisted) values.set(item.id, item);
+    return [...values.values()];
+  };
+  return { ...starter, generatedAt, opportunities: merge(starter.opportunities, existing.opportunities), drafts: merge(starter.drafts, existing.drafts), distributionTasks: merge(starter.distributionTasks, existing.distributionTasks), sourceSummary: existing.sourceSummary || starter.sourceSummary };
+}
+
+/** Adds only a small number of high-fit, non-duplicate NEW-topic drafts when
+ * founder-review inventory is below its floor. It never publishes or revives a
+ * skipped draft/opportunity. */
+export function reconcileContentInventory(existing: ContentEngineState | null, generatedAt = now()) {
+  const state = reconcileContentEngine(existing, generatedAt);
+  const active = state.drafts.filter((draft) => draft.status === "READY_FOR_REVIEW");
+  const decision = inventoryDecision("content", active.length);
+  if (active.length >= GTM_INVENTORY_POLICY.content.floor) return { state, decision, generated: 0, supplyConstrained: false, bottleneck: "Founder review inventory is at or above the operating floor." };
+  const existingOpportunityIds = new Set(state.drafts.map((draft) => draft.opportunityId));
+  const candidates = state.opportunities
+    .filter((opportunity) => opportunity.status === "OPPORTUNITY" && opportunity.recommendedAction === "NEW" && !existingOpportunityIds.has(opportunity.id))
+    .sort((left, right) => right.priorityScore - left.priorityScore)
+    .slice(0, Math.max(0, Math.min(decision.desired, GTM_INVENTORY_POLICY.content.ceiling - active.length)));
+  const drafts = candidates.map((opportunity) => inventoryDraft(opportunity, generatedAt));
+  if (!drafts.length) return { state, decision, generated: 0, supplyConstrained: true, bottleneck: "No non-duplicate NEW content opportunity cleared the existing quality and overlap gates." };
+  const candidateIds = new Set(candidates.map((item) => item.id));
+  return {
+    state: { ...state, generatedAt, opportunities: state.opportunities.map((item) => candidateIds.has(item.id) ? { ...item, status: "READY_FOR_REVIEW" as const } : item), drafts: [...state.drafts, ...drafts] },
+    decision,
+    generated: drafts.length,
+    supplyConstrained: active.length + drafts.length < GTM_INVENTORY_POLICY.content.floor,
+    bottleneck: active.length + drafts.length < GTM_INVENTORY_POLICY.content.floor ? "The bounded eligible opportunity set was smaller than the review floor." : "High-quality non-duplicate drafts were prepared for founder review."
+  };
+}
+
+function inventoryDraft(opportunity: ContentOpportunity, updatedAt: string): ContentDraft {
+  const slug = opportunity.workingTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 90);
+  const body = `# ${opportunity.workingTitle}\n\n${opportunity.primaryUserProblem} The useful starting point is the real award agreement and the records your team already uses—not a generic reporting template.\n\n## Start with the requirement, not last quarter's spreadsheet\n\nWrite down what the funder asked for, the reporting period, who owns each input, and what will support the final number or narrative. That makes the work visible early, while there is still time to fix a gap.\n\n## Build the report from sources people can review\n\nFor a budget line, keep the ledger detail and calculation that explain the number. For a program update, keep the dated export, activity record, or other source that supports it. If something is missing, flag it instead of trying to write around it.\n\nFor example, a report might show $18,750 in contracted services with the related ledger transactions and vendor invoices available for review. The final report still needs a person who knows the award to check the result and submit it.\n\n## Give finance, program, and grants teams a clear handoff\n\nOne person should coordinate the reporting calendar. Finance can confirm the numbers; program staff can confirm outcomes; grants or compliance staff can check the funder's instructions. The goal is a report that is easier to review, not an unreviewed automated submission.\n\n### Try your first award free\n\nGrantDeskHQ brings the award agreement, accounting data, program updates, and supporting evidence together into a source-linked first draft for your team to review. Try the workflow on one real award at no cost.\n\n[Try your first award free](${assessment})`;
+  return { id: `draft-${opportunity.id.replace(/^content-/, "")}`, opportunityId: opportunity.id, title: opportunity.workingTitle, slug, metaDescription: opportunity.primaryUserProblem.slice(0, 155), canonicalUrl: `https://grantdeskhq.com/blog/${slug}`, body, internalLinksFrom: ["/resources"], internalLinksTo: [...new Set([...opportunity.relatedUrls, "/assessment"])].slice(0, 5), ctaUrl: assessment, ctaCopy: "Try your first award free", status: "READY_FOR_REVIEW", updatedAt };
 }
 
 export function updateContentEngineState(state: ContentEngineState, input: { kind: "opportunity" | "draft" | "distribution"; id: string; status: string }): ContentEngineState {

@@ -44,6 +44,7 @@ import { confirmedHumanOutreach, reconcileOutreachControlPlane, summarizeOutreac
 import type { CanonicalGtmModel, CanonicalGtmRecord, CanonicalGtmState } from "../lib/gtmCanonical";
 import type { SearchConsoleState } from "../../server/searchConsole";
 import type { ContentEngineState } from "../lib/gtmContentEngine";
+import type { InventoryAutopilotSnapshot } from "../lib/gtmInventoryPolicy";
 
 type DashboardTab = "overview" | "outreach" | "leads" | "partners" | "social" | "seo" | "feedback" | "system-health" | "research";
 type StageState = Record<string, OpportunityStage>;
@@ -87,6 +88,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   const [directDiscovery, setDirectDiscovery] = useState<DirectDiscoveryScan | null>(null);
   const [controlPlane, setControlPlane] = useState<ControlPlaneQueueReconciliation | null>(initialControlPlane);
   const [overview, setOverview] = useState<GtmOverview | null>(initialOverview);
+  const [inventory, setInventory] = useState<InventoryAutopilotSnapshot | null>(null);
   const [canonical, setCanonical] = useState<CanonicalGtmModel | null>(null);
   const [canonicalLoading, setCanonicalLoading] = useState(Boolean(dailySignalToken));
   const [canonicalError, setCanonicalError] = useState("");
@@ -113,7 +115,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
       apiRequest<{ scan: AwardDiscoveryScan | null }>("/api/gtm/award-signals", idToken),
       apiRequest<{ scan: DirectDiscoveryScan | null }>("/api/gtm/direct-discovery", idToken),
       apiRequest<{ reconciliation: ControlPlaneQueueReconciliation | null }>("/api/gtm/control-plane-queue", idToken),
-      apiRequest<{ overview: GtmOverview }>("/api/gtm/overview", idToken),
+      apiRequest<{ overview: GtmOverview; inventory: InventoryAutopilotSnapshot | null }>("/api/gtm/overview", idToken),
       apiRequest<{ state: SearchConsoleState | null }>("/api/gtm/search-console", idToken),
       apiRequest<{ state: ContentEngineState | null }>("/api/gtm/content-engine", idToken)
     ]))
@@ -125,7 +127,10 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
         if (awardResult.status === "fulfilled") setAwardScan(awardResult.value.scan);
         if (directResult.status === "fulfilled") setDirectDiscovery(directResult.value.scan);
         if (controlPlaneResult.status === "fulfilled") setControlPlane(controlPlaneResult.value.reconciliation);
-        if (overviewResult.status === "fulfilled") setOverview(overviewResult.value.overview);
+        if (overviewResult.status === "fulfilled") {
+          setOverview(overviewResult.value.overview);
+          setInventory(overviewResult.value.inventory);
+        }
         if (searchConsoleResult.status === "fulfilled") setSearchConsole(searchConsoleResult.value.state);
         if (contentResult.status === "fulfilled") setContentEngine(contentResult.value.state);
         if (opportunityResult.status === "fulfilled") {
@@ -242,7 +247,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
     </div>
 
     <div className="site-shell py-8 lg:py-12">
-      {activeTab === "overview" && (canonicalRuntime ? <CanonicalOperationalPanel model={canonical} loading={canonicalLoading} error={canonicalError} onRetry={() => setCanonicalRetry((value) => value + 1)} /> : <FounderOverview records={outreach} overview={overview} onOpenOutreach={() => setActiveTab("outreach")} onOpenFeedback={() => setActiveTab("feedback")} />)}
+      {activeTab === "overview" && (canonicalRuntime ? <><InventoryAutopilotPanel inventory={inventory} /><CanonicalOperationalPanel model={canonical} loading={canonicalLoading} error={canonicalError} onRetry={() => setCanonicalRetry((value) => value + 1)} /></> : <><InventoryAutopilotPanel inventory={inventory} /><FounderOverview records={outreach} overview={overview} onOpenOutreach={() => setActiveTab("outreach")} onOpenFeedback={() => setActiveTab("feedback")} /></>)}
       {(activeTab === "research" || activeTab === "leads" && !canonicalRuntime) && <section aria-labelledby="hot-list-heading">
         <InventorySummary title="Direct lead inventory" metrics={overview?.direct.metrics} sent={outreachMetrics.directSent} />
         <div className="gtm-section-heading"><div><p className="eyebrow">Today’s review queue</p><h2 id="hot-list-heading">Prioritized by pain, timing, fit, and potential value</h2><p>A high score never replaces evidence. Every row shows what is known, what is inferred, and what still needs confirmation.</p></div><div className="status-badge status-success"><RefreshCw aria-hidden="true" /> Award feed scheduled daily</div></div>
@@ -292,13 +297,25 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
       {activeTab === "social" && <SocialQueuePanel scan={dailyScan} onReview={reviewSocial} pendingId={socialReviewPending} error={socialReviewError} />}
       {activeTab === "seo" && <SeoQueuePanel state={searchConsole} content={contentEngine} error={contentError} pendingId={contentPending} onUpdate={updateContent} />}
       {activeTab === "feedback" && <FeedbackPanel />}
-      {activeTab === "system-health" && <><OverviewPanel overview={overview} inMain /><div className="mt-8"><InstantlyHealthPanel health={instantly?.health || null} persisted={instantly?.persisted || null} /></div><div className="mt-8"><SignalsPanel dailyScan={dailyScan} directDiscovery={directDiscovery} loading={signalsLoading} error={signalsError} /></div><div className="mt-8"><SourcesPanel dailyScan={dailyScan} directDiscovery={directDiscovery} /></div><div className="mt-8"><PipelinePanel opportunities={ranked} stages={stages} stagesOrder={pipelineStages} onStageChange={updateStage} /></div><div className="mt-8"><OutreachAutomationPanel opportunities={ranked} stages={stages} /></div><div className="mt-8"><AccuracyPanel /></div></>}
+      {activeTab === "system-health" && <><InventoryAutopilotPanel inventory={inventory} detailed /><OverviewPanel overview={overview} inMain /><div className="mt-8"><InstantlyHealthPanel health={instantly?.health || null} persisted={instantly?.persisted || null} /></div><div className="mt-8"><SignalsPanel dailyScan={dailyScan} directDiscovery={directDiscovery} loading={signalsLoading} error={signalsError} /></div><div className="mt-8"><SourcesPanel dailyScan={dailyScan} directDiscovery={directDiscovery} /></div><div className="mt-8"><PipelinePanel opportunities={ranked} stages={stages} stagesOrder={pipelineStages} onStageChange={updateStage} /></div><div className="mt-8"><OutreachAutomationPanel opportunities={ranked} stages={stages} /></div><div className="mt-8"><AccuracyPanel /></div></>}
     </div>
   </div>;
 }
 
 function InstantlyHealthPanel({ health, persisted }: { health: InstantlyHealth | null; persisted: InstantlyPersistedStatus | null }) {
   return <section className="panel" aria-label="Instantly integration health"><div className="panel-heading"><div><p className="eyebrow">Outbound delivery integration</p><h3>Instantly</h3></div><span className={`status-badge ${health?.apiKeyConfigured ? "status-info" : "status-neutral"}`}>{health?.status || "UNAVAILABLE"}</span></div>{!health ? <p>Instantly health could not be read. No delivery state is assumed.</p> : <div className="grid gap-3 text-sm sm:grid-cols-2"><p>API credential: <strong>{health.apiKeyConfigured ? "configured" : "not configured"}</strong></p><p>Event sync: <strong>{health.eventSyncMode}</strong></p><p>Webhooks: <strong>{health.webhookSubscription === "NOT_AVAILABLE_ON_CURRENT_PLAN_OPTIONAL" ? "optional — not available on current plan" : health.webhookSubscription}</strong></p><p>Last reconciliation: <strong>{persisted?.lastSuccessfulSync ? formatHistoryDate(persisted.lastSuccessfulSync) : "not yet recorded"}</strong></p><p>Outbound: <strong>{health.outboundEnabled ? "enabled" : "disabled"}</strong></p><p>Automatic handoff: <strong>{health.autoHandoffEnabled ? "enabled" : "disabled"}</strong></p><p>Reply content: <strong>{persisted?.replyContent === "AVAILABLE" ? "available" : "optional emails:read scope"}</strong></p><p>Polling cadence: <strong>{persisted?.pollingCadence || "hourly when live"}</strong></p></div>}<p className="mt-3 text-sm text-slate-600">Polling is the normal event-sync path on the current plan. GrantDeskHQ stages only eligible, uncontacted records; Instantly owns sequences and inbox handling when explicitly enabled.</p></section>;
+}
+
+function InventoryAutopilotPanel({ inventory, detailed = false }: { inventory: InventoryAutopilotSnapshot | null; detailed?: boolean }) {
+  if (!inventory) return <section className="panel mb-8" aria-label="GTM inventory autopilot"><p className="eyebrow">Inventory autopilot</p><h2>Inventory status will appear after the next protected reconciliation</h2><p className="mt-2 text-sm text-slate-600">The operating policy is active. It never stages or sends a lead, publishes an article, or posts to a community.</p></section>;
+  const channels = [
+    { label: "Direct inventory", count: inventory.direct.decision.ready, policy: `Floor ${inventory.direct.decision.floor} · target ${inventory.direct.decision.target}`, state: inventory.direct.decision.state, reason: inventory.direct.bottleneck },
+    { label: "Partner inventory", count: inventory.partner.decision.ready, policy: `Floor ${inventory.partner.decision.floor} · target ${inventory.partner.decision.target}`, state: inventory.partner.decision.state, reason: inventory.partner.bottleneck },
+    { label: "Content inventory", count: inventory.content.decision.ready, policy: `Floor ${inventory.content.decision.floor} · target ${inventory.content.decision.target}`, state: inventory.content.decision.state, reason: inventory.content.bottleneck },
+    { label: "Social", count: inventory.social.actionable, policy: `Preferred ${inventory.social.targetRange[0]}–${inventory.social.targetRange[1]}`, state: inventory.social.state, reason: inventory.social.bottleneck }
+  ];
+  const badgeClass = (state: string) => state === "HEALTHY" ? "status-success" : state === "BLOCKED" ? "status-blocked" : "status-review";
+  return <section className="panel mb-8" aria-label="GTM inventory autopilot"><div className="panel-heading"><div><p className="eyebrow">Inventory autopilot</p><h2>Working inventory stays bounded</h2></div><span className="status-badge status-neutral">NO AUTO HANDOFF</span></div><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 mt-5">{channels.map((channel) => <article className="rounded-xl border border-slate-200 p-4" key={channel.label}><div className="flex items-start justify-between gap-3"><strong className="text-2xl text-slate-950">{channel.count}</strong><span className={`status-badge ${badgeClass(channel.state)}`}>{channel.state.replaceAll("_", " ")}</span></div><h3 className="mt-3 text-sm font-semibold text-slate-900">{channel.label}</h3><p className="mt-1 text-xs text-slate-600">{channel.policy}</p>{detailed && <p className="mt-3 text-xs text-slate-500">{channel.reason}</p>}</article>)}</div><p className="mt-4 text-xs text-slate-600">Updated {formatDateTime(inventory.generatedAt)} · Content auto-publish, Social posting, and Instantly automatic handoff remain disabled.</p></section>;
 }
 
 function FounderOverview({ records, overview, onOpenOutreach, onOpenFeedback }: { records: OutreachRecord[]; overview: GtmOverview | null; onOpenOutreach(): void; onOpenFeedback(): void }) {

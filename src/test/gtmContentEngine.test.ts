@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildInitialContentEngineState, editContentDraft, reconcileContentEngine, updateContentEngineState } from "../lib/gtmContentEngine";
+import { buildInitialContentEngineState, editContentDraft, reconcileContentEngine, reconcileContentInventory, updateContentEngineState } from "../lib/gtmContentEngine";
 
 describe("canonical content opportunity engine", () => {
   it("creates a bounded, review-only backlog even with no Search Console query rows", () => {
@@ -50,5 +50,19 @@ describe("canonical content opportunity engine", () => {
       "Who should own post-award grant reporting? A nonprofit operating model"
     ]));
     expect(drafts.every((draft) => draft.body.length > 1_000 && draft.canonicalUrl.startsWith("https://grantdeskhq.com/blog/"))).toBe(true);
+  });
+
+  it("replenishes only when active review inventory falls below the floor and never revives skipped content", () => {
+    let state = buildInitialContentEngineState("2026-08-24T00:00:00.000Z");
+    state = updateContentEngineState(state, { kind: "draft", id: "draft-supporting-evidence", status: "SKIPPED" });
+    state = updateContentEngineState(state, { kind: "opportunity", id: "content-quickbooks-grants", status: "SKIPPED" });
+    const replenished = reconcileContentInventory(state, "2026-08-24T12:00:00.000Z");
+    expect(replenished.generated).toBeGreaterThan(0);
+    expect(replenished.state.drafts.filter((draft) => draft.status === "READY_FOR_REVIEW").length).toBeGreaterThanOrEqual(2);
+    expect(replenished.state.drafts.find((draft) => draft.id === "draft-supporting-evidence")?.status).toBe("SKIPPED");
+    expect(replenished.state.opportunities.find((opportunity) => opportunity.id === "content-quickbooks-grants")?.status).toBe("SKIPPED");
+    const generated = replenished.state.drafts.filter((draft) => draft.updatedAt === "2026-08-24T12:00:00.000Z");
+    expect(generated.length).toBeGreaterThan(0);
+    expect(generated.every((draft) => draft.ctaCopy === "Try your first award free" && draft.body.includes("Try your first award free"))).toBe(true);
   });
 });

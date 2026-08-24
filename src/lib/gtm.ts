@@ -36,6 +36,7 @@ export interface DailySocialScan {
   generatedAt: string;
   windowDays: number;
   queryCount: number;
+  discoveryBreadth?: "STANDARD" | "EXPANDED";
   sourceCount: number;
   searchResultsReturned?: number;
   itemsExamined: number;
