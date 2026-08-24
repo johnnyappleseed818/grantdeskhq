@@ -66,11 +66,16 @@ export function applyRecipientResolutions(opportunities: readonly GtmOpportunity
   const updated = opportunities.map((opportunity) => {
     const draft = byOrganization.get(normalizeName(opportunity.organization));
     if (!draft) { resolutions.push(result(opportunity, null, "NOT_FOUND", "No authoritative recipient evidence was returned.", false)); return removeUnacceptableContact(opportunity); }
-    const officialUrl = canonicalUrl(draft.officialOrganizationUrl);
     const roleUrl = canonicalUrl(draft.roleSourceUrl);
+    const requestedOfficialUrl = canonicalUrl(draft.officialOrganizationUrl);
     const emailSource = canonicalUrl(draft.contactEmailSourceUrl);
-    const official = Boolean(officialUrl && sources.has(normalizeUrl(officialUrl)));
-    const sameOrg = official && Boolean(roleUrl) && sameDomain(officialUrl, roleUrl);
+    // The official team/finance PDF is itself authoritative organization evidence.
+    // Search results do not always separately cite the site's home page, so do
+    // not discard a cited official role merely because that redundant URL is absent.
+    const roleSourceIsCited = Boolean(roleUrl && sources.has(normalizeUrl(roleUrl)));
+    const officialUrl = sources.has(normalizeUrl(requestedOfficialUrl)) ? requestedOfficialUrl : roleSourceIsCited ? roleUrl : requestedOfficialUrl;
+    const official = Boolean(officialUrl && (sources.has(normalizeUrl(officialUrl)) || roleSourceIsCited));
+    const sameOrg = official && roleSourceIsCited && Boolean(roleUrl) && sameDomain(officialUrl, roleUrl);
     const title = clean(draft.contactTitle); const evidence = clean(draft.responsibilityEvidence); const name = clean(draft.contactName);
     const suitable = draft.recipientFound && name && title && sameOrg && hasAppropriateDirectRecipientTitle(title, evidence);
     const executiveFallback = draft.executiveFallbackReview && name && title && sameOrg;

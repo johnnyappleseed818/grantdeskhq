@@ -31,6 +31,7 @@ export interface CanonicalGtmCandidate {
   subject?: string;
   draft?: string;
   priority?: number;
+  blockers?: string[];
 }
 
 export interface CanonicalGtmRecord {
@@ -195,7 +196,8 @@ function toCanonicalRecord(organizationId: string, candidate: CanonicalGtmCandid
   const recipientResponsibilityEvidence = enrichment?.target.person.responsibilityEvidence || candidate.target.person.responsibilityEvidence || "";
   const directRecipientAppropriate = candidate.segment !== "DIRECT" || hasAppropriateDirectRecipientTitle(recipientTitle, recipientResponsibilityEvidence);
   const state = history ? stateFromOutreach(history) : protectedPriorContact || enrichment?.verification.priorContactStatus === "ALREADY_CONTACTED" ? "ALREADY_CONTACTED" : enrichment?.verification.readyToSend && directRecipientAppropriate ? "READY_TO_SEND" : enrichment ? "NEEDS_VERIFICATION" : "RESEARCH_BACKLOG";
-  const blockers = state === "NEEDS_VERIFICATION" ? (directRecipientAppropriate ? (enrichment?.verification.blockers.length ? enrichment.verification.blockers : ["VERIFICATION_MISSING"]) : ["INAPPROPRIATE_DIRECT_RECIPIENT: a finance or grants operating owner is required."]) : state === "ALREADY_CONTACTED" ? ["ALREADY_CONTACTED"] : [];
+  const candidateBlockers = (candidate.blockers || []).filter(Boolean);
+  const blockers = state === "NEEDS_VERIFICATION" ? (directRecipientAppropriate ? (enrichment?.verification.blockers.length ? enrichment.verification.blockers : ["VERIFICATION_MISSING"]) : ["INAPPROPRIATE_DIRECT_RECIPIENT: a finance or grants operating owner is required."]) : state === "RESEARCH_BACKLOG" ? (candidateBlockers.length ? candidateBlockers : ["NO_APPROPRIATE_RECIPIENT_FOUND"]) : state === "ALREADY_CONTACTED" ? ["ALREADY_CONTACTED"] : [];
   return {
     id: candidate.id, organizationId, organization, organizationDomain: candidate.target.organizationDomain, segment: candidate.segment, state,
     qualified: candidate.qualified, contact: enrichment?.target.person.fullName || candidate.target.person.fullName || null,
@@ -229,7 +231,7 @@ function nextAction(state: CanonicalGtmState, blockers: string[]) {
   if (state === "FOLLOW_UP_DUE") return "REVIEW FOLLOW-UP; SEPARATE HUMAN AUTHORIZATION IS REQUIRED.";
   if (state === "AWAITING_REPLY") return "AWAIT RESPONSE; NO DELIVERY OR OUTCOME IS INFERRED.";
   if (state === "ALREADY_CONTACTED") return "PRESERVE HISTORY; DO NOT CREATE A NEW FIRST-TOUCH ACTION.";
-  if (state === "NEEDS_VERIFICATION") return blockers[0] || "RESOLVE THE EXPLICIT VERIFICATION BLOCKER.";
+  if (state === "NEEDS_VERIFICATION" || state === "RESEARCH_BACKLOG") return blockers[0] || "RESOLVE THE EXPLICIT VERIFICATION BLOCKER.";
   return "RESEARCH ONLY; DO NOT PLACE IN AN INITIAL-ACTION QUEUE.";
 }
 

@@ -500,13 +500,14 @@ export async function confirmEvidenceMatch(user: AuthenticatedUser, reportId: st
   return { reportId, report: summary, result: finalized.result, sources: publicSources(authoritativeSources), manifest: finalized.manifest };
 }
 
-export async function saveGtmDailyScan(scan: DailySocialScan) {
+export async function saveGtmDailyScan(scan: DailySocialScan, options: { preservePriorReviewState?: boolean } = {}) {
   const prior = await readGtmDailyScan();
   const priorStatus = new Map((prior?.items || []).map((item) => [item.id, item.status]));
+  const preservePriorReviewState = options.preservePriorReviewState !== false;
   const merged: DailySocialScan = {
     ...scan,
-    items: scan.items.map((item) => ({ ...item, status: priorStatus.get(item.id) || item.status })),
-    itemsRespondedSkipped: scan.items.filter((item) => ["RESPONDED", "SKIPPED"].includes(priorStatus.get(item.id) || "")).length
+    items: scan.items.map((item) => ({ ...item, status: preservePriorReviewState ? (priorStatus.get(item.id) || item.status) : item.status })),
+    itemsRespondedSkipped: scan.items.filter((item) => ["RESPONDED", "SKIPPED"].includes((preservePriorReviewState ? priorStatus.get(item.id) : item.status) || "")).length
   };
   const accessToken = await gcpToken();
   await writeDocument(accessToken, "gtm/daily-social", {
@@ -534,7 +535,7 @@ export async function updateGtmDailySocialItem(id: string, status: "RESPONDED" |
   const found = scan.items.some((item) => item.id === id);
   if (!found) throw new Error("The Social item is not part of the current saved scan.");
   const updated = { ...scan, items: scan.items.map((item) => item.id === id ? { ...item, status } : item) };
-  return saveGtmDailyScan(updated);
+  return saveGtmDailyScan(updated, { preservePriorReviewState: false });
 }
 
 export async function saveReliabilityCanaryResult(result: ReliabilityCanaryResult) {

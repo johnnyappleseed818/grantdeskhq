@@ -94,6 +94,8 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   const [instantly, setInstantly] = useState<{ health: InstantlyHealth; persisted: InstantlyPersistedStatus | null } | null>(null);
   const [signalsLoading, setSignalsLoading] = useState(Boolean(dailySignalToken));
   const [signalsError, setSignalsError] = useState("");
+  const [socialReviewError, setSocialReviewError] = useState("");
+  const [socialReviewPending, setSocialReviewPending] = useState<string | null>(null);
   const [outreach, setOutreach] = useState<OutreachRecord[]>(confirmedHumanOutreach);
   const [outreachFilter, setOutreachFilter] = useState<OutreachFilter>("all");
   const [outreachQuery, setOutreachQuery] = useState("");
@@ -185,9 +187,17 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   };
   const reviewSocial = async (id: string, status: "RESPONDED" | "SKIPPED") => {
     if (!dailySignalToken) return;
-    const idToken = await dailySignalToken();
-    const result = await apiRequest<{ scan: DailySocialScan }>("/api/gtm/social", idToken, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, status }) });
-    setDailyScan(result.scan);
+    const before = dailyScan;
+    setSocialReviewError("");
+    setSocialReviewPending(id);
+    setDailyScan((scan) => scan ? { ...scan, items: scan.items.map((item) => item.id === id ? { ...item, status } : item) } : scan);
+    try {
+      const result = await requestGtmWithFreshToken<{ scan: DailySocialScan }>(dailySignalToken, "/api/gtm/social", apiRequest, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, status }) });
+      setDailyScan(result.scan);
+    } catch {
+      setDailyScan(before);
+      setSocialReviewError("Unable to save the Social review state. Please retry.");
+    } finally { setSocialReviewPending(null); }
   };
 
   return <div className="gtm-page">
@@ -264,7 +274,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
       {activeTab === "leads" && !canonicalRuntime && <ControlPlanePanel reconciliation={controlPlane} />}
       {activeTab === "outreach" && <OutreachHistoryPanel records={outreach} canonicalOpportunityIds={controlPlane?.cards.map((card) => card.canonicalCardId) || ranked.map((opportunity) => opportunity.id)} filter={outreachFilter} query={outreachQuery} onFilter={setOutreachFilter} onQuery={setOutreachQuery} />}
       {activeTab === "partners" && (canonicalRuntime ? <CanonicalOperationalPanel model={canonical} segment="PARTNER" loading={canonicalLoading} error={canonicalError} onRetry={() => setCanonicalRetry((value) => value + 1)} /> : <PartnersPanel records={outreach} overview={overview} />)}
-      {activeTab === "social" && <SocialQueuePanel scan={dailyScan} onReview={reviewSocial} />}
+      {activeTab === "social" && <SocialQueuePanel scan={dailyScan} onReview={reviewSocial} pendingId={socialReviewPending} error={socialReviewError} />}
       {activeTab === "seo" && <SeoQueuePanel state={searchConsole} />}
       {activeTab === "feedback" && <FeedbackPanel />}
       {activeTab === "system-health" && <><OverviewPanel overview={overview} inMain /><div className="mt-8"><InstantlyHealthPanel health={instantly?.health || null} persisted={instantly?.persisted || null} /></div><div className="mt-8"><SignalsPanel dailyScan={dailyScan} directDiscovery={directDiscovery} loading={signalsLoading} error={signalsError} /></div><div className="mt-8"><SourcesPanel dailyScan={dailyScan} directDiscovery={directDiscovery} /></div><div className="mt-8"><PipelinePanel opportunities={ranked} stages={stages} stagesOrder={pipelineStages} onStageChange={updateStage} /></div><div className="mt-8"><OutreachAutomationPanel opportunities={ranked} stages={stages} /></div><div className="mt-8"><AccuracyPanel /></div></>}
@@ -324,12 +334,12 @@ function CanonicalOperationalPanel({ model, segment, directDiscovery, loading, e
 const GTM_REQUEST_TIMEOUT_MS = 15_000;
 
 /** A bounded, one-refresh request path for founder-only GTM reads. */
-export async function requestGtmWithFreshToken<T>(tokenProvider: GtmTokenProvider, path: string, request: GtmRequest = apiRequest): Promise<T> {
+export async function requestGtmWithFreshToken<T>(tokenProvider: GtmTokenProvider, path: string, request: GtmRequest = apiRequest, init?: RequestInit): Promise<T> {
   try {
-    return await requestGtmOnce(tokenProvider, false, path, request);
+    return await requestGtmOnce(tokenProvider, false, path, request, init);
   } catch (error) {
     if (!isAuthenticationFailure(error)) throw error;
-    return requestGtmOnce(tokenProvider, true, path, request);
+    return requestGtmOnce(tokenProvider, true, path, request, init);
   }
 }
 
@@ -339,11 +349,11 @@ export async function loadCanonicalGtmModel(tokenProvider: GtmTokenProvider, req
   return body.model;
 }
 
-async function requestGtmOnce<T>(tokenProvider: GtmTokenProvider, forceRefresh: boolean, path: string, request: GtmRequest) {
+async function requestGtmOnce<T>(tokenProvider: GtmTokenProvider, forceRefresh: boolean, path: string, request: GtmRequest, init?: RequestInit) {
   const token = await withinTimeout(tokenProvider(forceRefresh), "GTM authentication took too long.");
   const controller = new AbortController();
   try {
-    return await withinTimeout(request<T>(path, token, { signal: controller.signal }), "GTM records took too long to load.");
+    return await withinTimeout(request<T>(path, token, { ...init, signal: controller.signal }), "GTM records took too long to load.");
   } catch (error) {
     controller.abort();
     throw error;
@@ -371,7 +381,7 @@ function isCanonicalGtmModel(value: unknown): value is CanonicalGtmModel {
     && ["directReady", "partnerReady", "directNeedsVerification", "partnerNeedsVerification", "followUpsDue", "awaitingReply", "replies", "positiveReplies", "trials", "paid", "mrr"].every((key) => Number.isFinite(metrics?.[key as keyof CanonicalGtmModel["metrics"]]));
 }
 
-function SocialQueuePanel({ scan, onReview }: { scan: DailySocialScan | null; onReview(id: string, status: "RESPONDED" | "SKIPPED"): Promise<void> }) {
+function SocialQueuePanel({ scan, onReview, pendingId, error }: { scan: DailySocialScan | null; onReview(id: string, status: "RESPONDED" | "SKIPPED"): Promise<void>; pendingId: string | null; error: string }) {
   const [copied, setCopied] = useState<string | null>(null);
   const items = (scan?.items || []).filter((item) => item.status === "ACTIONABLE");
   const copy = async (item: DailySocialScan["items"][number]) => {
@@ -379,7 +389,7 @@ function SocialQueuePanel({ scan, onReview }: { scan: DailySocialScan | null; on
   };
   return <section><div className="gtm-section-heading"><div><p className="eyebrow">Canonical research queue</p><h2>Social review</h2><p>Only source-linked research is shown. No post, reply, message, or automated engagement is enabled.</p></div><span className="status-badge status-neutral">MANUAL ONLY</span></div>
     {scan && <><p className="gtm-daily-summary">Last scan {formatDateTime(scan.generatedAt)} · {scan.sourceCount} sources checked · {scan.itemsExamined} examined · {scan.itemsQualified} qualified · {scan.itemsSuppressed} filtered.</p><p className="gtm-daily-summary">Duplicates {scan.itemsDuplicate || 0} · stale {scan.itemsStale || 0} · irrelevant {scan.itemsIrrelevant || 0} · reviewed suppression {scan.itemsRespondedSkipped || 0}.</p><div className="flex flex-wrap gap-2 text-sm">{(scan.sourceRegistry || []).map((source) => <span className="status-badge status-neutral" key={source.name}>{source.name}: {source.status}</span>)}</div></>}
-    <div className="gtm-feed-list">{items.map((item) => <article key={item.id}><MessageSquareText aria-hidden="true" /><div><div className="flex flex-wrap items-center gap-2"><span className="status-badge status-neutral">{item.platform}</span><span className="status-badge status-review">actionable</span></div><a href={item.url} target="_blank" rel="noreferrer">{item.title}<ExternalLink aria-hidden="true" /></a><p>{item.observedPain}</p><p><strong>Why relevant:</strong> {item.whyRelevant}</p><p><strong>Suggested response:</strong> {item.suggestedResponse}</p><small>{item.publishedAt || "Publication date not recorded"}</small><div className="gtm-actions"><a className="button button-secondary button-small" href={item.url} target="_blank" rel="noreferrer">Open</a><button type="button" className="button button-secondary button-small" onClick={() => copy(item)}>{copied === item.id ? "Copied" : "Copy response"}</button><button type="button" className="button button-secondary button-small" onClick={() => void onReview(item.id, "RESPONDED")}>Responded</button><button type="button" className="button button-secondary button-small" onClick={() => void onReview(item.id, "SKIPPED")}>Skip</button></div></div></article>)}</div>
+    {error && <div className="compiler-error" role="alert"><AlertCircle aria-hidden="true" />{error}</div>}<div className="gtm-feed-list">{items.map((item) => <article key={item.id}><MessageSquareText aria-hidden="true" /><div><div className="flex flex-wrap items-center gap-2"><span className="status-badge status-neutral">{item.platform}</span><span className="status-badge status-review">actionable</span></div><a href={item.url} target="_blank" rel="noreferrer">{item.title}<ExternalLink aria-hidden="true" /></a><p>{item.observedPain}</p><p><strong>Why relevant:</strong> {item.whyRelevant}</p><p><strong>Suggested response:</strong> {item.suggestedResponse}</p><small>{item.publishedAt || "Publication date not recorded"}</small><div className="gtm-actions"><a className="button button-secondary button-small" href={item.url} target="_blank" rel="noreferrer">Open</a><button type="button" className="button button-secondary button-small" onClick={() => copy(item)}>{copied === item.id ? "Copied" : "Copy response"}</button><button type="button" disabled={pendingId === item.id} className="button button-secondary button-small" onClick={() => void onReview(item.id, "RESPONDED")}>{pendingId === item.id ? "Saving…" : "Responded"}</button><button type="button" disabled={pendingId === item.id} className="button button-secondary button-small" onClick={() => void onReview(item.id, "SKIPPED")}>{pendingId === item.id ? "Saving…" : "Skip"}</button></div></div></article>)}</div>
     {!items.length && <div className="workspace-empty"><MessageSquareText aria-hidden="true" /><h2>No actionable social records</h2><p>No completed or speculative item is presented as an engagement task.</p></div>}
   </section>;
 }

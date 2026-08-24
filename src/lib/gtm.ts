@@ -71,6 +71,7 @@ export interface DirectDiscoveryTelemetry {
   readyCreated: number;
   stagedInInstantly: number;
   mainBottleneck: string;
+  provisionallyVerified?: number;
   recipientsFound?: number;
   officialPublishedEmails?: number;
   executiveFallbackReview?: number;

@@ -34,7 +34,8 @@ export function canonicalGtmCandidates(discoveredDirect: readonly GtmOpportunity
    id: item.id, segment: "DIRECT" as const, qualified: Boolean(item.entityVerified && item.nonprofitVerified && !item.conflicts.length),
    target: { prospectChannel: "DIRECT_NONPROFIT" as const, organization: item.organization, organizationDomain: domainFromUrl(item.organizationUrl || ""), domainSourceUrl: item.organizationUrl || item.evidence[0]?.url || "https://grantdeskhq.com", person: { firstName, lastName, fullName: contact?.name || "Contact research required", currentTitle: contact?.title || "Contact research required", titleSourceUrl: contact?.roleSourceUrl || item.organizationUrl || item.evidence[0]?.url || "https://grantdeskhq.com", ...(contact?.responsibilityEvidence ? { responsibilityEvidence: contact.responsibilityEvidence } : {}) } },
    sourceUrl: item.evidence[0]?.url || item.organizationUrl || "https://grantdeskhq.com", whyNow: item.whyNow, subject: draft.subject, draft: draft.body,
-   priority: item.score.pain + item.score.timing + item.score.fit + item.score.value
+   priority: item.score.pain + item.score.timing + item.score.fit + item.score.value,
+   blockers: item.unknowns.filter((value) => /recipient|contact|email|executive fallback/i.test(value))
   };
  });
  const partner = partnerTargets().map((candidate) => {

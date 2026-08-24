@@ -286,7 +286,7 @@ async function handleGtmSocial(request: IncomingMessage, response: ServerRespons
   const body = await readJson(request) as { id?: unknown; status?: unknown };
   const id = String(body.id || "");
   const status = String(body.status || "");
-  if (!/^social-[a-f0-9]{18}$/.test(id) || (status !== "RESPONDED" && status !== "SKIPPED")) return json(response, 400, { error: "A valid Social item and review status are required." });
+  if (!/^[a-z0-9_-]{3,160}$/i.test(id) || (status !== "RESPONDED" && status !== "SKIPPED")) return json(response, 400, { error: "A valid Social item and review status are required." });
   return json(response, 200, { scan: await updateGtmDailySocialItem(id, status) });
 }
 
@@ -711,8 +711,9 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
           hunterFinderCalls: directReplenishment.providerUsage.hunterLookups,
           hunterVerifierCalls: directReplenishment.providerUsage.hunterVerifications,
           verified: directReplenishment.verifiedEmails,
-          readyCreated: directReplenishment.ready,
-          mainBottleneck: directReplenishment.ready ? "Qualified candidates passed the canonical readiness gates." : directReplenishment.records.find((record) => record.failureReason)?.failureReason || directDiscovery.telemetry.mainBottleneck
+          provisionallyVerified: directReplenishment.verifiedEmails,
+          readyCreated: (await readCanonicalGtmModel()).records.filter((record) => record.segment === "DIRECT" && record.state === "READY_TO_SEND" && directDiscovery!.opportunities.some((opportunity) => opportunity.id === record.id)).length,
+          mainBottleneck: (await readCanonicalGtmModel()).records.some((record) => record.segment === "DIRECT" && record.state === "READY_TO_SEND" && directDiscovery!.opportunities.some((opportunity) => opportunity.id === record.id)) ? "Qualified candidates passed every canonical readiness gate." : directReplenishment.records.find((record) => record.failureReason)?.failureReason || directDiscovery.telemetry.mainBottleneck
         } });
       }
       console.info("GTM_HUNTER_DIRECT_REPLENISHMENT " + JSON.stringify({ attempted: directReplenishment.attempted, ready: directReplenishment.ready, needsVerification: directReplenishment.needsVerification, alreadyContacted: directReplenishment.alreadyContacted, providerUsage: directReplenishment.providerUsage }));
