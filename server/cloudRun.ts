@@ -519,13 +519,17 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
   if (!input.execute) return json(response, 200, { mode: "PREFLIGHT", batchId, senderReady, campaignConfigurationAllowed, approvedSender, mailbox: approvedAccount ? { email: approvedAccount.email, status: approvedAccount.status, warmupStatus: approvedAccount.warmup_status, setupPending: approvedAccount.setup_pending === true, hasError: Boolean(String(approvedAccount.e_message || "").trim()), dailyLimit: approvedAccount.daily_limit ?? approvedAccount.warmup_limit ?? null } : null, flags: { integrationEnabled: config.integrationEnabled, outboundEnabled: config.outboundEnabled, autoHandoffEnabled: config.autoHandoffEnabled, directEnabled: config.directEnabled, partnerEnabled: config.partnerEnabled, controlledBatchEnabled: config.controlledBatchEnabled }, campaigns: campaignDetails.map((campaign) => campaign ? controlledCampaignSafetySummary(campaign) : null), proposedConfiguration: { direct: controlledCampaignPatch("DIRECT", 5, approvedSender), partner: controlledCampaignPatch("PARTNER", 5, approvedSender) }, campaignLeadCount: Object.fromEntries(campaignLeadCount), direct: direct.map(summary), partner: partner.map(summary), exclusions: { priorContact: model.records.filter((record) => record.priorContact).length, suppressed: model.records.filter((record) => record.suppressionStatus !== "CLEAR").length, existingInstantly: existingEmails.size } });
   if (!mailboxReady || !client || !campaignConfigurationAllowed) return json(response, 409, { error: "Approved mailbox or mapped inactive campaigns are not safe for a controlled batch." });
   if (!config.controlledBatchEnabled || config.controlledBatchId !== batchId) return json(response, 409, { error: "This exact controlled batch is not enabled." });
-  if (campaignLeadCount.get(config.directCampaignId) || campaignLeadCount.get(config.partnerCampaignId)) return json(response, 409, { error: "Mapped campaign already contains leads; refusing to risk an outside-batch send." });
-  await Promise.all([
-    client.configureControlledCampaign(config.directCampaignId, controlledCampaignPatch("DIRECT", 5, approvedSender), batchId),
-    client.configureControlledCampaign(config.partnerCampaignId, controlledCampaignPatch("PARTNER", 5, approvedSender), batchId)
+  if ((direct.length > 0 && campaignLeadCount.get(config.directCampaignId)) || (partner.length > 0 && campaignLeadCount.get(config.partnerCampaignId))) return json(response, 409, { error: "The selected campaign already contains leads; refusing to risk an outside-batch send." });
+  const selectedCampaignConfigurations = await Promise.all([
+    ...(direct.length > 0 ? [client.configureControlledCampaign(config.directCampaignId, controlledCampaignPatch("DIRECT", 5, approvedSender), batchId)] : []),
+    ...(partner.length > 0 ? [client.configureControlledCampaign(config.partnerCampaignId, controlledCampaignPatch("PARTNER", 5, approvedSender), batchId)] : [])
   ]);
-  const configuredCampaigns = await Promise.all([client.getCampaign(config.directCampaignId), client.getCampaign(config.partnerCampaignId)]);
-  if (!configuredCampaigns.every((campaign) => controlledCampaignReady(campaign, approvedSender))) return json(response, 409, { error: "Controlled campaign read-back did not satisfy sender, reply-stop, tracking, CTA, and safety requirements." });
+  void selectedCampaignConfigurations;
+  const configuredCampaigns = await Promise.all([
+    ...(direct.length > 0 ? [client.getCampaign(config.directCampaignId)] : []),
+    ...(partner.length > 0 ? [client.getCampaign(config.partnerCampaignId)] : [])
+  ]);
+  if (!configuredCampaigns.every((campaign) => controlledCampaignReady(campaign, approvedSender))) return json(response, 409, { error: "Selected campaign read-back did not satisfy sender, reply-stop, tracking, CTA, and safety requirements." });
   const created = await Promise.all(cohort.map(async (record) => {
     const [firstName, ...rest] = String(record.contact || "").split(/\s+/);
     const campaignId = record.segment === "DIRECT" ? config.directCampaignId : config.partnerCampaignId;
@@ -554,7 +558,7 @@ function controlledEmail(record: Awaited<ReturnType<typeof readCanonicalGtmModel
 function controlledOpening(record: Awaited<ReturnType<typeof readCanonicalGtmModel>>["records"][number]) {
   return record.segment === "DIRECT"
     ? `I came across ${record.organization} and noticed this: ${lowercaseInitial(record.whyNow)} I thought this might be relevant.`
-    : `I came across ${record.organization} and saw ${record.whyNow}`;
+    : `I came across ${record.organization} and noticed this: ${lowercaseInitial(record.whyNow)} I thought this might be relevant.`;
 }
 
 function lowercaseInitial(value: string) { return value ? `${value.slice(0, 1).toLowerCase()}${value.slice(1)}` : "a relevant current signal."; }

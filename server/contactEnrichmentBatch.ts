@@ -9,8 +9,9 @@ import { readGtmContactEnrichment } from "./persistence.ts";
 export type EnrichmentBatchSegment = "partner" | "direct";
 export interface StoredEnrichmentReconciliationResult { segment: EnrichmentBatchSegment; reconciled: number; ready: number; needsVerification: number; alreadyContacted: number; verified: number; acceptAll: number; risky: number; invalid: number; resultMissing: number; records: Array<{ organization: string; email: string | null; verifierStatus: string; suppressionStatus: string; priorContactStatus: string; readyToSend: boolean; blocker: string | null }>; }
 export interface EnrichmentBatchResult { segment: EnrichmentBatchSegment; attempted: number; contactsResolved: number; verifiedEmails: number; ready: number; needsVerification: number; alreadyContacted: number; duplicates: number; failures: number; providerUsage: { hunterLookups: number; hunterVerifications: number }; records: Array<{ organization: string; contact: string; title: string; email: string | null; status: string; source: string; hunterUsed: boolean; subject?: string; personalizedEmail?: string; whyFit: string; failureReason?: string; }>; }
+type BatchCandidate = { target: EnrichmentTarget; partnerType: string; whyFit: string; source: string; publishedEmail?: string; priority?: number };
 
-const partnerCandidates: Array<{ organization: string; domain: string; source: string; first: string; last: string; title: string; type: string; whyFit: string }> = [
+const partnerCandidates: Array<{ organization: string; domain: string; source: string; first: string; last: string; title: string; type: string; whyFit: string; publishedEmail?: string }> = [
  ["The Charity CFO","thecharitycfo.com","https://thecharitycfo.com/about-us/leadership-team/","Tosha","Anderson","Founder + Managing Partner","fractional CFO","Nonprofit CFO, accounting, and grant-management support."],
  ["Kiwi Partners","kiwipartners.com","https://www.kiwipartners.com/ken-hafner","Ken","Hafner","Head of Accounting Services","accounting","Nonprofit accounting, CFO coverage, and budget-to-actual reporting."],
  ["YPTC","yptc.com","https://www.yptc.com/ceo-jennifer-alleva/","Jennifer","Alleva","Chief Executive Officer","fractional CFO","Fractional CFO and nonprofit accounting support."],
@@ -21,7 +22,17 @@ const partnerCandidates: Array<{ organization: string; domain: string; source: s
  ["NFO Nonprofit Financial Outsourcing","nfoyourcfo.com","https://www.nfoyourcfo.com/our-team","Scott","Kriete","Chief Executive Officer","fractional CFO","Fractional CFO, fiscal grant management, financial reporting, and audit support."],
  ["Strategic Nonprofit Finance","strategicnonprofitfinance.com","https://www.strategicnonprofitfinance.com/about","Larry","Bomback","Founder and CEO","fractional CFO","Nonprofit finance leadership, board reporting, and foundation reporting."],
  ["100 Degrees Consulting","100degreesconsulting.com","https://100degreesconsulting.com/our-team/","Stephanie","Skryzowski","Founder & CEO","fractional CFO","Nonprofit financial leadership, planning, reporting, and sustainability support."]
-].map(([organization, domain, source, first, last, title, type, whyFit]) => ({ organization, domain, source, first, last, title, type, whyFit }));
+ , ["Total Accounting Tax and Payroll","totalaccountingandtaxes.com","https://www.totalaccountingandtaxes.com/","DeAndrea","Levias","CFO & Founder","nonprofit fractional CFO","Specialized nonprofit accounting and fractional CFO practice with grant-compliant reporting, audit readiness, and multi-funder financial operations.","dlevias@gotatp.com"]
+ , ["Future Focused Solutions","ffsnonprofits.com","https://ffsnonprofits.com/","Andrew","Minck","Founder & CEO","nonprofit finance operations","Nonprofit accounting, fractional CFO, grant support, cost allocation, and fund-utilization reporting across mission-driven organizations.","andrew.minck@ffsnonprofits.com"]
+ , ["Beancount.co","beancount.co","https://beancount.co/","Sakar","Pudasaini","Partner & Founder","nonprofit accounting","Outsourced accounting and CFO support for nonprofit and social-sector organizations, including finance-team leverage across multiple clients."]
+ , ["Noble Accounting LLC","nobleaccountingllc.com","https://www.nobleaccountingllc.com/","Kevin","Matthews","Founder & CEO","nonprofit accounting","Nonprofit accounting specialist with fractional CFO, audit-readiness, and outsourced-finance work for multiple nonprofit clients."]
+ , ["Integrant Advisory","integrantadvisory.com","https://www.integrantadvisory.com/","Ivan","Grant","Founder & Principal","nonprofit fractional CFO","Specialized fractional CFO practice for nonprofits with finance, compliance, and funding-model expertise."]
+ , ["Green Bridge Consulting","greenbridgeco.com","https://greenbridgeco.com/","Mark","Gruner","Founder & Principal, Financial Strategy","nonprofit fractional CFO","Fractional CFO advisory for nonprofits with board reporting, controls, financial systems, and multi-entity oversight."]
+ , ["CFO for Good","cfoforgood.com","https://www.cfoforgood.com/about","Noelle","Folden-McDowell","Founder","nonprofit fractional CFO","Outsourced accounting and fractional CFO team serving nonprofit organizations and mission-driven finance operations."]
+].map(([organization, domain, source, first, last, title, type, whyFit, publishedEmail]) => ({
+ organization, domain, source, first, last, title, type, whyFit,
+ ...(publishedEmail ? { publishedEmail } : {})
+}));
 
 /** Candidate inventory only. This never contacts a provider and is shared by the read model. */
 export function canonicalGtmCandidates(discoveredDirect: readonly GtmOpportunity[] = []): CanonicalGtmCandidate[] {
@@ -47,7 +58,7 @@ export function canonicalGtmCandidates(discoveredDirect: readonly GtmOpportunity
 
 export async function runContactEnrichmentBatch(input: { segment: EnrichmentBatchSegment; limit?: number; dryRun?: boolean; discoveredDirect?: readonly GtmOpportunity[]; directOnly?: boolean }, environment: NodeJS.ProcessEnv = process.env): Promise<EnrichmentBatchResult> {
  const limit = Math.min(Math.max(Number(input.limit) || 20, 1), 20);
- const candidates = input.segment === "partner" ? partnerTargets() : directTargets(input.discoveredDirect || [], input.directOnly === true);
+ const candidates: BatchCandidate[] = input.segment === "partner" ? partnerTargets() : directTargets(input.discoveredDirect || [], input.directOnly === true);
  const result: EnrichmentBatchResult = { segment: input.segment, attempted: 0, contactsResolved: 0, verifiedEmails: 0, ready: 0, needsVerification: 0, alreadyContacted: 0, duplicates: 0, failures: 0, providerUsage: { hunterLookups: 0, hunterVerifications: 0 }, records: [] };
  const seenOrganizations = new Set<string>(); const seenEmails = new Set<string>();
  for (const candidate of candidates) {
@@ -81,7 +92,7 @@ export async function runContactEnrichmentBatch(input: { segment: EnrichmentBatc
 /** Stored-data-only reconciliation; it cannot make a provider request or alter retry eligibility. */
 export async function reconcileStoredContactEnrichmentBatch(input: { segment: EnrichmentBatchSegment; limit?: number; discoveredDirect?: readonly GtmOpportunity[]; directOnly?: boolean }): Promise<StoredEnrichmentReconciliationResult> {
  const limit = Math.min(Math.max(Number(input.limit) || 20, 1), 20);
- const candidates = input.segment === "partner" ? partnerTargets() : directTargets(input.discoveredDirect || [], input.directOnly === true);
+ const candidates: BatchCandidate[] = input.segment === "partner" ? partnerTargets() : directTargets(input.discoveredDirect || [], input.directOnly === true);
  const result: StoredEnrichmentReconciliationResult = { segment: input.segment, reconciled: 0, ready: 0, needsVerification: 0, alreadyContacted: 0, verified: 0, acceptAll: 0, risky: 0, invalid: 0, resultMissing: 0, records: [] };
  for (const candidate of candidates.slice(0, limit)) {
   const key = contactEnrichmentKey(candidate.target);
@@ -103,11 +114,12 @@ export async function reconcileStoredContactEnrichmentBatch(input: { segment: En
  return result;
 }
 
-function partnerTargets() { return partnerCandidates.map((candidate) => ({ target: { prospectChannel: "PARTNER_ACCOUNTING" as const, organization: candidate.organization, organizationDomain: candidate.domain, domainSourceUrl: candidate.source, person: { firstName: candidate.first, lastName: candidate.last, fullName: candidate.first + " " + candidate.last, currentTitle: candidate.title, titleSourceUrl: candidate.source } }, partnerType: candidate.type, whyFit: candidate.whyFit, source: candidate.source })); }
-function directTargets(discoveredDirect: readonly GtmOpportunity[] = [], directOnly = false) {
+export function partnerTargets(): BatchCandidate[] { return partnerCandidates.map((candidate) => ({ target: { prospectChannel: "PARTNER_ACCOUNTING" as const, organization: candidate.organization, organizationDomain: candidate.domain, domainSourceUrl: candidate.source, person: { firstName: candidate.first, lastName: candidate.last, fullName: candidate.first + " " + candidate.last, currentTitle: candidate.title, titleSourceUrl: candidate.source } }, partnerType: candidate.type, whyFit: candidate.whyFit, source: candidate.source, ...(candidate.publishedEmail ? { publishedEmail: candidate.publishedEmail } : {}) })); }
+function directTargets(discoveredDirect: readonly GtmOpportunity[] = [], directOnly = false): BatchCandidate[] {
  return (directOnly ? discoveredDirect : [...initialOpportunities, ...discoveredDirect]).filter((item) => item.organizationUrl && item.primaryContact?.name && item.primaryContact.title).map((item) => {
+  const organizationUrl = item.organizationUrl!;
   const [first, ...rest] = item.primaryContact!.name.trim().split(/\s+/); const last = rest.at(-1) || "";
-  return { target: { prospectChannel: "DIRECT_NONPROFIT" as const, organization: item.organization, organizationDomain: domainFromUrl(item.organizationUrl), domainSourceUrl: item.organizationUrl, person: { firstName: first, lastName: last, fullName: item.primaryContact!.name, currentTitle: item.primaryContact!.title, titleSourceUrl: item.primaryContact!.roleSourceUrl, ...(item.primaryContact!.responsibilityEvidence ? { responsibilityEvidence: item.primaryContact!.responsibilityEvidence } : {}) } }, partnerType: "direct nonprofit", whyFit: item.whyNow, source: item.primaryContact!.emailSourceUrl || item.primaryContact!.roleSourceUrl, publishedEmail: item.primaryContact!.emailKind === "direct" ? item.primaryContact!.email : undefined, priority: item.score.pain + item.score.timing + item.score.fit + item.score.value };
+  return { target: { prospectChannel: "DIRECT_NONPROFIT" as const, organization: item.organization, organizationDomain: domainFromUrl(organizationUrl), domainSourceUrl: organizationUrl, person: { firstName: first, lastName: last, fullName: item.primaryContact!.name, currentTitle: item.primaryContact!.title, titleSourceUrl: item.primaryContact!.roleSourceUrl || organizationUrl, ...(item.primaryContact!.responsibilityEvidence ? { responsibilityEvidence: item.primaryContact!.responsibilityEvidence } : {}) } }, partnerType: "direct nonprofit", whyFit: item.whyNow, source: item.primaryContact!.emailSourceUrl || item.primaryContact!.roleSourceUrl || organizationUrl, publishedEmail: item.primaryContact!.emailKind === "direct" ? item.primaryContact!.email : undefined, priority: item.score.pain + item.score.timing + item.score.fit + item.score.value };
  }).filter((candidate) => candidate.target.person.lastName).sort((a, b) => b.priority - a.priority);
 }
 function present(candidate: { target: EnrichmentTarget; partnerType: string; whyFit: string; source: string }, record: ContactEnrichmentRecord | null) {

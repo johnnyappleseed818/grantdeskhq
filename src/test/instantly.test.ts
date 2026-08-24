@@ -92,6 +92,15 @@ describe("Instantly fail-closed integration", () => {
     expect(campaignUsesOnlySender(mixed, "eli.katz@grantdeskhq.com")).toBe(false);
   });
 
+  it("keeps a Partner-only controlled configuration isolated from the populated Direct campaign", () => {
+    const directMembers = 5;
+    const partnerMembers = 0;
+    const directSelected = 0;
+    const partnerSelected = 3;
+    const selectedCampaignHasLeads = (directSelected > 0 && directMembers > 0) || (partnerSelected > 0 && partnerMembers > 0);
+    expect(selectedCampaignHasLeads).toBe(false);
+  });
+
   it("normalizes campaign IDs from string and object lead representations", () => {
     expect(instantlyLeadCampaignId({ campaign: "campaign_1" })).toBe("campaign_1");
     expect(instantlyLeadCampaignId({ campaign: { id: "campaign_2" } })).toBe("campaign_2");

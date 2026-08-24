@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildContactEnrichmentRecord, createTopicalShadowDraft, type SuppressionCheck } from "../lib/contactEnrichment";
 import { firstTwoShadowContactEnrichmentCandidates } from "../data/gtmContactEnrichmentTargets";
+import { partnerTargets } from "../../server/contactEnrichmentBatch";
 
 const unknownSuppression: SuppressionCheck = {
   status: "UNKNOWN",
@@ -24,5 +25,17 @@ describe("first-two real contact-enrichment SHADOW fixtures", () => {
       expect(draft.subject).toBe("Save time preparing grant reports");
       expect(draft.body).toContain("https://grantdeskhq.com/assessment");
     }
+  });
+});
+
+describe("bounded Partner replenishment inventory", () => {
+  it("keeps official published Partner emails as authoritative contact evidence instead of requiring Finder", () => {
+    const candidates = partnerTargets();
+    const total = candidates.find((candidate) => candidate.target.organization === "Total Accounting Tax and Payroll");
+    const future = candidates.find((candidate) => candidate.target.organization === "Future Focused Solutions");
+    expect(total?.target.person.fullName).toBe("DeAndrea Levias");
+    expect(future?.target.person.fullName).toBe("Andrew Minck");
+    expect(total?.publishedEmail).toBe("dlevias@gotatp.com");
+    expect(future?.publishedEmail).toBe("andrew.minck@ffsnonprofits.com");
   });
 });
