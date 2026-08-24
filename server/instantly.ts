@@ -101,10 +101,43 @@ export function instantlyConfig(env: NodeJS.ProcessEnv = process.env): Instantly
     directListId: String(env.INSTANTLY_DIRECT_LIST_ID || "").trim(),
     partnerListId: String(env.INSTANTLY_PARTNER_LIST_ID || "").trim(),
     directCampaignId: String(env.INSTANTLY_DIRECT_CAMPAIGN_ID || "").trim(),
-    partnerCampaignId: String(env.INSTANTLY_PARTNER_CAMPAIGN_ID || "").trim()
-    ,controlledBatchEnabled: enabled("INSTANTLY_CONTROLLED_BATCH_ENABLED"),
+    partnerCampaignId: String(env.INSTANTLY_PARTNER_CAMPAIGN_ID || "").trim(),
+    controlledBatchEnabled: enabled("INSTANTLY_CONTROLLED_BATCH_ENABLED"),
     controlledBatchId: String(env.INSTANTLY_CONTROLLED_BATCH_ID || "").trim()
   };
+}
+
+/** Campaign responses can expose sending accounts in a few documented shapes.
+ * We deliberately accept only explicit business-email strings and require an
+ * exact one-mailbox match before a founder-authorized batch may activate. */
+export function campaignSenderAddresses(campaign: Record<string, unknown>) {
+  const addresses = new Set<string>();
+  const collect = (value: unknown) => {
+    if (typeof value === "string") {
+      const address = value.trim().toLowerCase();
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) addresses.add(address);
+      return;
+    }
+    if (Array.isArray(value)) value.forEach(collect);
+    else if (value && typeof value === "object") Object.values(value as Record<string, unknown>).forEach(collect);
+  };
+  collect(campaign.email_list);
+  collect(campaign.email_accounts);
+  collect(campaign.senders);
+  return [...addresses].sort();
+}
+
+export function campaignUsesOnlySender(campaign: Record<string, unknown>, email: string) {
+  const expected = email.trim().toLowerCase();
+  const senders = campaignSenderAddresses(campaign);
+  return senders.length === 1 && senders[0] === expected;
+}
+
+export function instantlyLeadCampaignId(lead: Record<string, unknown>) {
+  const campaign = lead.campaign;
+  if (typeof campaign === "string") return campaign.trim();
+  if (campaign && typeof campaign === "object" && !Array.isArray(campaign)) return text((campaign as Record<string, unknown>).id);
+  return "";
 }
 
 export function instantlyHealth(config = instantlyConfig()) {

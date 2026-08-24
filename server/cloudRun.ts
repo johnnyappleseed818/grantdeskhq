@@ -35,7 +35,7 @@ import type { GtmOpportunity } from "../src/lib/gtm.ts";
 import { canonicalOrganizationId } from "../src/lib/gtmCanonical.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
-import { applyInstantlyEvent, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
+import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
@@ -485,10 +485,14 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
   const campaignDetails = client ? await Promise.all([config.directCampaignId ? client.getCampaign(config.directCampaignId) : null, config.partnerCampaignId ? client.getCampaign(config.partnerCampaignId) : null]) : [null, null];
   const leadInventory = client ? await client.listRecentLeads(200) : { items: [], truncated: false };
   const campaignLeadCount = new Map<string, number>();
-  for (const lead of leadInventory.items) { const id = String(lead.campaign || ""); if (id) campaignLeadCount.set(id, (campaignLeadCount.get(id) || 0) + 1); }
-  const senderReady = Boolean(client && config.integrationEnabled && config.apiKeyConfigured && campaignDetails.every((campaign) => campaign && Number(campaign.status) === 0));
+  for (const lead of leadInventory.items) {
+    const id = instantlyLeadCampaignId(lead);
+    if (id) campaignLeadCount.set(id, (campaignLeadCount.get(id) || 0) + 1);
+  }
+  const approvedSender = "eli.katz@grantdeskhq.com";
+  const senderReady = Boolean(client && config.integrationEnabled && config.apiKeyConfigured && campaignDetails.every((campaign) => campaign && Number(campaign.status) === 0 && campaignUsesOnlySender(campaign, approvedSender)));
   const summary = (record: Awaited<typeof model>["records"][number]) => ({ organization: record.organization, person: record.contact, title: record.title, email: record.email, verification: record.verificationStatus, whyNowOrFit: record.whyNow, campaign: record.segment === "DIRECT" ? config.directCampaignId : config.partnerCampaignId, subject: controlledSubject(record), emailBody: controlledEmail(record) });
-  if (!input.execute) return json(response, 200, { mode: "PREFLIGHT", batchId, senderReady, flags: { integrationEnabled: config.integrationEnabled, outboundEnabled: config.outboundEnabled, autoHandoffEnabled: config.autoHandoffEnabled, directEnabled: config.directEnabled, partnerEnabled: config.partnerEnabled, controlledBatchEnabled: config.controlledBatchEnabled }, campaigns: campaignDetails.map((campaign) => campaign ? { id: campaign.id, name: campaign.name, status: campaign.status, schedule: campaign.campaign_schedule, stopOnReply: campaign.stop_on_reply } : null), campaignLeadCount: Object.fromEntries(campaignLeadCount), direct: direct.map(summary), partner: partner.map(summary), exclusions: { priorContact: model.records.filter((record) => record.priorContact).length, suppressed: model.records.filter((record) => record.suppressionStatus !== "CLEAR").length, existingInstantly: existingEmails.size } });
+  if (!input.execute) return json(response, 200, { mode: "PREFLIGHT", batchId, senderReady, approvedSender, flags: { integrationEnabled: config.integrationEnabled, outboundEnabled: config.outboundEnabled, autoHandoffEnabled: config.autoHandoffEnabled, directEnabled: config.directEnabled, partnerEnabled: config.partnerEnabled, controlledBatchEnabled: config.controlledBatchEnabled }, campaigns: campaignDetails.map((campaign) => campaign ? { id: campaign.id, name: campaign.name, status: campaign.status, senders: campaignSenderAddresses(campaign), schedule: campaign.campaign_schedule, stopOnReply: campaign.stop_on_reply } : null), campaignLeadCount: Object.fromEntries(campaignLeadCount), direct: direct.map(summary), partner: partner.map(summary), exclusions: { priorContact: model.records.filter((record) => record.priorContact).length, suppressed: model.records.filter((record) => record.suppressionStatus !== "CLEAR").length, existingInstantly: existingEmails.size } });
   if (!senderReady || !client) return json(response, 409, { error: "Sender or mapped inactive campaigns are not ready for a controlled batch." });
   if (!config.controlledBatchEnabled || config.controlledBatchId !== batchId) return json(response, 409, { error: "This exact controlled batch is not enabled." });
   if (campaignLeadCount.get(config.directCampaignId) || campaignLeadCount.get(config.partnerCampaignId)) return json(response, 409, { error: "Mapped campaign already contains leads; refusing to risk an outside-batch send." });

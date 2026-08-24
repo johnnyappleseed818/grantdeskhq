@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyInstantlyEvent, InstantlyClient, instantlyConfig, instantlyHealth, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "../../server/instantly";
+import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "../../server/instantly";
 import type { CanonicalGtmRecord } from "../lib/gtmCanonical";
 
 const record: CanonicalGtmRecord = {
@@ -65,6 +65,29 @@ describe("Instantly fail-closed integration", () => {
     expect(config.autoHandoffEnabled).toBe(false);
     expect(config.directEnabled).toBe(false);
     expect(config.partnerEnabled).toBe(false);
+    expect(config.controlledBatchEnabled).toBe(false);
+    expect(config.controlledBatchId).toBe("");
+  });
+
+  it("requires an exact configured controlled-batch ID before a campaign write", async () => {
+    const request = vi.fn();
+    const client = new InstantlyClient(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true", INSTANTLY_API_KEY: "configured", INSTANTLY_CONTROLLED_BATCH_ENABLED: "true", INSTANTLY_CONTROLLED_BATCH_ID: "gdh-controlled-batch-20260824-01" }), "key", request);
+    await expect(client.createLeadInControlledCampaign({ email: record.email!, firstName: "Casey", lastName: "Finance", companyName: record.organization, jobTitle: record.title!, campaignId: "campaign_1", personalization: "Hello", customVariables: {} }, "gdh-controlled-batch-20260824-02")).rejects.toThrow("exact batch ID");
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it("requires every controlled campaign to expose only the approved sender", () => {
+    const onlyEli = { email_list: ["eli.katz@grantdeskhq.com"] };
+    const mixed = { email_accounts: [{ email: "eli.katz@grantdeskhq.com" }, { email: "jay@virtualaiassistants.com" }] };
+    expect(campaignSenderAddresses(onlyEli)).toEqual(["eli.katz@grantdeskhq.com"]);
+    expect(campaignUsesOnlySender(onlyEli, "eli.katz@grantdeskhq.com")).toBe(true);
+    expect(campaignUsesOnlySender(mixed, "eli.katz@grantdeskhq.com")).toBe(false);
+  });
+
+  it("normalizes campaign IDs from string and object lead representations", () => {
+    expect(instantlyLeadCampaignId({ campaign: "campaign_1" })).toBe("campaign_1");
+    expect(instantlyLeadCampaignId({ campaign: { id: "campaign_2" } })).toBe("campaign_2");
+    expect(instantlyLeadCampaignId({ campaign: null })).toBe("");
   });
 
   it("treats polling as healthy when webhooks are unavailable on the plan", () => {
