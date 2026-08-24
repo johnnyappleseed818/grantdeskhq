@@ -475,7 +475,7 @@ async function handleGtmInstantlyStage(request: IncomingMessage, response: Serve
 async function handleControlledInstantlyBatch(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
-  const input = await readJson(request) as { batchId?: string; execute?: boolean };
+  const input = await readJson(request) as { batchId?: string; execute?: boolean; repairOpeningLines?: boolean };
   const batchId = String(input.batchId || "");
   if (!/^gdh-controlled-batch-\d{8}-\d{2}$/.test(batchId)) return json(response, 400, { error: "A valid controlled batch ID is required." });
   const config = instantlyConfig();
@@ -503,6 +503,19 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
   const campaignConfigurationAllowed = selectedCampaigns.every((campaign) => Number(campaign.status) === 0 && campaignSenderAddresses(campaign).every((sender) => sender === approvedSender));
   const senderReady = Boolean(client && config.integrationEnabled && config.apiKeyConfigured && mailboxReady && selectedCampaigns.length > 0 && selectedCampaigns.every((campaign) => controlledCampaignReady(campaign, approvedSender)));
   const summary = (record: Awaited<typeof model>["records"][number]) => ({ organization: record.organization, person: record.contact, title: record.title, email: record.email, verification: record.verificationStatus, whyNowOrFit: record.whyNow, campaign: record.segment === "DIRECT" ? config.directCampaignId : config.partnerCampaignId, subject: controlledSubject(record), emailBody: controlledEmail(record) });
+  if (input.repairOpeningLines === true) {
+    if (!client || !config.controlledBatchEnabled || config.controlledBatchId !== batchId) return json(response, 409, { error: "This exact controlled batch is not enabled for copy repair." });
+    const byId = new Map(model.records.map((record) => [record.organizationId, record]));
+    const batchRecords = existingRecords.filter((record) => record.controlledBatchId === batchId && record.instantlyLeadId && (record.segment === "DIRECT" || record.segment === "PARTNER"));
+    if (!batchRecords.length || batchRecords.length > 10) return json(response, 409, { error: "The exact controlled cohort could not be proven for copy repair." });
+    const repaired = await Promise.all(batchRecords.map(async (record) => {
+      const canonical = byId.get(record.canonicalOrganizationId);
+      if (!canonical || canonical.email?.toLowerCase() !== record.email.toLowerCase() || canonical.priorContact || canonical.suppressionStatus !== "CLEAR") throw new HttpError(409, "A controlled cohort member no longer satisfies canonical safety checks.");
+      await client.patchControlledLeadVariables(record.instantlyLeadId, { openingLine: controlledOpening(canonical) }, batchId);
+      return { organization: record.organization, instantlyLeadId: record.instantlyLeadId };
+    }));
+    return json(response, 200, { mode: "CONTROLLED_COPY_REPAIRED", batchId, repaired });
+  }
   if (!input.execute) return json(response, 200, { mode: "PREFLIGHT", batchId, senderReady, campaignConfigurationAllowed, approvedSender, mailbox: approvedAccount ? { email: approvedAccount.email, status: approvedAccount.status, warmupStatus: approvedAccount.warmup_status, setupPending: approvedAccount.setup_pending === true, hasError: Boolean(String(approvedAccount.e_message || "").trim()), dailyLimit: approvedAccount.daily_limit ?? approvedAccount.warmup_limit ?? null } : null, flags: { integrationEnabled: config.integrationEnabled, outboundEnabled: config.outboundEnabled, autoHandoffEnabled: config.autoHandoffEnabled, directEnabled: config.directEnabled, partnerEnabled: config.partnerEnabled, controlledBatchEnabled: config.controlledBatchEnabled }, campaigns: campaignDetails.map((campaign) => campaign ? controlledCampaignSafetySummary(campaign) : null), proposedConfiguration: { direct: controlledCampaignPatch("DIRECT", 5, approvedSender), partner: controlledCampaignPatch("PARTNER", 5, approvedSender) }, campaignLeadCount: Object.fromEntries(campaignLeadCount), direct: direct.map(summary), partner: partner.map(summary), exclusions: { priorContact: model.records.filter((record) => record.priorContact).length, suppressed: model.records.filter((record) => record.suppressionStatus !== "CLEAR").length, existingInstantly: existingEmails.size } });
   if (!mailboxReady || !client || !campaignConfigurationAllowed) return json(response, 409, { error: "Approved mailbox or mapped inactive campaigns are not safe for a controlled batch." });
   if (!config.controlledBatchEnabled || config.controlledBatchId !== batchId) return json(response, 409, { error: "This exact controlled batch is not enabled." });
@@ -540,9 +553,11 @@ function controlledEmail(record: Awaited<ReturnType<typeof readCanonicalGtmModel
 
 function controlledOpening(record: Awaited<ReturnType<typeof readCanonicalGtmModel>>["records"][number]) {
   return record.segment === "DIRECT"
-    ? `I saw ${record.whyNow}, so I thought this might be relevant.`
+    ? `I came across ${record.organization} and noticed this: ${lowercaseInitial(record.whyNow)} I thought this might be relevant.`
     : `I came across ${record.organization} and saw ${record.whyNow}`;
 }
+
+function lowercaseInitial(value: string) { return value ? `${value.slice(0, 1).toLowerCase()}${value.slice(1)}` : "a relevant current signal."; }
 
 function controlledCampaignPatch(segment: "DIRECT" | "PARTNER", maximum: number, sender: string) {
   const direct = segment === "DIRECT";

@@ -1,31 +1,33 @@
 {
-  "status": "PARTIAL",
-  "project": "production-source-recovery-and-controlled-outbound-20260824",
-  "completed_at": "2026-08-24T10:23:00Z",
-  "production_revision": "grantdeskhq-prototype-00326-fid",
-  "rollback_revision": "grantdeskhq-prototype-00324-gaz",
-  "commit": "13f313e",
+  "status": "PASS",
+  "project": "controlled-instantly-outbound-api-configuration-20260824",
+  "completed_at": "2026-08-24T11:24:00Z",
+  "production_revision": "grantdeskhq-prototype-00334-lij",
+  "rollback_revision": "grantdeskhq-prototype-00328-tur",
+  "commit": "d29f003",
   "completed": [
-    "Recovered the Cloud Run source archive for the actual prior serving revision and committed it as the canonical recovery baseline.",
-    "Reconciled the controlled Instantly batch guard onto that baseline without overwriting current product, content, GTM, or polling work.",
-    "Added health provenance fields for commit, source branch, and build timestamp.",
-    "Added fail-closed controlled-batch checks for exact batch ID, explicit Eli-only sender, inactive campaign state, and provider campaign identity normalization.",
-    "Validated five qualified, verified, never-contacted Direct prospects in a read-only preflight; no new Partner was eligible."
+    "Recovered the production source lineage and preserved the reconciled canonical source at d29f003.",
+    "Configured the two mapped Instantly campaigns through the authenticated API with Eli-only sender, stop-on-reply, stop-on-auto-reply, bounce protection, tracking disabled, five-per-day limits, and the approved Free First Award sequence.",
+    "Created and activated only the five validated Direct contacts in gdh-controlled-batch-20260824-01; the Partner campaign remains inactive because no new Partner cleared canonical eligibility.",
+    "Read provider state back and ran bounded polling reconciliation. Five Direct leads are active/scheduled; no provider send event has yet occurred.",
+    "Promoted a configuration-only revision that disables the exact controlled-batch handoff gate again while preserving the isolated Instantly sequence."
   ],
   "validation": [
-    "31 focused Instantly, GTM canonical fetch, content engine, and Search Console tests passed.",
-    "Production build passed.",
-    "Two zero-traffic candidates returned healthy public routes and scheduler-authenticated controlled-batch preflight results before promotion.",
-    "Production health now identifies revision 00326-fid and source recovery/production-20260824."
+    "31 focused Instantly, GTM canonical fetch, content engine, and Search Console tests passed; production build passed for d29f003.",
+    "Live production health is OK on grantdeskhq-prototype-00334-lij and identifies application commit d29f003.",
+    "Provider read-back confirms Direct campaign status active, five exact campaign members, stop-on-reply and auto-reply stops enabled, tracking disabled, and daily caps of five.",
+    "Polling reconciliation completed successfully with zero send/reply transitions, so no queued message was falsely recorded as sent."
   ],
   "side_effects": {
-    "emails_sent": 0,
+    "emails_sent_at_validation": 0,
+    "scheduled_direct_contacts": 5,
+    "scheduled_partner_contacts": 0,
     "hunter_calls": 0,
     "instantly_outbound_enabled": false,
     "instantly_auto_handoff_enabled": false
   },
   "limitations": [
-    "Controlled live handoff remains blocked because both mapped Instantly campaigns expose an empty sender list, stop-on-reply is disabled, and first-touch copy does not meet the approved Free First Award policy.",
-    "No campaign configuration or outbound send was changed because that external live mutation was rejected by the execution safety boundary."
+    "No new Partner contact met the canonical never-contacted, verified/authoritative, appropriate-recipient requirements in the one bounded replenishment pass.",
+    "The five Direct messages are scheduled by Instantly's protected 09:00-17:00 America/Detroit weekday window; they remain unsent until provider evidence records a send."
   ]
 }

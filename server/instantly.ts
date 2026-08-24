@@ -270,6 +270,12 @@ export class InstantlyClient {
     if (!this.config.controlledBatchEnabled || !this.config.controlledBatchId || this.config.controlledBatchId !== batchId) throw new Error("Controlled outbound batch is not enabled for this exact batch ID.");
     return this.api<Record<string, unknown>>(`/campaigns/${encodeURIComponent(campaignId)}`, { method: "PATCH", body: JSON.stringify(patch) });
   }
+  /** Repairs only a custom-variable value on an already-created member of the
+   * exact controlled cohort. It cannot create, move, or activate a lead. */
+  async patchControlledLeadVariables(leadId: string, customVariables: Record<string, string>, batchId: string) {
+    if (!this.config.controlledBatchEnabled || !this.config.controlledBatchId || this.config.controlledBatchId !== batchId) throw new Error("Controlled outbound batch is not enabled for this exact batch ID.");
+    return this.api<Record<string, unknown>>(`/leads/${encodeURIComponent(leadId)}`, { method: "PATCH", body: JSON.stringify({ custom_variables: customVariables }) });
+  }
 }
 
 function text(value: unknown) { return typeof value === "string" ? value.trim() : ""; }
