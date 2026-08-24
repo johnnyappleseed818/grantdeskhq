@@ -1,14 +1,16 @@
 {
-  "project": "high-velocity-self-serve-revenue-funnel",
+  "project": "competitor-seo-ai-search-growth-engine",
   "status": "PASS",
-  "completedAt": "2026-08-24T17:30:00Z",
+  "completedAt": "2026-08-24T18:34:00Z",
   "canonicalBranch": "recovery/production-20260824",
-  "commits": ["0f2c295", "5847842", "08cb009"],
+  "commits": ["1900294", "b736ef2", "cd05711"],
   "productionChanged": true,
-  "productionRevision": "grantdeskhq-prototype-highvelocity2",
-  "rollbackRevision": "grantdeskhq-prototype-00353-yis",
-  "nonBlockingExternalConfiguration": "Stripe TEST-mode and transactional email credentials are not configured for automated E2E delivery; lifecycle delivery remains disabled.",
+  "productionRevision": "grantdeskhq-prototype-competitorseopriority",
+  "rollbackRevision": "grantdeskhq-prototype-highvelocity2",
+  "contentAutoPublish": false,
   "liveOutboundChanged": false,
-  "liveStripeCharges": 0,
-  "emailsSent": 0
+  "emailsSent": 0,
+  "socialPosts": 0,
+  "articlesPublished": 0,
+  "humanActionRequired": "NONE"
 }
