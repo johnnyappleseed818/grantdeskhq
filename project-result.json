@@ -1,29 +1,29 @@
 {
   "status": "PASS",
-  "project": "partner-first-touch-copy-repair-20260824",
-  "completed_at": "2026-08-24T13:09:00Z",
-  "production_revision": "grantdeskhq-prototype-00350-sox",
-  "rollback_revision": "grantdeskhq-prototype-00345-joy",
-  "commit": "e80e540",
+  "project": "gtm-inventory-autopilot-20260824",
+  "completed_at": "2026-08-24T16:46:16Z",
+  "production_revision": "grantdeskhq-prototype-00353-yis",
+  "rollback_revision": "grantdeskhq-prototype-00350-sox",
+  "commit": "02f6795",
   "completed": [
-    "Read all five approved Partner leads from Instantly and proved no first-touch had been sent before the correction.",
-    "Paused only GrantDeskHQ — Fractional CFO & Accounting through Instantly API v2, replaced first-touch custom variables for exactly its five approved batch members, read each saved payload back, and resumed that campaign.",
-    "Preserved the existing recipients, verified addresses, batch ID, sender, weekday business-hours schedule, reply-stop, bounce protection, tracking-off settings, follow-up architecture, and explicit Free First Award CTA.",
-    "Read Direct only for immutability validation; no Direct campaign or lead write occurred.",
-    "Promoted a separate gate-disabled production revision; ordinary outbound and auto-handoff remain disabled."
+    "Added one central durable Direct, Partner, Content, and Social inventory policy with bounded floors, targets, and ceilings.",
+    "Integrated inventory decisions into the existing daily Direct/Social, daily Partner, and Tuesday/Friday SEO/content scheduler routes without adding scheduler jobs.",
+    "Ensured Direct and Partner inventory decisions use post-Instanly-polling canonical state before replenishment work is evaluated.",
+    "Added bounded Partner public discovery with canonical prior-contact exclusion before person-first enrichment, plus persistent telemetry and founder inventory visibility.",
+    "Promoted an inventory-only revision with automatic Instantly handoff, content auto-publish, and Social auto-posting disabled."
   ],
   "validation": [
-    "19 focused Instantly integration tests passed and the production build passed.",
-    "Candidate and production health are OK on grantdeskhq-prototype-00350-sox and identify application commit e80e540.",
-    "Provider read-back confirms the Partner campaign is active with only eli.katz@grantdeskhq.com, Stop on Reply enabled, bounce protection enabled, open/click tracking disabled, weekday 09:00-17:00 America/Detroit schedule, daily cap five, and explicit free CTA.",
-    "Provider read-back confirms the Direct campaign remains active with its original sender, schedule, reply-stop, tracking, cap, and initial copy."
+    "31 focused inventory, content, Social, contact-enrichment, and Instantly tests passed; the full suite exited successfully; production build passed.",
+    "Zero-traffic candidate and production health are OK on grantdeskhq-prototype-00353-yis and identify application commit 02f6795.",
+    "The protected calculation-only inventory refresh returned Direct 4 (replenishing), Partner 6 (healthy), Content 2 (healthy), and Social 6 (healthy).",
+    "No Instantly campaign configuration or membership endpoint was invoked by this project; the existing controlled batches remain untouched."
   ],
   "side_effects": {
-    "partner_first_touches_sent_before_repair": 0,
-    "partner_recipients_added": 0,
-    "duplicate_sends": 0,
+    "emails_sent_by_project": 0,
+    "articles_published": 0,
+    "social_posts": 0,
     "hunter_calls": 0,
-    "direct_campaign_writes": 0,
+    "instantly_campaign_writes": 0,
     "instantly_outbound_enabled": false,
     "instantly_auto_handoff_enabled": false
   },
