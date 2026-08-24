@@ -9,7 +9,7 @@ import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmContactSuppression, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmDirectDiscoveryScan, readGtmEnrichmentUsage, readGtmShadowStatus, readInstantlyRecords, readInstantlyStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, recordGtmContactSuppression, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveGtmDailyScan, saveGtmDirectDiscoveryScan, saveInstantlyRecord, saveInstantlyStatus, saveInstantlyWebhookEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview, updateGtmDailySocialItem } from "./persistence.ts";
+import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmContactSuppression, readGtmContentEngineState, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmDirectDiscoveryScan, readGtmEnrichmentUsage, readGtmShadowStatus, readInstantlyRecords, readInstantlyStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, recordGtmContactSuppression, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveGtmContentEngineState, saveGtmDailyScan, saveGtmDirectDiscoveryScan, saveInstantlyRecord, saveInstantlyStatus, saveInstantlyWebhookEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview, updateGtmDailySocialItem } from "./persistence.ts";
 import { validateFeedbackInput, type FeedbackSubmission } from "../src/lib/feedback.ts";
 import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
 import { confirmedHumanOutreach, summarizeOutreach } from "../src/lib/gtmOutreach.ts";
@@ -19,6 +19,7 @@ import { runDailySocialScan } from "./gtmDailyScanner.ts";
 import { runDirectPublicDiscovery } from "./gtmDirectDiscovery.ts";
 import { resolveDirectRecipients } from "./gtmDirectRecipientResolution.ts";
 import { buildShadowStatus, shadowLeadFromOpportunity, suggestedTopicsFromLeads } from "../src/lib/gtmShadow.ts";
+import { reconcileContentEngine, updateContentEngineState } from "../src/lib/gtmContentEngine.ts";
 import { enrichGtmContactInShadow } from "./contactEnrichment.ts";
 import { reconcileStoredContactEnrichmentBatch, runContactEnrichmentBatch, type EnrichmentBatchSegment } from "./contactEnrichmentBatch.ts";
 import { reconcileSearchConsole } from "./searchConsole.ts";
@@ -134,6 +135,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/instantly/ensure-lists") return await handleInstantlyEnsureLists(request, response);
     if (url.pathname === "/api/gtm/instantly/webhook") return await handleInstantlyWebhook(request, response);
     if (url.pathname === "/api/gtm/shadow-status") return await handleGtmShadowStatus(request, response);
+    if (url.pathname === "/api/gtm/content-engine") return await handleGtmContentEngine(request, response);
     if (url.pathname === "/api/gtm/contact-enrichment") return await handleGtmContactEnrichment(request, response);
     if (url.pathname === "/api/gtm/contact-enrichment/batch") return await handleGtmContactEnrichmentBatch(request, response);
     if (url.pathname === "/api/gtm/contact-enrichment/reconcile") return await handleStoredContactEnrichmentReconcile(request, response);
@@ -576,6 +578,18 @@ async function handleGtmShadowStatus(request: IncomingMessage, response: ServerR
   return json(response, 200, { status: await readGtmShadowStatus() });
 }
 
+async function handleGtmContentEngine(request: IncomingMessage, response: ServerResponse) {
+  requireGtmAdmin(await requireUser(request));
+  if (request.method === "GET") return json(response, 200, { state: await readGtmContentEngineState() });
+  if (request.method !== "PATCH") return json(response, 405, { error: "Method not allowed." });
+  const input = await readJson(request) as { kind?: "opportunity" | "draft" | "distribution"; id?: string; status?: string };
+  if (!input.kind || !input.id || !input.status || !/^[a-z0-9_-]{3,160}$/i.test(input.id)) return json(response, 400, { error: "A valid content record action is required." });
+  const state = await readGtmContentEngineState();
+  if (!state) return json(response, 409, { error: "Content opportunities have not been generated yet." });
+  const updated = updateContentEngineState(state, { kind: input.kind, id: input.id, status: input.status });
+  return json(response, 200, { state: await saveGtmContentEngineState(updated) });
+}
+
 async function handleGtmContactEnrichment(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   requireGtmAdmin(await requireUser(request));
@@ -642,8 +656,9 @@ async function handleSearchConsoleReconcile(request: IncomingMessage, response: 
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
   const state = await saveSearchConsoleState(await reconcileSearchConsole());
+  const content = await saveGtmContentEngineState(reconcileContentEngine(await readGtmContentEngineState()));
   console.info("SEARCH_CONSOLE_RECONCILE " + JSON.stringify({ analyticsStatus: state.analyticsStatus, pages: state.ranges.last28Days?.pages.length || 0, queries: state.ranges.last28Days?.queries.length || 0, sitemap: state.sitemap.result, dataThrough: state.dataThrough, errors: state.errors }));
-  return json(response, 200, { state });
+  return json(response, 200, { state, content });
 }
 
 async function handleSearchConsoleState(request: IncomingMessage, response: ServerResponse) {

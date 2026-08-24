@@ -43,6 +43,7 @@ import type { GtmOverview, GtmMetric } from "../lib/gtmOverview";
 import { confirmedHumanOutreach, reconcileOutreachControlPlane, summarizeOutreach, type OutreachRecord } from "../lib/gtmOutreach";
 import type { CanonicalGtmModel, CanonicalGtmRecord, CanonicalGtmState } from "../lib/gtmCanonical";
 import type { SearchConsoleState } from "../../server/searchConsole";
+import type { ContentEngineState } from "../lib/gtmContentEngine";
 
 type DashboardTab = "overview" | "outreach" | "leads" | "partners" | "social" | "seo" | "feedback" | "system-health" | "research";
 type StageState = Record<string, OpportunityStage>;
@@ -91,6 +92,9 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   const [canonicalError, setCanonicalError] = useState("");
   const [canonicalRetry, setCanonicalRetry] = useState(0);
   const [searchConsole, setSearchConsole] = useState<SearchConsoleState | null>(null);
+  const [contentEngine, setContentEngine] = useState<ContentEngineState | null>(null);
+  const [contentError, setContentError] = useState("");
+  const [contentPending, setContentPending] = useState<string | null>(null);
   const [instantly, setInstantly] = useState<{ health: InstantlyHealth; persisted: InstantlyPersistedStatus | null } | null>(null);
   const [signalsLoading, setSignalsLoading] = useState(Boolean(dailySignalToken));
   const [signalsError, setSignalsError] = useState("");
@@ -110,11 +114,12 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
       apiRequest<{ scan: DirectDiscoveryScan | null }>("/api/gtm/direct-discovery", idToken),
       apiRequest<{ reconciliation: ControlPlaneQueueReconciliation | null }>("/api/gtm/control-plane-queue", idToken),
       apiRequest<{ overview: GtmOverview }>("/api/gtm/overview", idToken),
-      apiRequest<{ state: SearchConsoleState | null }>("/api/gtm/search-console", idToken)
+      apiRequest<{ state: SearchConsoleState | null }>("/api/gtm/search-console", idToken),
+      apiRequest<{ state: ContentEngineState | null }>("/api/gtm/content-engine", idToken)
     ]))
-      .then(([opportunityResult, socialResult, awardResult, directResult, controlPlaneResult, overviewResult, searchConsoleResult]) => {
+      .then(([opportunityResult, socialResult, awardResult, directResult, controlPlaneResult, overviewResult, searchConsoleResult, contentResult]) => {
         if (!active) return;
-        const failures = [opportunityResult, socialResult, awardResult, directResult, controlPlaneResult, overviewResult, searchConsoleResult].filter((result) => result.status === "rejected");
+        const failures = [opportunityResult, socialResult, awardResult, directResult, controlPlaneResult, overviewResult, searchConsoleResult, contentResult].filter((result) => result.status === "rejected");
         if (failures.length) setSignalsError("Some secondary GTM data could not be loaded. Commercial queues remain available.");
         if (socialResult.status === "fulfilled") setDailyScan(socialResult.value.scan);
         if (awardResult.status === "fulfilled") setAwardScan(awardResult.value.scan);
@@ -122,6 +127,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
         if (controlPlaneResult.status === "fulfilled") setControlPlane(controlPlaneResult.value.reconciliation);
         if (overviewResult.status === "fulfilled") setOverview(overviewResult.value.overview);
         if (searchConsoleResult.status === "fulfilled") setSearchConsole(searchConsoleResult.value.state);
+        if (contentResult.status === "fulfilled") setContentEngine(contentResult.value.state);
         if (opportunityResult.status === "fulfilled") {
           setLiveOpportunities(mergeAwardCandidates(awardResult.status === "fulfilled" ? awardResult.value.scan?.opportunities || [] : [], opportunityResult.value.opportunities));
           setExpanded((current) => current || opportunityResult.value.opportunities[0]?.id || null);
@@ -199,6 +205,15 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
       setSocialReviewError("Unable to save the Social review state. Please retry.");
     } finally { setSocialReviewPending(null); }
   };
+  const updateContent = async (kind: "opportunity" | "draft" | "distribution", id: string, status: string) => {
+    if (!dailySignalToken) return;
+    setContentError(""); setContentPending(id);
+    try {
+      const result = await requestGtmWithFreshToken<{ state: ContentEngineState }>(dailySignalToken, "/api/gtm/content-engine", apiRequest, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, id, status }) });
+      setContentEngine(result.state);
+    } catch { setContentError("Unable to save the content review state. Please retry."); }
+    finally { setContentPending(null); }
+  };
 
   return <div className="gtm-page">
     <header className="gtm-header">
@@ -221,7 +236,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
     <div className="gtm-tab-wrap">
       <div className="site-shell gtm-tabs" role="tablist" aria-label="GTM dashboard sections">
         {([
-          ["overview", "Overview"], ["outreach", "Outreach"], ["leads", "Leads"], ["partners", "Partners"], ["social", "Social"], ["seo", "SEO"], ["feedback", "Feedback"], ["system-health", "System Health"]
+          ["overview", "Overview"], ["outreach", "Outreach"], ["leads", "Leads"], ["partners", "Partners"], ["social", "Social"], ["seo", "SEO & Content"], ["feedback", "Feedback"], ["system-health", "System Health"]
         ] as Array<[DashboardTab, string]>).map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={activeTab === id} className={activeTab === id ? "is-active" : ""} onClick={() => setActiveTab(id)}>{label}</button>)}
       </div>
     </div>
@@ -275,7 +290,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
       {activeTab === "outreach" && <OutreachHistoryPanel records={outreach} canonicalOpportunityIds={controlPlane?.cards.map((card) => card.canonicalCardId) || ranked.map((opportunity) => opportunity.id)} filter={outreachFilter} query={outreachQuery} onFilter={setOutreachFilter} onQuery={setOutreachQuery} />}
       {activeTab === "partners" && (canonicalRuntime ? <CanonicalOperationalPanel model={canonical} segment="PARTNER" loading={canonicalLoading} error={canonicalError} onRetry={() => setCanonicalRetry((value) => value + 1)} /> : <PartnersPanel records={outreach} overview={overview} />)}
       {activeTab === "social" && <SocialQueuePanel scan={dailyScan} onReview={reviewSocial} pendingId={socialReviewPending} error={socialReviewError} />}
-      {activeTab === "seo" && <SeoQueuePanel state={searchConsole} />}
+      {activeTab === "seo" && <SeoQueuePanel state={searchConsole} content={contentEngine} error={contentError} pendingId={contentPending} onUpdate={updateContent} />}
       {activeTab === "feedback" && <FeedbackPanel />}
       {activeTab === "system-health" && <><OverviewPanel overview={overview} inMain /><div className="mt-8"><InstantlyHealthPanel health={instantly?.health || null} persisted={instantly?.persisted || null} /></div><div className="mt-8"><SignalsPanel dailyScan={dailyScan} directDiscovery={directDiscovery} loading={signalsLoading} error={signalsError} /></div><div className="mt-8"><SourcesPanel dailyScan={dailyScan} directDiscovery={directDiscovery} /></div><div className="mt-8"><PipelinePanel opportunities={ranked} stages={stages} stagesOrder={pipelineStages} onStageChange={updateStage} /></div><div className="mt-8"><OutreachAutomationPanel opportunities={ranked} stages={stages} /></div><div className="mt-8"><AccuracyPanel /></div></>}
     </div>
@@ -394,15 +409,23 @@ function SocialQueuePanel({ scan, onReview, pendingId, error }: { scan: DailySoc
   </section>;
 }
 
-function SeoQueuePanel({ state }: { state: SearchConsoleState | null }) {
+function SeoQueuePanel({ state, content, error, pendingId, onUpdate }: { state: SearchConsoleState | null; content: ContentEngineState | null; error: string; pendingId: string | null; onUpdate(kind: "opportunity" | "draft" | "distribution", id: string, status: string): Promise<void> }) {
   if (!state) return <section className="workspace-empty"><LoaderCircle className="animate-spin" aria-hidden="true" /><h2>Loading Search Console state</h2><p>The SEO queue waits for the persisted Search Console reconciliation.</p></section>;
   const pages = state.ranges.last28Days?.pages || [];
   const actions = seoActions(state);
   const healthy = state.analyticsStatus !== "FAIL" && state.sitemap.result === "PASS";
-  return <section><div className="gtm-section-heading"><div><p className="eyebrow">Search Console only</p><h2>SEO operating state</h2><p>{state.property} · synced {state.lastSuccessfulSync ? formatDateTime(state.lastSuccessfulSync) : "not yet"}</p></div><span className={`status-badge ${state.analyticsStatus === "FAIL" ? "status-blocked" : "status-neutral"}`}>{state.analyticsStatus.replaceAll("_", " ")}</span></div>
+  return <section><div className="gtm-section-heading"><div><p className="eyebrow">Search Console + founder-approved content</p><h2>SEO & Content operating state</h2><p>{state.property} · synced {state.lastSuccessfulSync ? formatDateTime(state.lastSuccessfulSync) : "not yet"}</p></div><span className={`status-badge ${state.analyticsStatus === "FAIL" ? "status-blocked" : "status-neutral"}`}>{state.analyticsStatus.replaceAll("_", " ")}</span></div>
     <div className="gtm-automation-metrics"><article><strong>{healthy ? "GOOD" : "ATTENTION"}</strong><span>SEO health</span></article><article><strong>{pages.length}</strong><span>pages with data</span></article><article><strong>{state.ranges.last28Days?.queries.length || 0}</strong><span>queries with data</span></article><article><strong>{state.sitemap.result}</strong><span>sitemap submission</span></article></div>
     <div className="gtm-opportunity-list mt-6">{actions.map((item, index) => <article className="gtm-opportunity" key={`${item.page}:${index}`}><div className="gtm-opportunity-main"><span className="status-badge status-neutral">{item.action}</span><h3>{item.page || "Search performance monitoring"}</h3><p>{item.reason}</p>{item.page && <a href={item.page} target="_blank" rel="noreferrer">Open affected page <ExternalLink aria-hidden="true" /></a>}</div></article>)}</div>
-    {!actions.length && <div className="workspace-empty"><ClipboardCheck aria-hidden="true" /><h2>No SEO action required</h2><p>Search Console has no page-specific, commercially meaningful task that meets the action threshold.</p></div>}
+    {!actions.length && <div className="workspace-empty"><ClipboardCheck aria-hidden="true" /><h2>No existing-page SEO action required</h2><p>Search Console has no page-specific, commercially meaningful task that meets the action threshold.</p></div>}
+    <section className="mt-10"><div className="gtm-section-heading"><div><p className="eyebrow">Content opportunities</p><h2>What GrantDeskHQ should create next</h2><p>Opportunities use community/direct themes and content gaps; low query volume does not create fake SEO work.</p></div><span className="status-badge status-neutral">FOUNDER APPROVAL REQUIRED</span></div>
+      {error && <div className="compiler-error" role="alert"><AlertCircle aria-hidden="true" />{error}</div>}
+      {!content && <div className="workspace-empty"><LoaderCircle className="animate-spin" aria-hidden="true" /><h2>Loading content opportunities</h2><p>The content queue is protected founder data.</p></div>}
+      {content && <><div className="gtm-automation-metrics"><article><strong>{content.opportunities.filter((item) => item.status !== "SKIPPED").length}</strong><span>opportunities</span></article><article><strong>{content.drafts.filter((item) => item.status === "READY_FOR_REVIEW").length}</strong><span>ready for review</span></article><article><strong>{content.distributionTasks.filter((item) => item.status === "READY").length}</strong><span>manual distribution tasks</span></article><article><strong>FALSE</strong><span>auto publish</span></article></div>
+      <div className="gtm-opportunity-list mt-6">{content.opportunities.filter((item) => item.status !== "SKIPPED").sort((a, b) => b.priorityScore - a.priorityScore).map((item) => <article className="gtm-opportunity" key={item.id}><div className="gtm-opportunity-main"><div className="flex flex-wrap gap-2"><span className="status-badge status-neutral">{item.recommendedAction}</span><span className="status-badge status-review">{item.status.replaceAll("_", " ")}</span><span className="status-badge status-neutral">priority {item.priorityScore}</span></div><h3>{item.workingTitle}</h3><p><strong>Why now:</strong> {item.primaryUserProblem}</p><p><strong>Evidence:</strong> {item.sourceOfIdea.join(" · ")}</p><p><strong>Existing overlap:</strong> {item.existingContentOverlap}</p><p><strong>Next action:</strong> {item.recommendedFormat}</p><div className="gtm-actions"><button type="button" disabled={pendingId === item.id} className="button button-secondary button-small" onClick={() => void onUpdate("opportunity", item.id, "SKIPPED")}>{pendingId === item.id ? "Saving…" : "Skip"}</button></div></div></article>)}</div>
+      <div className="mt-10"><p className="eyebrow">Content pipeline</p><h2 className="text-2xl font-bold">Review before publication</h2><p className="text-slate-600">Drafts are not public pages. Approval records release readiness only; no content is published by this command center.</p><div className="gtm-opportunity-list mt-5">{content.drafts.map((draft) => <article className="gtm-opportunity" key={draft.id}><div className="gtm-opportunity-main"><span className="status-badge status-review">{draft.status.replaceAll("_", " ")}</span><h3>{draft.title}</h3><p>{draft.metaDescription}</p><details><summary>Open draft</summary><pre className="whitespace-pre-wrap text-sm mt-3">{draft.body}</pre></details><p><strong>Planned canonical URL:</strong> {draft.canonicalUrl}</p><p><strong>Internal links:</strong> {draft.internalLinksTo.join(" · ")}</p><div className="gtm-actions"><button type="button" disabled={pendingId === draft.id || draft.status === "APPROVED"} className="button button-secondary button-small" onClick={() => void onUpdate("draft", draft.id, "APPROVED")}>{pendingId === draft.id ? "Saving…" : draft.status === "APPROVED" ? "Approved for release" : "Approve for release"}</button><button type="button" disabled={pendingId === draft.id} className="button button-secondary button-small" onClick={() => void onUpdate("draft", draft.id, "SKIPPED")}>Skip</button></div></div></article>)}</div></div>
+      <div className="mt-10"><p className="eyebrow">Manual distribution</p><h2 className="text-2xl font-bold">Useful follow-on tasks only</h2><p className="text-slate-600">Nothing posts externally. Medium, Reddit, Quora, LinkedIn, and forum tasks stay manual.</p><div className="gtm-opportunity-list mt-5">{content.distributionTasks.filter((task) => task.status === "READY").map((task) => <article className="gtm-opportunity" key={task.id}><div className="gtm-opportunity-main"><span className="status-badge status-neutral">{task.platform}</span><h3>{task.sourceOrCommunity}</h3><p>{task.whyRelevant}</p><p>{task.draftText}</p><p><strong>Source article:</strong> {task.canonicalArticleUrl}</p><div className="gtm-actions"><button type="button" className="button button-secondary button-small" onClick={() => navigator.clipboard.writeText(task.draftText)}>Copy</button><button type="button" disabled={pendingId === task.id} className="button button-secondary button-small" onClick={() => void onUpdate("distribution", task.id, "POSTED")}>{pendingId === task.id ? "Saving…" : "Mark posted"}</button><button type="button" disabled={pendingId === task.id} className="button button-secondary button-small" onClick={() => void onUpdate("distribution", task.id, "SKIPPED")}>Skip</button></div></div></article>)}</div></div></>}
+    </section>
     <div className="gtm-boundary-note"><ShieldCheck aria-hidden="true" /><div><strong>Sitemap state</strong><p>{state.sitemap.publicAccessible && state.sitemap.canonicalUrlsPresent ? "Public canonical sitemap validated." : "Sitemap validation requires attention."} Submission: {state.sitemap.result}. {state.sitemap.error || ""}</p></div></div>
   </section>;
 }

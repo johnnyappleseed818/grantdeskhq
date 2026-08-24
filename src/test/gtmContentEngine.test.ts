@@ -1,0 +1,37 @@
+import { describe, expect, it } from "vitest";
+import { buildInitialContentEngineState, reconcileContentEngine, updateContentEngineState } from "../lib/gtmContentEngine";
+
+describe("canonical content opportunity engine", () => {
+  it("creates a bounded, review-only backlog even with no Search Console query rows", () => {
+    const state = buildInitialContentEngineState("2026-08-24T00:00:00.000Z");
+    expect(state.enabled).toBe(true);
+    expect(state.autoPublishEnabled).toBe(false);
+    expect(state.opportunities).toHaveLength(7);
+    expect(state.drafts.filter((draft) => draft.status === "READY_FOR_REVIEW")).toHaveLength(2);
+    expect(state.opportunities.some((item) => item.recommendedAction === "EXPAND_EXISTING")).toBe(true);
+  });
+
+  it("preserves founder review states across a scheduled reconciliation", () => {
+    const state = updateContentEngineState(buildInitialContentEngineState(), { kind: "opportunity", id: "content-reporting-calendar", status: "SKIPPED" });
+    const reconciled = reconcileContentEngine(state, "2026-08-24T12:00:00.000Z");
+    expect(reconciled.opportunities.find((item) => item.id === "content-reporting-calendar")?.status).toBe("SKIPPED");
+  });
+
+  it("requires founder review and blocks direct publication", () => {
+    const state = buildInitialContentEngineState();
+    const approved = updateContentEngineState(state, { kind: "draft", id: "draft-supporting-evidence", status: "APPROVED" });
+    expect(approved.drafts[0].status).toBe("APPROVED");
+    expect(() => updateContentEngineState(state, { kind: "draft", id: "draft-supporting-evidence", status: "PUBLISHED" })).toThrow(/publication is disabled/i);
+  });
+
+  it("keeps distribution manual and only persists a founder-reviewed state", () => {
+    const state = buildInitialContentEngineState();
+    const posted = updateContentEngineState(state, { kind: "distribution", id: "distribution-linkedin-evidence", status: "POSTED" });
+    expect(posted.distributionTasks.find((task) => task.id === "distribution-linkedin-evidence")?.status).toBe("POSTED");
+    expect(posted.distributionTasks.every((task) => task.draftText.length > 0)).toBe(true);
+  });
+
+  it("rejects an unknown canonical record instead of silently accepting a bad action", () => {
+    expect(() => updateContentEngineState(buildInitialContentEngineState(), { kind: "distribution", id: "unknown-task", status: "SKIPPED" })).toThrow(/not found/i);
+  });
+});

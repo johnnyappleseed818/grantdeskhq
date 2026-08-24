@@ -3,6 +3,7 @@ import { canGenerateReviewPackage, encodedFileSize, isValidCompilationRequestId,
 import type { CompilationRequest, CompilationResult, CompilerFile, PersistedCompilationResponse, PersistedReportSource, SavedReportSummary, SupportingEvidenceFile } from "../src/types/prototype.ts";
 import type { AwardDiscoveryScan, DailySocialScan, DirectDiscoveryScan } from "../src/lib/gtm.ts";
 import type { ShadowPipelineStatus } from "../src/lib/gtmShadow.ts";
+import type { ContentEngineState } from "../src/lib/gtmContentEngine.ts";
 import type { ControlPlaneQueueReconciliation } from "../src/lib/gtmControlPlaneQueue.ts";
 import type { ContactEnrichmentRecord, EnrichmentUsage, SuppressionCheck } from "../src/lib/contactEnrichment.ts";
 import type { SearchConsoleState } from "./searchConsole.ts";
@@ -747,6 +748,22 @@ export async function readGtmShadowStatus(): Promise<ShadowPipelineStatus | null
   const document = await response.json() as { fields?: Record<string, FirestoreValue> };
   const record = decodeFields(document.fields || {});
   return record.statusJson ? JSON.parse(String(record.statusJson)) as ShadowPipelineStatus : null;
+}
+
+/** Founder-review content state. It never publishes or posts externally. */
+export async function saveGtmContentEngineState(state: ContentEngineState) {
+  const accessToken = await gcpToken();
+  await writeDocument(accessToken, "gtm/content-engine", { generatedAt: state.generatedAt, stateJson: JSON.stringify(state) });
+  return state;
+}
+
+export async function readGtmContentEngineState(): Promise<ContentEngineState | null> {
+  const response = await authorizedFetch(firestoreBase + "/gtm/content-engine", await gcpToken());
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("GTM content state could not be loaded (status " + response.status + ").");
+  const record = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
+  try { return record.stateJson ? JSON.parse(String(record.stateJson)) as ContentEngineState : null; }
+  catch { return null; }
 }
 
 export async function saveGtmContactEnrichment(record: ContactEnrichmentRecord) {
