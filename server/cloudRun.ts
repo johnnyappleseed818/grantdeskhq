@@ -475,7 +475,7 @@ async function handleGtmInstantlyStage(request: IncomingMessage, response: Serve
 async function handleControlledInstantlyBatch(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
-  const input = await readJson(request) as { batchId?: string; execute?: boolean; repairOpeningLines?: boolean };
+  const input = await readJson(request) as { batchId?: string; execute?: boolean; repairOpeningLines?: boolean; repairPartnerFirstTouches?: boolean };
   const batchId = String(input.batchId || "");
   if (!/^gdh-controlled-batch-\d{8}-\d{2}$/.test(batchId)) return json(response, 400, { error: "A valid controlled batch ID is required." });
   const config = instantlyConfig();
@@ -516,6 +516,42 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
     }));
     return json(response, 200, { mode: "CONTROLLED_COPY_REPAIRED", batchId, repaired });
   }
+  if (input.repairPartnerFirstTouches === true) {
+    if (!client || !config.controlledBatchEnabled || config.controlledBatchId !== batchId) return json(response, 409, { error: "This exact controlled batch is not enabled for Partner copy repair." });
+    const partnerCampaignId = config.partnerCampaignId;
+    const partnerCampaign = campaignDetails[1];
+    if (!partnerCampaign || !partnerCampaignId || !campaignUsesOnlySender(partnerCampaign, approvedSender)) return json(response, 409, { error: "The mapped Partner campaign is not safe for this copy repair." });
+    const byId = new Map(model.records.map((record) => [record.organizationId, record]));
+    const partnerRecords = existingRecords.filter((record) => record.controlledBatchId === batchId && record.segment === "PARTNER" && record.instantlyLeadId && record.instantlyCampaignId === partnerCampaignId);
+    if (partnerRecords.length !== 5) return json(response, 409, { error: "The exact five-member Partner cohort could not be proven." });
+    const providerLeads = new Map(leadInventory.items.map((lead) => [String(lead.id || ""), lead]));
+    const unsent = partnerRecords.filter((record) => !providerFirstCampaignStep(providerLeads.get(record.instantlyLeadId)));
+    const alreadySent = partnerRecords.filter((record) => !unsent.includes(record));
+    if (!unsent.length) return json(response, 200, { mode: "PARTNER_COPY_UNCHANGED_ALREADY_SENT", batchId, alreadySent: alreadySent.map((record) => ({ organization: record.organization, instantlyLeadId: record.instantlyLeadId })) });
+    for (const record of unsent) {
+      const canonical = byId.get(record.canonicalOrganizationId);
+      if (!canonical || canonical.email?.toLowerCase() !== record.email.toLowerCase() || canonical.priorContact || canonical.suppressionStatus !== "CLEAR") throw new HttpError(409, "A Partner cohort member no longer satisfies canonical safety checks.");
+      if (canonical.segment !== "PARTNER") throw new HttpError(409, "A non-Partner record cannot enter the Partner-only copy repair.");
+    }
+    await client.pauseControlledCampaign(partnerCampaignId, batchId);
+    const paused = await client.getCampaign(partnerCampaignId);
+    if (Number(paused.status) !== 0) return json(response, 409, { error: "The Partner campaign could not be paused for pre-send repair." });
+    await client.configureControlledCampaign(partnerCampaignId, controlledCampaignPatch("PARTNER", 5, approvedSender), batchId);
+    const configured = await client.getCampaign(partnerCampaignId);
+    if (!controlledCampaignReady(configured, approvedSender)) return json(response, 409, { error: "Partner campaign read-back did not satisfy sender, reply-stop, tracking, CTA, and safety requirements." });
+    const repaired = await Promise.all(unsent.map(async (record) => {
+      const canonical = byId.get(record.canonicalOrganizationId)!;
+      const subjectLine = controlledSubject(canonical);
+      const openingLine = controlledOpening(canonical);
+      await client.patchControlledLeadVariables(record.instantlyLeadId, { openingLine, subjectLine }, batchId);
+      return { organization: record.organization, instantlyLeadId: record.instantlyLeadId, subjectLine, emailBody: controlledEmail(canonical) };
+    }));
+    await client.activateControlledCampaign(partnerCampaignId, batchId);
+    const resumed = await client.getCampaign(partnerCampaignId);
+    const resumedSummary = controlledCampaignSafetySummary(resumed);
+    if (Number(resumed.status) !== 1 || !campaignUsesOnlySender(resumed, approvedSender) || !resumedSummary.stopOnReply || !resumedSummary.bounceProtectionEnabled || resumedSummary.openTracking || resumedSummary.linkTracking || Number(resumedSummary.dailyMaxLeads) !== 5) throw new HttpError(409, "Partner campaign did not resume with required safety controls.");
+    return json(response, 200, { mode: "PARTNER_COPY_REPAIRED_BEFORE_SEND", batchId, repaired, alreadySent: alreadySent.map((record) => ({ organization: record.organization, instantlyLeadId: record.instantlyLeadId })), campaign: resumedSummary });
+  }
   if (!input.execute) return json(response, 200, { mode: "PREFLIGHT", batchId, senderReady, campaignConfigurationAllowed, approvedSender, mailbox: approvedAccount ? { email: approvedAccount.email, status: approvedAccount.status, warmupStatus: approvedAccount.warmup_status, setupPending: approvedAccount.setup_pending === true, hasError: Boolean(String(approvedAccount.e_message || "").trim()), dailyLimit: approvedAccount.daily_limit ?? approvedAccount.warmup_limit ?? null } : null, flags: { integrationEnabled: config.integrationEnabled, outboundEnabled: config.outboundEnabled, autoHandoffEnabled: config.autoHandoffEnabled, directEnabled: config.directEnabled, partnerEnabled: config.partnerEnabled, controlledBatchEnabled: config.controlledBatchEnabled }, campaigns: campaignDetails.map((campaign) => campaign ? controlledCampaignSafetySummary(campaign) : null), proposedConfiguration: { direct: controlledCampaignPatch("DIRECT", 5, approvedSender), partner: controlledCampaignPatch("PARTNER", 5, approvedSender) }, campaignLeadCount: Object.fromEntries(campaignLeadCount), direct: direct.map(summary), partner: partner.map(summary), exclusions: { priorContact: model.records.filter((record) => record.priorContact).length, suppressed: model.records.filter((record) => record.suppressionStatus !== "CLEAR").length, existingInstantly: existingEmails.size } });
   if (!mailboxReady || !client || !campaignConfigurationAllowed) return json(response, 409, { error: "Approved mailbox or mapped inactive campaigns are not safe for a controlled batch." });
   if (!config.controlledBatchEnabled || config.controlledBatchId !== batchId) return json(response, 409, { error: "This exact controlled batch is not enabled." });
@@ -544,21 +580,44 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
 }
 
 function controlledSubject(record: Awaited<ReturnType<typeof readCanonicalGtmModel>>["records"][number]) {
-  return record.segment === "DIRECT" ? "Less time preparing grant reports" : `Helping ${record.organization} clients save time on grant reports`;
+  if (record.segment === "DIRECT") return "Less time preparing grant reports";
+  return partnerFirstTouchCopy(record).subject;
 }
 
 function controlledEmail(record: Awaited<ReturnType<typeof readCanonicalGtmModel>>["records"][number]) {
   const first = String(record.contact || "there").split(/\s+/)[0];
   const context = controlledOpening(record);
-  const value = record.segment === "DIRECT" ? "Preparing a funder report can mean pulling together award terms, accounting data, program updates, and supporting evidence from several places." : "A lot of nonprofit client reporting still means pulling together award terms, accounting data, program updates, and supporting evidence by hand.";
+  const value = record.segment === "DIRECT" ? "Preparing a funder report can mean pulling together award terms, accounting data, program updates, and supporting evidence from several places." : "GrantDeskHQ helps nonprofit teams pull the grant agreement, accounting data, program updates, and supporting evidence into a source-linked first draft of a funder report. Their team still reviews and submits it.";
+  const partnerBridge = record.segment === "PARTNER" ? "\n\nThat can mean less repetitive report-prep work for the nonprofit clients you already support." : "";
   const close = record.segment === "DIRECT" ? "You can try it with one real award for free here: https://grantdeskhq.com/assessment" : "You can try it with one client award for free here: https://grantdeskhq.com/assessment";
-  return `Hi ${first},\n\n${context}\n\n${value}\n\nGrantDeskHQ turns those inputs into a source-linked first draft for human review. People remain responsible for the final review and submission.\n\n${close}\n\nBest,\nEli`;
+  const product = record.segment === "DIRECT" ? "\n\nGrantDeskHQ turns those inputs into a source-linked first draft for human review. People remain responsible for the final review and submission." : "";
+  return `Hi ${first},\n\n${context}\n\n${value}${partnerBridge}${product}\n\n${close}\n\nBest,\nEli`;
 }
 
 function controlledOpening(record: Awaited<ReturnType<typeof readCanonicalGtmModel>>["records"][number]) {
   return record.segment === "DIRECT"
     ? `I came across ${record.organization} and noticed this: ${lowercaseInitial(record.whyNow)} I thought this might be relevant.`
-    : `I came across ${record.organization} and noticed this: ${lowercaseInitial(record.whyNow)} I thought this might be relevant.`;
+    : partnerFirstTouchCopy(record).opening;
+}
+
+function partnerFirstTouchCopy(record: Awaited<ReturnType<typeof readCanonicalGtmModel>>["records"][number]) {
+  const copy: Record<string, { subject: string; opening: string }> = {
+    "CFO for Good": { subject: "Less manual grant-report prep for clients", opening: "CFO for Good's outsourced finance work with nonprofits caught my attention. I thought GrantDeskHQ might be useful when one of the organizations you support is pulling a funder report together." },
+    "Integrant Advisory": { subject: "For your nonprofit CFO clients", opening: "I was looking at Integrant's nonprofit CFO work, especially the finance and compliance side. I thought this might be relevant for a client with grant reporting on the horizon." },
+    "Noble Accounting LLC": { subject: "A simpler grant-report workflow for clients", opening: "Noble's mix of nonprofit accounting, fractional CFO work, and audit readiness made me think of the grant-reporting work that can land on a client's finance team." },
+    "Beancount.co": { subject: "Less manual work on client grant reports", opening: "I saw that Beancount supports nonprofit and social-sector teams with accounting and CFO work. I thought you might be interested in a lighter way to help a client assemble a grant report." },
+    "Future Focused Solutions": { subject: "For nonprofits you support on grants", opening: "Future Focused Solutions' work across nonprofit accounting, fractional CFO support, and grants is close to the teams we built GrantDeskHQ for." }
+  };
+  return copy[record.organization] || { subject: "A simpler grant-report workflow for nonprofit clients", opening: `I was looking at ${record.organization}'s nonprofit finance work and thought this might be relevant.` };
+}
+
+function providerFirstCampaignStep(lead: Record<string, unknown> | undefined) {
+  if (!lead) return "";
+  const summary = lead.status_summary && typeof lead.status_summary === "object" ? lead.status_summary as Record<string, unknown> : {};
+  const lastStep = summary.lastStep && typeof summary.lastStep === "object" ? summary.lastStep as Record<string, unknown> : {};
+  const from = String(lead.last_step_from || lastStep.from || "").toLowerCase();
+  const at = String(lead.last_step_timestamp_executed || lastStep.timestamp_executed || "");
+  return from === "campaign" && at ? at : "";
 }
 
 function lowercaseInitial(value: string) { return value ? `${value.slice(0, 1).toLowerCase()}${value.slice(1)}` : "a relevant current signal."; }
@@ -567,11 +626,11 @@ function controlledCampaignPatch(segment: "DIRECT" | "PARTNER", maximum: number,
   const direct = segment === "DIRECT";
   const initialBody = direct
     ? "<div>Hi {{firstName}},</div><div><br /></div><div>{{openingLine}}</div><div><br /></div><div>Preparing a funder report can mean pulling together award terms, accounting data, program updates, and supporting evidence from several places.</div><div><br /></div><div>GrantDeskHQ turns those inputs into a source-linked first draft for human review. People remain responsible for the final review and submission.</div><div><br /></div><div>You can try it with one real award for free here: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>"
-    : "<div>Hi {{firstName}},</div><div><br /></div><div>{{openingLine}}</div><div><br /></div><div>GrantDeskHQ helps nonprofit teams bring the award agreement, accounting data, program updates, and supporting evidence into a source-linked first report draft.</div><div><br /></div><div>It can reduce repetitive grant-report preparation for nonprofit clients while the advisor and nonprofit retain review and submission control.</div><div><br /></div><div>If you'd like to see how it works, you can try it with one client award for free: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>";
+    : "<div>Hi {{firstName}},</div><div><br /></div><div>{{openingLine}}</div><div><br /></div><div>GrantDeskHQ helps nonprofit teams pull the grant agreement, accounting data, program updates, and supporting evidence into a source-linked first draft of a funder report. Their team still reviews and submits it.</div><div><br /></div><div>That can mean less repetitive report-prep work for the nonprofit clients you already support.</div><div><br /></div><div>You can try it with one client award for free here: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>";
   return {
     email_list: [sender], stop_on_reply: true, stop_on_auto_reply: true, disable_bounce_protect: false,
     open_tracking: false, link_tracking: false, daily_limit: maximum, daily_max_leads: maximum,
-    sequences: [{ steps: [{ type: "email", delay: 0, delay_unit: "days", variants: [{ subject: direct ? "Less time preparing grant reports" : "Helping nonprofit clients save time on grant reports", body: initialBody, v_disabled: false }] }, { type: "email", delay: 4, delay_unit: "days", variants: [{ subject: direct ? "A simpler way to prep funder reports" : "A simpler way to prep client grant reports", body: "<div>Hi {{firstName}},</div><div><br /></div><div>Just following up in case this is useful. You can try one real award for free here: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: false }] }, { type: "email", delay: 5, delay_unit: "days", variants: [{ subject: direct ? "Worth trying on one award?" : "Worth trying with one client award?", body: "<div>Hi {{firstName}},</div><div><br /></div><div>One last note: GrantDeskHQ is designed to reduce the repetitive first-pass work of assembling a grant report. If useful, your first award is free: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: false }] }, { type: "email", delay: 7, delay_unit: "days", variants: [{ subject: direct ? "Closing the loop" : "Closing the loop on client grant reports", body: "<div>Hi {{firstName}},</div><div><br /></div><div>I will close the loop here. If grant-report preparation becomes a priority later, you can try one award free: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: false }] }] }]
+    sequences: [{ steps: [{ type: "email", delay: 0, delay_unit: "days", variants: [{ subject: direct ? "Less time preparing grant reports" : "{{subjectLine}}", body: initialBody, v_disabled: false }] }, { type: "email", delay: 4, delay_unit: "days", variants: [{ subject: direct ? "A simpler way to prep funder reports" : "A simpler way to prep client grant reports", body: "<div>Hi {{firstName}},</div><div><br /></div><div>Just following up in case this is useful. You can try one real award for free here: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: false }] }, { type: "email", delay: 5, delay_unit: "days", variants: [{ subject: direct ? "Worth trying on one award?" : "Worth trying with one client award?", body: "<div>Hi {{firstName}},</div><div><br /></div><div>One last note: GrantDeskHQ is designed to reduce the repetitive first-pass work of assembling a grant report. If useful, your first award is free: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: false }] }, { type: "email", delay: 7, delay_unit: "days", variants: [{ subject: direct ? "Closing the loop" : "Closing the loop on client grant reports", body: "<div>Hi {{firstName}},</div><div><br /></div><div>I will close the loop here. If grant-report preparation becomes a priority later, you can try one award free: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: false }] }] }]
   };
 }
 
