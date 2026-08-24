@@ -964,7 +964,7 @@ export async function beginFreeFirstAward(user: AuthenticatedUser, requestId: st
     freeFirstAwardReportGeneratedAt: "",
     freeFirstAwardCompletedAt: "",
     freeFirstAwardReportId: "",
-    activeRequestId: requestId.slice(0, 128),
+    activeRequestId: String(requestId || "").slice(0, 128),
     attributionJson: JSON.stringify({ ...await readBillingAttribution(user), ...attribution }),
     promotionalNurtureAllowed: status.promotionalNurtureAllowed,
     updatedAt: now
