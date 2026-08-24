@@ -1,33 +1,31 @@
 {
-  "status": "PASS",
-  "project": "proactive-seo-content-distribution-engine-20260824",
-  "completed_at": "2026-08-24T07:15:00Z",
-  "production_revision": "grantdeskhq-prototype-00315-van",
-  "rollback_revision": "grantdeskhq-prototype-00311-raj",
-  "commit": "e3deebdca325b8b3986342e83eec09bf7f8dc8b2",
+  "status": "PARTIAL",
+  "project": "production-source-recovery-and-controlled-outbound-20260824",
+  "completed_at": "2026-08-24T10:23:00Z",
+  "production_revision": "grantdeskhq-prototype-00326-fid",
+  "rollback_revision": "grantdeskhq-prototype-00324-gaz",
+  "commit": "13f313e",
   "completed": [
-    "Added a canonical, founder-review-only content opportunity state backed by Firestore.",
-    "Separated existing-page Search Console actions from proactive content opportunities in the SEO & Content tab.",
-    "Created seven bounded evidence-based opportunities, two Ready for Review drafts, and four manual-only Medium/LinkedIn distribution tasks.",
-    "Integrated opportunity reconciliation into the existing Search Console scheduler runtime without adding a scheduler.",
-    "Preserved existing Search Console, sitemap, GTM, Direct, Social, Instantly polling, suppression, and outbound safeguards."
+    "Recovered the Cloud Run source archive for the actual prior serving revision and committed it as the canonical recovery baseline.",
+    "Reconciled the controlled Instantly batch guard onto that baseline without overwriting current product, content, GTM, or polling work.",
+    "Added health provenance fields for commit, source branch, and build timestamp.",
+    "Added fail-closed controlled-batch checks for exact batch ID, explicit Eli-only sender, inactive campaign state, and provider campaign identity normalization.",
+    "Validated five qualified, verified, never-contacted Direct prospects in a read-only preflight; no new Partner was eligible."
   ],
   "validation": [
-    "20 focused content-engine, Search Console, and Instantly tests passed.",
-    "TypeScript validation and production build passed.",
-    "Zero-traffic candidate revision was healthy before promotion.",
-    "Production health, Search Console PASS, sitemap PASS, and persisted content state were verified after promotion."
+    "31 focused Instantly, GTM canonical fetch, content engine, and Search Console tests passed.",
+    "Production build passed.",
+    "Two zero-traffic candidates returned healthy public routes and scheduler-authenticated controlled-batch preflight results before promotion.",
+    "Production health now identifies revision 00326-fid and source recovery/production-20260824."
   ],
   "side_effects": {
-    "articles_auto_published": 0,
-    "external_posts_made": 0,
     "emails_sent": 0,
     "hunter_calls": 0,
     "instantly_outbound_enabled": false,
     "instantly_auto_handoff_enabled": false
   },
   "limitations": [
-    "Publication remains deliberately human-approved and requires a later release workflow; no draft is publicly routable or in the sitemap yet.",
-    "No Quora, Reddit, or forum distribution task was fabricated without a current exact discussion match."
+    "Controlled live handoff remains blocked because both mapped Instantly campaigns expose an empty sender list, stop-on-reply is disabled, and first-touch copy does not meet the approved Free First Award policy.",
+    "No campaign configuration or outbound send was changed because that external live mutation was rejected by the execution safety boundary."
   ]
 }
