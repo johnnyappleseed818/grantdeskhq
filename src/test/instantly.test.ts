@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "../../server/instantly";
+import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "../../server/instantly";
 import type { CanonicalGtmRecord } from "../lib/gtmCanonical";
 
 const record: CanonicalGtmRecord = {
@@ -88,6 +88,10 @@ describe("Instantly fail-closed integration", () => {
     expect(instantlyLeadCampaignId({ campaign: "campaign_1" })).toBe("campaign_1");
     expect(instantlyLeadCampaignId({ campaign: { id: "campaign_2" } })).toBe("campaign_2");
     expect(instantlyLeadCampaignId({ campaign: null })).toBe("");
+  });
+
+  it("summarizes campaign controls without exposing raw provider configuration", () => {
+    expect(controlledCampaignSafetySummary({ id: "campaign_1", name: "Direct", status: 0, email_list: ["eli.katz@grantdeskhq.com"], stop_on_reply: true, disable_bounce_protect: false, open_tracking: false, link_tracking: false, sequences: [{ steps: [{ type: "email", variants: [{ subject: "Less manual work", body: "Hi {{firstName}}" }] }] }] })).toMatchObject({ senders: ["eli.katz@grantdeskhq.com"], stopOnReply: true, bounceProtectionEnabled: true, openTracking: false, linkTracking: false, firstEmailVariants: [{ subject: "Less manual work", body: "Hi {{firstName}}" }] });
   });
 
   it("treats polling as healthy when webhooks are unavailable on the plan", () => {

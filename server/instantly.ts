@@ -140,6 +140,24 @@ export function instantlyLeadCampaignId(lead: Record<string, unknown>) {
   return "";
 }
 
+/** Exposes operational controls needed for a founder-approved batch without
+ * returning provider tokens, raw account data, or unrelated configuration. */
+export function controlledCampaignSafetySummary(campaign: Record<string, unknown>) {
+  const sequence = Array.isArray(campaign.sequences) ? campaign.sequences[0] : null;
+  const steps = sequence && typeof sequence === "object" && Array.isArray((sequence as Record<string, unknown>).steps) ? (sequence as Record<string, unknown>).steps as Array<Record<string, unknown>> : [];
+  const firstStep = steps.find((step) => step.type === "email") || null;
+  const variants = firstStep && Array.isArray(firstStep.variants) ? firstStep.variants : [];
+  return {
+    id: text(campaign.id), name: text(campaign.name), status: number(campaign.status),
+    senders: campaignSenderAddresses(campaign), schedule: campaign.campaign_schedule,
+    stopOnReply: campaign.stop_on_reply === true, stopOnAutoReply: campaign.stop_on_auto_reply === true,
+    bounceProtectionEnabled: campaign.disable_bounce_protect !== true,
+    openTracking: campaign.open_tracking === true, linkTracking: campaign.link_tracking === true,
+    dailyLimit: campaign.daily_limit ?? null, dailyMaxLeads: campaign.daily_max_leads ?? null,
+    firstEmailVariants: variants.map((variant) => ({ subject: text(variant.subject), body: text(variant.body), disabled: variant.v_disabled === true }))
+  };
+}
+
 export function instantlyHealth(config = instantlyConfig()) {
   return {
     integrationEnabled: config.integrationEnabled,
@@ -214,6 +232,7 @@ export class InstantlyClient {
   listCampaigns() { return this.api<unknown>("/campaigns?limit=100"); }
   getCampaign(id: string) { return this.api<Record<string, unknown>>(`/campaigns/${encodeURIComponent(id)}`); }
   listAccounts() { return this.api<unknown>("/accounts?limit=100"); }
+  getAccount(email: string) { return this.api<Record<string, unknown>>(`/accounts/${encodeURIComponent(email)}`); }
   listCampaignAnalytics() { return this.api<unknown>("/campaigns/analytics"); }
   listRecentEmails() { return this.api<unknown>("/emails?limit=10&preview_only=true"); }
   listWebhooks() { return this.api<unknown>("/webhooks?limit=100"); }
