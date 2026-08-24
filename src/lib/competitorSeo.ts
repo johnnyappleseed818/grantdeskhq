@@ -108,5 +108,6 @@ const opportunities: SeoGrowthOpportunity[] = [
 ];
 
 export function buildCompetitorSeoSnapshot(): CompetitorSeoSnapshot {
-  return { version: 1, observedAt, refreshCadence: "MONTHLY", pages: dedupeCompetitorPages(pages), opportunities: [...opportunities].sort((a, b) => b.priorityScore - a.priorityScore || a.id.localeCompare(b.id)), note: "Public URL/title/intent metadata only. Search volume is intentionally UNKNOWN unless first-party Search Console or a licensed provider supplies it." };
+  const priorityRank: Record<SeoPriority, number> = { P0: 0, P1: 1, P2: 2 };
+  return { version: 1, observedAt, refreshCadence: "MONTHLY", pages: dedupeCompetitorPages(pages), opportunities: [...opportunities].sort((a, b) => priorityRank[a.priority] - priorityRank[b.priority] || b.priorityScore - a.priorityScore || a.id.localeCompare(b.id)), note: "Public URL/title/intent metadata only. Search volume is intentionally UNKNOWN unless first-party Search Console or a licensed provider supplies it." };
 }

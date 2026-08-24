@@ -14,6 +14,7 @@ describe("bounded competitor SEO intelligence", () => {
     const snapshot = buildCompetitorSeoSnapshot();
     const p0 = snapshot.opportunities.filter((item) => item.priority === "P0");
     expect(p0.length).toBeGreaterThanOrEqual(5);
+    expect(snapshot.opportunities.slice(0, p0.length).every((item) => item.priority === "P0")).toBe(true);
     expect(p0.every((item) => item.postAwardFit >= 9 && item.freeFirstAwardFit >= 9)).toBe(true);
     expect(snapshot.note).toMatch(/volume is intentionally UNKNOWN/i);
     expect(scoreSeoOpportunity(p0[0])).toBeGreaterThanOrEqual(80);
