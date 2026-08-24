@@ -1,101 +1,29 @@
-import { FormEvent, useState } from "react";
-import { ArrowRight, Check, FileSearch, Mail, MessagesSquare, Presentation } from "lucide-react";
+import { ArrowRight, CheckCircle2, FileText, ShieldCheck } from "lucide-react";
+import { Link } from "react-router-dom";
 import { trackAnalyticsEvent } from "../lib/analytics";
+import { useAuth } from "../lib/auth";
 
-const CONTACT_DESTINATION = ["eli", "grantdeskhq.com"].join("@");
-const QUESTIONNAIRE_URL = "https://docs.google.com/forms/d/e/1FAIpQLSddrmCFTno2tDYLKW2qCSUllnFxjxcjNMFFPtZJoOlPxQPSBQ/viewform";
-
-const scope = [
-  "One completed historical report",
-  "Synthetic or redacted test files",
-  "Award-rule extraction",
-  "Funder-template structuring",
-  "GL mapping suggestions",
-  "Draft budget-versus-actual schedules",
-  "Evidence-backed narrative drafts",
-  "Missing-input questionnaires",
-  "Quality-review checklist",
-  "Source-linked evidence review",
-  "No setup fee or subscription commitment"
-];
-
+/** The public, canonical entry to the actual product workflow. */
 export function PilotPage() {
-  const [form, setForm] = useState({ name: "", email: "", firm: "", role: "", clients: "", process: "" });
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    const body = `Hello GrantDeskHQ team,\n\nI would like to try one grant report at no cost.\n\nName: ${form.name}\nWork email: ${form.email}\nOrganization: ${form.firm}\nRole: ${form.role}\nApproximate active grants: ${form.clients}\nCurrent reporting process: ${form.process}\n\nI understand that I should not send client files through this website.`;
-    window.location.href = `mailto:${CONTACT_DESTINATION}?subject=${encodeURIComponent("GrantDeskHQ Free First Award")}&body=${encodeURIComponent(body)}`;
-  };
-
-  const update = (field: keyof typeof form, value: string) => setForm((current) => ({ ...current, [field]: value }));
-
-  return (
-    <div className="assessment-page">
-      <section className="assessment-hero">
-        <div className="site-shell">
-          <div className="prototype-pill"><span aria-hidden="true" /> Free First Award · no setup fee</div>
-          <div className="mt-8 grid items-start gap-12 lg:grid-cols-[1.05fr_.95fr]">
-            <div>
-              <p className="eyebrow">Free First Award</p>
-              <h1 className="page-title">Let our AI-powered solution prepare your first report draft at no cost.</h1>
-              <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">Use one completed, appropriately redacted historical report to compare GrantDeskHQ with the process your team uses today. See whether our AI-powered workflow can reduce spreadsheet rebuilding, identify missing evidence sooner, and give your reviewers a stronger starting point.</p>
-              <div className="mt-7 flex flex-wrap gap-3">
-                <a className="button button-secondary button-large" href={QUESTIONNAIRE_URL} target="_blank" rel="noreferrer" onClick={() => trackAnalyticsEvent("free_first_report_click", { surface: "assessment" })}>Tell us about your workflow <ArrowRight aria-hidden="true" /></a>
-              </div>
-              <div className="mt-7 flex flex-wrap items-end gap-3"><strong className="text-4xl font-semibold text-navy-900">$0</strong><span className="pb-1 text-slate-500">for your first report · no subscription required</span></div>
-            </div>
-            <div className="assessment-summary">
-              <p className="text-sm font-semibold text-emeraldMuted-700">What you can evaluate</p>
-              <h2>See the full post-award reporting workflow on one report.</h2>
-              <p>See extracted funder requirements, suggested financial mappings, tailored missing-input questions, a cited narrative draft, and the review items that GrantDeskHQ blocks until a professional resolves them.</p>
-            </div>
+  const { user, loading } = useAuth();
+  const destination = user ? "/compile?new=1" : `/login?next=${encodeURIComponent("/compile?new=1")}`;
+  return <div className="assessment-page">
+    <section className="assessment-hero"><div className="site-shell">
+      <div className="prototype-pill"><span aria-hidden="true" /> Free First Award · no credit card</div>
+      <div className="mt-8 grid items-start gap-10 lg:grid-cols-[1.1fr_.9fr]">
+        <div>
+          <p className="eyebrow">Free First Award</p>
+          <h1 className="page-title">Prepare your first award free.</h1>
+          <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">Bring the award agreement and whatever else you have. GrantDeskHQ turns the agreement, budget, accounting data, program updates, and evidence into a source-linked report draft your team reviews before anything is submitted.</p>
+          <p className="mt-4 font-semibold text-slate-800">Use one real award at no cost. No sales call required.</p>
+          <div className="mt-7 flex flex-wrap gap-3">
+            <Link className="button button-primary button-large" to={destination} onClick={() => trackAnalyticsEvent("free_first_report_click", { surface: "assessment" })}>{loading ? "Loading your secure start…" : user ? "Start your Free First Award" : "Try your first award free"}<ArrowRight aria-hidden="true" /></Link>
+            <Link className="button button-secondary button-large" to="/sample-report">See a sample report</Link>
           </div>
         </div>
-      </section>
-
-      <section className="site-shell py-14 lg:py-20">
-        <div className="assessment-process">
-          {[
-            [MessagesSquare, "Show us where the work gets stuck", "Tell us which reporting steps require the most spreadsheet work, checking, and follow-up."],
-            [FileSearch, "See what our AI-powered solution can prepare", "Use synthetic or appropriately redacted historical files to compare GrantDeskHQ's draft, evidence links, and review controls with work your team already knows."],
-            [Presentation, "Decide from the actual output", "Continue only if the result reduces meaningful manual work for your team. There is no setup fee or subscription commitment for the first report."]
-          ].map(([Icon, title, copy], index) => {
-            const ProcessIcon = Icon as typeof MessagesSquare;
-            return <article key={title as string}><span className="step-number">0{index + 1}</span><ProcessIcon aria-hidden="true" /><h2>{title as string}</h2><p>{copy as string}</p></article>;
-          })}
-        </div>
-
-        <div className="mt-14 grid gap-12 lg:grid-cols-[.9fr_1.1fr]">
-        <section>
-          <p className="eyebrow">Free First Award</p>
-          <h2 className="text-3xl font-semibold tracking-tight text-navy-900">Compare it with the way your team prepares reports today.</h2>
-          <p className="mt-4 max-w-xl leading-7 text-slate-600">A completed historical report gives your team a clear comparison without replacing your accounting system or committing to a long implementation.</p>
-          <ul className="mt-8 grid gap-3 sm:grid-cols-2">{scope.map((item) => <li key={item} className="flex gap-2 text-sm text-slate-700"><Check className="h-5 w-5 shrink-0 text-emeraldMuted-600" aria-hidden="true" />{item}</li>)}</ul>
-          <div className="mt-8 border-l-4 border-amber-500 bg-amberReview-50 p-5 text-sm leading-6 text-amberReview-700"><strong>Outputs are drafts for professional review and are not accounting, legal, audit, or compliance advice.</strong></div>
-        </section>
-
-        <section id="contact" className="contact-panel">
-          <p className="eyebrow">Start a conversation</p>
-          <h2 className="text-3xl font-semibold tracking-tight text-navy-900">Start your Free First Award</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-600">Tell us which parts of grant reporting create the most manual work. We’ll reply with the next step for trying one report. Please don’t include client information or files in this message.</p>
-          <form className="mt-7 grid gap-5" onSubmit={submit}>
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="Name" id="assessment-name"><input id="assessment-name" className="form-control" required autoComplete="name" value={form.name} onChange={(event) => update("name", event.target.value)} /></Field>
-              <Field label="Work email" id="assessment-email"><input id="assessment-email" className="form-control" type="email" required autoComplete="email" value={form.email} onChange={(event) => update("email", event.target.value)} /></Field>
-              <Field label="Organization" id="assessment-firm"><input id="assessment-firm" className="form-control" required autoComplete="organization" value={form.firm} onChange={(event) => update("firm", event.target.value)} /></Field>
-              <Field label="Role" id="assessment-role"><input id="assessment-role" className="form-control" required autoComplete="organization-title" value={form.role} onChange={(event) => update("role", event.target.value)} /></Field>
-            </div>
-            <Field label="Approximate number of active grants" id="assessment-clients"><select id="assessment-clients" className="form-control" required value={form.clients} onChange={(event) => update("clients", event.target.value)}><option value="">Select a range</option><option>1–5</option><option>6–15</option><option>16–30</option><option>31+</option></select></Field>
-            <Field label="Current grant-reporting process" id="assessment-process"><textarea id="assessment-process" className="form-control min-h-28" required value={form.process} onChange={(event) => update("process", event.target.value)} placeholder="Which reporting steps take the most time today?" /></Field>
-            <div className="form-note">Your email app will open with the message ready to send. This website does not store your answers or accept file uploads.</div>
-            <button type="submit" className="button button-primary button-large w-full"><Mail aria-hidden="true" /> Open a Free First Award email draft <ArrowRight aria-hidden="true" /></button>
-          </form>
-        </section>
+        <aside className="assessment-summary"><ShieldCheck aria-hidden="true" /><h2>Start with what you have</h2><ul><li><CheckCircle2 aria-hidden="true" />Award agreement or Notice of Award — needed first</li><li><CheckCircle2 aria-hidden="true" />Budget and ledger export — add now or later</li><li><CheckCircle2 aria-hidden="true" />Program update, funder form, and evidence — add when available</li></ul><p>Missing inputs are shown as gaps. GrantDeskHQ never fills them in for you.</p></aside>
       </div>
-      </section>
-    </div>
-  );
+    </div></section>
+    <section className="assessment-process"><div className="site-shell"><p className="eyebrow">How it works</p><div className="grid gap-5 md:grid-cols-3"><article><FileText aria-hidden="true" /><h2>Add the award materials</h2><p>Upload the agreement first, then add the financial and program material you already have.</p></article><article><FileText aria-hidden="true" /><h2>See what is ready and what is missing</h2><p>Requirements, mapping, evidence, and review gaps stay connected to their sources.</p></article><article><FileText aria-hidden="true" /><h2>Review your first report</h2><p>After your first report is generated, choose a plan only if you want to continue with more awards.</p></article></div></div></section>
+  </div>;
 }
-
-function Field({ label, id, children }: { label: string; id: string; children: React.ReactNode }) { return <div><label className="mb-2 block text-sm font-semibold text-navy-900" htmlFor={id}>{label}</label>{children}</div>; }

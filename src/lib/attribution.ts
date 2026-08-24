@@ -1,4 +1,4 @@
-export const CAMPAIGN_FIELDS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "lead_id", "campaign_id"] as const;
+export const CAMPAIGN_FIELDS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "lead_id", "campaign_id", "partner_referral_id", "referrer", "landing_page"] as const;
 export type CampaignField = typeof CAMPAIGN_FIELDS[number];
 export type CampaignAttribution = Partial<Record<CampaignField, string>>;
 
@@ -7,6 +7,10 @@ const storageKey = "grantdeskhq:campaign-attribution:v1";
 export function currentCampaignAttribution(): CampaignAttribution {
   if (typeof window === "undefined") return {};
   const captured = cleanAttribution(new URLSearchParams(window.location.search));
+  if (!captured.landing_page) captured.landing_page = `${window.location.pathname}${window.location.search}`.slice(0, 180);
+  if (!captured.referrer && document.referrer) {
+    try { captured.referrer = new URL(document.referrer).origin.slice(0, 180); } catch { /* Ignore malformed referrers. */ }
+  }
   const stored = readStoredAttribution();
   const merged = { ...stored, ...captured };
   if (Object.keys(merged).length) window.localStorage.setItem(storageKey, JSON.stringify(merged));

@@ -101,7 +101,7 @@ export function SampleReportPage() {
       <div className="report-downloads print:hidden">
         <h2>Related synthetic files</h2>
         <div className="mt-4 flex flex-wrap gap-3"><a className="button button-secondary" href="/samples/Synthetic_Grant_Agreement.pdf" download>Grant Agreement PDF</a><a className="button button-secondary" href="/samples/Approved_Grant_Budget.xlsx" download>Approved Budget XLSX</a><a className="button button-secondary" href="/samples/General_Ledger_Export.csv" download>GL Export CSV</a><a className="button button-secondary" href="/samples/Transaction_Evidence_Schedule.xlsx" download>Evidence Schedule XLSX</a></div>
-        <p className="mt-5 text-sm text-slate-600">Want to see how this could work with your reporting process? <Link className="font-semibold text-emeraldMuted-700 underline" to="/assessment#contact">Discuss the Grant Reporting Workflow Assessment</Link>.</p>
+        <p className="mt-5 text-sm text-slate-600">Want to try this with a real award? <Link className="font-semibold text-emeraldMuted-700 underline" to="/assessment">Prepare your first award free</Link>.</p>
       </div>
     </div>
   );

@@ -179,6 +179,13 @@
     @apply mt-6 max-w-2xl text-lg leading-8 text-slate-600;
   }
 
+  .funnel-upgrade-panel {
+    @apply my-8 flex flex-col gap-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm md:flex-row md:items-center md:justify-between;
+  }
+
+  .funnel-upgrade-panel h2 { @apply mt-1 text-2xl font-semibold text-navy-950; }
+  .funnel-upgrade-panel p:not(.eyebrow) { @apply mt-2 max-w-2xl leading-7 text-slate-700; }
+
   .trust-line {
     @apply mt-6 flex items-center gap-2 text-xs font-medium text-slate-500;
   }

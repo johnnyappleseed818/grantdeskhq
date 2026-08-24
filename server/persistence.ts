@@ -14,7 +14,7 @@ import type { OutreachRecord } from "../src/lib/gtmOutreach.ts";
 import { mergeOutreachRecords } from "../src/lib/gtmOutreach.ts";
 import { isConversionLearningRecord, type ConversionLearningRecord } from "../src/lib/gtmConversion.ts";
 import type { AuthenticatedUser } from "./auth.ts";
-import { normalizeAttribution, type Attribution, type BillingEventSnapshot } from "./billing.ts";
+import { BillingError, normalizeAttribution, type Attribution, type BillingEventSnapshot } from "./billing.ts";
 import { subscriptionIsEntitled } from "../src/content/pricing.ts";
 import type { InstantlyIntegrationRecord, InstantlyWebhookEvent } from "./instantly.ts";
 import { analyzeSupportingEvidence, applyEvidenceMatches, buildEvidenceTargets, normalizeSupportingEvidenceFiles } from "./evidenceReconciliation.ts";
@@ -28,6 +28,7 @@ import { applyRuntimeIntegrity, buildAnalysisManifest, compareAnalysisManifests 
 import type { AnalysisManifest, AnalysisSourceManifest } from "../src/types/reliability.ts";
 import type { AnalysisDriftEvent, LastKnownGoodRelease, ReliabilityCanaryResult, ReliabilityDashboardSnapshot, ReliabilityIncident } from "../src/types/reliability.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
+import { dueForNurture, lifecycleNurtureTask, type LifecycleNurtureTask } from "./lifecycleNurture.ts";
 
 const projectId = process.env.GOOGLE_CLOUD_PROJECT || "grantdeskhq-proto-ek-2026";
 const bucket = process.env.REPORT_FILES_BUCKET || "grantdeskhq-proto-ek-2026-report-files";
@@ -158,13 +159,24 @@ export async function saveCompilation(user: AuthenticatedUser, request: Compilat
     auditJson: JSON.stringify([...setupAudit, { at: now, actorUid: user.uid, action: "compiled", detail: "Our AI-powered solution prepared the draft, then completed an independent source check and deterministic validation." }])
   });
   await persistAnalysisManifest(accessToken, `organizations/${organizationId}/reports/${reportId}`, manifest);
-  await writeDocumentIfAbsent(accessToken, `organizations/${organizationId}/lifecycleEvents/report_generated`, {
-    event: "report_generated", uid: user.uid, occurredAt: now, attributionJson: "{}"
+  const attributionResponse = await authorizedFetch(`${firestoreBase}/organizations/${organizationId}/billing/attribution`, accessToken);
+  const attribution = attributionResponse.ok
+    ? storedAttribution(decodeFields(((await attributionResponse.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}).attributionJson)
+    : {};
+  await writeLifecycleState(accessToken, user, "report_generated", attribution, { reportId });
+  await writeDocument(accessToken, `organizations/${organizationId}/funnel/current`, {
+    state: "REPORT_GENERATED",
+    freeFirstAwardAvailable: false,
+    freeFirstAwardStartedAt: now,
+    freeFirstAwardReportGeneratedAt: now,
+    freeFirstAwardCompletedAt: now,
+    freeFirstAwardReportId: reportId,
+    attributionJson: JSON.stringify(attribution),
+    updatedAt: now
   });
   // The stored organization attribution is intentionally first-party. It is
   // read only to connect a previously attributed lead to product progress.
-  const attributionResponse = await authorizedFetch(`${firestoreBase}/organizations/${organizationId}/billing/attribution`, accessToken);
-  if (attributionResponse.ok) await applyInstantlyProductLifecycle(accessToken, storedAttribution(decodeFields(((await attributionResponse.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}).attributionJson), "report_generated", now);
+  if (attributionResponse.ok) await applyInstantlyProductLifecycle(accessToken, attribution, "report_generated", now);
   return { reportId, report: summary, result: persistedResult, sources: publicSources(sources), manifest };
 }
 
@@ -922,7 +934,114 @@ export async function recordGtmContactSuppression(email: string, reasons: string
   });
 }
 
-export type LifecycleEventName = "account_created" | "first_report_started" | "checkout_started" | "subscription_started" | "report_generated";
+export type LifecycleEventName = "assessment_viewed" | "account_created" | "first_report_started" | "source_file_added" | "ready_to_generate" | "report_generation_started" | "report_generated" | "report_viewed" | "pricing_viewed" | "checkout_started" | "checkout_completed" | "subscription_started" | "payment_failed" | "nudge_sent" | "sales_assist_created";
+
+export interface FreeFirstAwardStatus {
+  freeFirstAwardAvailable: boolean;
+  freeFirstAwardStartedAt: string;
+  freeFirstAwardReportGeneratedAt: string;
+  freeFirstAwardCompletedAt: string;
+  freeFirstAwardReportId: string;
+  paid: boolean;
+  lifecycleState: string;
+  promotionalNurtureAllowed: boolean;
+}
+
+/** Server-side gate: browser storage cannot reset the one-award entitlement. */
+export async function beginFreeFirstAward(user: AuthenticatedUser, requestId: string, attributionInput: unknown = {}) {
+  const status = await readFreeFirstAwardStatus(user);
+  if (status.paid) return { ...status, allowed: true };
+  if (status.freeFirstAwardReportGeneratedAt) {
+    throw new BillingError(409, "Your Free First Award has already been generated. Choose a plan to continue with another award.");
+  }
+  const accessToken = await gcpToken();
+  const now = new Date().toISOString();
+  const attribution = normalizeAttribution(attributionInput);
+  await writeDocument(accessToken, `organizations/org_${user.uid}/funnel/current`, {
+    state: "FREE_FIRST_AWARD_STARTED",
+    freeFirstAwardAvailable: true,
+    freeFirstAwardStartedAt: status.freeFirstAwardStartedAt || now,
+    freeFirstAwardReportGeneratedAt: "",
+    freeFirstAwardCompletedAt: "",
+    freeFirstAwardReportId: "",
+    activeRequestId: requestId.slice(0, 128),
+    attributionJson: JSON.stringify({ ...await readBillingAttribution(user), ...attribution }),
+    promotionalNurtureAllowed: status.promotionalNurtureAllowed,
+    updatedAt: now
+  });
+  await saveLifecycleEvent(user, "first_report_started", attribution);
+  return { ...status, freeFirstAwardAvailable: true, freeFirstAwardStartedAt: status.freeFirstAwardStartedAt || now, allowed: true };
+}
+
+export async function readFreeFirstAwardStatus(user: AuthenticatedUser): Promise<FreeFirstAwardStatus> {
+  const accessToken = await gcpToken();
+  const response = await authorizedFetch(`${firestoreBase}/organizations/org_${user.uid}/funnel/current`, accessToken);
+  if (response.status !== 404 && !response.ok) throw new Error(`Free First Award state could not be loaded (${response.status}).`);
+  const record = response.status === 404 ? {} : decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
+  const billing = await readBillingStatus(user);
+  // Accounts that already have reports predate the durable entitlement record.
+  // Treat their historic report as used rather than giving an accidental second
+  // free award. New accounts get the available entitlement on first real compile.
+  const historicReports = !record.freeFirstAwardReportGeneratedAt ? await listReports(user) : [];
+  return {
+    freeFirstAwardAvailable: !record.freeFirstAwardReportGeneratedAt && historicReports.length === 0,
+    freeFirstAwardStartedAt: String(record.freeFirstAwardStartedAt || ""),
+    freeFirstAwardReportGeneratedAt: String(record.freeFirstAwardReportGeneratedAt || (historicReports.length ? historicReports[0]?.createdAt || "historic" : "")),
+    freeFirstAwardCompletedAt: String(record.freeFirstAwardCompletedAt || ""),
+    freeFirstAwardReportId: String(record.freeFirstAwardReportId || historicReports[0]?.id || ""),
+    paid: Boolean(billing?.entitlementActive),
+    lifecycleState: String(record.state || (historicReports.length ? "REPORT_GENERATED" : "FREE_FIRST_AWARD_AVAILABLE")),
+    promotionalNurtureAllowed: record.promotionalNurtureAllowed !== false
+  };
+}
+
+export async function saveFunnelPreferences(user: AuthenticatedUser, input: unknown) {
+  const allowed = Boolean(input && typeof input === "object" && !Array.isArray(input) && (input as Record<string, unknown>).promotionalNurtureAllowed !== false);
+  const accessToken = await gcpToken();
+  const current = await readFreeFirstAwardStatus(user);
+  await writeDocument(accessToken, `organizations/org_${user.uid}/funnel/current`, {
+    state: current.lifecycleState,
+    freeFirstAwardAvailable: current.freeFirstAwardAvailable,
+    freeFirstAwardStartedAt: current.freeFirstAwardStartedAt,
+    freeFirstAwardReportGeneratedAt: current.freeFirstAwardReportGeneratedAt,
+    freeFirstAwardCompletedAt: current.freeFirstAwardCompletedAt,
+    freeFirstAwardReportId: current.freeFirstAwardReportId,
+    promotionalNurtureAllowed: allowed,
+    updatedAt: new Date().toISOString()
+  });
+  await writeDocument(accessToken, `funnel/accounts/records/${safeDocumentId(user.uid)}`, {
+    uid: user.uid,
+    email: user.email,
+    state: current.lifecycleState,
+    occurredAt: new Date().toISOString(),
+    event: current.lifecycleState.toLowerCase(),
+    promotionalNurtureAllowed: allowed,
+    attributionJson: "{}",
+    detailsJson: "{}"
+  });
+  return { promotionalNurtureAllowed: allowed };
+}
+
+/** Produces a durable, reviewable queue only. It never sends email unless a
+ * separately configured provider/delivery worker is introduced and enabled. */
+export async function reconcileLifecycleNurture(now = new Date()) {
+  const accessToken = await gcpToken();
+  const response = await authorizedFetch(`${firestoreBase}/funnel/accounts/records?pageSize=100`, accessToken);
+  if (response.status === 404) return { checked: 0, queued: 0, due: 0, delivery: "NOT_CONFIGURED" as const };
+  if (!response.ok) throw new Error(`Lifecycle records could not be loaded (${response.status}).`);
+  const records = ((await response.json()) as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> }).documents || [];
+  let queued = 0;
+  let due = 0;
+  for (const document of records) {
+    const item = decodeFields(document.fields || {});
+    const task = lifecycleNurtureTask({ uid: String(item.uid || ""), email: String(item.email || ""), event: String(item.event || ""), occurredAt: String(item.occurredAt || ""), promotionalNurtureAllowed: item.promotionalNurtureAllowed !== false }, now);
+    if (!task) continue;
+    const created = await writeDocumentIfAbsent(accessToken, `funnel/nurture/records/${safeDocumentId(task.id)}`, { taskJson: JSON.stringify(task), status: dueForNurture(task, now) ? "ELIGIBLE" : "SCHEDULED", createdAt: now.toISOString(), updatedAt: now.toISOString() });
+    if (created) queued += 1;
+    if (dueForNurture(task, now)) due += 1;
+  }
+  return { checked: records.length, queued, due, delivery: "NOT_CONFIGURED" as const };
+}
 
 export async function saveLifecycleEvent(user: AuthenticatedUser, event: LifecycleEventName, attributionInput: unknown = {}) {
   const accessToken = await gcpToken();
@@ -931,13 +1050,9 @@ export async function saveLifecycleEvent(user: AuthenticatedUser, event: Lifecyc
   if (Object.keys(attribution).length) {
     await writeDocument(accessToken, `organizations/${organizationId}/billing/attribution`, { attributionJson: JSON.stringify(attribution), updatedAt: new Date().toISOString() });
   }
-  await writeDocumentIfAbsent(accessToken, `organizations/${organizationId}/lifecycleEvents/${event}`, {
-    event,
-    uid: user.uid,
-    occurredAt: new Date().toISOString(),
-    attributionJson: JSON.stringify(attribution)
-  });
-  await applyInstantlyProductLifecycle(accessToken, attribution, event, new Date().toISOString());
+  const occurredAt = new Date().toISOString();
+  await writeLifecycleState(accessToken, user, event, attribution);
+  await applyInstantlyProductLifecycle(accessToken, attribution, event, occurredAt);
   return attribution;
 }
 
@@ -976,6 +1091,21 @@ export async function saveBillingEvent(snapshot: BillingEventSnapshot) {
       attributionJson: JSON.stringify(snapshot.attribution)
     });
   }
+  const paid = snapshot.subscriptionStatus === "active" || snapshot.subscriptionStatus === "trialing";
+  const priorFunnelResponse = await authorizedFetch(`${firestoreBase}/organizations/${organizationId}/funnel/current`, accessToken);
+  const priorFunnel = priorFunnelResponse.ok ? decodeFields(((await priorFunnelResponse.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}) : {};
+  await writeDocument(accessToken, `organizations/${organizationId}/funnel/current`, {
+    state: paid ? "PAID" : snapshot.subscriptionStatus === "past_due" ? "PAYMENT_FAILED" : "BILLING_UPDATED",
+    freeFirstAwardAvailable: false,
+    freeFirstAwardStartedAt: String(priorFunnel.freeFirstAwardStartedAt || ""),
+    freeFirstAwardReportGeneratedAt: String(priorFunnel.freeFirstAwardReportGeneratedAt || ""),
+    freeFirstAwardCompletedAt: String(priorFunnel.freeFirstAwardCompletedAt || ""),
+    freeFirstAwardReportId: String(priorFunnel.freeFirstAwardReportId || ""),
+    promotionalNurtureAllowed: priorFunnel.promotionalNurtureAllowed !== false,
+    attributionJson: JSON.stringify(snapshot.attribution),
+    updatedAt: snapshot.updatedAt
+  });
+  await writeLifecycleState(accessToken, { uid: snapshot.uid, email: "", emailVerified: false, name: "" }, paid ? "checkout_completed" : snapshot.subscriptionStatus === "past_due" ? "payment_failed" : "subscription_started", snapshot.attribution);
   if (snapshot.subscriptionStatus === "active" || snapshot.subscriptionStatus === "trialing") await applyInstantlyProductLifecycle(accessToken, snapshot.attribution, "subscription_started", snapshot.updatedAt);
   return { duplicate: false, applied: shouldApplyBillingEvent(snapshot, String(prior.eventId || ""), priorEventAt) };
 }
@@ -1078,6 +1208,26 @@ function storedAttribution(value: unknown): Attribution {
   try { return normalizeAttribution(JSON.parse(String(value || "{}"))); }
   catch { return {}; }
 }
+
+async function writeLifecycleState(accessToken: string, user: AuthenticatedUser, event: LifecycleEventName, attribution: Attribution, detail: Record<string, unknown> = {}) {
+  const occurredAt = new Date().toISOString();
+  const organizationId = `org_${user.uid}`;
+  await writeDocumentIfAbsent(accessToken, `organizations/${organizationId}/lifecycleEvents/${event}`, { event, uid: user.uid, occurredAt, attributionJson: JSON.stringify(attribution) });
+  const funnelAccountPath = `funnel/accounts/records/${safeDocumentId(user.uid)}`;
+  const priorResponse = await authorizedFetch(`${firestoreBase}/${funnelAccountPath}`, accessToken);
+  const prior = priorResponse.ok ? decodeFields(((await priorResponse.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}) : {};
+  await writeDocument(accessToken, funnelAccountPath, {
+    uid: user.uid,
+    email: user.email,
+    state: event.toUpperCase(),
+    occurredAt,
+    attributionJson: JSON.stringify(attribution),
+    event,
+    promotionalNurtureAllowed: prior.promotionalNurtureAllowed !== false,
+    detailsJson: JSON.stringify(detail)
+  });
+}
+
 
 function summarize(id: string, request: CompilationRequest, result: CompilationResult, createdAt: string, updatedAt: string, sourceCount = request.files.length): SavedReportSummary {
   const unresolvedItems = buildReportAttention(result).length;

@@ -7,11 +7,13 @@ import { trackAnalyticsEvent } from "../lib/analytics";
 import type { SavedReportSummary } from "../types/prototype";
 
 interface BillingStatus { planKey: string; subscriptionStatus: string; foundingPricingApplied: boolean; cancelAtPeriodEnd: boolean; entitlementActive: boolean; }
+interface FunnelStatus { freeFirstAwardReportGeneratedAt: string; paid: boolean; }
 
 export function WorkspacePage() {
   const { user, loading, token, signOut } = useAuth();
   const [reports, setReports] = useState<SavedReportSummary[]>([]);
   const [billing, setBilling] = useState<BillingStatus | null>(null);
+  const [funnel, setFunnel] = useState<FunnelStatus | null>(null);
   const [openingPortal, setOpeningPortal] = useState(false);
   const [portalError, setPortalError] = useState("");
   const [fetching, setFetching] = useState(true);
@@ -23,9 +25,10 @@ export function WorkspacePage() {
     if (!user) return;
     token().then(async (idToken) => Promise.all([
       apiRequest<{ reports: SavedReportSummary[] }>("/api/reports", idToken),
-      apiRequest<{ billing: BillingStatus | null }>("/api/billing/status", idToken)
+      apiRequest<{ billing: BillingStatus | null }>("/api/billing/status", idToken),
+      apiRequest<{ funnel: FunnelStatus }>("/api/lifecycle/funnel-status", idToken)
     ]))
-      .then(([reportBody, billingBody]) => { setReports(reportBody.reports); setBilling(billingBody.billing); })
+      .then(([reportBody, billingBody, funnelBody]) => { setReports(reportBody.reports); setBilling(billingBody.billing); setFunnel(funnelBody.funnel); })
       .catch((requestError) => setError(requestError instanceof Error ? requestError.message : "Reports could not be loaded."))
       .finally(() => setFetching(false));
   }, [user, token]);
@@ -59,6 +62,7 @@ export function WorkspacePage() {
         <div className="workspace-actions"><Link className="button button-secondary" to="/account">Account &amp; billing</Link><Link className="button button-secondary" to="/contact"><MessageSquareText aria-hidden="true" />Feedback</Link><button type="button" className="button button-secondary" onClick={() => signOut()}><LogOut aria-hidden="true" />Sign out</button><Link className="button button-primary" to="/compile?new=1" reloadDocument><FilePlus2 aria-hidden="true" />New report</Link></div>
       </header>
       {new URLSearchParams(location.search).get("billing") === "success" && <div className="account-notice" role="status"><strong>Checkout completed.</strong> Your subscription is being confirmed.</div>}
+      {funnel?.freeFirstAwardReportGeneratedAt && !funnel.paid && <section className="funnel-upgrade-panel"><div><p className="eyebrow">Your Free First Award is complete</p><h2>Keep going with another award.</h2><p>Your report remains available here. Choose a plan when you are ready to prepare additional awards.</p></div><Link className="button button-primary" to="/pricing">Choose a plan <ArrowRight aria-hidden="true" /></Link></section>}
       {billing?.planKey && <div className="workspace-plan"><span>Current plan</span><strong>{billing.planKey.charAt(0).toUpperCase() + billing.planKey.slice(1)}</strong><small>{billing.subscriptionStatus === "active" ? "Subscription active" : billing.subscriptionStatus.replaceAll("_", " ")}</small>{billing.foundingPricingApplied && <small>Current price retained</small>}{billing.cancelAtPeriodEnd && <small>Cancellation scheduled at period end</small>}<button type="button" className="button button-secondary mt-3" disabled={openingPortal} onClick={() => void openPortal()}>{openingPortal ? "Opening billing management…" : "Manage billing"}</button></div>}
       {portalError && <div className="compiler-error" role="alert">{portalError}</div>}
       <div className="workspace-trust"><ShieldCheck aria-hidden="true" /><div><strong>Review the work that needs judgment, not every source from scratch.</strong><p>Output from our AI-powered solution stays connected to its evidence, and your reports, validation findings, and review decisions stay together in your workspace.</p></div></div>

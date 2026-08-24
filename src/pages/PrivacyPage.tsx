@@ -28,7 +28,7 @@ export function PrivacyPage() {
       </section>
       <div className="mt-8 flex flex-wrap items-center gap-4">
         <p className="text-sm text-slate-600">Have a question about using GrantDeskHQ with historical work?</p>
-        <Link className="button button-secondary" to="/assessment#contact">Contact us <ArrowRight aria-hidden="true" /></Link>
+        <Link className="button button-secondary" to="/contact">Contact us <ArrowRight aria-hidden="true" /></Link>
       </div>
     </div>
   );

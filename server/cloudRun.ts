@@ -9,7 +9,7 @@ import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { addSupportingEvidence, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readGtmAwardScan, readGtmContactSuppression, readGtmContentEngineState, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmDirectDiscoveryScan, readGtmEnrichmentUsage, readGtmInventoryAutopilot, readGtmPartnerDiscoveryScan, readGtmShadowStatus, readInstantlyRecords, readInstantlyStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, recordGtmContactSuppression, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveGtmContentEngineState, saveGtmDailyScan, saveGtmDirectDiscoveryScan, saveGtmInventoryAutopilot, saveGtmPartnerDiscoveryScan, saveInstantlyRecord, saveInstantlyStatus, saveInstantlyWebhookEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview, updateGtmDailySocialItem } from "./persistence.ts";
+import { addSupportingEvidence, beginFreeFirstAward, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readFreeFirstAwardStatus, readGtmAwardScan, readGtmContactSuppression, readGtmContentEngineState, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmDirectDiscoveryScan, readGtmEnrichmentUsage, readGtmInventoryAutopilot, readGtmPartnerDiscoveryScan, readGtmShadowStatus, readInstantlyRecords, readInstantlyStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, recordGtmContactSuppression, reconcileLifecycleNurture, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveFunnelPreferences, saveGtmContentEngineState, saveGtmDailyScan, saveGtmDirectDiscoveryScan, saveGtmInventoryAutopilot, saveGtmPartnerDiscoveryScan, saveInstantlyRecord, saveInstantlyStatus, saveInstantlyWebhookEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview, updateGtmDailySocialItem } from "./persistence.ts";
 import { validateFeedbackInput, type FeedbackSubmission } from "../src/lib/feedback.ts";
 import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
 import { confirmedHumanOutreach, summarizeOutreach } from "../src/lib/gtmOutreach.ts";
@@ -122,6 +122,9 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/lifecycle/account-created") return await handleLifecycleEvent(request, response, "account_created");
     if (url.pathname === "/api/lifecycle/first-report-started") return await handleLifecycleEvent(request, response, "first_report_started");
     if (url.pathname === "/api/lifecycle/checkout-started") return await handleLifecycleEvent(request, response, "checkout_started");
+    if (url.pathname === "/api/lifecycle/funnel-status") return await handleFunnelStatus(request, response);
+    if (url.pathname === "/api/lifecycle/preferences") return await handleFunnelPreferences(request, response);
+    if (url.pathname === "/api/lifecycle/nurture/reconcile") return await handleLifecycleNurtureReconcile(request, response);
     if (url.pathname === "/api/reports/preflight") return await handlePreflight(request, response);
     if (url.pathname === "/api/compile-report" || url.pathname === "/api/reports/compile") return await handleCompiler(request, response);
     if (url.pathname === "/api/gtm/outreach") return await handleGtmOutreach(request, response);
@@ -201,6 +204,7 @@ async function handleCompiler(request: IncomingMessage, response: ServerResponse
   try {
     const existing = await readCompilationByRequest(user, input.requestId);
     if (existing) return json(response, 200, existing);
+    await beginFreeFirstAward(user, input.requestId, await readBillingAttribution(user));
     const normalized = await normalizeCompilationSources(input);
     const cached = await readCompilationAnalysisCache(normalized.request);
     const result = cached || await finalizeCompilationAnalysisCache(
@@ -227,7 +231,9 @@ async function handleBillingCheckout(request: IncomingMessage, response: ServerR
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   const user = await requireUser(request);
   const selection = validateBillingSelection(await readJson(request));
-  return json(response, 200, await createCheckoutSession(user, selection, requestOrigin(request), await readBillingAttribution(user)));
+  const checkout = await createCheckoutSession(user, selection, requestOrigin(request), await readBillingAttribution(user));
+  await saveLifecycleEvent(user, "checkout_started", await readBillingAttribution(user));
+  return json(response, 200, checkout);
 }
 
 async function handleBillingPlanChange(request: IncomingMessage, response: ServerResponse) {
@@ -256,6 +262,22 @@ async function handleLifecycleEvent(request: IncomingMessage, response: ServerRe
   const input = await readJson(request) as { attribution?: unknown };
   await saveLifecycleEvent(await requireUser(request), event, input?.attribution);
   return json(response, 202, { recorded: true });
+}
+
+async function handleFunnelStatus(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  return json(response, 200, { funnel: await readFreeFirstAwardStatus(await requireUser(request)) });
+}
+
+async function handleFunnelPreferences(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  return json(response, 200, await saveFunnelPreferences(await requireUser(request), await readJson(request)));
+}
+
+async function handleLifecycleNurtureReconcile(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  return json(response, 200, await reconcileLifecycleNurture());
 }
 
 async function handleBillingWebhook(request: IncomingMessage, response: ServerResponse) {

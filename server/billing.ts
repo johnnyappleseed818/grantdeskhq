@@ -4,7 +4,9 @@ import type { PlanId } from "../src/content/pricing.ts";
 
 const stripeApi = "https://api.stripe.com/v1";
 const planKeys = new Set<PlanId>(["starter", "growth", "agency"]);
-export const ATTRIBUTION_FIELDS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "lead_id", "campaign_id"] as const;
+// Attribution is deliberately a small, first-party-safe allowlist. It travels
+// through sign-up, report creation, and Stripe metadata without document data.
+export const ATTRIBUTION_FIELDS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "lead_id", "campaign_id", "partner_referral_id", "referrer", "landing_page"] as const;
 export type AttributionField = typeof ATTRIBUTION_FIELDS[number];
 export type Attribution = Partial<Record<AttributionField, string>>;
 

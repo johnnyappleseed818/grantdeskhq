@@ -13,11 +13,13 @@ upsert() {
 }
 upsert "grantdeskhq-hunter-enrichment" "${HUNTER_ENRICHMENT_SCHEDULE:-15 6 * * 1-5}" "/api/gtm/contact-enrichment/batch" '{"segment":"partner","limit":20}'
 upsert "grantdeskhq-search-console-sync" "${SEARCH_CONSOLE_SYNC_SCHEDULE:-30 5 * * *}" "/api/gtm/search-console/reconcile" '{}'
+upsert "grantdeskhq-lifecycle-nurture" "${LIFECYCLE_NURTURE_SCHEDULE:-15 7 * * *}" "/api/lifecycle/nurture/reconcile" '{}'
 if [[ "${INSTANTLY_DEDICATED_POLLING_ENABLED:-false}" == "true" ]]; then
   upsert "grantdeskhq-instantly-reconciliation" "${INSTANTLY_POLLING_SCHEDULE:-0 * * * *}" "/api/gtm/instantly/reconcile" '{}'
 fi
 gcloud scheduler jobs describe "grantdeskhq-hunter-enrichment" --project="${project}" --location="${region}"
 gcloud scheduler jobs describe "grantdeskhq-search-console-sync" --project="${project}" --location="${region}"
+gcloud scheduler jobs describe "grantdeskhq-lifecycle-nurture" --project="${project}" --location="${region}"
 if [[ "${INSTANTLY_DEDICATED_POLLING_ENABLED:-false}" == "true" ]]; then
   gcloud scheduler jobs describe "grantdeskhq-instantly-reconciliation" --project="${project}" --location="${region}"
 fi

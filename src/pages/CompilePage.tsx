@@ -28,7 +28,6 @@ import { futureWorkflowStatus, normalizeWorkflowObligations } from "../lib/oblig
 import { apiRequest } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { trackAnalyticsEvent } from "../lib/analytics";
-import { currentCampaignAttribution } from "../lib/attribution";
 import type { CompilationPreflightResult, CompilationRequest, CompilationResult, CompilerFile, GrantReportingPeriod, GrantWorkflowObligation, ObligationApplicability, PersistedCompilationResponse, ReviewState, SetupDecision, SourceRole, SupportingEvidenceFile } from "../types/prototype";
 
 const sourceFields: Array<{ role: SourceRole; label: string; help: string; accept: string; required: boolean }> = [
@@ -42,6 +41,8 @@ const sourceFields: Array<{ role: SourceRole; label: string; help: string; accep
 const evidenceAccept = ".xlsx,.csv,.pdf,.docx,.txt,.png,.jpg,.jpeg";
 
 type ResultTab = "overview" | "requirements" | "inputs" | "mapping" | "narrative" | "review";
+
+interface FunnelStatus { freeFirstAwardAvailable: boolean; freeFirstAwardReportGeneratedAt: string; paid: boolean; }
 
 export function CompilePage() {
   const { user, loading, token } = useAuth();
@@ -73,6 +74,7 @@ export function CompilePage() {
   const [acceptedFileRoles, setAcceptedFileRoles] = useState<string[]>([]);
   const [compileAttempt, setCompileAttempt] = useState<{ fingerprint: string; requestId: string } | null>(null);
   const [loadingSavedReport, setLoadingSavedReport] = useState(Boolean(savedReportId));
+  const [funnel, setFunnel] = useState<FunnelStatus | null>(null);
 
   const selectedCoreFiles = useMemo(() => (Object.entries(files) as Array<[SourceRole, File | undefined]>)
     .filter((entry): entry is [SourceRole, File] => Boolean(entry[1])), [files]);
@@ -109,6 +111,12 @@ export function CompilePage() {
       .catch((requestError) => setError(requestError instanceof Error ? requestError.message : "The saved report could not be opened."))
       .finally(() => setLoadingSavedReport(false));
   }, [savedReportId, token, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    token().then((idToken) => apiRequest<{ funnel: FunnelStatus }>("/api/lifecycle/funnel-status", idToken))
+      .then((body) => setFunnel(body.funnel)).catch(() => setFunnel(null));
+  }, [token, user]);
 
   const inspectSelectedFile = (role: SourceRole, file: File) => {
     setAcceptedFileRoles((current) => current.filter((key) => !key.startsWith(`${role}:`)));
@@ -292,11 +300,11 @@ export function CompilePage() {
       }
       const idToken = await token();
       trackAnalyticsEvent("report_started", { surface: "account" });
-      void apiRequest<{ recorded: boolean }>("/api/lifecycle/first-report-started", idToken, { method: "POST", body: JSON.stringify({ attribution: currentCampaignAttribution() }) }).catch(() => undefined);
       const corePayload = { ...payload, files: payload.files.filter((file) => file.role !== "supportingEvidence") };
       const body = await apiRequest<PersistedCompilationResponse>("/api/reports/compile", idToken, { method: "POST", body: JSON.stringify(corePayload) });
       setResult(body.result);
       setReportId(body.reportId);
+      setFunnel((current) => current ? { ...current, freeFirstAwardAvailable: false, freeFirstAwardReportGeneratedAt: new Date().toISOString() } : current);
       let completed = body;
       const evidencePayload = payload.files.filter((file) => file.role === "supportingEvidence");
       if (evidencePayload.length) {
@@ -542,7 +550,7 @@ export function CompilePage() {
             <h1 className="page-title">Bring what you have. We’ll help with the rest.</h1>
             <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">Upload the grant documents and reporting data already available to you. GrantDeskHQ organizes the funder’s requirements, shows what’s still missing, helps coordinate the remaining inputs across your team, and prepares a source-linked draft as the report comes together.</p>
             <p className="mt-3 max-w-3xl text-base leading-7 text-slate-600">You don’t need every document upfront. Add more information as it becomes available.</p>
-            {user ? <p className="mt-4 text-sm font-semibold text-emerald-800">Signed in as {user.email}. Your report and review history will be saved.</p> : <p className="mt-4 text-sm text-slate-600"><Link className="font-semibold text-emerald-800 underline" to="/login?next=/compile">Create an account or sign in</Link> before compilation so the report can be saved securely.</p>}
+            {user ? <p className="mt-4 text-sm font-semibold text-emerald-800">{funnel?.paid ? "Your paid workspace is active." : funnel?.freeFirstAwardReportGeneratedAt ? "Your Free First Award has been used. Choose a plan when you are ready for another award." : "Your first award is free. Your report and review history will be saved."}</p> : <p className="mt-4 text-sm text-slate-600"><Link className="font-semibold text-emerald-800 underline" to="/login?next=/compile">Create an account or sign in</Link> before compilation so the report can be saved securely.</p>}
           </div>
           <div className="compile-boundary">
             <LockKeyhole aria-hidden="true" />
@@ -671,7 +679,7 @@ export function CompilePage() {
       </section>
 
       {reportId && <div className="site-shell"><div className="account-notice">Report saved to your private workspace. <Link className="underline" to="/workspace">View saved reports</Link></div></div>}
-      {result && <CompilerResults result={result} activeTab={activeTab} setActiveTab={setActiveTab} onResolve={resolveCheck} onDownload={download} onEditSetup={() => returnToSetup("compiler-grant")} onAddSources={returnToSources} onAddEvidence={addEvidenceToSavedReport} onRemoveEvidence={removeEvidenceFromSavedReport} onConfirmEvidenceMatch={confirmEvidenceMatchForSavedReport} evidenceBusy={evidenceBusy} />}
+      {result && <><div className="site-shell"><section className="funnel-upgrade-panel"><div><p className="eyebrow">Your first award is ready</p><h2>Continue with your next award when you are ready.</h2><p>You used your Free First Award. Choose a self-service plan to prepare additional reports; your team continues to review and submit every report.</p></div><Link className="button button-primary" to="/pricing">Choose a plan <ArrowRight aria-hidden="true" /></Link></section></div><CompilerResults result={result} activeTab={activeTab} setActiveTab={setActiveTab} onResolve={resolveCheck} onDownload={download} onEditSetup={() => returnToSetup("compiler-grant")} onAddSources={returnToSources} onAddEvidence={addEvidenceToSavedReport} onRemoveEvidence={removeEvidenceFromSavedReport} onConfirmEvidenceMatch={confirmEvidenceMatchForSavedReport} evidenceBusy={evidenceBusy} /></>}
     </div>
   );
 }
