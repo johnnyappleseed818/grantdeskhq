@@ -1,4 +1,5 @@
 import { GTM_INVENTORY_POLICY, inventoryDecision } from "./gtmInventoryPolicy.ts";
+import { buildCompetitorSeoSnapshot, type CompetitorSeoSnapshot, type SeoGrowthOpportunity } from "./competitorSeo.ts";
 
 export type ContentOpportunityStatus = "OPPORTUNITY" | "DRAFTING" | "READY_FOR_REVIEW" | "APPROVED" | "PUBLISHED" | "SKIPPED" | "REFRESH";
 export type DistributionStatus = "READY" | "POSTED" | "SKIPPED";
@@ -24,6 +25,10 @@ export interface ContentOpportunity {
   priorityScore: number;
   status: ContentOpportunityStatus;
   relatedUrls: string[];
+  proposedUrl?: string;
+  seoSignals?: SeoGrowthOpportunity["sourceSignals"];
+  competitorEvidence?: string[];
+  seoPriority?: "P0" | "P1" | "P2";
 }
 
 export interface ContentDraft {
@@ -64,10 +69,39 @@ export interface ContentEngineState {
   drafts: ContentDraft[];
   distributionTasks: DistributionTask[];
   sourceSummary: { socialThemes: string[]; directThemes: string[]; searchConsole: string; contentInventory: string; publicResearch: string; };
+  competitorSeo: CompetitorSeoSnapshot;
 }
 
 const assessment = "https://grantdeskhq.com/assessment";
 const now = () => new Date().toISOString();
+
+function competitorOpportunities(): ContentOpportunity[] {
+  return buildCompetitorSeoSnapshot().opportunities.map((item) => ({
+    id: `content-${item.id.replace(/^seo-/, "")}`,
+    topic: item.primaryQuery,
+    workingTitle: item.title,
+    primaryUserProblem: item.userIntent,
+    icp: "Nonprofit finance, grants, and program teams preparing post-award reports",
+    funnelStage: item.commercialIntent >= 9 ? "Solution comparison" : "Problem aware",
+    sourceOfIdea: item.sourceSignals.map((signal) => signal.replaceAll("_", " ")),
+    socialSignalCount: item.sourceSignals.includes("SOCIAL_PAIN") ? 1 : 0,
+    searchEvidence: `Public competitor/page-type evidence only; volume UNKNOWN. Competition: ${item.competition}.`,
+    existingContentOverlap: item.existingPrimaryUrl ? `Existing primary URL ${item.existingPrimaryUrl}; expand rather than duplicate.` : "No current primary GrantDeskHQ URL has been assigned for this intent.",
+    differentiation: item.differentiatedValue,
+    productRelevance: "Post-award report preparation with a source-linked first draft and human review.",
+    commercialIntent: item.commercialIntent >= 8 ? "HIGH" : item.commercialIntent >= 6 ? "MEDIUM" : "LOW",
+    evergreenValue: item.priority === "P0" || item.priority === "P1" ? "HIGH" : "MEDIUM",
+    recommendedFormat: item.pageType.replaceAll("_", " "),
+    recommendedAction: item.recommendation === "EXPAND_EXISTING" ? "EXPAND_EXISTING" : "NEW",
+    priorityScore: item.priorityScore,
+    status: item.recommendation === "IGNORE" ? "SKIPPED" : item.recommendation === "EXPAND_EXISTING" ? "REFRESH" : "OPPORTUNITY",
+    relatedUrls: item.internalLinks,
+    proposedUrl: item.proposedUrl,
+    seoSignals: item.sourceSignals,
+    competitorEvidence: item.competitorEvidence,
+    seoPriority: item.priority
+  }));
+}
 
 const initialOpportunities: ContentOpportunity[] = [
   { id: "content-supporting-evidence", topic: "Grant evidence / supporting documentation", workingTitle: "What documents do you need for a funder report? A practical evidence checklist", primaryUserProblem: "Teams lose time chasing evidence after a report deadline approaches.", icp: "Nonprofit finance, grants, and program teams", funnelStage: "Problem aware", sourceOfIdea: ["Existing post-award workflow content gap", "Canonical Social pain taxonomy: supporting documentation"], socialSignalCount: 0, searchEvidence: "Search Console query data is currently sparse; no volume claim is made.", existingContentOverlap: "Existing articles discuss report workflow but not a dedicated evidence checklist.", differentiation: "A source-linked, owner-based checklist rather than a generic attachment list.", productRelevance: "Explains the evidence inputs and human review workflow GrantDeskHQ supports.", commercialIntent: "HIGH", evergreenValue: "HIGH", recommendedFormat: "Checklist and workflow guide", recommendedAction: "NEW", priorityScore: 91, status: "READY_FOR_REVIEW", relatedUrls: ["/blog/post-award-grant-reporting-checklist", "/sample-report", "/assessment"] },
@@ -93,7 +127,7 @@ export function buildInitialContentEngineState(generatedAt = now()): ContentEngi
     { id: "distribution-medium-ownership", platform: "MEDIUM", contentId: drafts[1].id, sourceOrCommunity: "Medium manual distribution", targetUrl: null, whyRelevant: "Useful operating-model guidance for nonprofit leaders.", distributionFormat: "Condensed canonical-source adaptation", draftText: "Grant reports become fragile when finance, program, and grants teams assume someone else owns the next step. A clear owner-plus-contributor model makes the evidence trail reviewable before the deadline.", canonicalArticleUrl: drafts[1].canonicalUrl, status: "READY" },
     { id: "distribution-linkedin-ownership", platform: "LINKEDIN", contentId: drafts[1].id, sourceOrCommunity: "Founder manual post", targetUrl: null, whyRelevant: "Educational founder post; a meeting or product claim is not required.", distributionFormat: "Short practical observation", draftText: "Post-award reporting does not need one team to do every task. It does need one accountable owner, clear contributors for finance and program data, and a review process that makes gaps visible early.", canonicalArticleUrl: drafts[1].canonicalUrl, status: "READY" }
   ];
-  return { enabled: true, autoPublishEnabled: false, generatedAt, cadence: "Twice weekly through the existing Search Console reconciliation runtime", opportunities: initialOpportunities.map((item) => ({ ...item })), drafts, distributionTasks, sourceSummary: { socialThemes: ["grant reporting", "manual reporting", "spreadsheets", "post-award ownership", "supporting documentation"], directThemes: ["budget-to-actual", "reporting timing", "post-award workflow"], searchConsole: "Existing-page actions remain evidence-gated; limited query data does not block content opportunities.", contentInventory: "Six published articles cover core workflows; gaps are deduped against those primary URLs.", publicResearch: "Bounded public/community themes only; no private prospect details are used." } };
+  return { enabled: true, autoPublishEnabled: false, generatedAt, cadence: "Twice weekly through the existing Search Console reconciliation runtime; bounded public competitor review is due monthly", opportunities: [...initialOpportunities.map((item) => ({ ...item })), ...competitorOpportunities()], drafts, distributionTasks, sourceSummary: { socialThemes: ["grant reporting", "manual reporting", "spreadsheets", "post-award ownership", "supporting documentation"], directThemes: ["budget-to-actual", "reporting timing", "post-award workflow"], searchConsole: "Existing-page actions remain evidence-gated; limited query data does not block content opportunities.", contentInventory: "Six published articles cover core workflows; gaps are deduped against those primary URLs.", publicResearch: "Bounded public/community themes only; no private prospect details are used." }, competitorSeo: buildCompetitorSeoSnapshot() };
 }
 
 export function reconcileContentEngine(existing: ContentEngineState | null, generatedAt = now()): ContentEngineState {
@@ -104,7 +138,7 @@ export function reconcileContentEngine(existing: ContentEngineState | null, gene
     for (const item of persisted) values.set(item.id, item);
     return [...values.values()];
   };
-  return { ...starter, generatedAt, opportunities: merge(starter.opportunities, existing.opportunities), drafts: merge(starter.drafts, existing.drafts), distributionTasks: merge(starter.distributionTasks, existing.distributionTasks), sourceSummary: existing.sourceSummary || starter.sourceSummary };
+  return { ...starter, generatedAt, opportunities: merge(starter.opportunities, existing.opportunities), drafts: merge(starter.drafts, existing.drafts), distributionTasks: merge(starter.distributionTasks, existing.distributionTasks), sourceSummary: existing.sourceSummary || starter.sourceSummary, competitorSeo: existing.competitorSeo || starter.competitorSeo };
 }
 
 /** Adds only a small number of high-fit, non-duplicate NEW-topic drafts when
@@ -133,9 +167,10 @@ export function reconcileContentInventory(existing: ContentEngineState | null, g
 }
 
 function inventoryDraft(opportunity: ContentOpportunity, updatedAt: string): ContentDraft {
-  const slug = opportunity.workingTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 90);
+  const proposedPath = opportunity.proposedUrl?.replace(/^\/+/, "").replace(/\/+$/, "");
+  const slug = proposedPath?.split("/").at(-1) || opportunity.workingTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 90);
   const body = `# ${opportunity.workingTitle}\n\n${opportunity.primaryUserProblem} The useful starting point is the real award agreement and the records your team already uses—not a generic reporting template.\n\n## Start with the requirement, not last quarter's spreadsheet\n\nWrite down what the funder asked for, the reporting period, who owns each input, and what will support the final number or narrative. That makes the work visible early, while there is still time to fix a gap.\n\n## Build the report from sources people can review\n\nFor a budget line, keep the ledger detail and calculation that explain the number. For a program update, keep the dated export, activity record, or other source that supports it. If something is missing, flag it instead of trying to write around it.\n\nFor example, a report might show $18,750 in contracted services with the related ledger transactions and vendor invoices available for review. The final report still needs a person who knows the award to check the result and submit it.\n\n## Give finance, program, and grants teams a clear handoff\n\nOne person should coordinate the reporting calendar. Finance can confirm the numbers; program staff can confirm outcomes; grants or compliance staff can check the funder's instructions. The goal is a report that is easier to review, not an unreviewed automated submission.\n\n### Try your first award free\n\nGrantDeskHQ brings the award agreement, accounting data, program updates, and supporting evidence together into a source-linked first draft for your team to review. Try the workflow on one real award at no cost.\n\n[Try your first award free](${assessment})`;
-  return { id: `draft-${opportunity.id.replace(/^content-/, "")}`, opportunityId: opportunity.id, title: opportunity.workingTitle, slug, metaDescription: opportunity.primaryUserProblem.slice(0, 155), canonicalUrl: `https://grantdeskhq.com/blog/${slug}`, body, internalLinksFrom: ["/resources"], internalLinksTo: [...new Set([...opportunity.relatedUrls, "/assessment"])].slice(0, 5), ctaUrl: assessment, ctaCopy: "Try your first award free", status: "READY_FOR_REVIEW", updatedAt };
+  return { id: `draft-${opportunity.id.replace(/^content-/, "")}`, opportunityId: opportunity.id, title: opportunity.workingTitle, slug, metaDescription: opportunity.primaryUserProblem.slice(0, 155), canonicalUrl: `https://grantdeskhq.com/${proposedPath || `blog/${slug}`}`, body, internalLinksFrom: ["/resources"], internalLinksTo: [...new Set([...opportunity.relatedUrls, "/assessment"])].slice(0, 5), ctaUrl: assessment, ctaCopy: "Try your first award free", status: "READY_FOR_REVIEW", updatedAt };
 }
 
 export function updateContentEngineState(state: ContentEngineState, input: { kind: "opportunity" | "draft" | "distribution"; id: string; status: string }): ContentEngineState {

@@ -6,7 +6,7 @@ describe("canonical content opportunity engine", () => {
     const state = buildInitialContentEngineState("2026-08-24T00:00:00.000Z");
     expect(state.enabled).toBe(true);
     expect(state.autoPublishEnabled).toBe(false);
-    expect(state.opportunities).toHaveLength(7);
+    expect(state.opportunities.length).toBeGreaterThanOrEqual(28);
     expect(state.drafts.filter((draft) => draft.status === "READY_FOR_REVIEW")).toHaveLength(2);
     expect(state.opportunities.some((item) => item.recommendedAction === "EXPAND_EXISTING")).toBe(true);
   });
