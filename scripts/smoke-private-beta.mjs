@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 
 const apiKey = process.env.FIREBASE_WEB_API_KEY;
 const apiOrigin = process.env.GRANTDESK_API_ORIGIN || "https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app";
@@ -19,6 +19,7 @@ const request = {
   organizationName: "GrantDeskHQ QA — Synthetic",
   grantName: "Synthetic Evidence Control Test",
   reportingPeriod: "January–June 2026",
+  requestId: randomUUID(),
   files: [
     asset("awardAgreement", "Synthetic_Grant_Agreement.pdf", "application/pdf"),
     asset("approvedBudget", "Approved_Grant_Budget.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
