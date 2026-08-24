@@ -12,6 +12,7 @@ import { NotFoundPage } from "./pages/NotFoundPage";
 import { LoginPage } from "./pages/LoginPage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { GtmDashboardPage } from "./pages/GtmDashboardPage";
+import { GtmContentReviewPage } from "./pages/GtmContentReviewPage";
 import { ReadinessPage } from "./pages/ReadinessPage";
 import { ReliabilityDashboardPage } from "./pages/ReliabilityDashboardPage";
 import { BlogIndexPage, BlogPostPage } from "./pages/BlogPage";
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="workspace" element={<WorkspacePage />} />
           <Route path="account" element={<AccountPage />} />
           <Route path="gtm" element={<GtmDashboardPage />} />
+          <Route path="gtm/seo/content/:draftId" element={<GtmContentReviewPage />} />
           <Route path="gtm/feedback" element={<GtmFeedbackPage />} />
           <Route path="internal/reliability" element={<ReliabilityDashboardPage />} />
           <Route path="readiness" element={<ReadinessPage />} />

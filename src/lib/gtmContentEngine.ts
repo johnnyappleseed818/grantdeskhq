@@ -35,6 +35,7 @@ export interface ContentDraft {
   internalLinksFrom: string[];
   internalLinksTo: string[];
   ctaUrl: string;
+  ctaCopy?: string;
   status: "READY_FOR_REVIEW" | "APPROVED" | "PUBLISHED" | "SKIPPED";
   updatedAt: string;
 }
@@ -121,4 +122,20 @@ export function updateContentEngineState(state: ContentEngineState, input: { kin
   if (!valid.includes(input.status as DistributionStatus)) throw new Error("Invalid distribution status.");
   if (!state.distributionTasks.some((item) => item.id === input.id)) throw new Error("Distribution task was not found.");
   return { ...state, generatedAt: updatedAt, distributionTasks: state.distributionTasks.map((item) => item.id === input.id ? { ...item, status: input.status as DistributionStatus } : item) };
+}
+
+export function editContentDraft(state: ContentEngineState, id: string, input: Partial<Pick<ContentDraft, "title" | "metaDescription" | "body" | "ctaCopy">>): ContentEngineState {
+  const draft = state.drafts.find((item) => item.id === id);
+  if (!draft) throw new Error("Content draft was not found.");
+  if (draft.status === "PUBLISHED") throw new Error("Published content cannot be edited from the review queue.");
+  const title = input.title === undefined ? draft.title : input.title.trim();
+  const metaDescription = input.metaDescription === undefined ? draft.metaDescription : input.metaDescription.trim();
+  const body = input.body === undefined ? draft.body : input.body.trim();
+  const ctaCopy = input.ctaCopy === undefined ? draft.ctaCopy || "Try GrantDeskHQ with one award" : input.ctaCopy.trim();
+  if (!title || title.length > 140) throw new Error("Article title must be between 1 and 140 characters.");
+  if (!metaDescription || metaDescription.length > 180) throw new Error("Meta description must be between 1 and 180 characters.");
+  if (body.length < 300) throw new Error("Article body must remain substantive before review.");
+  if (!ctaCopy || ctaCopy.length > 120) throw new Error("CTA copy must be between 1 and 120 characters.");
+  const updatedAt = now();
+  return { ...state, generatedAt: updatedAt, drafts: state.drafts.map((item) => item.id === id ? { ...item, title, metaDescription, body, ctaCopy, updatedAt } : item) };
 }

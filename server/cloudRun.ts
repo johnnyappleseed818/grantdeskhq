@@ -19,7 +19,7 @@ import { runDailySocialScan } from "./gtmDailyScanner.ts";
 import { runDirectPublicDiscovery } from "./gtmDirectDiscovery.ts";
 import { resolveDirectRecipients } from "./gtmDirectRecipientResolution.ts";
 import { buildShadowStatus, shadowLeadFromOpportunity, suggestedTopicsFromLeads } from "../src/lib/gtmShadow.ts";
-import { reconcileContentEngine, updateContentEngineState } from "../src/lib/gtmContentEngine.ts";
+import { editContentDraft, reconcileContentEngine, updateContentEngineState } from "../src/lib/gtmContentEngine.ts";
 import { enrichGtmContactInShadow } from "./contactEnrichment.ts";
 import { reconcileStoredContactEnrichmentBatch, runContactEnrichmentBatch, type EnrichmentBatchSegment } from "./contactEnrichmentBatch.ts";
 import { reconcileSearchConsole } from "./searchConsole.ts";
@@ -59,6 +59,7 @@ const clientApplicationRoutes = new Set([
   "/account",
   "/compile",
   "/gtm",
+  "/gtm/seo/content",
   "/gtm/feedback",
   "/internal/reliability",
   "/login",
@@ -582,11 +583,15 @@ async function handleGtmContentEngine(request: IncomingMessage, response: Server
   requireGtmAdmin(await requireUser(request));
   if (request.method === "GET") return json(response, 200, { state: await readGtmContentEngineState() });
   if (request.method !== "PATCH") return json(response, 405, { error: "Method not allowed." });
-  const input = await readJson(request) as { kind?: "opportunity" | "draft" | "distribution"; id?: string; status?: string };
-  if (!input.kind || !input.id || !input.status || !/^[a-z0-9_-]{3,160}$/i.test(input.id)) return json(response, 400, { error: "A valid content record action is required." });
+  const input = await readJson(request) as { kind?: "opportunity" | "draft" | "distribution"; id?: string; status?: string; updates?: { title?: string; metaDescription?: string; body?: string; ctaCopy?: string } };
+  if (!input.kind || !input.id || !/^[a-z0-9_-]{3,160}$/i.test(input.id)) return json(response, 400, { error: "A valid content record action is required." });
   const state = await readGtmContentEngineState();
   if (!state) return json(response, 409, { error: "Content opportunities have not been generated yet." });
-  const updated = updateContentEngineState(state, { kind: input.kind, id: input.id, status: input.status });
+  const updated = input.kind === "draft" && input.updates
+    ? editContentDraft(state, input.id, input.updates)
+    : input.status ? updateContentEngineState(state, { kind: input.kind, id: input.id, status: input.status })
+      : null;
+  if (!updated) return json(response, 400, { error: "A content status or draft update is required." });
   return json(response, 200, { state: await saveGtmContentEngineState(updated) });
 }
 
@@ -924,7 +929,7 @@ async function serveStatic(urlPath: string, headOnly: boolean, response: ServerR
     if (info.isDirectory()) filePath = path.join(filePath, "index.html");
     await stat(filePath);
   } catch {
-    if (clientApplicationRoutes.has(normalizedRoute)) {
+    if (clientApplicationRoutes.has(normalizedRoute) || /^\/gtm\/seo\/content\/[a-z0-9_-]{3,160}$/i.test(normalizedRoute)) {
       filePath = path.join(root, "index.html");
     } else {
       filePath = path.join(root, "404.html");

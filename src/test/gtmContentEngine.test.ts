@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildInitialContentEngineState, reconcileContentEngine, updateContentEngineState } from "../lib/gtmContentEngine";
+import { buildInitialContentEngineState, editContentDraft, reconcileContentEngine, updateContentEngineState } from "../lib/gtmContentEngine";
 
 describe("canonical content opportunity engine", () => {
   it("creates a bounded, review-only backlog even with no Search Console query rows", () => {
@@ -33,5 +33,22 @@ describe("canonical content opportunity engine", () => {
 
   it("rejects an unknown canonical record instead of silently accepting a bad action", () => {
     expect(() => updateContentEngineState(buildInitialContentEngineState(), { kind: "distribution", id: "unknown-task", status: "SKIPPED" })).toThrow(/not found/i);
+  });
+
+  it("persists a substantive founder edit without changing review or publish state", () => {
+    const state = buildInitialContentEngineState("2026-08-24T00:00:00.000Z");
+    const body = state.drafts[0].body + "\n\nA reviewed team keeps unresolved evidence visible until it is resolved.";
+    const updated = editContentDraft(state, "draft-supporting-evidence", { title: "Evidence checklist for funder reports", metaDescription: "A reviewed evidence checklist for funder reports.", body, ctaCopy: "Try one award free" });
+    expect(updated.drafts[0]).toMatchObject({ title: "Evidence checklist for funder reports", ctaCopy: "Try one award free", status: "READY_FOR_REVIEW" });
+    expect(updated.drafts[0].body).toContain("unresolved evidence");
+  });
+
+  it("retains both existing ready-for-review drafts with complete, readable bodies", () => {
+    const drafts = buildInitialContentEngineState().drafts.filter((draft) => draft.status === "READY_FOR_REVIEW");
+    expect(drafts.map((draft) => draft.title)).toEqual(expect.arrayContaining([
+      "What documents do you need for a funder report? A practical evidence checklist",
+      "Who should own post-award grant reporting? A nonprofit operating model"
+    ]));
+    expect(drafts.every((draft) => draft.body.length > 1_000 && draft.canonicalUrl.startsWith("https://grantdeskhq.com/blog/"))).toBe(true);
   });
 });
