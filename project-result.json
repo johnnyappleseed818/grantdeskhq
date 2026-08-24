@@ -1,22 +1,24 @@
 {
   "status": "PASS",
   "project": "controlled-instantly-outbound-api-configuration-20260824",
-  "completed_at": "2026-08-24T11:24:00Z",
-  "production_revision": "grantdeskhq-prototype-00334-lij",
-  "rollback_revision": "grantdeskhq-prototype-00328-tur",
-  "commit": "d29f003",
+  "completed_at": "2026-08-24T11:39:00Z",
+  "production_revision": "grantdeskhq-prototype-00341-qot",
+  "rollback_revision": "grantdeskhq-prototype-00334-lij",
+  "commit": "a9b6db7",
   "completed": [
     "Recovered the production source lineage and preserved the reconciled canonical source at d29f003.",
     "Configured the two mapped Instantly campaigns through the authenticated API with Eli-only sender, stop-on-reply, stop-on-auto-reply, bounce protection, tracking disabled, five-per-day limits, and the approved Free First Award sequence.",
     "Created and activated only the five validated Direct contacts in gdh-controlled-batch-20260824-01; the Partner campaign remains inactive because no new Partner cleared canonical eligibility.",
     "Read provider state back and ran bounded polling reconciliation. Five Direct leads are active/scheduled; no provider send event has yet occurred.",
-    "Promoted a configuration-only revision that disables the exact controlled-batch handoff gate again while preserving the isolated Instantly sequence."
+    "Repaired only the five existing cohort custom opening variables through the runtime's exact-cohort API before the configured send window; no recipient, campaign membership, or activation changed.",
+    "Promoted a configuration-only revision that disables the exact controlled-batch handoff gate again while preserving the isolated Instantly sequence and exposes commit a9b6db7 in health diagnostics."
   ],
   "validation": [
     "31 focused Instantly, GTM canonical fetch, content engine, and Search Console tests passed; production build passed for d29f003.",
-    "Live production health is OK on grantdeskhq-prototype-00334-lij and identifies application commit d29f003.",
+    "Live production health is OK on grantdeskhq-prototype-00341-qot and identifies application commit a9b6db7.",
     "Provider read-back confirms Direct campaign status active, five exact campaign members, stop-on-reply and auto-reply stops enabled, tracking disabled, and daily caps of five.",
-    "Polling reconciliation completed successfully with zero send/reply transitions, so no queued message was falsely recorded as sent."
+    "Polling reconciliation completed successfully with zero send/reply transitions, so no queued message was falsely recorded as sent.",
+    "17 focused Instantly tests and a production build passed for the exact-cohort copy repair."
   ],
   "side_effects": {
     "emails_sent_at_validation": 0,
