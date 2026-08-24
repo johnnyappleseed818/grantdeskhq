@@ -35,7 +35,7 @@ import type { GtmOpportunity } from "../src/lib/gtm.ts";
 import { canonicalOrganizationId } from "../src/lib/gtmCanonical.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
-import { applyInstantlyEvent, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
+import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
@@ -499,16 +499,24 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
   }
   const approvedSender = "eli.katz@grantdeskhq.com";
   const mailboxReady = Boolean(approvedAccount && Number(approvedAccount.status) === 1 && Number(approvedAccount.warmup_status) === 1 && approvedAccount.setup_pending !== true && !String(approvedAccount.e_message || "").trim());
-  const senderReady = Boolean(client && config.integrationEnabled && config.apiKeyConfigured && mailboxReady && campaignDetails.every((campaign) => campaign && Number(campaign.status) === 0 && campaignUsesOnlySender(campaign, approvedSender)));
+  const selectedCampaigns = campaignDetails.filter((campaign, index): campaign is Record<string, unknown> => Boolean(campaign && (index === 0 ? direct.length > 0 : partner.length > 0)));
+  const campaignConfigurationAllowed = selectedCampaigns.every((campaign) => Number(campaign.status) === 0 && campaignSenderAddresses(campaign).every((sender) => sender === approvedSender));
+  const senderReady = Boolean(client && config.integrationEnabled && config.apiKeyConfigured && mailboxReady && selectedCampaigns.length > 0 && selectedCampaigns.every((campaign) => controlledCampaignReady(campaign, approvedSender)));
   const summary = (record: Awaited<typeof model>["records"][number]) => ({ organization: record.organization, person: record.contact, title: record.title, email: record.email, verification: record.verificationStatus, whyNowOrFit: record.whyNow, campaign: record.segment === "DIRECT" ? config.directCampaignId : config.partnerCampaignId, subject: controlledSubject(record), emailBody: controlledEmail(record) });
-  if (!input.execute) return json(response, 200, { mode: "PREFLIGHT", batchId, senderReady, approvedSender, mailbox: approvedAccount ? { email: approvedAccount.email, status: approvedAccount.status, warmupStatus: approvedAccount.warmup_status, setupPending: approvedAccount.setup_pending === true, hasError: Boolean(String(approvedAccount.e_message || "").trim()), dailyLimit: approvedAccount.daily_limit ?? approvedAccount.warmup_limit ?? null } : null, flags: { integrationEnabled: config.integrationEnabled, outboundEnabled: config.outboundEnabled, autoHandoffEnabled: config.autoHandoffEnabled, directEnabled: config.directEnabled, partnerEnabled: config.partnerEnabled, controlledBatchEnabled: config.controlledBatchEnabled }, campaigns: campaignDetails.map((campaign) => campaign ? controlledCampaignSafetySummary(campaign) : null), campaignLeadCount: Object.fromEntries(campaignLeadCount), direct: direct.map(summary), partner: partner.map(summary), exclusions: { priorContact: model.records.filter((record) => record.priorContact).length, suppressed: model.records.filter((record) => record.suppressionStatus !== "CLEAR").length, existingInstantly: existingEmails.size } });
-  if (!senderReady || !client) return json(response, 409, { error: "Sender or mapped inactive campaigns are not ready for a controlled batch." });
+  if (!input.execute) return json(response, 200, { mode: "PREFLIGHT", batchId, senderReady, campaignConfigurationAllowed, approvedSender, mailbox: approvedAccount ? { email: approvedAccount.email, status: approvedAccount.status, warmupStatus: approvedAccount.warmup_status, setupPending: approvedAccount.setup_pending === true, hasError: Boolean(String(approvedAccount.e_message || "").trim()), dailyLimit: approvedAccount.daily_limit ?? approvedAccount.warmup_limit ?? null } : null, flags: { integrationEnabled: config.integrationEnabled, outboundEnabled: config.outboundEnabled, autoHandoffEnabled: config.autoHandoffEnabled, directEnabled: config.directEnabled, partnerEnabled: config.partnerEnabled, controlledBatchEnabled: config.controlledBatchEnabled }, campaigns: campaignDetails.map((campaign) => campaign ? controlledCampaignSafetySummary(campaign) : null), proposedConfiguration: { direct: controlledCampaignPatch("DIRECT", 5, approvedSender), partner: controlledCampaignPatch("PARTNER", 5, approvedSender) }, campaignLeadCount: Object.fromEntries(campaignLeadCount), direct: direct.map(summary), partner: partner.map(summary), exclusions: { priorContact: model.records.filter((record) => record.priorContact).length, suppressed: model.records.filter((record) => record.suppressionStatus !== "CLEAR").length, existingInstantly: existingEmails.size } });
+  if (!mailboxReady || !client || !campaignConfigurationAllowed) return json(response, 409, { error: "Approved mailbox or mapped inactive campaigns are not safe for a controlled batch." });
   if (!config.controlledBatchEnabled || config.controlledBatchId !== batchId) return json(response, 409, { error: "This exact controlled batch is not enabled." });
   if (campaignLeadCount.get(config.directCampaignId) || campaignLeadCount.get(config.partnerCampaignId)) return json(response, 409, { error: "Mapped campaign already contains leads; refusing to risk an outside-batch send." });
+  await Promise.all([
+    client.configureControlledCampaign(config.directCampaignId, controlledCampaignPatch("DIRECT", 5, approvedSender), batchId),
+    client.configureControlledCampaign(config.partnerCampaignId, controlledCampaignPatch("PARTNER", 5, approvedSender), batchId)
+  ]);
+  const configuredCampaigns = await Promise.all([client.getCampaign(config.directCampaignId), client.getCampaign(config.partnerCampaignId)]);
+  if (!configuredCampaigns.every((campaign) => controlledCampaignReady(campaign, approvedSender))) return json(response, 409, { error: "Controlled campaign read-back did not satisfy sender, reply-stop, tracking, CTA, and safety requirements." });
   const created = await Promise.all(cohort.map(async (record) => {
     const [firstName, ...rest] = String(record.contact || "").split(/\s+/);
     const campaignId = record.segment === "DIRECT" ? config.directCampaignId : config.partnerCampaignId;
-    const provider = await client.createLeadInControlledCampaign({ email: record.email || "", firstName, lastName: rest.join(" "), companyName: record.organization, jobTitle: record.title || "", campaignId, personalization: controlledEmail(record), customVariables: { batch_id: batchId, canonical_organization_id: record.organizationId, canonical_contact_id: `${record.organizationId}:${record.email}`, segment: record.segment, source: record.sourceUrl, why_now_or_fit: record.whyNow, message_version: "controlled-benefit-led-v1" } }, batchId);
+    const provider = await client.createLeadInControlledCampaign({ email: record.email || "", firstName, lastName: rest.join(" "), companyName: record.organization, jobTitle: record.title || "", campaignId, personalization: controlledEmail(record), customVariables: { batch_id: batchId, canonical_organization_id: record.organizationId, canonical_contact_id: `${record.organizationId}:${record.email}`, segment: record.segment, source: record.sourceUrl, why_now_or_fit: record.whyNow, openingLine: controlledOpening(record), message_version: "controlled-benefit-led-v1" } }, batchId);
     const preview = instantlyPreviewRecord(record);
     const persisted = { ...preview, instantlyCampaignId: campaignId, instantlyLeadId: String(provider.id || provider.lead_id || ""), instantlySyncStatus: "IN_CAMPAIGN" as const, messageVersion: "controlled-benefit-led-v1", controlledBatchId: batchId, failureReason: "", updatedAt: new Date().toISOString() };
     await saveInstantlyRecord(persisted);
@@ -524,10 +532,34 @@ function controlledSubject(record: Awaited<ReturnType<typeof readCanonicalGtmMod
 
 function controlledEmail(record: Awaited<ReturnType<typeof readCanonicalGtmModel>>["records"][number]) {
   const first = String(record.contact || "there").split(/\s+/)[0];
-  const context = record.segment === "DIRECT" ? `I came across ${record.organization} and saw ${record.whyNow}` : `I came across ${record.organization} and saw ${record.whyNow}`;
+  const context = controlledOpening(record);
   const value = record.segment === "DIRECT" ? "Preparing a funder report can mean pulling together award terms, accounting data, program updates, and supporting evidence from several places." : "A lot of nonprofit client reporting still means pulling together award terms, accounting data, program updates, and supporting evidence by hand.";
   const close = record.segment === "DIRECT" ? "You can try it with one real award for free here: https://grantdeskhq.com/assessment" : "You can try it with one client award for free here: https://grantdeskhq.com/assessment";
   return `Hi ${first},\n\n${context}\n\n${value}\n\nGrantDeskHQ turns those inputs into a source-linked first draft for human review. People remain responsible for the final review and submission.\n\n${close}\n\nBest,\nEli`;
+}
+
+function controlledOpening(record: Awaited<ReturnType<typeof readCanonicalGtmModel>>["records"][number]) {
+  return record.segment === "DIRECT"
+    ? `I saw ${record.whyNow}, so I thought this might be relevant.`
+    : `I came across ${record.organization} and saw ${record.whyNow}`;
+}
+
+function controlledCampaignPatch(segment: "DIRECT" | "PARTNER", maximum: number, sender: string) {
+  const direct = segment === "DIRECT";
+  const initialBody = direct
+    ? "<div>Hi {{firstName}},</div><div><br /></div><div>{{openingLine}}</div><div><br /></div><div>Preparing a funder report can mean pulling together award terms, accounting data, program updates, and supporting evidence from several places.</div><div><br /></div><div>GrantDeskHQ turns those inputs into a source-linked first draft for human review. People remain responsible for the final review and submission.</div><div><br /></div><div>You can try it with one real award for free here: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>"
+    : "<div>Hi {{firstName}},</div><div><br /></div><div>{{openingLine}}</div><div><br /></div><div>GrantDeskHQ helps nonprofit teams bring the award agreement, accounting data, program updates, and supporting evidence into a source-linked first report draft.</div><div><br /></div><div>It can reduce repetitive grant-report preparation for nonprofit clients while the advisor and nonprofit retain review and submission control.</div><div><br /></div><div>If you'd like to see how it works, you can try it with one client award for free: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>";
+  return {
+    email_list: [sender], stop_on_reply: true, stop_on_auto_reply: true, disable_bounce_protect: false,
+    open_tracking: false, link_tracking: false, daily_limit: maximum, daily_max_leads: maximum,
+    sequences: [{ steps: [{ type: "email", delay: 0, delay_unit: "days", variants: [{ subject: direct ? "Less time preparing grant reports" : "Helping nonprofit clients save time on grant reports", body: initialBody, v_disabled: false }] }, { type: "email", delay: 4, delay_unit: "days", variants: [{ subject: direct ? "A simpler way to prep funder reports" : "A simpler way to prep client grant reports", body: "<div>Hi {{firstName}},</div><div><br /></div><div>Just following up in case this is useful. You can try one real award for free here: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: false }] }, { type: "email", delay: 5, delay_unit: "days", variants: [{ subject: direct ? "Worth trying on one award?" : "Worth trying with one client award?", body: "<div>Hi {{firstName}},</div><div><br /></div><div>One last note: GrantDeskHQ is designed to reduce the repetitive first-pass work of assembling a grant report. If useful, your first award is free: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: false }] }, { type: "email", delay: 7, delay_unit: "days", variants: [{ subject: direct ? "Closing the loop" : "Closing the loop on client grant reports", body: "<div>Hi {{firstName}},</div><div><br /></div><div>I will close the loop here. If grant-report preparation becomes a priority later, you can try one award free: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: false }] }] }]
+  };
+}
+
+function controlledCampaignReady(campaign: Record<string, unknown>, sender: string) {
+  const summary = controlledCampaignSafetySummary(campaign);
+  const first = summary.firstEmailVariants.find((variant) => !variant.disabled);
+  return Number(summary.status) === 0 && campaignUsesOnlySender(campaign, sender) && summary.stopOnReply && summary.bounceProtectionEnabled && !summary.openTracking && !summary.linkTracking && Number(summary.dailyMaxLeads) === 5 && Boolean(first?.body.includes("https://grantdeskhq.com/assessment") && first.body.toLowerCase().includes("free"));
 }
 
 /** Scheduler-protected reconciliation uses read-only API polling. Webhooks are

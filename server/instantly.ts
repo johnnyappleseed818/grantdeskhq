@@ -266,6 +266,10 @@ export class InstantlyClient {
     if (!this.config.controlledBatchEnabled || !this.config.controlledBatchId || this.config.controlledBatchId !== batchId) throw new Error("Controlled outbound batch is not enabled for this exact batch ID.");
     return this.api<Record<string, unknown>>(`/campaigns/${encodeURIComponent(campaignId)}/activate`, { method: "POST" });
   }
+  async configureControlledCampaign(campaignId: string, patch: Record<string, unknown>, batchId: string) {
+    if (!this.config.controlledBatchEnabled || !this.config.controlledBatchId || this.config.controlledBatchId !== batchId) throw new Error("Controlled outbound batch is not enabled for this exact batch ID.");
+    return this.api<Record<string, unknown>>(`/campaigns/${encodeURIComponent(campaignId)}`, { method: "PATCH", body: JSON.stringify(patch) });
+  }
 }
 
 function text(value: unknown) { return typeof value === "string" ? value.trim() : ""; }
