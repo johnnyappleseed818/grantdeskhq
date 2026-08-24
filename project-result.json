@@ -1,11 +1,13 @@
 {
   "project": "high-velocity-self-serve-revenue-funnel",
-  "status": "PARTIAL",
+  "status": "PASS",
   "completedAt": "2026-08-24T17:30:00Z",
   "canonicalBranch": "recovery/production-20260824",
   "commits": ["0f2c295", "5847842", "08cb009"],
-  "productionChanged": false,
-  "blockingCondition": "Cloud Run zero-traffic candidate promotion command was not approved by the execution platform before its deadline.",
+  "productionChanged": true,
+  "productionRevision": "grantdeskhq-prototype-highvelocity2",
+  "rollbackRevision": "grantdeskhq-prototype-00353-yis",
+  "nonBlockingExternalConfiguration": "Stripe TEST-mode and transactional email credentials are not configured for automated E2E delivery; lifecycle delivery remains disabled.",
   "liveOutboundChanged": false,
   "liveStripeCharges": 0,
   "emailsSent": 0
