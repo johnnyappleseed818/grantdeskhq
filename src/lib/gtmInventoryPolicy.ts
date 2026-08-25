@@ -3,8 +3,10 @@
  * These are deliberately modest operating buffers, not quotas or send limits.
  */
 export const GTM_INVENTORY_POLICY = {
-  direct: { floor: 10, target: 15, ceiling: 20 },
-  partner: { floor: 5, target: 10, ceiling: 15 },
+  // These are inventory buffers only. They are intentionally separate from
+  // the provider's small, health-gated daily send limits.
+  direct: { floor: 25, target: 50, ceiling: 75 },
+  partner: { floor: 10, target: 25, ceiling: 40 },
   content: { floor: 2, target: 4, ceiling: 6 },
   social: { preferredFloor: 3, targetMin: 3, targetMax: 10 }
 } as const;

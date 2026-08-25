@@ -549,7 +549,11 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
   const approvedSender = "eli.katz@grantdeskhq.com";
   const mailboxReady = Boolean(approvedAccount && Number(approvedAccount.status) === 1 && Number(approvedAccount.warmup_status) === 1 && approvedAccount.setup_pending !== true && !String(approvedAccount.e_message || "").trim());
   const selectedCampaigns = campaignDetails.filter((campaign, index): campaign is Record<string, unknown> => Boolean(campaign && (index === 0 ? direct.length > 0 : partner.length > 0)));
-  const campaignConfigurationAllowed = selectedCampaigns.every((campaign) => Number(campaign.status) === 0 && campaignSenderAddresses(campaign).every((sender) => sender === approvedSender));
+  // A mapped campaign may already be active but empty. That is safe for the
+  // exact controlled cohort only after the API lead read confirms zero members
+  // for that campaign. Treating every active campaign as unsafe left a healthy
+  // empty campaign permanently unable to receive its founder-authorized batch.
+  const campaignConfigurationAllowed = selectedCampaigns.every((campaign) => [0, 1].includes(Number(campaign.status)) && campaignSenderAddresses(campaign).every((sender) => sender === approvedSender));
   const senderReady = Boolean(client && config.integrationEnabled && config.apiKeyConfigured && mailboxReady && selectedCampaigns.length > 0 && selectedCampaigns.every((campaign) => controlledCampaignReady(campaign, approvedSender)));
   const summary = (record: Awaited<typeof model>["records"][number]) => ({ organization: record.organization, person: record.contact, title: record.title, email: record.email, verification: record.verificationStatus, whyNowOrFit: record.whyNow, campaign: record.segment === "DIRECT" ? config.directCampaignId : config.partnerCampaignId, subject: controlledSubject(record), emailBody: controlledEmail(record) });
   if (input.repairOpeningLines === true) {
@@ -605,7 +609,7 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
     return json(response, 200, { mode: "PARTNER_COPY_REPAIRED_BEFORE_SEND", batchId, repaired, alreadySent: alreadySent.map((record) => ({ organization: record.organization, instantlyLeadId: record.instantlyLeadId })), campaign: resumedSummary });
   }
   if (!input.execute) return json(response, 200, { mode: "PREFLIGHT", batchId, senderReady, campaignConfigurationAllowed, approvedSender, mailbox: approvedAccount ? { email: approvedAccount.email, status: approvedAccount.status, warmupStatus: approvedAccount.warmup_status, setupPending: approvedAccount.setup_pending === true, hasError: Boolean(String(approvedAccount.e_message || "").trim()), dailyLimit: approvedAccount.daily_limit ?? approvedAccount.warmup_limit ?? null } : null, flags: { integrationEnabled: config.integrationEnabled, outboundEnabled: config.outboundEnabled, autoHandoffEnabled: config.autoHandoffEnabled, directEnabled: config.directEnabled, partnerEnabled: config.partnerEnabled, controlledBatchEnabled: config.controlledBatchEnabled }, campaigns: campaignDetails.map((campaign) => campaign ? controlledCampaignSafetySummary(campaign) : null), proposedConfiguration: { direct: controlledCampaignPatch("DIRECT", 5, approvedSender), partner: controlledCampaignPatch("PARTNER", 5, approvedSender) }, campaignLeadCount: Object.fromEntries(campaignLeadCount), direct: direct.map(summary), partner: partner.map(summary), exclusions: { priorContact: model.records.filter((record) => record.priorContact).length, suppressed: model.records.filter((record) => record.suppressionStatus !== "CLEAR").length, existingInstantly: existingEmails.size } });
-  if (!mailboxReady || !client || !campaignConfigurationAllowed) return json(response, 409, { error: "Approved mailbox or mapped inactive campaigns are not safe for a controlled batch." });
+  if (!mailboxReady || !client || !campaignConfigurationAllowed) return json(response, 409, { error: "Approved mailbox or mapped campaigns are not safe for a controlled batch." });
   if (!config.controlledBatchEnabled || config.controlledBatchId !== batchId) return json(response, 409, { error: "This exact controlled batch is not enabled." });
   if ((direct.length > 0 && campaignLeadCount.get(config.directCampaignId)) || (partner.length > 0 && campaignLeadCount.get(config.partnerCampaignId))) return json(response, 409, { error: "The selected campaign already contains leads; refusing to risk an outside-batch send." });
   const selectedCampaignConfigurations = await Promise.all([
@@ -688,7 +692,7 @@ function controlledCampaignPatch(segment: "DIRECT" | "PARTNER", maximum: number,
   };
 }
 
-function controlledCampaignReady(campaign: Record<string, unknown>, sender: string, allowedStatuses = [0]) {
+function controlledCampaignReady(campaign: Record<string, unknown>, sender: string, allowedStatuses = [0, 1]) {
   const summary = controlledCampaignSafetySummary(campaign);
   const first = summary.firstEmailVariants.find((variant) => !variant.disabled);
   return allowedStatuses.includes(Number(summary.status)) && campaignUsesOnlySender(campaign, sender) && summary.stopOnReply && summary.bounceProtectionEnabled && !summary.openTracking && !summary.linkTracking && Number(summary.dailyMaxLeads) === 5 && Boolean(first?.body.includes("https://grantdeskhq.com/assessment") && first.body.toLowerCase().includes("free"));

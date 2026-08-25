@@ -1706,7 +1706,11 @@ async function writeDocument(accessToken: string, path: string, record: Record<s
   const url = `${firestoreBase}/${path}`;
   const init = { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields: encodeFields(record) }) };
   const retryableStatuses = new Set([408, 429, 500, 502, 503, 504]);
-  const maxAttempts = 5;
+  // Firestore permits only a limited write rate to an individual document.
+  // Several idempotent scheduler lanes may legitimately reconcile the same
+  // compact control-plane document. Retry across that short rate window rather
+  // than reporting an operational failure or dropping the newest snapshot.
+  const maxAttempts = 7;
   let response: Response | null = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     response = await authorizedFetch(url, accessToken, init);
@@ -1716,7 +1720,7 @@ async function writeDocument(accessToken: string, path: string, record: Record<s
     const base = Number.isFinite(configuredBase) && configuredBase >= 0 ? configuredBase : 500;
     const delay = Number.isFinite(retryAfter) && retryAfter >= 0
       ? Math.min(retryAfter * 1000, 10_000)
-      : Math.min(base * (2 ** (attempt - 1)), 10_000);
+      : Math.min(base * (2 ** (attempt - 1)) + Math.floor(Math.random() * 250), 10_000);
     await new Promise((resolve) => setTimeout(resolve, delay));
   }
   if (!response?.ok) throw new Error(`Workspace record could not be saved (${response?.status || 503}).`);
