@@ -6,7 +6,7 @@
   "commit": "a27ce98c95e7edec3ac22b2f7dc55e1e6dd41b40",
   "productionChanged": false,
   "productionRevisionBefore": "grantdeskhq-prototype-competitorseopriority",
-  "candidateDeployment": "NOT_CREATED_NO_CLOUD_BUILD_JOB",
+  "candidateDeployment": "PASS — grantdeskhq-prototype-00365-cax at 0% traffic; tagged gtmopportunityphase1",
   "phase": "Phase 1 — market signals, opportunity clusters, distribution graph, founder decisions",
   "contentAutoPublish": false,
   "instantlyAutoHandoff": false,

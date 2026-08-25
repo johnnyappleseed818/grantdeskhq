@@ -50,7 +50,7 @@ TESTS
 
 DEPLOYMENT
 Current serving revision before this work: grantdeskhq-prototype-competitorseopriority.
-Attempted zero-traffic candidate deployment twice with --source, --no-traffic, and tag gtmopportunityphase1. Each attempt safely completed source upload but did not create a Cloud Build job or Cloud Run revision. Production traffic remained unchanged. No deployment or rollback action was taken.
+The source-deploy upload completed asynchronously and produced zero-traffic candidate grantdeskhq-prototype-00365-cax. It is tagged gtmopportunityphase1 and was read back as 0% traffic while grantdeskhq-prototype-competitorseopriority remains 100% production traffic. Candidate /api/health and /assessment passed. No production promotion or rollback action was taken because this task did not specifically authorize production traffic changes.
 
 NEXT COMMERCIAL ACTION
 Review the first persisted Opportunity Radar after the next normal Direct/Partner/Social reconciliation. Approve only source-backed clusters that show a strong market event plus a credible buyer or evidenced distribution route. Phase 2 should test one real CAS/fractional-CFO partner playbook; Phase 3 should implement the Reporting Requirement Analyzer as a privacy-safe product utility.
