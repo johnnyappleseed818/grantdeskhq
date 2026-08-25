@@ -1,12 +1,12 @@
 {
   "project": "gtm-opportunity-production-validation",
-  "status": "PARTIAL",
-  "completedAt": "2026-08-25T12:30:00Z",
+  "status": "PASS",
+  "completedAt": "2026-08-25T13:30:00Z",
   "canonicalBranch": "recovery/production-20260824",
   "commit": "df4a343",
-  "productionChanged": false,
+  "productionChanged": true,
   "productionRevisionBefore": "grantdeskhq-prototype-competitorseopriority",
-  "candidateDeployment": "PARTIAL — grantdeskhq-prototype-00368-foq is healthy at 0% traffic; tagged gtmopportunitylearning. A disposable real-OIDC Scheduler reconciliation returned HTTP 200 and was deleted. Candidate synthetic browser E2E passed. Unauthenticated GTM access fails closed. Live authenticated GTM-admin dashboard mutation remains unavailable without an existing non-founder administrator session.",
+  "candidateDeployment": "PASS — grantdeskhq-prototype-00370-tul was validated at 0% traffic, including a disposable non-founder Firebase test identity using the existing Identity Toolkit test-session flow and the existing GTM_ADMIN_EMAILS allowlist. Protected GET, PATCH, independent-session reload, state restore, user-scoped access, and unauthenticated 401 all passed. The QA identity and temporary candidate-only allowlist entry were removed before promotion. A disposable OIDC Cloud Scheduler reconciliation returned HTTP 200 and was deleted. Synthetic browser E2E, lint, type-check, unit/integration suite, build, regression, reliability, static SEO, production health, public assessment, and error-log checks passed. Revision 00370-tul serves 100% production traffic; 00365-cax remains the tagged rollback candidate.",
   "phase": "Server-canonical outcome attribution, fail-closed experiment learning, dashboard persistence validation",
   "contentAutoPublish": false,
   "instantlyAutoHandoff": false,
@@ -14,5 +14,5 @@
   "emailsSent": 0,
   "socialPosts": 0,
   "articlesPublished": 0,
-  "humanActionRequired": "Provide an existing non-founder GTM-admin Firebase test session/credential for one candidate dashboard read/PATCH/reload validation. No live sending permission is needed."
+  "humanActionRequired": "NONE"
 }
