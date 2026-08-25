@@ -19,7 +19,8 @@ describe("public GrantDeskHQ blog", () => {
     expect(overnightPages).toHaveLength(4);
     expect(overnightPages.every((post) => blogWordCount(post) > 400)).toBe(true);
     const staticRoutes = fs.readFileSync(path.resolve("scripts/create-spa-routes.js"), "utf8");
-    for (const page of overnightPages) expect(staticRoutes).toContain("blog/" + page.slug);
+    expect(staticRoutes).toContain("BLOG_POSTS.map(articlePage)");
+    expect(staticRoutes).toContain("route: `blog/${post.slug}`");
   });
 
   it("renders a discoverable article with source links and a self-service CTA", () => {

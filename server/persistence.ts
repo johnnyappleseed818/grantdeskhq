@@ -9,6 +9,7 @@ import type { ContactEnrichmentRecord, EnrichmentUsage, SuppressionCheck } from 
 import type { SearchConsoleState } from "./searchConsole.ts";
 import type { PartnerDiscoveryScan } from "./gtmPartnerDiscovery.ts";
 import type { InventoryAutopilotSnapshot } from "../src/lib/gtmInventoryPolicy.ts";
+import type { GtmOpportunityEngineState } from "../src/lib/gtmOpportunityEngine.ts";
 import type { FeedbackSubmission } from "../src/lib/feedback.ts";
 import type { OutreachRecord } from "../src/lib/gtmOutreach.ts";
 import { mergeOutreachRecords } from "../src/lib/gtmOutreach.ts";
@@ -761,6 +762,29 @@ export async function readGtmInventoryAutopilot(): Promise<InventoryAutopilotSna
   if (!response.ok) throw new Error(`GTM inventory autopilot state could not be loaded (${response.status}).`);
   const record = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
   try { return record.stateJson ? JSON.parse(String(record.stateJson)) as InventoryAutopilotSnapshot : null; }
+  catch { return null; }
+}
+
+/** Durable source-backed market-event and cluster state. This contains only
+ * research, founder decisions, and experiment observations; it has no send,
+ * campaign, or uploaded-document execution path. */
+export async function saveGtmOpportunityEngineState(state: GtmOpportunityEngineState) {
+  const accessToken = await gcpToken();
+  await writeDocument(accessToken, "gtm/opportunity-engine", {
+    generatedAt: state.generatedAt,
+    clusterCount: state.clusters.length,
+    signalCount: state.signals.length,
+    stateJson: JSON.stringify(state)
+  });
+  return state;
+}
+
+export async function readGtmOpportunityEngineState(): Promise<GtmOpportunityEngineState | null> {
+  const response = await authorizedFetch(`${firestoreBase}/gtm/opportunity-engine`, await gcpToken());
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`GTM opportunity-engine state could not be loaded (${response.status}).`);
+  const record = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
+  try { return record.stateJson ? JSON.parse(String(record.stateJson)) as GtmOpportunityEngineState : null; }
   catch { return null; }
 }
 

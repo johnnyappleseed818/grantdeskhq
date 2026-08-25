@@ -17,7 +17,7 @@ describe("important routes", () => {
     ["/sample-report", /See the complete review package/i],
     ["/privacy", /Understand where your data goes and who can access it/i],
     ["/pricing", /Choose the GrantDeskHQ workflow that fits your reporting needs\./i],
-    ["/assessment", /Let our AI-powered solution prepare your first report draft at no cost/i],
+    ["/assessment", /Prepare your first award free\./i],
     ["/compile", /Bring what you have\. We’ll help with the rest/i],
     ["/readiness", /Find every reporting requirement before the deadline gets close/i],
     ["/resources", /Practical resources for post-award grant reporting/i],
@@ -112,19 +112,14 @@ describe("important routes", () => {
     expect(await screen.findByRole("heading", { name: /Practical resources for post-award grant reporting/i })).toBeInTheDocument();
   });
 
-  it("provides a labelled contact form without exposing a personal address", () => {
+  it("keeps Free First Award self-service rather than routing prospects through a contact form", () => {
     renderRoute("/assessment");
-    expect(screen.getByRole("link", { name: /Tell us about your workflow/i })).toHaveAttribute(
-      "href",
-      expect.stringMatching(/^https:\/\/docs\.google\.com\/forms\/d\/e\//)
-    );
-    expect(screen.getByRole("heading", { name: "Start your Free First Award" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Name")).toBeInTheDocument();
-    expect(screen.getByLabelText("Work email")).toBeInTheDocument();
-    expect(screen.getByLabelText("Organization")).toBeInTheDocument();
-    expect(screen.getByLabelText("Current grant-reporting process")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Open a Free First Award email draft/i })).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/eli@|Eli Katz/i);
+    expect(screen.getByRole("heading", { name: /Prepare your first award free\./i })).toBeInTheDocument();
+    const primaryCta = screen.getByRole("link", { name: /loading your secure start|try your first award free|start your free first award/i });
+    expect(primaryCta).toHaveAttribute("href", expect.stringContaining("/login?next="));
+    expect(document.body.textContent).toMatch(/first award free/i);
+    expect(screen.queryByLabelText("Current grant-reporting process")).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/mailto:|docs\.google\.com\/forms|eli@|Eli Katz/i);
   });
 
   it("shows the approved self-service monthly pricing and capacity", () => {

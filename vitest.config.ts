@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: "./src/test/setup.ts",
-    exclude: ["scripts/gtm/**", "node_modules/**", "dist/**"],
+    exclude: [".worktrees/**", "scripts/**", "node_modules/**", "dist/**"],
     css: true
   }
 });

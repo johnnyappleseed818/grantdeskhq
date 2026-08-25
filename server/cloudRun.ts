@@ -9,7 +9,7 @@ import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { addSupportingEvidence, beginFreeFirstAward, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readFreeFirstAwardStatus, readGtmAwardScan, readGtmContactSuppression, readGtmContentEngineState, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmDirectDiscoveryScan, readGtmEnrichmentUsage, readGtmInventoryAutopilot, readGtmPartnerDiscoveryScan, readGtmShadowStatus, readInstantlyRecords, readInstantlyStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, recordGtmContactSuppression, reconcileLifecycleNurture, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveFunnelPreferences, saveGtmContentEngineState, saveGtmDailyScan, saveGtmDirectDiscoveryScan, saveGtmInventoryAutopilot, saveGtmPartnerDiscoveryScan, saveInstantlyRecord, saveInstantlyStatus, saveInstantlyWebhookEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview, updateGtmDailySocialItem } from "./persistence.ts";
+import { addSupportingEvidence, beginFreeFirstAward, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readFreeFirstAwardStatus, readGtmAwardScan, readGtmContactSuppression, readGtmContentEngineState, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmDirectDiscoveryScan, readGtmEnrichmentUsage, readGtmInventoryAutopilot, readGtmOpportunityEngineState, readGtmPartnerDiscoveryScan, readGtmShadowStatus, readInstantlyRecords, readInstantlyStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, recordGtmContactSuppression, reconcileLifecycleNurture, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveFunnelPreferences, saveGtmContentEngineState, saveGtmDailyScan, saveGtmDirectDiscoveryScan, saveGtmInventoryAutopilot, saveGtmOpportunityEngineState, saveGtmPartnerDiscoveryScan, saveInstantlyRecord, saveInstantlyStatus, saveInstantlyWebhookEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview, updateGtmDailySocialItem } from "./persistence.ts";
 import { validateFeedbackInput, type FeedbackSubmission } from "../src/lib/feedback.ts";
 import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
 import { confirmedHumanOutreach, summarizeOutreach } from "../src/lib/gtmOutreach.ts";
@@ -35,6 +35,7 @@ import { readCanonicalGtmModel } from "./gtmCanonical.ts";
 import type { GtmOpportunity } from "../src/lib/gtm.ts";
 import { canonicalOrganizationId } from "../src/lib/gtmCanonical.ts";
 import { boundedEnrichmentLimit, GTM_INVENTORY_POLICY, inventoryDecision, socialDiscoveryBreadth, type InventoryAutopilotSnapshot } from "../src/lib/gtmInventoryPolicy.ts";
+import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type OpportunityClusterStatus } from "../src/lib/gtmOpportunityEngine.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
 import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
@@ -134,6 +135,8 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/feedback") return await handleGtmFeedback(request, response);
     if (url.pathname === "/api/gtm/access") return await handleGtmAccess(request, response);
     if (url.pathname === "/api/gtm/opportunities") return await handleGtmOpportunities(request, response);
+    if (url.pathname === "/api/gtm/opportunity-clusters") return await handleGtmOpportunityClusters(request, response);
+    if (url.pathname === "/api/gtm/opportunity-clusters/reconcile") return await handleGtmOpportunityClustersReconcile(request, response);
     if (url.pathname === "/api/gtm/daily-signals") return await handleGtmDailySignals(request, response);
     if (url.pathname === "/api/gtm/social") return await handleGtmSocial(request, response);
     if (url.pathname === "/api/gtm/award-signals") return await handleGtmAwardSignals(request, response);
@@ -391,6 +394,27 @@ async function handleGtmOpportunities(request: IncomingMessage, response: Server
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   requireGtmAdmin(await requireUser(request));
   return json(response, 200, { opportunities: initialOpportunities });
+}
+
+/** The cluster engine is founder-review-only. A decision deliberately cannot
+ * create campaign membership, stage a contact, or send through Instantly. */
+async function handleGtmOpportunityClusters(request: IncomingMessage, response: ServerResponse) {
+  requireGtmAdmin(await requireUser(request));
+  if (request.method === "GET") return json(response, 200, { state: await readGtmOpportunityEngineState() });
+  if (request.method !== "PATCH") return json(response, 405, { error: "Method not allowed." });
+  const body = await readJson(request) as { clusterId?: unknown; status?: unknown };
+  const clusterId = String(body.clusterId || "");
+  const status = String(body.status || "") as OpportunityClusterStatus;
+  if (!/^cluster:[a-z0-9:-]{3,220}$/i.test(clusterId) || !["REVIEW", "APPROVED", "SNOOZED", "REJECTED"].includes(status)) return json(response, 400, { error: "A valid opportunity cluster and founder decision are required." });
+  const current = await readGtmOpportunityEngineState();
+  if (!current) return json(response, 404, { error: "No opportunity-cluster state is available yet." });
+  return json(response, 200, { state: await saveGtmOpportunityEngineState(applyOpportunityClusterDecision(current, clusterId, status)) });
+}
+
+async function handleGtmOpportunityClustersReconcile(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  return json(response, 200, { state: await reconcileGtmOpportunityEngine() });
 }
 
 async function handleGtmAwardSignals(request: IncomingMessage, response: ServerResponse) {
@@ -873,7 +897,14 @@ async function handleScheduledPartnerHunterReconciliation(request: IncomingMessa
   const stored = await reconcileStoredContactEnrichmentBatch({ segment: "partner", limit: 20, discoveredPartner: discovery?.opportunities || [] });
   console.info("GTM_HUNTER_BATCH " + JSON.stringify(partner ? { segment: partner.segment, attempted: partner.attempted, contactsResolved: partner.contactsResolved, verifiedEmails: partner.verifiedEmails, ready: partner.ready, needsVerification: partner.needsVerification, alreadyContacted: partner.alreadyContacted, duplicates: partner.duplicates, failures: partner.failures, providerUsage: partner.providerUsage } : { segment: "partner", skipped: "HEALTHY_READY_INVENTORY" }));
   const inventory = await persistInventoryAutopilot();
-  return json(response, 200, { decision, discovery, partner, stored, instantly, inventory });
+  let opportunityEngine = null;
+  let opportunityEngineError: string | null = null;
+  try { opportunityEngine = await reconcileGtmOpportunityEngine(); }
+  catch (error) {
+    opportunityEngineError = error instanceof Error ? error.message : "Opportunity cluster reconciliation could not be completed.";
+    console.error("GTM_OPPORTUNITY_ENGINE", error);
+  }
+  return json(response, 200, { decision, discovery, partner, stored, instantly, inventory, opportunityEngine, opportunityEngineError });
 }
 
 async function handleSearchConsoleReconcile(request: IncomingMessage, response: ServerResponse) {
@@ -969,6 +1000,9 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
     }
   } catch (error) { errors.push(error instanceof Error ? error.message : "Direct replenishment could not be completed."); }
   const inventory = await persistInventoryAutopilot();
+  let opportunityEngine = null;
+  try { opportunityEngine = await reconcileGtmOpportunityEngine(); }
+  catch (error) { errors.push(error instanceof Error ? error.message : "Opportunity cluster reconciliation could not be completed."); }
   return json(response, 200, {
     status: errors.length ? "partial" : "completed",
     generatedAt: new Date().toISOString(),
@@ -984,6 +1018,7 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
     directReplenishment: directReplenishment || null,
     directDecision,
     inventory,
+    opportunityEngine,
     errors
   });
 }
@@ -1025,6 +1060,17 @@ async function persistInventoryAutopilot(): Promise<InventoryAutopilotSnapshot> 
     safeguards: { autoHandoff: false, contentAutoPublish: false, socialAutoPost: false }
   };
   return saveGtmInventoryAutopilot(snapshot);
+}
+
+/**
+ * Reuses durable award, Direct, Partner, Social, and canonical readiness
+ * state. It performs no discovery, enrichment, campaign mutation, or send.
+ */
+async function reconcileGtmOpportunityEngine() {
+  const [awards, direct, partners, social, canonical, prior] = await Promise.all([
+    readGtmAwardScan(), readGtmDirectDiscoveryScan(), readGtmPartnerDiscoveryScan(), readGtmDailyScan(), readCanonicalGtmModel(), readGtmOpportunityEngineState()
+  ]);
+  return saveGtmOpportunityEngineState(buildGtmOpportunityEngineState({ awards, direct, partners, social, canonical, prior }));
 }
 
 async function reconcileAndSaveControlPlane(opportunities: GtmOpportunity[]) {

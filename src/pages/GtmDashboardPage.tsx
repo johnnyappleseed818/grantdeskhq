@@ -45,8 +45,9 @@ import type { CanonicalGtmModel, CanonicalGtmRecord, CanonicalGtmState } from ".
 import type { SearchConsoleState } from "../../server/searchConsole";
 import type { ContentEngineState } from "../lib/gtmContentEngine";
 import type { InventoryAutopilotSnapshot } from "../lib/gtmInventoryPolicy";
+import { founderOpportunityQueue, type GtmOpportunityEngineState, type OpportunityClusterStatus } from "../lib/gtmOpportunityEngine";
 
-type DashboardTab = "overview" | "outreach" | "leads" | "partners" | "social" | "seo" | "feedback" | "system-health" | "research";
+type DashboardTab = "overview" | "opportunities" | "outreach" | "leads" | "partners" | "social" | "seo" | "feedback" | "system-health" | "research";
 type StageState = Record<string, OpportunityStage>;
 type OutreachFilter = "all" | "awaiting" | "follow_up_due" | "replied" | "positive" | "trial" | "paid" | "direct" | "partner";
 type GtmTokenProvider = (forceRefresh?: boolean) => Promise<string>;
@@ -95,6 +96,9 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   const [canonicalRetry, setCanonicalRetry] = useState(0);
   const [searchConsole, setSearchConsole] = useState<SearchConsoleState | null>(null);
   const [contentEngine, setContentEngine] = useState<ContentEngineState | null>(null);
+  const [opportunityEngine, setOpportunityEngine] = useState<GtmOpportunityEngineState | null>(null);
+  const [opportunityEngineError, setOpportunityEngineError] = useState("");
+  const [opportunityPending, setOpportunityPending] = useState<string | null>(null);
   const [contentError, setContentError] = useState("");
   const [contentPending, setContentPending] = useState<string | null>(null);
   const [instantly, setInstantly] = useState<{ health: InstantlyHealth; persisted: InstantlyPersistedStatus | null } | null>(null);
@@ -117,11 +121,12 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
       apiRequest<{ reconciliation: ControlPlaneQueueReconciliation | null }>("/api/gtm/control-plane-queue", idToken),
       apiRequest<{ overview: GtmOverview; inventory: InventoryAutopilotSnapshot | null }>("/api/gtm/overview", idToken),
       apiRequest<{ state: SearchConsoleState | null }>("/api/gtm/search-console", idToken),
-      apiRequest<{ state: ContentEngineState | null }>("/api/gtm/content-engine", idToken)
+      apiRequest<{ state: ContentEngineState | null }>("/api/gtm/content-engine", idToken),
+      apiRequest<{ state: GtmOpportunityEngineState | null }>("/api/gtm/opportunity-clusters", idToken)
     ]))
-      .then(([opportunityResult, socialResult, awardResult, directResult, controlPlaneResult, overviewResult, searchConsoleResult, contentResult]) => {
+      .then(([opportunityResult, socialResult, awardResult, directResult, controlPlaneResult, overviewResult, searchConsoleResult, contentResult, opportunityEngineResult]) => {
         if (!active) return;
-        const failures = [opportunityResult, socialResult, awardResult, directResult, controlPlaneResult, overviewResult, searchConsoleResult, contentResult].filter((result) => result.status === "rejected");
+        const failures = [opportunityResult, socialResult, awardResult, directResult, controlPlaneResult, overviewResult, searchConsoleResult, contentResult, opportunityEngineResult].filter((result) => result.status === "rejected");
         if (failures.length) setSignalsError("Some secondary GTM data could not be loaded. Commercial queues remain available.");
         if (socialResult.status === "fulfilled") setDailyScan(socialResult.value.scan);
         if (awardResult.status === "fulfilled") setAwardScan(awardResult.value.scan);
@@ -133,6 +138,7 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
         }
         if (searchConsoleResult.status === "fulfilled") setSearchConsole(searchConsoleResult.value.state);
         if (contentResult.status === "fulfilled") setContentEngine(contentResult.value.state);
+        if (opportunityEngineResult.status === "fulfilled") setOpportunityEngine(opportunityEngineResult.value.state);
         if (opportunityResult.status === "fulfilled") {
           setLiveOpportunities(mergeAwardCandidates(awardResult.status === "fulfilled" ? awardResult.value.scan?.opportunities || [] : [], opportunityResult.value.opportunities));
           setExpanded((current) => current || opportunityResult.value.opportunities[0]?.id || null);
@@ -219,6 +225,15 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
     } catch { setContentError("Unable to save the content review state. Please retry."); }
     finally { setContentPending(null); }
   };
+  const updateOpportunityCluster = async (clusterId: string, status: OpportunityClusterStatus) => {
+    if (!dailySignalToken) return;
+    setOpportunityEngineError(""); setOpportunityPending(clusterId);
+    try {
+      const result = await requestGtmWithFreshToken<{ state: GtmOpportunityEngineState }>(dailySignalToken, "/api/gtm/opportunity-clusters", apiRequest, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clusterId, status }) });
+      setOpportunityEngine(result.state);
+    } catch { setOpportunityEngineError("Unable to save the founder decision. Nothing was staged or sent."); }
+    finally { setOpportunityPending(null); }
+  };
 
   return <div className="gtm-page">
     <header className="gtm-header">
@@ -241,13 +256,14 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
     <div className="gtm-tab-wrap">
       <div className="site-shell gtm-tabs" role="tablist" aria-label="GTM dashboard sections">
         {([
-          ["overview", "Overview"], ["outreach", "Outreach"], ["leads", "Leads"], ["partners", "Partners"], ["social", "Social"], ["seo", "SEO & Content"], ["feedback", "Feedback"], ["system-health", "System Health"]
+          ["overview", "Overview"], ["opportunities", "Opportunities"], ["outreach", "Outreach"], ["leads", "Leads"], ["partners", "Partners"], ["social", "Social"], ["seo", "SEO & Content"], ["feedback", "Feedback"], ["system-health", "System Health"]
         ] as Array<[DashboardTab, string]>).map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={activeTab === id} className={activeTab === id ? "is-active" : ""} onClick={() => setActiveTab(id)}>{label}</button>)}
       </div>
     </div>
 
     <div className="site-shell py-8 lg:py-12">
-      {activeTab === "overview" && (canonicalRuntime ? <><InventoryAutopilotPanel inventory={inventory} /><CanonicalOperationalPanel model={canonical} loading={canonicalLoading} error={canonicalError} onRetry={() => setCanonicalRetry((value) => value + 1)} /></> : <><InventoryAutopilotPanel inventory={inventory} /><FounderOverview records={outreach} overview={overview} onOpenOutreach={() => setActiveTab("outreach")} onOpenFeedback={() => setActiveTab("feedback")} /></>)}
+      {activeTab === "overview" && (canonicalRuntime ? <><OpportunityRadarPanel state={opportunityEngine} error={opportunityEngineError} pendingId={opportunityPending} onDecision={updateOpportunityCluster} compact /><InventoryAutopilotPanel inventory={inventory} /><CanonicalOperationalPanel model={canonical} loading={canonicalLoading} error={canonicalError} onRetry={() => setCanonicalRetry((value) => value + 1)} /></> : <><OpportunityRadarPanel state={opportunityEngine} error={opportunityEngineError} pendingId={opportunityPending} onDecision={updateOpportunityCluster} compact /><InventoryAutopilotPanel inventory={inventory} /><FounderOverview records={outreach} overview={overview} onOpenOutreach={() => setActiveTab("outreach")} onOpenFeedback={() => setActiveTab("feedback")} /></>)}
+      {activeTab === "opportunities" && <OpportunityRadarPanel state={opportunityEngine} error={opportunityEngineError} pendingId={opportunityPending} onDecision={updateOpportunityCluster} />}
       {(activeTab === "research" || activeTab === "leads" && !canonicalRuntime) && <section aria-labelledby="hot-list-heading">
         <InventorySummary title="Direct lead inventory" metrics={overview?.direct.metrics} sent={outreachMetrics.directSent} />
         <div className="gtm-section-heading"><div><p className="eyebrow">Today’s review queue</p><h2 id="hot-list-heading">Prioritized by pain, timing, fit, and potential value</h2><p>A high score never replaces evidence. Every row shows what is known, what is inferred, and what still needs confirmation.</p></div><div className="status-badge status-success"><RefreshCw aria-hidden="true" /> Award feed scheduled daily</div></div>
@@ -316,6 +332,24 @@ function InventoryAutopilotPanel({ inventory, detailed = false }: { inventory: I
   ];
   const badgeClass = (state: string) => state === "HEALTHY" ? "status-success" : state === "BLOCKED" ? "status-blocked" : "status-review";
   return <section className="panel mb-8" aria-label="GTM inventory autopilot"><div className="panel-heading"><div><p className="eyebrow">Inventory autopilot</p><h2>Working inventory stays bounded</h2></div><span className="status-badge status-neutral">NO AUTO HANDOFF</span></div><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 mt-5">{channels.map((channel) => <article className="rounded-xl border border-slate-200 p-4" key={channel.label}><div className="flex items-start justify-between gap-3"><strong className="text-2xl text-slate-950">{channel.count}</strong><span className={`status-badge ${badgeClass(channel.state)}`}>{channel.state.replaceAll("_", " ")}</span></div><h3 className="mt-3 text-sm font-semibold text-slate-900">{channel.label}</h3><p className="mt-1 text-xs text-slate-600">{channel.policy}</p>{detailed && <p className="mt-3 text-xs text-slate-500">{channel.reason}</p>}</article>)}</div><p className="mt-4 text-xs text-slate-600">Updated {formatDateTime(inventory.generatedAt)} · Content auto-publish, Social posting, and Instantly automatic handoff remain disabled.</p></section>;
+}
+
+function OpportunityRadarPanel({ state, error, pendingId, onDecision, compact = false }: { state: GtmOpportunityEngineState | null; error: string; pendingId: string | null; onDecision(clusterId: string, status: OpportunityClusterStatus): Promise<void>; compact?: boolean }) {
+  if (!state) return <section className="panel mb-8" aria-label="Opportunity radar"><p className="eyebrow">Opportunity radar</p><h2>Market-event clusters will appear after the next protected GTM reconciliation</h2><p className="mt-2 text-sm text-slate-600">This view combines saved award, hiring, partner, and community evidence. It cannot create a campaign, stage a lead, or send outreach.</p></section>;
+  const clusters = founderOpportunityQueue(state, compact ? 5 : 10);
+  const distribution = new Map(state.distributionNodes.map((node) => [node.id, node]));
+  const statusClass = (value: string) => value === "ATTACK" ? "status-review" : value === "APPROVED" ? "status-success" : "status-neutral";
+  return <section aria-label="Today’s GTM opportunities" className="mb-8"><div className="gtm-section-heading"><div><p className="eyebrow">Today’s GTM opportunities</p><h2>Markets forming around post-award reporting work</h2><p>Scores make the tradeoff visible; every claim retains public evidence. Approval records the founder’s decision only—campaign execution remains locked.</p></div><span className="status-badge status-neutral">FOUNDER APPROVAL REQUIRED</span></div>
+    <div className="gtm-automation-metrics mt-5" aria-label="Opportunity radar summary"><article><strong>{state.radar.newSignals}</strong><span>new signals</span></article><article><strong>{state.radar.highIntentAccounts}</strong><span>high-intent accounts</span></article><article><strong>{state.radar.verifiedBuyers}</strong><span>canonical Ready buyers</span></article><article><strong>{state.radar.highLeveragePartners}</strong><span>high-leverage partners</span></article><article><strong>{state.radar.attackClusters}</strong><span>attack clusters</span></article></div>
+    {error && <p role="alert" className="mt-4 text-sm text-rose-700">{error}</p>}
+    <div className="gtm-opportunity-list mt-6">{clusters.map((cluster) => {
+      const partners = cluster.distributionPartnerIds.map((id) => distribution.get(id)).filter(Boolean);
+      const evidence = [
+        ...cluster.signalIds.map((id) => state.signals.find((signal) => signal.id === id)).filter(Boolean).flatMap((signal) => signal!.evidence),
+        ...partners.flatMap((partner) => partner!.evidence)
+      ];
+      return <article className="gtm-opportunity" key={cluster.id}><div className="gtm-score" data-label="evidence-backed"><strong>{cluster.score.total}</strong><span>opportunity score</span></div><div className="gtm-opportunity-main"><div className="gtm-opportunity-top"><div className="flex flex-wrap gap-2"><span className={`status-badge ${statusClass(cluster.recommendation)}`}>{cluster.recommendation}</span><span className="status-badge status-info">{cluster.type.replaceAll("_", " ")}</span><span className="status-badge status-neutral">{cluster.status}</span></div><span className="text-xs text-slate-500">Updated {formatDateTime(cluster.updatedAt)}</span></div><h3>{cluster.name}</h3><p className="gtm-why"><strong>Why now:</strong> {cluster.commonReasonNow}</p><div className="gtm-facts"><span><Building2 aria-hidden="true" />{cluster.accountCount} accounts</span><span><UsersRound aria-hidden="true" />{cluster.reachableDecisionMakers} Ready buyers</span>{partners.length > 0 && <span><Handshake aria-hidden="true" />{partners.length} distribution routes</span>}</div><p className="gtm-why"><strong>Recommended attack:</strong> {cluster.playbook.channels.join(" + ").replaceAll("_", " ")} · {cluster.playbook.primaryOffer}</p><div className="gtm-actions"><button type="button" className="button button-primary button-small" disabled={pendingId === cluster.id} onClick={() => void onDecision(cluster.id, "APPROVED")}>{pendingId === cluster.id ? "Saving…" : "Approve strategy"}</button><button type="button" className="button button-secondary button-small" disabled={pendingId === cluster.id} onClick={() => void onDecision(cluster.id, "SNOOZED")}>Snooze</button><button type="button" className="gtm-dismiss" disabled={pendingId === cluster.id} onClick={() => void onDecision(cluster.id, "REJECTED")}>Reject</button></div><details className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4"><summary className="cursor-pointer font-semibold text-slate-900">Evidence, graph, and scoring</summary><div className="mt-4 grid gap-5 lg:grid-cols-2"><div><p className="eyebrow">Evidence drawer</p>{evidence.map((item) => <article className="gtm-source-evidence" key={item.id}><a href={item.url} target="_blank" rel="noreferrer">{item.title}<ExternalLink aria-hidden="true" /></a><blockquote>“{item.excerpt}”</blockquote><p>{item.confidence} · supports {item.supports.join(", ")}</p></article>)}</div><div><p className="eyebrow">Decision basis</p><p className="text-sm text-slate-700">{cluster.commercialRationale}</p><ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-700">{cluster.score.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul><p className="mt-4 text-sm text-slate-600">{cluster.estimates.note}</p>{partners.map((partner) => <div className="mt-4 rounded-lg border border-slate-200 bg-white p-3" key={partner!.id}><strong>{partner!.organization}</strong><p className="text-sm text-slate-600">{partner!.type.replaceAll("_", " ")} · leverage {partner!.leverageScore}/100</p><p className="text-sm text-slate-600">{partner!.rationale[0]}</p></div>)}</div></div></details></div></article>;
+    })}</div>{!clusters.length && <div className="workspace-empty"><Radar aria-hidden="true" /><h2>No reviewable opportunity clusters yet</h2><p>Nothing is fabricated to fill the queue. The next daily source reconciliation can create a cluster only from retained evidence.</p></div>}<p className="mt-5 text-xs text-slate-600">Source confidence distinguishes known facts from inferred or estimated commercial context. Uploaded grant documents are excluded unless the user explicitly consents to a separate use.</p></section>;
 }
 
 function FounderOverview({ records, overview, onOpenOutreach, onOpenFeedback }: { records: OutreachRecord[]; overview: GtmOverview | null; onOpenOutreach(): void; onOpenFeedback(): void }) {

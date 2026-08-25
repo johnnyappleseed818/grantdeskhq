@@ -1,0 +1,59 @@
+GRANTDESKHQ — AI-NATIVE GTM & DISTRIBUTION ENGINE — PHASE 1 RESULTS
+Date: 2026-08-25
+
+EXECUTIVE SUMMARY
+Implemented a founder-approved, non-sending Phase-1 GTM opportunity engine. It turns existing durable award, Direct, Partner, Social, and canonical readiness evidence into explainable Opportunity Clusters rather than another prospect list. It preserves the existing GTM runtime, Instantly execution integration, outbound cohort, content engine, Search Console, and product funnel.
+
+CURRENT SYSTEM MAP
+- KEEP: USAspending award scanner; Direct public-signal discovery; Partner public discovery; Social scanner; canonical GTM/prior-contact/suppression model; Hunter waterfall; Instantly adapter and polling; inventory autopilot; Search Console/content engine; Free First Award funnel.
+- IMPROVE: market-event interpretation, cross-source clustering, distribution visibility, decision-oriented founder UI, and persisted learning-ready entities.
+- NEW: Signal, Opportunity Cluster, source-backed evidence, Distribution Node/edge evidence, configurable score, Distribution Leverage Score, founder-only playbooks and experiment-ready state.
+- DEFER: automatic campaigns/sends, partner portal/economics execution, analyzer/calendar implementation, large graph crawler, autonomous optimization. These are later phases and are intentionally not faked.
+
+CURRENT GTM FLOW
+Public award/hiring/community/partner signals -> existing qualification and canonical reconciliation -> verified contact/Ready inventory -> separately authorized Instantly batch -> provider polling/outcomes. The new layer reads durable outputs only and creates prioritized market-event clusters for founder review. It cannot stage contacts, mutate campaigns, or send email.
+
+BOTTLENECK ANALYSIS
+The prior system already has quality controls and replenishment, but evaluates prospects primarily one at a time. It lacked an explainable market-level object that joins recurring funding/reporting signals, buyer readiness, and distribution routes. The highest leverage gap was founder prioritization: which market event or intermediary should be attacked first, with proof.
+
+PHASE-1 IMPLEMENTATION
+- src/lib/gtmOpportunityEngine.ts centralizes score weights: ICP 20, urgency 20, reporting complexity 15, cluster size 15, buyer resolvability 10, distribution leverage 10, commercial potential 10.
+- Signals preserve source URL/date and confidence as KNOWN, INFERRED, or ESTIMATED. No inferred relationship, client count, ACV, ARR, or deadline is represented as known fact.
+- Award signals cluster by known funding program/funder; hiring signals by organization; community pain by theme; partner multipliers by partner.
+- Distribution nodes and edges preserve public evidence. A partner with unknown client reach is explicitly scored below an evidenced multiplier; no client count is invented.
+- The engine creates founder-approval-required playbooks only. It recommends Direct, Partner, and free-tool hooks where evidence fits; it never executes them.
+- State is durable in the private gtm/opportunity-engine record and founder decisions survive subsequent reconciliation.
+- Existing daily GTM and Partner reconciliation paths refresh the view after their normal work. The new view is isolated so an opportunity refresh failure cannot break Partner replenishment.
+- Protected GET/PATCH APIs require GTM admin authentication. PATCH accepts only a validated cluster ID and REVIEW/APPROVED/SNOOZED/REJECTED status; it cannot perform campaign or send operations.
+- The GTM Command Center now includes an Opportunity Radar / dedicated Opportunities queue with 5–10 decision cards, reason-now, evidence drawer, buyer-ready count, distribution routes, playbook, and Approve/Snooze/Reject decisions.
+
+SAFETY AND OUTBOUND IMMUTABILITY
+INSTANTLY_AUTO_HANDOFF_ENABLED: FALSE
+CONTENT_AUTO_PUBLISH_ENABLED: FALSE
+SOCIAL AUTO POST: FALSE
+Existing Direct/Partner campaign code: unchanged
+Existing campaigns/leads/sender/schedule/follow-up: not read or mutated by this project
+Emails sent by project: 0
+Social posts: 0
+Articles/pages published: 0
+Private uploaded grant content is not used by this engine.
+
+TESTS
+- Opportunity engine focused tests: 5 passed.
+- Focused GTM/content/Instantly/SEO suite: 79 passed.
+- Full suite: 439 passed, 4 intentionally skipped (64 files passed, 3 intentionally skipped).
+- End-to-end GrantDeskHQ regression: PASS.
+- Production build and static SEO audit: PASS.
+- TypeScript: PASS.
+- git diff --check: PASS.
+- New coverage verifies centralized weights, source-backed clustering, community/pain separation, no fabricated partner reach, persistent founder decisions, and no auto-handoff/campaign execution.
+
+DEPLOYMENT
+Current serving revision before this work: grantdeskhq-prototype-competitorseopriority.
+Attempted zero-traffic candidate deployment twice with --source, --no-traffic, and tag gtmopportunityphase1. Each attempt safely completed source upload but did not create a Cloud Build job or Cloud Run revision. Production traffic remained unchanged. No deployment or rollback action was taken.
+
+NEXT COMMERCIAL ACTION
+Review the first persisted Opportunity Radar after the next normal Direct/Partner/Social reconciliation. Approve only source-backed clusters that show a strong market event plus a credible buyer or evidenced distribution route. Phase 2 should test one real CAS/fractional-CFO partner playbook; Phase 3 should implement the Reporting Requirement Analyzer as a privacy-safe product utility.
+
+HUMAN ACTION REQUIRED
+NONE
