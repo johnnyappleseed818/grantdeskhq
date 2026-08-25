@@ -1,18 +1,18 @@
 {
-  "project": "ai-native-gtm-distribution-engine-phase-1",
-  "status": "PASS",
-  "completedAt": "2026-08-25T07:15:00Z",
+  "project": "gtm-opportunity-production-validation",
+  "status": "PARTIAL",
+  "completedAt": "2026-08-25T12:00:00Z",
   "canonicalBranch": "recovery/production-20260824",
-  "commit": "a27ce98c95e7edec3ac22b2f7dc55e1e6dd41b40",
+  "commit": "df4a343",
   "productionChanged": false,
   "productionRevisionBefore": "grantdeskhq-prototype-competitorseopriority",
-  "candidateDeployment": "PASS — grantdeskhq-prototype-00365-cax at 0% traffic; tagged gtmopportunityphase1",
-  "phase": "Phase 1 — market signals, opportunity clusters, distribution graph, founder decisions",
+  "candidateDeployment": "PARTIAL — grantdeskhq-prototype-00368-foq is healthy at 0% traffic; tagged gtmopportunitylearning. Unauthenticated access fails closed. Protected scheduler/admin persistence validation is blocked by environment IAM/authentication access.",
+  "phase": "Server-canonical outcome attribution, fail-closed experiment learning, dashboard persistence validation",
   "contentAutoPublish": false,
   "instantlyAutoHandoff": false,
   "liveOutboundChanged": false,
   "emailsSent": 0,
   "socialPosts": 0,
   "articlesPublished": 0,
-  "humanActionRequired": "NONE"
+  "humanActionRequired": "Grant this environment permission to create a disposable Cloud Scheduler HTTP job in us-central1 OR provide a non-founder GTM-admin test session. Either route permits the required protected candidate mutation/reload validation; no production sending permission is needed."
 }
