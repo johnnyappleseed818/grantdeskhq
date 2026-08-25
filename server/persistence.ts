@@ -9,7 +9,7 @@ import type { ContactEnrichmentRecord, EnrichmentUsage, SuppressionCheck } from 
 import type { SearchConsoleState } from "./searchConsole.ts";
 import type { PartnerDiscoveryScan } from "./gtmPartnerDiscovery.ts";
 import type { InventoryAutopilotSnapshot } from "../src/lib/gtmInventoryPolicy.ts";
-import type { GtmOpportunityEngineState } from "../src/lib/gtmOpportunityEngine.ts";
+import type { GtmOpportunityEngineState, GtmOutcomeEvent } from "../src/lib/gtmOpportunityEngine.ts";
 import type { FeedbackSubmission } from "../src/lib/feedback.ts";
 import type { OutreachRecord } from "../src/lib/gtmOutreach.ts";
 import { mergeOutreachRecords } from "../src/lib/gtmOutreach.ts";
@@ -29,7 +29,7 @@ import { applyRuntimeIntegrity, buildAnalysisManifest, compareAnalysisManifests 
 import type { AnalysisManifest, AnalysisSourceManifest } from "../src/types/reliability.ts";
 import type { AnalysisDriftEvent, LastKnownGoodRelease, ReliabilityCanaryResult, ReliabilityDashboardSnapshot, ReliabilityIncident } from "../src/types/reliability.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
-import { dueForNurture, lifecycleNurtureTask, type LifecycleNurtureTask } from "./lifecycleNurture.ts";
+import { dueForNurture, lifecycleNurtureTask } from "./lifecycleNurture.ts";
 
 const projectId = process.env.GOOGLE_CLOUD_PROJECT || "grantdeskhq-proto-ek-2026";
 const bucket = process.env.REPORT_FILES_BUCKET || "grantdeskhq-proto-ek-2026-report-files";
@@ -788,6 +788,28 @@ export async function readGtmOpportunityEngineState(): Promise<GtmOpportunityEng
   catch { return null; }
 }
 
+/** Outcome events are individually immutable so a poll retry, webhook retry,
+ * or Cloud Run instance change cannot count an actual provider event twice. */
+export async function saveGtmOutcomeEvent(event: GtmOutcomeEvent) {
+  const accessToken = await gcpToken();
+  return writeDocumentIfAbsent(accessToken, `gtm/opportunity-outcomes/records/${safeDocumentId(event.id)}`, {
+    eventJson: JSON.stringify(event), source: event.source, sourceEventId: event.sourceEventId, occurredAt: event.occurredAt
+  });
+}
+
+export async function readGtmOutcomeEvents(limit = 500): Promise<GtmOutcomeEvent[]> {
+  const accessToken = await gcpToken();
+  const response = await authorizedFetch(`${firestoreBase}/gtm/opportunity-outcomes/records?pageSize=${Math.min(Math.max(limit, 1), 500)}`, accessToken);
+  if (response.status === 404) return [];
+  if (!response.ok) throw new Error(`GTM outcome events could not be loaded (${response.status}).`);
+  return (((await response.json()) as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> }).documents || []).flatMap((document) => {
+    try {
+      const event = JSON.parse(String(decodeFields(document.fields || {}).eventJson || "")) as GtmOutcomeEvent;
+      return event?.id && event?.source && event?.type ? [event] : [];
+    } catch { return []; }
+  }).sort((left, right) => left.occurredAt.localeCompare(right.occurredAt));
+}
+
 export async function saveGtmControlPlaneReconciliation(reconciliation: ControlPlaneQueueReconciliation) {
   const accessToken = await gcpToken();
   const persisted = { ...reconciliation, generatedAt: new Date().toISOString() };
@@ -1058,7 +1080,7 @@ export async function reconcileLifecycleNurture(now = new Date()) {
   let due = 0;
   for (const document of records) {
     const item = decodeFields(document.fields || {});
-    const task = lifecycleNurtureTask({ uid: String(item.uid || ""), email: String(item.email || ""), event: String(item.event || ""), occurredAt: String(item.occurredAt || ""), promotionalNurtureAllowed: item.promotionalNurtureAllowed !== false }, now);
+    const task = lifecycleNurtureTask({ uid: String(item.uid || ""), email: String(item.email || ""), event: String(item.event || ""), occurredAt: String(item.occurredAt || ""), promotionalNurtureAllowed: item.promotionalNurtureAllowed !== false });
     if (!task) continue;
     const created = await writeDocumentIfAbsent(accessToken, `funnel/nurture/records/${safeDocumentId(task.id)}`, { taskJson: JSON.stringify(task), status: dueForNurture(task, now) ? "ELIGIBLE" : "SCHEDULED", createdAt: now.toISOString(), updatedAt: now.toISOString() });
     if (created) queued += 1;
@@ -1130,7 +1152,7 @@ export async function saveBillingEvent(snapshot: BillingEventSnapshot) {
     updatedAt: snapshot.updatedAt
   });
   await writeLifecycleState(accessToken, { uid: snapshot.uid, email: "", emailVerified: false, name: "" }, paid ? "checkout_completed" : snapshot.subscriptionStatus === "past_due" ? "payment_failed" : "subscription_started", snapshot.attribution);
-  if (snapshot.subscriptionStatus === "active" || snapshot.subscriptionStatus === "trialing") await applyInstantlyProductLifecycle(accessToken, snapshot.attribution, "subscription_started", snapshot.updatedAt);
+  if (snapshot.subscriptionStatus === "active" || snapshot.subscriptionStatus === "trialing") await applyInstantlyProductLifecycle(accessToken, snapshot.attribution, "subscription_started", snapshot.updatedAt, "STRIPE", snapshot.eventId);
   return { duplicate: false, applied: shouldApplyBillingEvent(snapshot, String(prior.eventId || ""), priorEventAt) };
 }
 
@@ -1168,7 +1190,7 @@ export async function readInstantlyStatus(): Promise<Record<string, unknown> | n
   try { return JSON.parse(String(decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}).statusJson || "")) as Record<string, unknown>; } catch { return null; }
 }
 
-async function applyInstantlyProductLifecycle(accessToken: string, attribution: Attribution, event: LifecycleEventName, occurredAt: string) {
+async function applyInstantlyProductLifecycle(accessToken: string, attribution: Attribution, event: LifecycleEventName, occurredAt: string, outcomeSource: "PRODUCT" | "STRIPE" = "PRODUCT", sourceEventId?: string) {
   const leadId = String(attribution.lead_id || "");
   if (!leadId) return;
   const response = await authorizedFetch(`${firestoreBase}/gtm/instantly/records?pageSize=200`, accessToken);
@@ -1178,7 +1200,7 @@ async function applyInstantlyProductLifecycle(accessToken: string, attribution: 
   });
   const record = records.find((item) => item.instantlyLeadId === leadId || item.productAttributionId === leadId);
   if (!record) return;
-  const lifecycle = event === "first_report_started" ? { freeFirstAwardStartedAt: occurredAt } : event === "report_generated" ? { reportGeneratedAt: occurredAt } : event === "subscription_started" ? { paidAt: occurredAt } : {};
+  const lifecycle = event === "first_report_started" ? { freeFirstAwardStartedAt: occurredAt } : event === "report_generated" ? { reportGeneratedAt: occurredAt } : event === "subscription_started" ? { paidAt: occurredAt } : event === "checkout_started" ? { sequenceStopRequestedAt: occurredAt } : {};
   if (!Object.keys(lifecycle).length) return;
   // Product engagement is canonical evidence that cold outreach must stop. The
   // current Instantly API key is intentionally read-first; this durable stop
@@ -1186,6 +1208,23 @@ async function applyInstantlyProductLifecycle(accessToken: string, attribution: 
   // eligible cold-sequence candidate while preserving the provider record.
   const updated = { ...record, ...lifecycle, sequenceStopRequestedAt: occurredAt, sequenceStopReason: event === "first_report_started" ? "FREE_FIRST_AWARD_STARTED" : event === "report_generated" ? "REPORT_GENERATED" : "PAID", updatedAt: occurredAt };
   await writeDocument(accessToken, `gtm/instantly/records/${safeDocumentId(updated.id)}`, { recordJson: JSON.stringify(updated), updatedAt: updated.updatedAt });
+  if (updated.email) await recordGtmContactSuppression(updated.email, [event === "subscription_started" ? "existing_customer" : "existing_signup"], "first_party_product_lifecycle");
+  const type = event === "first_report_started" ? "FREE_FIRST_AWARD_STARTED" : event === "report_generated" ? "REPORT_GENERATED" : event === "checkout_started" ? "CHECKOUT_STARTED" : event === "subscription_started" ? "PAID" : null;
+  if (type) {
+    await writeDocumentIfAbsent(accessToken, `gtm/opportunity-outcomes/records/${safeDocumentId(`${outcomeSource}:${sourceEventId || `${event}:${record.id}`}`)}`, {
+      eventJson: JSON.stringify({
+        id: `${outcomeSource}:${sourceEventId || `${event}:${record.id}`}`,
+        source: outcomeSource,
+        sourceEventId: sourceEventId || `${event}:${record.id}`,
+        type,
+        occurredAt,
+        organization: record.organization || null,
+        canonicalOrganizationId: record.canonicalOrganizationId || null,
+        instantlyLeadId: record.instantlyLeadId || null,
+        evidence: { source: outcomeSource === "STRIPE" ? "Stripe webhook" : "first-party product lifecycle", reference: sourceEventId || event, confidence: "KNOWN" }
+      } satisfies GtmOutcomeEvent), source: outcomeSource, sourceEventId: sourceEventId || `${event}:${record.id}`, occurredAt
+    });
+  }
 }
 
 export async function readBillingStatus(user: AuthenticatedUser) {

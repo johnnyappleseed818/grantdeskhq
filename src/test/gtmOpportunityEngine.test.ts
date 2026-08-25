@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, founderOpportunityQueue, GTM_OPPORTUNITY_SCORING_POLICY, scoreDistributionLeverage } from "../lib/gtmOpportunityEngine";
+import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, experimentRecommendation, founderOpportunityQueue, GTM_EXPERIMENT_EVIDENCE_POLICY, GTM_OPPORTUNITY_SCORING_POLICY, scoreDistributionLeverage, type GtmOutcomeEvent } from "../lib/gtmOpportunityEngine";
 import type { AwardDiscoveryScan, DailySocialScan } from "../lib/gtm";
 import type { CanonicalGtmModel } from "../lib/gtmCanonical";
 
@@ -52,5 +52,24 @@ describe("GTM opportunity cluster engine", () => {
     expect(refreshed.clusters.find((item) => item.id === cluster.id)?.status).toBe("SNOOZED");
     expect(founderOpportunityQueue(refreshed)).not.toContainEqual(expect.objectContaining({ id: cluster.id }));
     expect(refreshed.safeguards).toEqual({ instantlyAutoHandoff: false, campaignExecution: "FOUNDER_APPROVAL_REQUIRED", uploadedDocumentTargeting: "CONSENT_REQUIRED" });
+  });
+
+  it("fails closed when a score lacks a canonical buyer or evidenced distribution route", () => {
+    const state = buildGtmOpportunityEngineState({ awards, direct: null, partners: null, social: null, canonical: { ...canonical, records: [] }, now: "2026-08-25T12:00:00.000Z" });
+    expect(state.clusters.find((cluster) => cluster.type === "RECENT_FEDERAL_AWARD")?.recommendation).toBe("REVIEW");
+  });
+
+  it("deduplicates immutable provider events and attributes known organization outcomes to one experiment", () => {
+    const event: GtmOutcomeEvent = { id: "INSTANTLY:provider-1", source: "INSTANTLY", sourceEventId: "provider-1", type: "EMAIL_SENT", occurredAt: "2026-08-25T13:00:00.000Z", organization: "Example Community Fund", canonicalOrganizationId: "org:example.org", instantlyLeadId: "lead-1", evidence: { source: "Instantly provider event", reference: "provider-1", confidence: "KNOWN" } };
+    const state = buildGtmOpportunityEngineState({ awards, direct: null, partners: null, social: null, canonical, outcomes: [event, event], now: "2026-08-25T14:00:00.000Z" });
+    expect(state.outcomeEvents).toHaveLength(1);
+    expect(state.experiments.find((experiment) => experiment.clusterId.includes("community-program"))?.outcomes.delivered).toBe(1);
+    expect(state.experiments.find((experiment) => experiment.clusterId.includes("community-program"))?.recommendation).toBe("INSUFFICIENT_EVIDENCE");
+  });
+
+  it("requires a meaningful persisted sample before scaling, modifying, or killing", () => {
+    expect(experimentRecommendation({ delivered: GTM_EXPERIMENT_EVIDENCE_POLICY.minimumDelivered - 1, replies: 0, positiveReplies: 0, meetings: 0, analyzerActivations: 0, reportsGenerated: 0, paid: 0 }).recommendation).toBe("INSUFFICIENT_EVIDENCE");
+    expect(experimentRecommendation({ delivered: 20, replies: 0, positiveReplies: 0, meetings: 0, analyzerActivations: 0, reportsGenerated: 0, paid: 0 }).recommendation).toBe("KILL");
+    expect(experimentRecommendation({ delivered: 20, replies: 3, positiveReplies: 3, meetings: 0, analyzerActivations: 0, reportsGenerated: 0, paid: 0 }).recommendation).toBe("SCALE");
   });
 });

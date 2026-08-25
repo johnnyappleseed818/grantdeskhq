@@ -9,7 +9,7 @@ import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { addSupportingEvidence, beginFreeFirstAward, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readFreeFirstAwardStatus, readGtmAwardScan, readGtmContactSuppression, readGtmContentEngineState, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmDirectDiscoveryScan, readGtmEnrichmentUsage, readGtmInventoryAutopilot, readGtmOpportunityEngineState, readGtmPartnerDiscoveryScan, readGtmShadowStatus, readInstantlyRecords, readInstantlyStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, recordGtmContactSuppression, reconcileLifecycleNurture, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveFunnelPreferences, saveGtmContentEngineState, saveGtmDailyScan, saveGtmDirectDiscoveryScan, saveGtmInventoryAutopilot, saveGtmOpportunityEngineState, saveGtmPartnerDiscoveryScan, saveInstantlyRecord, saveInstantlyStatus, saveInstantlyWebhookEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview, updateGtmDailySocialItem } from "./persistence.ts";
+import { addSupportingEvidence, beginFreeFirstAward, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readFreeFirstAwardStatus, readGtmAwardScan, readGtmContactSuppression, readGtmContentEngineState, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmDirectDiscoveryScan, readGtmEnrichmentUsage, readGtmInventoryAutopilot, readGtmOpportunityEngineState, readGtmOutcomeEvents, readGtmPartnerDiscoveryScan, readGtmShadowStatus, readInstantlyRecords, readInstantlyStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, recordGtmContactSuppression, reconcileLifecycleNurture, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveFunnelPreferences, saveGtmContentEngineState, saveGtmDailyScan, saveGtmDirectDiscoveryScan, saveGtmInventoryAutopilot, saveGtmOpportunityEngineState, saveGtmOutcomeEvent, saveGtmPartnerDiscoveryScan, saveInstantlyRecord, saveInstantlyStatus, saveInstantlyWebhookEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview, updateGtmDailySocialItem } from "./persistence.ts";
 import { validateFeedbackInput, type FeedbackSubmission } from "../src/lib/feedback.ts";
 import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
 import { confirmedHumanOutreach, summarizeOutreach } from "../src/lib/gtmOutreach.ts";
@@ -20,7 +20,7 @@ import { runPartnerPublicDiscovery } from "./gtmPartnerDiscovery.ts";
 import { runDirectPublicDiscovery } from "./gtmDirectDiscovery.ts";
 import { resolveDirectRecipients } from "./gtmDirectRecipientResolution.ts";
 import { buildShadowStatus, shadowLeadFromOpportunity, suggestedTopicsFromLeads } from "../src/lib/gtmShadow.ts";
-import { editContentDraft, reconcileContentEngine, reconcileContentInventory, updateContentEngineState } from "../src/lib/gtmContentEngine.ts";
+import { editContentDraft, reconcileContentInventory, updateContentEngineState } from "../src/lib/gtmContentEngine.ts";
 import { enrichGtmContactInShadow } from "./contactEnrichment.ts";
 import { reconcileStoredContactEnrichmentBatch, runContactEnrichmentBatch, type EnrichmentBatchSegment } from "./contactEnrichmentBatch.ts";
 import { reconcileSearchConsole } from "./searchConsole.ts";
@@ -35,7 +35,7 @@ import { readCanonicalGtmModel } from "./gtmCanonical.ts";
 import type { GtmOpportunity } from "../src/lib/gtm.ts";
 import { canonicalOrganizationId } from "../src/lib/gtmCanonical.ts";
 import { boundedEnrichmentLimit, GTM_INVENTORY_POLICY, inventoryDecision, socialDiscoveryBreadth, type InventoryAutopilotSnapshot } from "../src/lib/gtmInventoryPolicy.ts";
-import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type OpportunityClusterStatus } from "../src/lib/gtmOpportunityEngine.ts";
+import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type GtmOutcomeEvent, type GtmOutcomeType, type OpportunityClusterStatus } from "../src/lib/gtmOpportunityEngine.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
 import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
@@ -692,6 +692,38 @@ function controlledCampaignReady(campaign: Record<string, unknown>, sender: stri
   return allowedStatuses.includes(Number(summary.status)) && campaignUsesOnlySender(campaign, sender) && summary.stopOnReply && summary.bounceProtectionEnabled && !summary.openTracking && !summary.linkTracking && Number(summary.dailyMaxLeads) === 5 && Boolean(first?.body.includes("https://grantdeskhq.com/assessment") && first.body.toLowerCase().includes("free"));
 }
 
+function instantlyOutcomeType(type: string): GtmOutcomeType | null {
+  if (type === "EMAIL_SENT") return "EMAIL_SENT";
+  if (type === "REPLY_RECEIVED") return "REPLY_RECEIVED";
+  if (type === "INTERESTED") return "POSITIVE_REPLY";
+  if (type === "NOT_INTERESTED") return "NOT_INTERESTED";
+  if (type === "BOUNCE") return "BOUNCE";
+  if (type === "UNSUBSCRIBE") return "UNSUBSCRIBE";
+  return null;
+}
+
+function instantlyStopReason(type: string | null) {
+  if (["REPLY_RECEIVED", "INTERESTED", "NOT_INTERESTED", "WRONG_PERSON"].includes(String(type || ""))) return "prior_outreach";
+  return null;
+}
+
+async function saveInstantlyOutcome(record: import("./instantly.ts").InstantlyIntegrationRecord, type: string, sourceEventId: string) {
+  const outcomeType = instantlyOutcomeType(type);
+  if (!outcomeType) return false;
+  const event: GtmOutcomeEvent = {
+    id: `INSTANTLY:${sourceEventId}`,
+    source: "INSTANTLY",
+    sourceEventId,
+    type: outcomeType,
+    occurredAt: record.lastProviderUpdatedAt || record.updatedAt || new Date().toISOString(),
+    organization: record.organization || null,
+    canonicalOrganizationId: record.canonicalOrganizationId || null,
+    instantlyLeadId: record.instantlyLeadId || null,
+    evidence: { source: "Instantly provider event", reference: sourceEventId, confidence: "KNOWN" }
+  };
+  return saveGtmOutcomeEvent(event);
+}
+
 /** Scheduler-protected reconciliation uses read-only API polling. Webhooks are
  * optional plan-dependent acceleration, not a correctness dependency. */
 async function reconcileInstantlyPolling() {
@@ -713,6 +745,7 @@ async function reconcileInstantlyPolling() {
   const recordsByLead = new Map(records.filter((record) => record.instantlyLeadId).map((record) => [record.instantlyLeadId, record]));
   const recordsByEmail = new Map(records.filter((record) => record.email).map((record) => [record.email.toLowerCase(), record]));
   const transitions: Record<string, number> = {};
+  let outcomeRecorded = false;
   let polledRecords = 0;
   for (const lead of leadItems) {
     const record = recordsByLead.get(String(lead.id || "")) || recordsByEmail.get(String(lead.email || "").toLowerCase());
@@ -721,8 +754,12 @@ async function reconcileInstantlyPolling() {
     const transition = reconcileInstantlyLead(record, lead);
     const providerChanged = transition.record.lastProviderUpdatedAt !== record.lastProviderUpdatedAt;
     if (transition.event || providerChanged) await saveInstantlyRecord(transition.record);
-    if (transition.event) transitions[transition.event] = (transitions[transition.event] || 0) + 1;
-    if (transition.suppressEmail && transition.record.email) await recordGtmContactSuppression(transition.record.email, [transition.suppressEmail], "instantly_polling");
+    if (transition.event) {
+      transitions[transition.event] = (transitions[transition.event] || 0) + 1;
+      outcomeRecorded = await saveInstantlyOutcome(transition.record, transition.event, `poll:${transition.record.instantlyLeadId || transition.record.email}:${transition.event}:${transition.record.lastProviderUpdatedAt || transition.record.updatedAt}`) || outcomeRecorded;
+    }
+    const suppressionReason = transition.suppressEmail || instantlyStopReason(transition.event);
+    if (suppressionReason && transition.record.email) await recordGtmContactSuppression(transition.record.email, [suppressionReason], "instantly_polling");
   }
   const mappedCampaignIds = new Set([health.directCampaignId, health.partnerCampaignId].filter(Boolean));
   const analyticsItems = Array.isArray(campaignAnalytics) ? campaignAnalytics.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object") : instantlyItems(campaignAnalytics);
@@ -754,6 +791,7 @@ async function reconcileInstantlyPolling() {
     errors: requiredErrors
   };
   await saveInstantlyStatus(snapshot);
+  if (outcomeRecorded) await reconcileGtmOpportunityEngine();
   return { mode: "READ_ONLY", status: snapshot };
 }
 
@@ -798,9 +836,14 @@ async function handleInstantlyWebhook(request: IncomingMessage, response: Server
   if (!await saveInstantlyWebhookEvent(event)) return json(response, 200, { received: true, duplicate: true });
   const records = await readInstantlyRecords();
   const record = records.find((item) => (event.instantlyLeadId && item.instantlyLeadId === event.instantlyLeadId) || (event.email && item.email === event.email));
-  if (record) await saveInstantlyRecord(applyInstantlyEvent(record, event));
-  if (event.type === "BOUNCE" && event.email) await recordGtmContactSuppression(event.email, ["hard_bounce"], "instantly_webhook");
-  if (event.type === "UNSUBSCRIBE" && event.email) await recordGtmContactSuppression(event.email, ["unsubscribe"], "instantly_webhook");
+  if (record) {
+    const updated = applyInstantlyEvent(record, event);
+    await saveInstantlyRecord(updated);
+    const outcomeRecorded = await saveInstantlyOutcome(updated, event.type, event.id);
+    if (outcomeRecorded) await reconcileGtmOpportunityEngine();
+  }
+  const suppressionReason = event.type === "BOUNCE" ? "hard_bounce" : event.type === "UNSUBSCRIBE" ? "unsubscribe" : instantlyStopReason(event.type);
+  if (suppressionReason && event.email) await recordGtmContactSuppression(event.email, [suppressionReason], "instantly_webhook");
   return json(response, 200, { received: true, matched: Boolean(record) });
 }
 
@@ -1067,10 +1110,10 @@ async function persistInventoryAutopilot(): Promise<InventoryAutopilotSnapshot> 
  * state. It performs no discovery, enrichment, campaign mutation, or send.
  */
 async function reconcileGtmOpportunityEngine() {
-  const [awards, direct, partners, social, canonical, prior] = await Promise.all([
-    readGtmAwardScan(), readGtmDirectDiscoveryScan(), readGtmPartnerDiscoveryScan(), readGtmDailyScan(), readCanonicalGtmModel(), readGtmOpportunityEngineState()
+  const [awards, direct, partners, social, canonical, prior, outcomes] = await Promise.all([
+    readGtmAwardScan(), readGtmDirectDiscoveryScan(), readGtmPartnerDiscoveryScan(), readGtmDailyScan(), readCanonicalGtmModel(), readGtmOpportunityEngineState(), readGtmOutcomeEvents()
   ]);
-  return saveGtmOpportunityEngineState(buildGtmOpportunityEngineState({ awards, direct, partners, social, canonical, prior }));
+  return saveGtmOpportunityEngineState(buildGtmOpportunityEngineState({ awards, direct, partners, social, canonical, prior, outcomes }));
 }
 
 async function reconcileAndSaveControlPlane(opportunities: GtmOpportunity[]) {

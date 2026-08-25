@@ -25,6 +25,7 @@ import {
 import { Link, Navigate } from "react-router-dom";
 import { referralChannels } from "../data/gtmData";
 import { apiRequest } from "../lib/api";
+import { loadCanonicalGtmModel, requestGtmWithFreshToken, type GtmTokenProvider } from "../lib/gtmDashboardApi";
 import {
   assessOpportunityAccuracy,
   formatOpportunityScore,
@@ -50,8 +51,6 @@ import { founderOpportunityQueue, type GtmOpportunityEngineState, type Opportuni
 type DashboardTab = "overview" | "opportunities" | "outreach" | "leads" | "partners" | "social" | "seo" | "feedback" | "system-health" | "research";
 type StageState = Record<string, OpportunityStage>;
 type OutreachFilter = "all" | "awaiting" | "follow_up_due" | "replied" | "positive" | "trial" | "paid" | "direct" | "partner";
-type GtmTokenProvider = (forceRefresh?: boolean) => Promise<string>;
-type GtmRequest = <T>(path: string, token: string, init?: RequestInit) => Promise<T>;
 type InstantlyHealth = { status: string; integrationEnabled: boolean; apiKeyConfigured: boolean; webhookSecretConfigured: boolean; outboundEnabled: boolean; autoHandoffEnabled: boolean; directEnabled: boolean; partnerEnabled: boolean; firstTouchLinkEnabled: boolean; eventSyncMode: "POLLING" | "WEBHOOKS"; webhookSubscription: string; mappings: { directList: boolean; partnerList: boolean; directCampaign: boolean; partnerCampaign: boolean } };
 type InstantlyPersistedStatus = { lastSuccessfulSync?: string; reconciliation?: string; pollingCadence?: string; replyContent?: string; polledRecords?: number; errors?: string[] };
 
@@ -348,7 +347,8 @@ function OpportunityRadarPanel({ state, error, pendingId, onDecision, compact = 
         ...cluster.signalIds.map((id) => state.signals.find((signal) => signal.id === id)).filter(Boolean).flatMap((signal) => signal!.evidence),
         ...partners.flatMap((partner) => partner!.evidence)
       ];
-      return <article className="gtm-opportunity" key={cluster.id}><div className="gtm-score" data-label="evidence-backed"><strong>{cluster.score.total}</strong><span>opportunity score</span></div><div className="gtm-opportunity-main"><div className="gtm-opportunity-top"><div className="flex flex-wrap gap-2"><span className={`status-badge ${statusClass(cluster.recommendation)}`}>{cluster.recommendation}</span><span className="status-badge status-info">{cluster.type.replaceAll("_", " ")}</span><span className="status-badge status-neutral">{cluster.status}</span></div><span className="text-xs text-slate-500">Updated {formatDateTime(cluster.updatedAt)}</span></div><h3>{cluster.name}</h3><p className="gtm-why"><strong>Why now:</strong> {cluster.commonReasonNow}</p><div className="gtm-facts"><span><Building2 aria-hidden="true" />{cluster.accountCount} accounts</span><span><UsersRound aria-hidden="true" />{cluster.reachableDecisionMakers} Ready buyers</span>{partners.length > 0 && <span><Handshake aria-hidden="true" />{partners.length} distribution routes</span>}</div><p className="gtm-why"><strong>Recommended attack:</strong> {cluster.playbook.channels.join(" + ").replaceAll("_", " ")} · {cluster.playbook.primaryOffer}</p><div className="gtm-actions"><button type="button" className="button button-primary button-small" disabled={pendingId === cluster.id} onClick={() => void onDecision(cluster.id, "APPROVED")}>{pendingId === cluster.id ? "Saving…" : "Approve strategy"}</button><button type="button" className="button button-secondary button-small" disabled={pendingId === cluster.id} onClick={() => void onDecision(cluster.id, "SNOOZED")}>Snooze</button><button type="button" className="gtm-dismiss" disabled={pendingId === cluster.id} onClick={() => void onDecision(cluster.id, "REJECTED")}>Reject</button></div><details className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4"><summary className="cursor-pointer font-semibold text-slate-900">Evidence, graph, and scoring</summary><div className="mt-4 grid gap-5 lg:grid-cols-2"><div><p className="eyebrow">Evidence drawer</p>{evidence.map((item) => <article className="gtm-source-evidence" key={item.id}><a href={item.url} target="_blank" rel="noreferrer">{item.title}<ExternalLink aria-hidden="true" /></a><blockquote>“{item.excerpt}”</blockquote><p>{item.confidence} · supports {item.supports.join(", ")}</p></article>)}</div><div><p className="eyebrow">Decision basis</p><p className="text-sm text-slate-700">{cluster.commercialRationale}</p><ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-700">{cluster.score.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul><p className="mt-4 text-sm text-slate-600">{cluster.estimates.note}</p>{partners.map((partner) => <div className="mt-4 rounded-lg border border-slate-200 bg-white p-3" key={partner!.id}><strong>{partner!.organization}</strong><p className="text-sm text-slate-600">{partner!.type.replaceAll("_", " ")} · leverage {partner!.leverageScore}/100</p><p className="text-sm text-slate-600">{partner!.rationale[0]}</p></div>)}</div></div></details></div></article>;
+      const experiment = state.experiments.find((item) => item.clusterId === cluster.id);
+      return <article className="gtm-opportunity" key={cluster.id}><div className="gtm-score" data-label="evidence-backed"><strong>{cluster.score.total}</strong><span>opportunity score</span></div><div className="gtm-opportunity-main"><div className="gtm-opportunity-top"><div className="flex flex-wrap gap-2"><span className={`status-badge ${statusClass(cluster.recommendation)}`}>{cluster.recommendation}</span><span className="status-badge status-info">{cluster.type.replaceAll("_", " ")}</span><span className="status-badge status-neutral">{cluster.status}</span></div><span className="text-xs text-slate-500">Updated {formatDateTime(cluster.updatedAt)}</span></div><h3>{cluster.name}</h3><p className="gtm-why"><strong>Why now:</strong> {cluster.commonReasonNow}</p><div className="gtm-facts"><span><Building2 aria-hidden="true" />{cluster.accountCount} accounts</span><span><UsersRound aria-hidden="true" />{cluster.reachableDecisionMakers} Ready buyers</span>{partners.length > 0 && <span><Handshake aria-hidden="true" />{partners.length} distribution routes</span>}</div><p className="gtm-why"><strong>Recommended attack:</strong> {cluster.playbook.channels.join(" + ").replaceAll("_", " ")} · {cluster.playbook.primaryOffer}</p>{experiment && <p className="gtm-why"><strong>Learning:</strong> {experiment.recommendation.replaceAll("_", " ")} · {experiment.decision}</p>}<div className="gtm-actions"><button type="button" className="button button-primary button-small" disabled={pendingId === cluster.id} onClick={() => void onDecision(cluster.id, "APPROVED")}>{pendingId === cluster.id ? "Saving…" : "Approve strategy"}</button><button type="button" className="button button-secondary button-small" disabled={pendingId === cluster.id} onClick={() => void onDecision(cluster.id, "SNOOZED")}>Snooze</button><button type="button" className="gtm-dismiss" disabled={pendingId === cluster.id} onClick={() => void onDecision(cluster.id, "REJECTED")}>Reject</button></div><details className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4"><summary className="cursor-pointer font-semibold text-slate-900">Evidence, graph, and scoring</summary><div className="mt-4 grid gap-5 lg:grid-cols-2"><div><p className="eyebrow">Evidence drawer</p>{evidence.map((item) => <article className="gtm-source-evidence" key={item.id}><a href={item.url} target="_blank" rel="noreferrer">{item.title}<ExternalLink aria-hidden="true" /></a><blockquote>“{item.excerpt}”</blockquote><p>{item.confidence} · supports {item.supports.join(", ")}</p></article>)}</div><div><p className="eyebrow">Decision basis</p><p className="text-sm text-slate-700">{cluster.commercialRationale}</p><ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-700">{cluster.score.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul><p className="mt-4 text-sm text-slate-600">{cluster.estimates.note}</p>{partners.map((partner) => <div className="mt-4 rounded-lg border border-slate-200 bg-white p-3" key={partner!.id}><strong>{partner!.organization}</strong><p className="text-sm text-slate-600">{partner!.type.replaceAll("_", " ")} · leverage {partner!.leverageScore}/100</p><p className="text-sm text-slate-600">{partner!.rationale[0]}</p></div>)}</div></div></details></div></article>;
     })}</div>{!clusters.length && <div className="workspace-empty"><Radar aria-hidden="true" /><h2>No reviewable opportunity clusters yet</h2><p>Nothing is fabricated to fill the queue. The next daily source reconciliation can create a cluster only from retained evidence.</p></div>}<p className="mt-5 text-xs text-slate-600">Source confidence distinguishes known facts from inferred or estimated commercial context. Uploaded grant documents are excluded unless the user explicitly consents to a separate use.</p></section>;
 }
 
@@ -397,55 +397,6 @@ function CanonicalOperationalPanel({ model, segment, directDiscovery, loading, e
   </section>;
 }
 
-const GTM_REQUEST_TIMEOUT_MS = 15_000;
-
-/** A bounded, one-refresh request path for founder-only GTM reads. */
-export async function requestGtmWithFreshToken<T>(tokenProvider: GtmTokenProvider, path: string, request: GtmRequest = apiRequest, init?: RequestInit): Promise<T> {
-  try {
-    return await requestGtmOnce(tokenProvider, false, path, request, init);
-  } catch (error) {
-    if (!isAuthenticationFailure(error)) throw error;
-    return requestGtmOnce(tokenProvider, true, path, request, init);
-  }
-}
-
-export async function loadCanonicalGtmModel(tokenProvider: GtmTokenProvider, request: GtmRequest = apiRequest): Promise<CanonicalGtmModel> {
-  const body = await requestGtmWithFreshToken<{ model: CanonicalGtmModel }>(tokenProvider, "/api/gtm/canonical", request);
-  if (!isCanonicalGtmModel(body?.model)) throw new Error("The canonical GTM response is invalid.");
-  return body.model;
-}
-
-async function requestGtmOnce<T>(tokenProvider: GtmTokenProvider, forceRefresh: boolean, path: string, request: GtmRequest, init?: RequestInit) {
-  const token = await withinTimeout(tokenProvider(forceRefresh), "GTM authentication took too long.");
-  const controller = new AbortController();
-  try {
-    return await withinTimeout(request<T>(path, token, { ...init, signal: controller.signal }), "GTM records took too long to load.");
-  } catch (error) {
-    controller.abort();
-    throw error;
-  }
-}
-
-function withinTimeout<T>(promise: Promise<T>, timeoutMessage: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timeout = window.setTimeout(() => reject(new Error(timeoutMessage)), GTM_REQUEST_TIMEOUT_MS);
-    promise.then(resolve, reject).finally(() => window.clearTimeout(timeout));
-  });
-}
-
-function isAuthenticationFailure(error: unknown) {
-  const message = error instanceof Error ? error.message.toLowerCase() : "";
-  return /\b401\b|session expired|sign in to continue|account session/.test(message);
-}
-
-function isCanonicalGtmModel(value: unknown): value is CanonicalGtmModel {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<CanonicalGtmModel>;
-  const metrics = candidate.metrics;
-  return Array.isArray(candidate.records)
-    && Boolean(metrics)
-    && ["directReady", "partnerReady", "directNeedsVerification", "partnerNeedsVerification", "followUpsDue", "awaitingReply", "replies", "positiveReplies", "trials", "paid", "mrr"].every((key) => Number.isFinite(metrics?.[key as keyof CanonicalGtmModel["metrics"]]));
-}
 
 function SocialQueuePanel({ scan, onReview, pendingId, error }: { scan: DailySocialScan | null; onReview(id: string, status: "RESPONDED" | "SKIPPED"): Promise<void>; pendingId: string | null; error: string }) {
   const [copied, setCopied] = useState<string | null>(null);

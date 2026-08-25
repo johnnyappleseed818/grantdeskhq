@@ -20,7 +20,7 @@ export interface LifecycleNurtureTask {
 }
 
 /** Pure, conservative policy. Delivery is a separate, explicitly enabled step. */
-export function lifecycleNurtureTask(candidate: LifecycleNurtureCandidate, now = new Date()): LifecycleNurtureTask | null {
+export function lifecycleNurtureTask(candidate: LifecycleNurtureCandidate): LifecycleNurtureTask | null {
   if (!candidate.uid || !candidate.email || !candidate.occurredAt) return null;
   const occurred = Date.parse(candidate.occurredAt);
   if (!Number.isFinite(occurred)) return null;

@@ -11,7 +11,8 @@ const mocks = {
 vi.mock("../lib/api", () => ({ apiRequest: (...args: unknown[]) => mocks.apiRequest(...args) }));
 vi.mock("../lib/auth", () => ({ useAuth: () => mocks.auth }));
 
-import { GtmDashboardContent, GtmDashboardPage, loadCanonicalGtmModel } from "../pages/GtmDashboardPage";
+import { GtmDashboardContent, GtmDashboardPage } from "../pages/GtmDashboardPage";
+import { loadCanonicalGtmModel } from "../lib/gtmDashboardApi";
 
 const model: CanonicalGtmModel = {
   generatedAt: "2026-08-23T00:00:00.000Z",

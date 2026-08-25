@@ -20,6 +20,9 @@ export type EvidenceConfidence = "KNOWN" | "INFERRED" | "ESTIMATED";
 export type MarketSignalType = "RECENT_FEDERAL_AWARD" | "GRANT_FINANCE_HIRING" | "PARTNER_MULTIPLIER" | "COMMUNITY_PAIN";
 export type OpportunityClusterStatus = "REVIEW" | "APPROVED" | "SNOOZED" | "REJECTED";
 export type OpportunityRecommendation = "ATTACK" | "REVIEW" | "WATCH";
+export type ExperimentRecommendation = "INSUFFICIENT_EVIDENCE" | "SCALE" | "MODIFY" | "KILL";
+export type GtmOutcomeSource = "INSTANTLY" | "PRODUCT" | "STRIPE";
+export type GtmOutcomeType = "EMAIL_SENT" | "REPLY_RECEIVED" | "POSITIVE_REPLY" | "NOT_INTERESTED" | "BOUNCE" | "UNSUBSCRIBE" | "FREE_FIRST_AWARD_STARTED" | "REPORT_GENERATED" | "CHECKOUT_STARTED" | "PAID";
 export type GtmPlaybookKey = "NEW_FEDERAL_AWARD" | "GRANT_FINANCE_HIRING" | "CAS_MULTIPLIER" | "COMMUNITY_INSIGHT";
 
 export interface OpportunityEvidence extends Pick<GtmEvidence, "id" | "title" | "url" | "observedAt" | "authority" | "excerpt" | "supports"> {
@@ -94,6 +97,7 @@ export interface OpportunityCluster {
     note: string;
   };
   playbook: GtmPlaybook;
+  performance: { delivered: number; replies: number; positiveReplies: number; analyzerActivations: number; reportsGenerated: number; paid: number; attributedEventCount: number; };
   updatedAt: string;
 }
 
@@ -104,9 +108,31 @@ export interface GtmExperiment {
   audienceDescription: string;
   status: "PROPOSED" | "APPROVED" | "RUNNING" | "SCALE" | "MODIFY" | "KILL";
   minimumSample: number;
-  outcomes: { delivered: number; replies: number; positiveReplies: number; meetings: number; analyzerActivations: number; paid: number; };
+  outcomes: { delivered: number; replies: number; positiveReplies: number; meetings: number; analyzerActivations: number; reportsGenerated: number; paid: number; };
+  recommendation: ExperimentRecommendation;
   decision: string | null;
+  evidenceCount: number;
 }
+
+/** A source-attributed, immutable observation. It is not a guessed outcome;
+ * the source event id is also the idempotency key in durable storage. */
+export interface GtmOutcomeEvent {
+  id: string;
+  source: GtmOutcomeSource;
+  sourceEventId: string;
+  type: GtmOutcomeType;
+  occurredAt: string;
+  organization: string | null;
+  canonicalOrganizationId: string | null;
+  instantlyLeadId: string | null;
+  evidence: { source: string; reference: string; confidence: "KNOWN"; };
+}
+
+export const GTM_EXPERIMENT_EVIDENCE_POLICY = {
+  minimumDelivered: 20,
+  minimumPositiveRepliesForScale: 3,
+  scalePositiveReplyRate: 0.1
+} as const;
 
 export interface GtmOpportunityEngineState {
   generatedAt: string;
@@ -114,6 +140,7 @@ export interface GtmOpportunityEngineState {
   clusters: OpportunityCluster[];
   distributionNodes: DistributionNode[];
   experiments: GtmExperiment[];
+  outcomeEvents: GtmOutcomeEvent[];
   radar: { newSignals: number; highIntentAccounts: number; verifiedBuyers: number; highLeveragePartners: number; attackClusters: number; };
   safeguards: { instantlyAutoHandoff: false; campaignExecution: "FOUNDER_APPROVAL_REQUIRED"; uploadedDocumentTargeting: "CONSENT_REQUIRED"; };
 }
@@ -139,6 +166,7 @@ export interface GtmOpportunityEngineInput {
   social: DailySocialScan | null;
   canonical: CanonicalGtmModel;
   prior?: GtmOpportunityEngineState | null;
+  outcomes?: GtmOutcomeEvent[];
   now?: string;
 }
 
@@ -300,6 +328,56 @@ function preserveStatus(id: string, prior: GtmOpportunityEngineState | null | un
   return prior?.clusters.find((cluster) => cluster.id === id)?.status || "REVIEW" as OpportunityClusterStatus;
 }
 
+const emptyPerformance = () => ({ delivered: 0, replies: 0, positiveReplies: 0, analyzerActivations: 0, reportsGenerated: 0, paid: 0, attributedEventCount: 0 });
+
+function recommendationForCluster(score: OpportunityScore, reachableDecisionMakers: number, partners: DistributionNode[]): OpportunityRecommendation {
+  // A high numerical score alone is not permission to attack a market. There
+  // must be a canonical buyer route or an evidenced distribution relationship.
+  const evidencedDistributionRoute = partners.some((partner) => (partner.potentialIcpReach || 0) >= 5 && partner.leverageScore >= 70);
+  if (score.total >= 70 && (reachableDecisionMakers > 0 || evidencedDistributionRoute)) return "ATTACK";
+  return score.total >= 45 ? "REVIEW" : "WATCH";
+}
+
+function clusterOrganizationNames(cluster: OpportunityCluster, signals: MarketSignal[]) {
+  return new Set(cluster.signalIds.flatMap((id) => {
+    const organization = signals.find((signal) => signal.id === id)?.organization;
+    return organization ? [norm(organization)] : [];
+  }));
+}
+
+function outcomeMatchesCluster(event: GtmOutcomeEvent, cluster: OpportunityCluster, signals: MarketSignal[]) {
+  if (!event.organization) return false;
+  return clusterOrganizationNames(cluster, signals).has(norm(event.organization));
+}
+
+function aggregatePerformance(events: GtmOutcomeEvent[]) {
+  const performance = emptyPerformance();
+  for (const event of events) {
+    performance.attributedEventCount += 1;
+    if (event.type === "EMAIL_SENT") performance.delivered += 1;
+    if (event.type === "REPLY_RECEIVED" || event.type === "POSITIVE_REPLY") performance.replies += 1;
+    if (event.type === "POSITIVE_REPLY") performance.positiveReplies += 1;
+    if (event.type === "FREE_FIRST_AWARD_STARTED") performance.analyzerActivations += 1;
+    if (event.type === "REPORT_GENERATED") performance.reportsGenerated += 1;
+    if (event.type === "PAID") performance.paid += 1;
+  }
+  return performance;
+}
+
+export function experimentRecommendation(outcomes: GtmExperiment["outcomes"]): { recommendation: ExperimentRecommendation; decision: string | null } {
+  if (outcomes.delivered < GTM_EXPERIMENT_EVIDENCE_POLICY.minimumDelivered) {
+    return { recommendation: "INSUFFICIENT_EVIDENCE", decision: `Need ${GTM_EXPERIMENT_EVIDENCE_POLICY.minimumDelivered - outcomes.delivered} more delivered first touches before a scale, modify, or kill recommendation.` };
+  }
+  const positiveRate = outcomes.positiveReplies / Math.max(1, outcomes.delivered);
+  if (outcomes.positiveReplies >= GTM_EXPERIMENT_EVIDENCE_POLICY.minimumPositiveRepliesForScale && positiveRate >= GTM_EXPERIMENT_EVIDENCE_POLICY.scalePositiveReplyRate) {
+    return { recommendation: "SCALE", decision: `Persisted evidence meets the configured ${Math.round(GTM_EXPERIMENT_EVIDENCE_POLICY.scalePositiveReplyRate * 100)}% positive-reply threshold with ${outcomes.positiveReplies} positive replies.` };
+  }
+  if (outcomes.positiveReplies === 0 && outcomes.analyzerActivations === 0 && outcomes.paid === 0) {
+    return { recommendation: "KILL", decision: "Persisted delivered sample produced no positive reply, product activation, or paid outcome." };
+  }
+  return { recommendation: "MODIFY", decision: "Persisted sample is meaningful but does not meet the scale threshold; revise the playbook before expanding it." };
+}
+
 function clusterSignals(signals: MarketSignal[], distribution: DistributionNode[], canonical: CanonicalGtmModel, prior: GtmOpportunityEngineState | null | undefined, now: string): OpportunityCluster[] {
   const groups = new Map<string, MarketSignal[]>();
   for (const signal of signals) {
@@ -311,7 +389,8 @@ function clusterSignals(signals: MarketSignal[], distribution: DistributionNode[
     const accounts = unique(items.flatMap((item) => item.organization ? [item.organization] : []));
     const related = primary.type === "RECENT_FEDERAL_AWARD" ? distribution.filter((node) => /ACCOUNTING_CAS|FRACTIONAL_CFO|GRANT_CONSULTANT/.test(node.type)) : [];
     const score = scoreCluster(primary.type, items, related, canonical);
-    const recommendation: OpportunityRecommendation = score.total >= 70 ? "ATTACK" : score.total >= 45 ? "REVIEW" : "WATCH";
+    const reachableDecisionMakers = canonical.records.filter((record) => record.state === "READY_TO_SEND" && accounts.some((account) => norm(account) === norm(record.organization))).length;
+    const recommendation = recommendationForCluster(score, reachableDecisionMakers, related);
     const name = primary.type === "RECENT_FEDERAL_AWARD"
       ? (primary.fundingProgram || primary.funder || "Recent federal award recipients")
       : primary.type === "GRANT_FINANCE_HIRING" ? `${primary.organization || "Grant/finance"} hiring signal`
@@ -326,12 +405,13 @@ function clusterSignals(signals: MarketSignal[], distribution: DistributionNode[
       score,
       signalIds: items.map((item) => item.id),
       accountCount: accounts.length,
-      reachableDecisionMakers: canonical.records.filter((record) => record.state === "READY_TO_SEND" && accounts.some((account) => norm(account) === norm(record.organization))).length,
+      reachableDecisionMakers,
       distributionPartnerIds: related.map((node) => node.id),
       commonReasonNow: primary.type === "COMMUNITY_PAIN" ? "Public discussions describe a current post-award workflow issue." : primary.summary,
       commercialRationale: primary.type === "RECENT_FEDERAL_AWARD" ? "A recent award is a time-bounded reason to evaluate reporting-readiness support; buyer need remains a hypothesis." : primary.type === "GRANT_FINANCE_HIRING" ? "Hiring is a researched workload signal, not evidence of a purchase decision." : "Public pain improves positioning and free-tool relevance; it is not a contactable account list.",
       estimates: { likelyAcv: null, potentialClusterArr: null, confidence: "ESTIMATED" as const, note: "ACV and ARR remain unknown until actual pricing, conversion, and account data exist." },
       playbook: playbookFor(primary.type),
+      performance: emptyPerformance(),
       updatedAt: now
     };
   });
@@ -354,6 +434,7 @@ function clusterSignals(signals: MarketSignal[], distribution: DistributionNode[
       commercialRationale: node.potentialIcpReach === null ? "Public service evidence supports a partner review; client reach is unknown and is not inferred." : `${node.potentialIcpReach} relationship${node.potentialIcpReach === 1 ? "" : "s"} are publicly evidenced.`,
       estimates: { likelyAcv: null, potentialClusterArr: null, confidence: "ESTIMATED" as const, note: "Partner economics remain a configurable hypothesis, not a commitment or revenue forecast." },
       playbook: playbookFor("PARTNER_MULTIPLIER"),
+      performance: emptyPerformance(),
       updatedAt: now
     };
   });
@@ -377,23 +458,39 @@ export function buildGtmOpportunityEngineState(input: GtmOpportunityEngineInput)
   });
   const nodes = distributionNodes(input.partners);
   const signals = [...awardSignals, ...directSignals, ...socialSignals(input.social)];
-  const clusters = clusterSignals(signals, nodes, input.canonical, input.prior, now);
-  const experiments = clusters.filter((cluster) => cluster.recommendation === "ATTACK").slice(0, 10).map((cluster) => ({
+  const rawOutcomes = input.outcomes || input.prior?.outcomeEvents || [];
+  const outcomeEvents = [...new Map(rawOutcomes.map((event) => [event.id, event])).values()]
+    .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt)).slice(-500);
+  const initialClusters = clusterSignals(signals, nodes, input.canonical, input.prior, now);
+  const clusters = initialClusters.map((cluster) => ({
+    ...cluster,
+    performance: aggregatePerformance(outcomeEvents.filter((event) => outcomeMatchesCluster(event, cluster, signals)))
+  }));
+  const experiments = clusters.filter((cluster) => cluster.type !== "COMMUNITY_PAIN" && cluster.score.total >= 45).slice(0, 50).map((cluster) => {
+    const priorExperiment = input.prior?.experiments.find((item) => item.clusterId === cluster.id);
+    const performance = cluster.performance;
+    const outcomes = { delivered: performance.delivered, replies: performance.replies, positiveReplies: performance.positiveReplies, meetings: 0, analyzerActivations: performance.analyzerActivations, reportsGenerated: performance.reportsGenerated, paid: performance.paid };
+    const evidenceDecision = experimentRecommendation(outcomes);
+    return {
     id: `experiment:${cluster.id}`,
     clusterId: cluster.id,
     hypothesis: cluster.playbook.thesis,
     audienceDescription: `${cluster.accountCount} source-backed account${cluster.accountCount === 1 ? "" : "s"}; ${cluster.reachableDecisionMakers} canonical Ready buyer${cluster.reachableDecisionMakers === 1 ? "" : "s"}.`,
-    status: input.prior?.experiments.find((item) => item.clusterId === cluster.id)?.status || "PROPOSED" as const,
-    minimumSample: 20,
-    outcomes: input.prior?.experiments.find((item) => item.clusterId === cluster.id)?.outcomes || { delivered: 0, replies: 0, positiveReplies: 0, meetings: 0, analyzerActivations: 0, paid: 0 },
-    decision: input.prior?.experiments.find((item) => item.clusterId === cluster.id)?.decision || null
-  }));
+    status: priorExperiment?.status || "PROPOSED" as const,
+    minimumSample: GTM_EXPERIMENT_EVIDENCE_POLICY.minimumDelivered,
+    outcomes,
+    recommendation: evidenceDecision.recommendation,
+    decision: evidenceDecision.decision,
+    evidenceCount: performance.attributedEventCount
+    };
+  });
   return {
     generatedAt: now,
     signals,
     clusters,
     distributionNodes: nodes,
     experiments,
+    outcomeEvents,
     radar: {
       newSignals: signals.length,
       highIntentAccounts: unique(signals.flatMap((signal) => signal.organization ? [signal.organization] : [])).length,

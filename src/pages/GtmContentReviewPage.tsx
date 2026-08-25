@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { AlertCircle, CheckCircle2, ExternalLink, LoaderCircle, Pencil, Save, ShieldCheck } from "lucide-react";
+import { AlertCircle, CheckCircle2, LoaderCircle, Pencil, Save, ShieldCheck } from "lucide-react";
 import { apiRequest } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import type { ContentDraft, ContentEngineState } from "../lib/gtmContentEngine";
