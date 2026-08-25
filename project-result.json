@@ -1,12 +1,12 @@
 {
   "project": "gtm-opportunity-production-validation",
   "status": "PARTIAL",
-  "completedAt": "2026-08-25T12:00:00Z",
+  "completedAt": "2026-08-25T12:30:00Z",
   "canonicalBranch": "recovery/production-20260824",
   "commit": "df4a343",
   "productionChanged": false,
   "productionRevisionBefore": "grantdeskhq-prototype-competitorseopriority",
-  "candidateDeployment": "PARTIAL — grantdeskhq-prototype-00368-foq is healthy at 0% traffic; tagged gtmopportunitylearning. Unauthenticated access fails closed. Protected scheduler/admin persistence validation is blocked by environment IAM/authentication access.",
+  "candidateDeployment": "PARTIAL — grantdeskhq-prototype-00368-foq is healthy at 0% traffic; tagged gtmopportunitylearning. A disposable real-OIDC Scheduler reconciliation returned HTTP 200 and was deleted. Candidate synthetic browser E2E passed. Unauthenticated GTM access fails closed. Live authenticated GTM-admin dashboard mutation remains unavailable without an existing non-founder administrator session.",
   "phase": "Server-canonical outcome attribution, fail-closed experiment learning, dashboard persistence validation",
   "contentAutoPublish": false,
   "instantlyAutoHandoff": false,
@@ -14,5 +14,5 @@
   "emailsSent": 0,
   "socialPosts": 0,
   "articlesPublished": 0,
-  "humanActionRequired": "Grant this environment permission to create a disposable Cloud Scheduler HTTP job in us-central1 OR provide a non-founder GTM-admin test session. Either route permits the required protected candidate mutation/reload validation; no production sending permission is needed."
+  "humanActionRequired": "Provide an existing non-founder GTM-admin Firebase test session/credential for one candidate dashboard read/PATCH/reload validation. No live sending permission is needed."
 }
