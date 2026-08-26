@@ -527,6 +527,10 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
   const input = await readJson(request) as { batchId?: string; execute?: boolean; repairOpeningLines?: boolean; repairPartnerFirstTouches?: boolean };
   const batchId = String(input.batchId || "");
   if (!/^gdh-controlled-batch-\d{8}-\d{2}$/.test(batchId)) return json(response, 400, { error: "A valid controlled batch ID is required." });
+  // Reconcile provider membership before calculating canonical eligibility.
+  // A persisted staging record without a provider lead must not permanently
+  // consume an otherwise valid contact or create a false prior-contact state.
+  await reconcileInstantlyPolling();
   const config = instantlyConfig();
   const [model, outreach, existingRecords] = await Promise.all([readCanonicalGtmModel(), reconcileGtmOutreachLedger(confirmedHumanOutreach), readInstantlyRecords()]);
   const existingEmails = new Set(existingRecords.map((record) => record.email.toLowerCase()).filter(Boolean));
@@ -755,6 +759,18 @@ async function reconcileInstantlyPolling() {
   const [lists, campaigns, accounts, leads, campaignAnalytics, recentEmails] = results.map((result) => result.status === "fulfilled" ? result.value : null);
   const model = await readCanonicalGtmModel();
   const leadItems = instantlyItems(leads);
+  // Only a complete provider lead read may invalidate a persisted pre-send
+  // membership. This repairs interrupted/stale handoffs without ever clearing
+  // actual SENT, bounced, or unsubscribed history.
+  let stalePreSendRecords = 0;
+  if (leads && !Boolean((leads as { truncated?: boolean }).truncated)) {
+    const providerLeadIds = new Set(leadItems.map((lead) => String(lead.id || "")).filter(Boolean));
+    for (const record of records) {
+      if (!record.instantlyLeadId || providerLeadIds.has(record.instantlyLeadId) || !["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus)) continue;
+      await saveInstantlyRecord({ ...record, instantlySyncStatus: "ERROR", failureReason: "PROVIDER_LEAD_ABSENT_AFTER_COMPLETE_POLL", updatedAt: new Date().toISOString() });
+      stalePreSendRecords++;
+    }
+  }
   const canonicalByEmail = new Map(model.records.flatMap((record) => record.email ? [[record.email.toLowerCase(), record] as const] : []));
   const matched = leadItems.flatMap((lead) => canonicalByEmail.has(String(lead.email || "").toLowerCase()) ? [canonicalByEmail.get(String(lead.email || "").toLowerCase())!] : []);
   const priorContactExcluded = matched.filter((record) => record.priorContact).length;
@@ -802,6 +818,7 @@ async function reconcileInstantlyPolling() {
     duplicatesPrevented: duplicateEmails,
     campaignAnalytics: mappedAnalytics.map((item) => Object.fromEntries(["campaign_id", "campaign_name", "campaign_status", "leads_count", "contacted_count", "emails_sent_count", "reply_count", "reply_count_unique", "reply_count_automatic", "bounced_count", "unsubscribed_count", "completed_count", "total_opportunities"].flatMap((field) => typeof item[field] === "string" || typeof item[field] === "number" || typeof item[field] === "boolean" ? [[field, item[field]]] : []))),
     polledRecords,
+    stalePreSendRecords,
     transitions,
     replyContent: recentEmails ? "AVAILABLE" : "OPTIONAL_EMAILS_READ_REQUIRED",
     replyContentError: emailReadError || undefined,
