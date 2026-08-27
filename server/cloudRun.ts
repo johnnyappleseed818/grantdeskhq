@@ -26,7 +26,7 @@ import { enrichGtmContactInShadow } from "./contactEnrichment.ts";
 import { reconcileStoredContactEnrichmentBatch, runContactEnrichmentBatch, type EnrichmentBatchSegment } from "./contactEnrichmentBatch.ts";
 import { reconcileSearchConsole } from "./searchConsole.ts";
 import type { EnrichmentTarget } from "../src/lib/contactEnrichment.ts";
-import { requireGtmScheduler, requireHealthScheduler } from "./schedulerAuth.ts";
+import { requireGtmIncidentOperator, requireGtmScheduler, requireHealthScheduler } from "./schedulerAuth.ts";
 import { BillingError, billingSnapshotFromEvent, changeSubscriptionPlan, createCheckoutSession, createCustomerPortalSession, foundingPricingActive, isBillingConfigured, validateBillingSelection, verifyStripeSignature, type StripeWebhookEvent } from "./billing.ts";
 import { normalizeCompilationSources } from "./sourceNormalization.ts";
 import { initialOpportunities } from "../src/data/gtmData.ts";
@@ -666,7 +666,7 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
  * prior 24 hours in the two mapped campaigns are moved to a holding list. */
 async function handleInstantlyIncidentRemediate(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
-  await requireGtmScheduler(request);
+  await requireGtmIncidentOperator(request);
   const config = instantlyConfig();
   if (!config.apiKeyConfigured || !config.integrationEnabled) return json(response, 409, { error: "Instantly is not configured." });
   const client = new InstantlyClient(config);
