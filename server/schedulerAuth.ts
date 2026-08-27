@@ -58,16 +58,6 @@ export async function requireGtmScheduler(request: IncomingMessage) {
   return requireScheduler(request, process.env.GTM_SCHEDULER_SERVICE_ACCOUNT, process.env.GTM_SCHEDULER_AUDIENCE, "GTM");
 }
 
-/** Incident-only dual identity. It is not used by normal Scheduler paths and
- * is disabled unless the temporary operator service account is configured. */
-export async function requireGtmIncidentOperator(request: IncomingMessage) {
-  try { return await requireGtmScheduler(request); }
-  catch (error) {
-    if (!process.env.GTM_INCIDENT_OPERATOR_SERVICE_ACCOUNT?.trim()) throw error;
-    return requireScheduler(request, process.env.GTM_INCIDENT_OPERATOR_SERVICE_ACCOUNT, process.env.GTM_SCHEDULER_AUDIENCE, "incident remediation");
-  }
-}
-
 export async function requireHealthScheduler(request: IncomingMessage) {
   return requireScheduler(request, process.env.HEALTH_SCHEDULER_SERVICE_ACCOUNT, process.env.HEALTH_SCHEDULER_AUDIENCE, "reliability");
 }
