@@ -670,20 +670,20 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
   return json(response, 200, { mode: "HANDOFF_COMPLETE_AWAITING_PROVIDER_SEND", batchId, created: created.map((record) => ({ organization: record.organization, email: record.email, segment: record.segment, campaign: record.instantlyCampaignId, state: record.instantlySyncStatus })) });
 }
 
-/** One-time incident containment: only duplicate recipients observed within the
- * prior 24 hours in the two mapped campaigns are moved to a holding list. */
+/** One-time incident containment: duplicate recipients in the bounded provider
+ * evidence window are quarantined. The incident may predate the last 24 hours,
+ * so never silently omit older returned evidence. */
 async function handleInstantlyIncidentRemediate(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
   const config = instantlyConfig();
   if (!config.apiKeyConfigured || !config.integrationEnabled) return json(response, 409, { error: "Instantly is not configured." });
   const client = new InstantlyClient(config);
-  const cutoff = Date.now() - 24 * 60 * 60 * 1_000;
   const emails = instantlyItems(await client.listRecentEmailEvidence(100));
   const rows = emails.flatMap((item) => {
     const email = String(item.to_address_email_list || "").trim().toLowerCase(); const campaign = String(item.campaign_id || ""); const leadId = String(item.lead_id || "");
     const at = Date.parse(String(item.timestamp_email || item.timestamp_created || ""));
-    return email && leadId && [config.directCampaignId, config.partnerCampaignId].includes(campaign) && Number.isFinite(at) && at >= cutoff ? [{ email, campaign, leadId }] : [];
+    return email && leadId && [config.directCampaignId, config.partnerCampaignId].includes(campaign) && Number.isFinite(at) ? [{ email, campaign, leadId }] : [];
   });
   const counts = new Map<string, number>(); for (const row of rows) counts.set(row.email, (counts.get(row.email) || 0) + 1);
   const affected = rows.filter((row) => (counts.get(row.email) || 0) > 1);
