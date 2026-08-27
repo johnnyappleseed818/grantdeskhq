@@ -61,6 +61,15 @@ describe("final Instantly handoff safety", () => {
     expect(tripCircuitBreaker).toHaveBeenCalledWith("AMBIGUOUS_PROVIDER_OUTCOME", expect.any(String));
   });
 
+  it("reconciles an expired lease before allowing any retry", async () => {
+    const expired: HandoffReservation = { idempotencyKey: "x", normalizedEmail: "casey@example.org", campaignId: "campaign_a", handoffStatus: "HANDOFF_STARTED", externalLeadId: "", handedOffAt: "", leaseExpiry: "2020-01-01T00:00:00.000Z" };
+    const createLead = vi.fn();
+    const complete = vi.fn().mockResolvedValue(undefined);
+    const result = await executeFinalInstantlyHandoff(valid, { reserve: vi.fn().mockResolvedValue({ acquired: false, record: expired }), findExistingLead: vi.fn().mockResolvedValue({ id: "provider_lead" }), createLead, complete, fail: vi.fn() });
+    expect(result.reason).toBe("RECOVERED_EXISTING_PROVIDER_LEAD");
+    expect(createLead).not.toHaveBeenCalled();
+  });
+
   it("trips the circuit before a provider write when rendered content is unsafe", async () => {
     const createLead = vi.fn();
     const tripCircuitBreaker = vi.fn().mockResolvedValue(undefined);

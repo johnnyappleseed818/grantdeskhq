@@ -689,6 +689,19 @@ async function handleInstantlyIncidentRemediate(request: IncomingMessage, respon
   const affected = rows.filter((row) => (counts.get(row.email) || 0) > 1);
   const unique = [...new Map(affected.map((row) => [row.email, row])).values()];
   for (const row of unique) await recordGtmContactSuppression(row.email, ["duplicate_contact"], "outbound_incident_20260827");
+  // The internal suppression is authoritative for GrantDeskHQ. Mirror it into
+  // Instantly's documented workspace block list before any provider movement,
+  // so leads outside a stale campaign membership cannot receive another step.
+  const providerBlocked = new Set(instantlyItems(await client.listBlockListEntries()).map((item) => String(item.bl_value || "").trim().toLowerCase()).filter(Boolean));
+  const createdBlockListEntryIds: string[] = [];
+  for (const row of unique) {
+    if (providerBlocked.has(row.email)) continue;
+    const entry = await client.createBlockListEntry(row.email);
+    const entryId = String(entry.id || "").trim();
+    if (!entryId) throw new Error("Instantly did not return a block-list entry ID for incident remediation.");
+    providerBlocked.add(row.email);
+    createdBlockListEntryIds.push(entryId);
+  }
   const lists = instantlyItems(await client.listLeadLists()); const name = "GrantDeskHQ — Incident Hold 2026-08-27";
   const list = lists.find((item) => String(item.name || "") === name) || await client.createLeadList(name);
   const listId = String(list.id || ""); if (!listId) throw new Error("Incident hold list could not be resolved.");
@@ -707,7 +720,7 @@ async function handleInstantlyIncidentRemediate(request: IncomingMessage, respon
     await client.waitForBackgroundJob(jobId);
     backgroundJobs.push(jobId);
   }
-  return json(response, 200, { affectedRecipients: unique.length, affectedLeadEnrollments: new Set(affected.map((row) => row.leadId)).size, holdingListId: listId, backgroundJobs, unresolvedLeadIds, campaignsRemainPaused: true });
+  return json(response, 200, { affectedRecipients: unique.length, affectedLeadEnrollments: new Set(affected.map((row) => row.leadId)).size, holdingListId: listId, createdBlockListEntryIds, backgroundJobs, unresolvedLeadIds, campaignsRemainPaused: true });
 }
 
 function controlledSubject(record: Awaited<ReturnType<typeof readCanonicalGtmModel>>["records"][number]) {

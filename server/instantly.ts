@@ -251,7 +251,7 @@ export class InstantlyClient {
           signal: init.signal || AbortSignal.timeout(20_000),
           headers: { "Authorization": `Bearer ${this.apiKey}`, "Content-Type": "application/json", ...init.headers }
         });
-      } catch (error) {
+      } catch {
         if (attempt === 0) { await this.wait(500); continue; }
         throw new Error(`Instantly API request timed out or failed for ${path}.`);
       }
@@ -268,6 +268,8 @@ export class InstantlyClient {
   }
 
   listLeadLists() { return this.api<unknown>("/lead-lists?limit=100"); }
+  listBlockListEntries() { return this.api<unknown>("/block-lists-entries?limit=100"); }
+  createBlockListEntry(value: string) { return this.api<Record<string, unknown>>("/block-lists-entries", { method: "POST", body: JSON.stringify({ bl_value: normalizeOutboundEmail(value) }) }); }
   createLeadList(name: string) { return this.api<{ id?: string; name?: string }>("/lead-lists", { method: "POST", body: JSON.stringify({ name }) }); }
   listWorkspaces() { return this.api<unknown>("/workspaces?limit=100"); }
   listCampaigns() { return this.api<unknown>("/campaigns?limit=100"); }

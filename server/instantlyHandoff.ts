@@ -1,7 +1,7 @@
 import { instantlyHandoffIdempotencyKey, validateInstantlyOutboundInput } from "./instantly.ts";
 
 export type HandoffStatus = "HANDOFF_STARTED" | "HANDED_OFF" | "FAILED";
-export interface HandoffReservation { idempotencyKey: string; normalizedEmail: string; campaignId: string; handoffStatus: HandoffStatus; externalLeadId: string; handedOffAt: string; }
+export interface HandoffReservation { idempotencyKey: string; normalizedEmail: string; campaignId: string; handoffStatus: HandoffStatus; externalLeadId: string; handedOffAt: string; leaseExpiry?: string; }
 export interface FinalHandoffDependencies {
   reserve(input: { idempotencyKey: string; normalizedEmail: string; campaignId: string; source: string }): Promise<{ acquired: boolean; record: HandoffReservation }>;
   complete(idempotencyKey: string, normalizedEmail: string, externalLeadId: string): Promise<void>;
@@ -30,8 +30,10 @@ export async function executeFinalInstantlyHandoff(input: { email: string; campa
   if (!reservation.acquired) {
     if (reservation.record.handoffStatus === "HANDED_OFF") return { created: false, externalLeadId: reservation.record.externalLeadId, idempotencyKey, reason: "ALREADY_HANDED_OFF" as const };
     // Concurrent workers see the durable active lease and must never touch the
-    // provider. A later retry of a FAILED reservation is reconciled below.
-    if (reservation.record.handoffStatus === "HANDOFF_STARTED") return { created: false, externalLeadId: reservation.record.externalLeadId, idempotencyKey, reason: "HANDOFF_IN_PROGRESS" as const };
+    // provider. Once the lease expires, the outcome is ambiguous and must be
+    // reconciled before any retry can create another enrollment.
+    const leaseExpired = Boolean(reservation.record.leaseExpiry) && Date.parse(String(reservation.record.leaseExpiry)) <= Date.now();
+    if (reservation.record.handoffStatus === "HANDOFF_STARTED" && !leaseExpired) return { created: false, externalLeadId: reservation.record.externalLeadId, idempotencyKey, reason: "HANDOFF_IN_PROGRESS" as const };
     // A previous reservation may have reached Instantly just before a timeout
     // or a local write failure. Reconcile it before *any* later provider call.
     const existing = await dependencies.findExistingLead(validated.email, validated.campaignId);
