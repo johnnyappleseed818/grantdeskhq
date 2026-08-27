@@ -1,18 +1,28 @@
 {
-  "project": "gtm-opportunity-production-validation",
-  "status": "PASS",
-  "completedAt": "2026-08-25T13:30:00Z",
-  "canonicalBranch": "recovery/production-20260824",
-  "commit": "df4a343",
-  "productionChanged": true,
-  "productionRevisionBefore": "grantdeskhq-prototype-competitorseopriority",
-  "candidateDeployment": "PASS — grantdeskhq-prototype-00370-tul was validated at 0% traffic, including a disposable non-founder Firebase test identity using the existing Identity Toolkit test-session flow and the existing GTM_ADMIN_EMAILS allowlist. Protected GET, PATCH, independent-session reload, state restore, user-scoped access, and unauthenticated 401 all passed. The QA identity and temporary candidate-only allowlist entry were removed before promotion. A disposable OIDC Cloud Scheduler reconciliation returned HTTP 200 and was deleted. Synthetic browser E2E, lint, type-check, unit/integration suite, build, regression, reliability, static SEO, production health, public assessment, and error-log checks passed. Revision 00370-tul serves 100% production traffic; 00365-cax remains the tagged rollback candidate.",
-  "phase": "Server-canonical outcome attribution, fail-closed experiment learning, dashboard persistence validation",
-  "contentAutoPublish": false,
-  "instantlyAutoHandoff": false,
+  "project": "outbound-incident-recovery",
+  "status": "PARTIAL",
+  "completedAt": "2026-08-27T20:24:00Z",
+  "canonicalBranch": "incident-recovery-2026-08-27",
+  "commit": "680d60898239947707bd5c855c0055b4b1c6326c",
+  "productionChanged": false,
+  "productionRevision": "grantdeskhq-prototype-00387-ker",
+  "candidateRevision": "grantdeskhq-prototype-00399-mol",
+  "candidateTraffic": "0%",
+  "emailIncident": {
+    "affectedRecipients": 16,
+    "internalSuppressionsApplied": 16,
+    "providerHoldingListJobsSucceeded": 7,
+    "unresolvedProviderMemberships": 9
+  },
+  "gates": {
+    "targetedOutboundTests": "PASS (28)",
+    "typescript": "PASS",
+    "lint": "PASS",
+    "candidateHealth": "PASS",
+    "schedulerOidcPreflight": "PASS (fail-closed campaign pause)",
+    "providerBlockListCreate": "BLOCKED (HTTP 401 request 6966065546653089158)"
+  },
   "liveOutboundChanged": false,
   "emailsSent": 0,
-  "socialPosts": 0,
-  "articlesPublished": 0,
-  "humanActionRequired": "NONE"
+  "humanActionRequired": "Replace the existing V2 Instantly key stored in Secret Manager reference grantdeskhq-instantly-api-key with a least-privilege key that retains the currently working scopes and adds block_list_entries:create."
 }
