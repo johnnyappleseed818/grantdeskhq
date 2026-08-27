@@ -72,7 +72,7 @@ describe("Instantly fail-closed integration", () => {
   it("requires an exact configured controlled-batch ID before a campaign write", async () => {
     const request = vi.fn();
     const client = new InstantlyClient(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true", INSTANTLY_API_KEY: "configured", INSTANTLY_CONTROLLED_BATCH_ENABLED: "true", INSTANTLY_CONTROLLED_BATCH_ID: "gdh-controlled-batch-20260824-01" }), "key", request);
-    await expect(client.createLeadInControlledCampaign({ email: record.email!, firstName: "Casey", lastName: "Finance", companyName: record.organization, jobTitle: record.title!, campaignId: "campaign_1", personalization: "Hello", customVariables: {} }, "gdh-controlled-batch-20260824-02")).rejects.toThrow("exact batch ID");
+    await expect(client.createLeadInControlledCampaign({ email: record.email!, firstName: "Casey", lastName: "Finance", companyName: record.organization, jobTitle: record.title!, campaignId: "campaign_1", personalization: "Hello", subject: "A valid subject", sequenceId: "initial-v1", segment: "DIRECT", customVariables: {} }, "gdh-controlled-batch-20260824-02")).rejects.toThrow("exact batch ID");
     expect(request).not.toHaveBeenCalled();
   });
 

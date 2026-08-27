@@ -14,6 +14,7 @@ import { validateFeedbackInput, type FeedbackSubmission } from "../src/lib/feedb
 import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
 import { confirmedHumanOutreach, summarizeOutreach } from "../src/lib/gtmOutreach.ts";
 import { reconcileGtmOutreachLedger, updateFeedbackReview } from "./persistence.ts";
+import { completeInstantlyHandoff, failInstantlyHandoff, reserveInstantlyHandoff } from "./persistence.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { runDailySocialScan } from "./gtmDailyScanner.ts";
 import { runPartnerPublicDiscovery } from "./gtmPartnerDiscovery.ts";
@@ -39,6 +40,7 @@ import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type G
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
 import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
+import { executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
@@ -149,6 +151,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/instantly") return await handleGtmInstantly(request, response);
     if (url.pathname === "/api/gtm/instantly/stage") return await handleGtmInstantlyStage(request, response);
     if (url.pathname === "/api/gtm/instantly/controlled-batch") return await handleControlledInstantlyBatch(request, response);
+    if (url.pathname === "/api/gtm/instantly/incident-remediate") return await handleInstantlyIncidentRemediate(request, response);
     if (url.pathname === "/api/gtm/instantly/reconcile") return await handleInstantlyReconcile(request, response);
     if (url.pathname === "/api/gtm/instantly/ensure-lists") return await handleInstantlyEnsureLists(request, response);
     if (url.pathname === "/api/gtm/instantly/webhook") return await handleInstantlyWebhook(request, response);
@@ -637,17 +640,56 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
     ...(partner.length > 0 ? [client.getCampaign(config.partnerCampaignId)] : [])
   ]);
   if (!configuredCampaigns.every((campaign) => controlledCampaignReady(campaign, approvedSender))) return json(response, 409, { error: "Selected campaign read-back did not satisfy sender, reply-stop, tracking, CTA, and safety requirements." });
-  const created = await Promise.all(cohort.map(async (record) => {
+  const created = [] as import("./instantly.ts").InstantlyIntegrationRecord[];
+  for (const record of cohort) {
     const [firstName, ...rest] = String(record.contact || "").split(/\s+/);
     const campaignId = record.segment === "DIRECT" ? config.directCampaignId : config.partnerCampaignId;
-    const provider = await client.createLeadInControlledCampaign({ email: record.email || "", firstName, lastName: rest.join(" "), companyName: record.organization, jobTitle: record.title || "", campaignId, personalization: controlledEmail(record), customVariables: { batch_id: batchId, canonical_organization_id: record.organizationId, canonical_contact_id: `${record.organizationId}:${record.email}`, segment: record.segment, source: record.sourceUrl, why_now_or_fit: record.whyNow, openingLine: controlledOpening(record), message_version: "controlled-benefit-led-v1" } }, batchId);
+    const subject = controlledSubject(record);
+    const body = controlledEmail(record);
+    const handoff = await executeFinalInstantlyHandoff({ email: record.email || "", campaignId, subject, body, sequenceId: "initial-v1", source: record.sourceUrl }, {
+      reserve: reserveInstantlyHandoff,
+      complete: completeInstantlyHandoff,
+      fail: failInstantlyHandoff,
+      findExistingLead: (email, campaign) => client.findLeadByEmail(email, campaign),
+      createLead: () => client.createLeadInControlledCampaign({ email: record.email || "", firstName, lastName: rest.join(" "), companyName: record.organization, jobTitle: record.title || "", campaignId, personalization: body, subject, sequenceId: "initial-v1", segment: record.segment, customVariables: { batch_id: batchId, canonical_organization_id: record.organizationId, canonical_contact_id: `${record.organizationId}:${record.email}`, segment: record.segment, source: record.sourceUrl, why_now_or_fit: record.whyNow, openingLine: controlledOpening(record), message_version: "controlled-benefit-led-v2" } }, batchId)
+    });
     const preview = instantlyPreviewRecord(record);
-    const persisted = { ...preview, instantlyCampaignId: campaignId, instantlyLeadId: String(provider.id || provider.lead_id || ""), instantlySyncStatus: "IN_CAMPAIGN" as const, messageVersion: "controlled-benefit-led-v1", controlledBatchId: batchId, failureReason: "", updatedAt: new Date().toISOString() };
+    const persisted = { ...preview, instantlyCampaignId: campaignId, instantlyLeadId: handoff.externalLeadId, instantlySyncStatus: "IN_CAMPAIGN" as const, messageVersion: "controlled-benefit-led-v2", controlledBatchId: batchId, failureReason: handoff.reason === "HANDOFF_COMPLETE" || handoff.reason === "RECOVERED_EXISTING_PROVIDER_LEAD" ? "" : handoff.reason, updatedAt: new Date().toISOString() };
     await saveInstantlyRecord(persisted);
-    return persisted;
-  }));
+    created.push(persisted);
+  }
   await Promise.all([...new Set(created.map((record) => record.instantlyCampaignId))].map((campaignId) => client.activateControlledCampaign(campaignId, batchId)));
   return json(response, 200, { mode: "HANDOFF_COMPLETE_AWAITING_PROVIDER_SEND", batchId, created: created.map((record) => ({ organization: record.organization, email: record.email, segment: record.segment, campaign: record.instantlyCampaignId, state: record.instantlySyncStatus })) });
+}
+
+/** One-time incident containment: only duplicate recipients observed within the
+ * prior 24 hours in the two mapped campaigns are moved to a holding list. */
+async function handleInstantlyIncidentRemediate(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const config = instantlyConfig();
+  if (!config.apiKeyConfigured || !config.integrationEnabled) return json(response, 409, { error: "Instantly is not configured." });
+  const client = new InstantlyClient(config);
+  const cutoff = Date.now() - 24 * 60 * 60 * 1_000;
+  const emails = instantlyItems(await client.listRecentEmailEvidence(100));
+  const rows = emails.flatMap((item) => {
+    const email = String(item.to_address_email_list || "").trim().toLowerCase(); const campaign = String(item.campaign_id || ""); const leadId = String(item.lead_id || "");
+    const at = Date.parse(String(item.timestamp_email || item.timestamp_created || ""));
+    return email && leadId && [config.directCampaignId, config.partnerCampaignId].includes(campaign) && Number.isFinite(at) && at >= cutoff ? [{ email, campaign, leadId }] : [];
+  });
+  const counts = new Map<string, number>(); for (const row of rows) counts.set(row.email, (counts.get(row.email) || 0) + 1);
+  const affected = rows.filter((row) => (counts.get(row.email) || 0) > 1);
+  const unique = [...new Map(affected.map((row) => [row.email, row])).values()];
+  for (const row of unique) await recordGtmContactSuppression(row.email, ["duplicate_contact"], "outbound_incident_20260827");
+  const lists = instantlyItems(await client.listLeadLists()); const name = "GrantDeskHQ — Incident Hold 2026-08-27";
+  const list = lists.find((item) => String(item.name || "") === name) || await client.createLeadList(name);
+  const listId = String(list.id || ""); if (!listId) throw new Error("Incident hold list could not be resolved.");
+  const jobs = [] as string[];
+  for (const [campaign, items] of Object.entries(Object.groupBy(affected, (row) => row.campaign))) {
+    const ids = (items || []).map((row) => row.leadId).filter((id, index, all) => all.indexOf(id) === index);
+    if (ids.length) jobs.push(String((await client.moveLeadsToList(ids, campaign, listId)).id || ""));
+  }
+  return json(response, 200, { affectedRecipients: unique.length, affectedLeadEnrollments: new Set(affected.map((row) => row.leadId)).size, holdingListId: listId, backgroundJobs: jobs.filter(Boolean), campaignsRemainPaused: true });
 }
 
 function controlledSubject(record: Awaited<ReturnType<typeof readCanonicalGtmModel>>["records"][number]) {
@@ -703,7 +745,10 @@ function controlledCampaignPatch(segment: "DIRECT" | "PARTNER", maximum: number,
   return {
     email_list: [sender], stop_on_reply: true, stop_on_auto_reply: true, disable_bounce_protect: false,
     open_tracking: false, link_tracking: false, daily_limit: maximum, daily_max_leads: maximum,
-    sequences: [{ steps: [{ type: "email", delay: 0, delay_unit: "days", variants: [{ subject: direct ? "Less time preparing grant reports" : "{{subjectLine}}", body: initialBody, v_disabled: false }] }, { type: "email", delay: 4, delay_unit: "days", variants: [{ subject: direct ? "A simpler way to prep funder reports" : "A simpler way to prep client grant reports", body: "<div>Hi {{firstName}},</div><div><br /></div><div>Just following up in case this is useful. You can try one real award for free here: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: false }] }, { type: "email", delay: 7, delay_unit: "days", variants: [{ subject: direct ? "Worth trying on one award?" : "Worth trying with one client award?", body: "<div>Hi {{firstName}},</div><div><br /></div><div>One last note: GrantDeskHQ is designed to reduce the repetitive first-pass work of assembling a grant report. If useful, your first award is free: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: false }] }] }]
+    // All subjects are provider-ready literals. Never rely on a lead variable
+    // to render a mandatory subject line. Instantly owns delivery sequencing;
+    // the configured four-day delay is above the application hard minimum.
+    sequences: [{ steps: [{ type: "email", delay: 0, delay_unit: "days", variants: [{ subject: direct ? "Less time preparing grant reports" : "One client grant report, free", body: initialBody, v_disabled: false }] }, { type: "email", delay: 4, delay_unit: "days", variants: [{ subject: direct ? "A simpler way to prep funder reports" : "A simpler way to prep client grant reports", body: "<div>Hi {{firstName}},</div><div><br /></div><div>Just following up in case this is useful. You can try one real award for free here: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: false }] }, { type: "email", delay: 7, delay_unit: "days", variants: [{ subject: direct ? "Worth trying on one award?" : "Worth trying with one client award?", body: "<div>Hi {{firstName}},</div><div><br /></div><div>One last note: GrantDeskHQ is designed to reduce the repetitive first-pass work of assembling a grant report. If useful, your first award is free: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: false }] }] }]
   };
 }
 
@@ -763,7 +808,7 @@ async function reconcileInstantlyPolling() {
   // membership. This repairs interrupted/stale handoffs without ever clearing
   // actual SENT, bounced, or unsubscribed history.
   let stalePreSendRecords = 0;
-  if (leads && !Boolean((leads as { truncated?: boolean }).truncated)) {
+  if (leads && !(leads as { truncated?: boolean }).truncated) {
     const providerLeadIds = new Set(leadItems.map((lead) => String(lead.id || "")).filter(Boolean));
     for (const record of records) {
       if (!record.instantlyLeadId || providerLeadIds.has(record.instantlyLeadId) || !["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus)) continue;

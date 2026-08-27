@@ -18,6 +18,7 @@ import type { AuthenticatedUser } from "./auth.ts";
 import { BillingError, normalizeAttribution, type Attribution, type BillingEventSnapshot } from "./billing.ts";
 import { subscriptionIsEntitled } from "../src/content/pricing.ts";
 import type { InstantlyIntegrationRecord, InstantlyWebhookEvent } from "./instantly.ts";
+import type { HandoffReservation, HandoffStatus } from "./instantlyHandoff.ts";
 import { analyzeSupportingEvidence, applyEvidenceMatches, buildEvidenceTargets, normalizeSupportingEvidenceFiles } from "./evidenceReconciliation.ts";
 import { applyDeterministicAccuracyChecks } from "./accuracy.ts";
 import { normalizeCompilationSources } from "./sourceNormalization.ts";
@@ -1160,6 +1161,68 @@ export async function saveInstantlyRecord(record: InstantlyIntegrationRecord) {
   const accessToken = await gcpToken();
   await writeDocument(accessToken, `gtm/instantly/records/${safeDocumentId(record.id)}`, { recordJson: JSON.stringify(record), updatedAt: record.updatedAt });
   return record;
+}
+
+export interface InstantlyHandoffRecord extends HandoffReservation {
+  source: string;
+  handoffStartedAt: string;
+  lastError: string;
+  attemptCount: number;
+}
+
+function handoffDocumentId(normalizedEmail: string) {
+  return `handoff_${createHash("sha256").update(normalizedEmail).digest("hex")}`;
+}
+
+function handoffFromFields(fields: Record<string, unknown>): InstantlyHandoffRecord {
+  return {
+    idempotencyKey: String(fields.idempotencyKey || ""), normalizedEmail: String(fields.normalizedEmail || ""), campaignId: String(fields.campaignId || ""),
+    handoffStatus: (fields.handoffStatus === "HANDED_OFF" || fields.handoffStatus === "FAILED" ? fields.handoffStatus : "HANDOFF_STARTED") as HandoffStatus,
+    externalLeadId: String(fields.externalLeadId || ""), handedOffAt: String(fields.handedOffAt || ""), source: String(fields.source || ""),
+    handoffStartedAt: String(fields.handoffStartedAt || ""), lastError: String(fields.lastError || ""), attemptCount: Number(fields.attemptCount || 0)
+  };
+}
+
+/** A contact-scoped deterministic Firestore document is the final concurrency
+ * boundary. It serializes all campaigns for one address and therefore enforces
+ * both exact campaign idempotency and the cross-campaign 30-day cooldown. */
+export async function reserveInstantlyHandoff(input: { idempotencyKey: string; normalizedEmail: string; campaignId: string; source: string }) {
+  const accessToken = await gcpToken();
+  const path = `gtm/instantly/handoffs/records/${handoffDocumentId(input.normalizedEmail)}`;
+  const now = new Date().toISOString();
+  const initial: InstantlyHandoffRecord = { ...input, handoffStatus: "HANDOFF_STARTED", externalLeadId: "", handedOffAt: "", handoffStartedAt: now, lastError: "", attemptCount: 1 };
+  if (await writeDocumentIfAbsent(accessToken, path, { ...initial })) return { acquired: true, record: initial };
+  const response = await authorizedFetch(`${firestoreBase}/${path}`, accessToken);
+  if (!response.ok) throw new Error(`Instantly handoff reservation could not be loaded (${response.status}).`);
+  const existing = handoffFromFields(decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}));
+  const referenceAt = existing.handedOffAt || existing.handoffStartedAt;
+  const withinCooldown = Boolean(referenceAt) && Date.now() - new Date(referenceAt).getTime() < 30 * 24 * 60 * 60 * 1_000;
+  if (existing.campaignId !== input.campaignId && withinCooldown) return { acquired: false, record: existing, reason: "CONTACT_COOLDOWN_30D" as const };
+  if (existing.campaignId === input.campaignId) return { acquired: false, record: existing, reason: existing.handoffStatus === "HANDED_OFF" ? "ALREADY_HANDED_OFF" as const : "EXISTING_RESERVATION" as const };
+  // An expired record may be reused only after the cooldown; preserve its audit
+  // key in the document history field and atomically replace the single guard.
+  await writeDocument(accessToken, path, { ...initial, priorIdempotencyKey: existing.idempotencyKey, priorCampaignId: existing.campaignId, priorHandoffStatus: existing.handoffStatus });
+  return { acquired: true, record: initial };
+}
+
+export async function completeInstantlyHandoff(idempotencyKey: string, normalizedEmail: string, externalLeadId: string) {
+  const accessToken = await gcpToken();
+  const path = `gtm/instantly/handoffs/records/${handoffDocumentId(normalizedEmail)}`;
+  const response = await authorizedFetch(`${firestoreBase}/${path}`, accessToken);
+  if (!response.ok) throw new Error(`Instantly handoff reservation could not be loaded (${response.status}).`);
+  const current = handoffFromFields(decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}));
+  if (current.idempotencyKey !== idempotencyKey) throw new Error("Instantly handoff reservation key mismatch.");
+  await writeDocument(accessToken, path, { ...current, handoffStatus: "HANDED_OFF", externalLeadId, handedOffAt: new Date().toISOString(), lastError: "", attemptCount: current.attemptCount + 1 });
+}
+
+export async function failInstantlyHandoff(idempotencyKey: string, normalizedEmail: string, message: string) {
+  const accessToken = await gcpToken();
+  const path = `gtm/instantly/handoffs/records/${handoffDocumentId(normalizedEmail)}`;
+  const response = await authorizedFetch(`${firestoreBase}/${path}`, accessToken);
+  if (!response.ok) throw new Error(`Instantly handoff reservation could not be loaded (${response.status}).`);
+  const current = handoffFromFields(decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}));
+  if (current.idempotencyKey !== idempotencyKey) throw new Error("Instantly handoff reservation key mismatch.");
+  await writeDocument(accessToken, path, { ...current, handoffStatus: "FAILED", lastError: message.slice(0, 300), attemptCount: current.attemptCount + 1 });
 }
 
 export async function readInstantlyRecords(limit = 200): Promise<InstantlyIntegrationRecord[]> {

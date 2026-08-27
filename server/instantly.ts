@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { CanonicalGtmRecord } from "../src/lib/gtmCanonical.ts";
 import { initialOutreachEligibility, type OutreachRecord } from "../src/lib/gtmOutreach.ts";
 
@@ -11,6 +11,8 @@ export type InstantlyEventSyncMode = "POLLING" | "WEBHOOKS";
 
 export interface InstantlyConfig {
   integrationEnabled: boolean;
+  /** Master safety switch, enforced at the final provider-write boundary. */
+  outboundEmailEnabled: boolean;
   outboundEnabled: boolean;
   autoHandoffEnabled: boolean;
   directEnabled: boolean;
@@ -90,6 +92,7 @@ export function instantlyConfig(env: NodeJS.ProcessEnv = process.env): Instantly
   const requestedMode = String(env.INSTANTLY_EVENT_SYNC_MODE || "polling").trim().toUpperCase();
   return {
     integrationEnabled: enabled("INSTANTLY_INTEGRATION_ENABLED"),
+    outboundEmailEnabled: enabled("OUTBOUND_EMAIL_ENABLED"),
     outboundEnabled: enabled("INSTANTLY_OUTBOUND_ENABLED"),
     autoHandoffEnabled: enabled("INSTANTLY_AUTO_HANDOFF_ENABLED"),
     directEnabled: enabled("DIRECT_INSTANTLY_ENABLED"),
@@ -161,6 +164,7 @@ export function controlledCampaignSafetySummary(campaign: Record<string, unknown
 export function instantlyHealth(config = instantlyConfig()) {
   return {
     integrationEnabled: config.integrationEnabled,
+    outboundEmailEnabled: config.outboundEmailEnabled,
     apiKeyConfigured: config.apiKeyConfigured,
     webhookSecretConfigured: config.webhookSecretConfigured,
     outboundEnabled: config.outboundEnabled,
@@ -176,6 +180,35 @@ export function instantlyHealth(config = instantlyConfig()) {
     },
     status: config.apiKeyConfigured && config.integrationEnabled ? "CONFIGURED" : "WAITING_FOR_API_KEY"
   };
+}
+
+export function normalizeOutboundEmail(value: string) { return value.trim().toLowerCase(); }
+
+export function instantlyHandoffIdempotencyKey(campaignId: string, email: string) {
+  return createHash("sha256").update(`${campaignId.trim()}|${normalizeOutboundEmail(email)}`).digest("hex");
+}
+
+const invalidRenderedValue = /\{\{[^}]+\}\}|\b(?:null|undefined)\b/i;
+
+export function validateInstantlyOutboundInput(input: { email: string; campaignId: string; subject: string; body: string; sequenceId: string }) {
+  const email = normalizeOutboundEmail(input.email);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("A valid normalized recipient email is required.");
+  for (const [field, value] of Object.entries({ campaignId: input.campaignId, sequenceId: input.sequenceId, subject: input.subject, body: input.body })) {
+    const rendered = String(value || "").trim();
+    if (!rendered || invalidRenderedValue.test(rendered)) throw new Error(`Outbound ${field} is missing or contains an unresolved placeholder.`);
+  }
+  return { ...input, email, subject: input.subject.trim(), body: input.body.trim(), sequenceId: input.sequenceId.trim(), campaignId: input.campaignId.trim() };
+}
+
+export function assertInstantlyDeliveryEnabled(config: InstantlyConfig, segment: InstantlySegment) {
+  if (!config.outboundEmailEnabled) throw new Error("Outbound delivery is disabled by OUTBOUND_EMAIL_ENABLED.");
+  if (!config.outboundEnabled || !config.autoHandoffEnabled) throw new Error("Instantly outbound handoff is disabled.");
+  if (segment === "DIRECT" && !config.directEnabled) throw new Error("Direct Instantly delivery is disabled.");
+  if (segment === "PARTNER" && !config.partnerEnabled) throw new Error("Partner Instantly delivery is disabled.");
+}
+
+export function assertInstantlyDeliveryOwner(owner: string) {
+  if (owner !== "INSTANTLY") throw new Error("Prospect outreach delivery is restricted to Instantly.");
 }
 
 export function instantlyPreviewRecord(record: CanonicalGtmRecord, now = new Date().toISOString()): InstantlyIntegrationRecord {
@@ -236,6 +269,9 @@ export class InstantlyClient {
   getAccount(email: string) { return this.api<Record<string, unknown>>(`/accounts/${encodeURIComponent(email)}`); }
   listCampaignAnalytics() { return this.api<unknown>("/campaigns/analytics"); }
   listRecentEmails() { return this.api<unknown>("/emails?limit=10&preview_only=true"); }
+  listRecentEmailEvidence(limit = 100) { return this.api<unknown>(`/emails?limit=${Math.min(Math.max(limit, 1), 100)}`); }
+  moveLeadsToList(ids: string[], campaignId: string, listId: string) { return this.api<Record<string, unknown>>("/leads/move", { method: "POST", body: JSON.stringify({ ids, campaign: campaignId, to_list_id: listId, check_duplicates: true }) }); }
+  getBackgroundJob(id: string) { return this.api<Record<string, unknown>>(`/background-jobs/${encodeURIComponent(id)}`); }
   listWebhooks() { return this.api<unknown>("/webhooks?limit=100"); }
   listWebhookEventTypes() { return this.api<unknown>("/webhooks/event-types"); }
   async listRecentLeads(maximum = 500) {
@@ -254,14 +290,23 @@ export class InstantlyClient {
 
   /** Staging is list-only. Campaign assignment remains impossible unless all live gates are true. */
   async createLeadInList(input: { email: string; firstName: string; lastName: string; companyName: string; listId: string; customVariables: Record<string, string> }) {
+    if (!this.config.outboundEmailEnabled) throw new Error("Outbound lead handoff is disabled by OUTBOUND_EMAIL_ENABLED.");
     if (this.config.outboundEnabled) throw new Error("List staging refuses to run while outbound is enabled; campaign movement requires explicit approval.");
     return this.api<unknown>("/leads", { method: "POST", body: JSON.stringify({ email: input.email, first_name: input.firstName, last_name: input.lastName, company_name: input.companyName, list_id: input.listId, custom_variables: input.customVariables, skip_if_in_workspace: true, skip_if_in_list: true }) });
   }
   /** Used only by the explicit, exact controlled batch handler. It never runs
    * from scheduler replenishment or ordinary staging. */
-  async createLeadInControlledCampaign(input: { email: string; firstName: string; lastName: string; companyName: string; jobTitle: string; campaignId: string; personalization: string; customVariables: Record<string, string> }, batchId: string) {
+  async createLeadInControlledCampaign(input: { email: string; firstName: string; lastName: string; companyName: string; jobTitle: string; campaignId: string; personalization: string; subject: string; sequenceId: string; segment: InstantlySegment; customVariables: Record<string, string> }, batchId: string) {
     if (!this.config.controlledBatchEnabled || !this.config.controlledBatchId || this.config.controlledBatchId !== batchId) throw new Error("Controlled outbound batch is not enabled for this exact batch ID.");
-    return this.api<{ id?: string; lead_id?: string }>("/leads", { method: "POST", body: JSON.stringify({ email: input.email, first_name: input.firstName, last_name: input.lastName, company_name: input.companyName, job_title: input.jobTitle, campaign: input.campaignId, personalization: input.personalization, custom_variables: input.customVariables, skip_if_in_workspace: true, skip_if_in_campaign: true }) });
+    assertInstantlyDeliveryOwner("INSTANTLY");
+    assertInstantlyDeliveryEnabled(this.config, input.segment);
+    const validated = validateInstantlyOutboundInput({ email: input.email, campaignId: input.campaignId, subject: input.subject, body: input.personalization, sequenceId: input.sequenceId });
+    return this.api<{ id?: string; lead_id?: string }>("/leads", { method: "POST", body: JSON.stringify({ email: validated.email, first_name: input.firstName, last_name: input.lastName, company_name: input.companyName, job_title: input.jobTitle, campaign: validated.campaignId, personalization: validated.body, custom_variables: { ...input.customVariables, subjectLine: validated.subject }, skip_if_in_workspace: true, skip_if_in_campaign: true }) });
+  }
+  async findLeadByEmail(email: string, campaignId = "") {
+    const normalized = normalizeOutboundEmail(email);
+    const { items } = await this.listRecentLeads(500);
+    return items.find((item) => normalizeOutboundEmail(String(item.email || "")) === normalized && (!campaignId || instantlyLeadCampaignId(item) === campaignId)) || null;
   }
   async activateControlledCampaign(campaignId: string, batchId: string) {
     if (!this.config.controlledBatchEnabled || !this.config.controlledBatchId || this.config.controlledBatchId !== batchId) throw new Error("Controlled outbound batch is not enabled for this exact batch ID.");
