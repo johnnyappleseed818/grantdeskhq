@@ -1,6 +1,6 @@
 {
   "incident": "outbound-duplicate-2026-08-27",
-  "updatedAt": "2026-08-27T20:02:30Z",
+  "updatedAt": "2026-08-27T20:23:20Z",
   "production": {
     "knownGoodRevision": "grantdeskhq-prototype-00387-ker",
     "traffic": "100%",
@@ -16,16 +16,16 @@
       ]
     },
     "phase1": {
-      "status": "PARTIAL",
+      "status": "BLOCKED",
       "evidence": [
         "POST /api/v2/leads/move with a nonexistent destination returned 403 request ID 8536881377151467713: Access Denied: No access to this list.",
         "POST /api/v2/leads/move with actual mapped campaign, actual incident-hold list, and no lead IDs returned background job 6a9091b11eafe1c72b3de90e, terminal success.",
         "Current provider reconciliation found 16 duplicate-message lead IDs; 9 remain in mapped campaigns and 7 are absent from current mapped campaign membership."
       ],
-      "next": "Reconcile every duplicate lead against its actual source campaign/list before provider cleanup; do not move an ID using a stale campaign filter."
+      "next": "Provider V2 block-list read is authorized, but create returned HTTP 401 request 6966065546653089158. Add only block_list_entries:create to the existing V2 key before any delivery resumption."
     },
     "phase2": { "status": "IN_PROGRESS", "next": "Guarded candidate deployed at zero traffic; runtime authentication and production-data dry run remain required." },
-    "phase3": { "status": "IN_PROGRESS", "next": "Use the membership-reconciled remediation route only after candidate validation; provider cleanup remains paused." },
+    "phase3": { "status": "PARTIAL", "next": "All 16 duplicate recipients are internally suppressed. Seven provider leads were moved by terminal-success background jobs; nine leads have no current campaign membership and require provider block-list create scope for durable provider-side suppression." },
     "phase4": { "status": "NOT_STARTED" },
     "phase5": { "status": "NOT_STARTED" },
     "phase6": { "status": "NOT_STARTED" },
@@ -37,7 +37,7 @@
     "campaignsPaused": true,
     "dispatcherEnabled": false,
     "directSendEnabled": false,
-    "candidateRevision": "grantdeskhq-prototype-00396-kix",
-    "candidateImageDigest": "sha256:ee2c7b26d41a65fc77bb3759d4675ee656a24ae6d0539ed50b7278ea25d2c6a4"
+    "candidateRevision": "grantdeskhq-prototype-00399-mol",
+    "candidateImageDigest": "sha256:317d541716b390007bd64eac549224bac75903020141fd58cb2191271ca8ec7a"
   }
 }

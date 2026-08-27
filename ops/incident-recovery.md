@@ -15,3 +15,10 @@
 - Cloud Build `f80ebcd6-6bac-4e24-931a-19df1d2862af` succeeded with immutable digest `sha256:ee2c7b26d41a65fc77bb3759d4675ee656a24ae6d0539ed50b7278ea25d2c6a4`.
 - Zero-traffic candidate `grantdeskhq-prototype-00396-kix` is Ready; its tagged health endpoint returned HTTP 200. It is not promoted.
 - The cleanup route now resolves current lead membership per lead and waits for each documented Instantly background job terminal result. No cleanup or delivery has run on the candidate.
+
+## 20:06–20:23 UTC: incident quarantine and provider permission boundary
+
+- Authenticated candidate remediation derived 16 duplicate recipients from the bounded provider evidence window and wrote internal `duplicate_contact` suppressions for all 16.
+- Seven membership-reconciled provider moves reached terminal background-job success. Nine lead IDs have no current campaign membership and were deliberately left unresolved rather than moved using stale historical campaign evidence.
+- The V2 key successfully read the documented provider block-list endpoint, then the documented create operation returned HTTP 401 with request ID `6966065546653089158`. No provider block-list entry was created by that failed request.
+- Campaigns and reconciliation schedulers remain paused. Candidate `grantdeskhq-prototype-00399-mol` is zero traffic; known-good production `grantdeskhq-prototype-00387-ker` remains at 100%.
