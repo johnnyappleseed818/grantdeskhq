@@ -392,6 +392,7 @@ export function stagingEligibility(record: CanonicalGtmRecord, outreach: Outreac
   if (record.segment === "PARTNER" && !config.partnerEnabled) return { eligible: false, reason: "PARTNER_DISABLED" } as const;
   if (record.state !== "READY_TO_SEND") return { eligible: false, reason: "NOT_READY" } as const;
   if (!record.email || !record.contact) return { eligible: false, reason: "NO_CONTACT_ROUTE" } as const;
+  if (record.verificationStatus !== "VERIFIED") return { eligible: false, reason: "EMAIL_NOT_PROVIDER_VERIFIED" } as const;
   if (record.priorContact || record.suppressionStatus !== "CLEAR") return { eligible: false, reason: "SUPPRESSED_OR_PRIOR_CONTACT" } as const;
   const gate = initialOutreachEligibility(outreach, { organization: record.organization, email: record.email, domain: record.organizationDomain, suppressionStatus: record.suppressionStatus === "CLEAR" ? "CLEAR" : "BLOCKED" });
   return gate === "ELIGIBLE_FOR_INITIAL_OUTREACH" ? { eligible: true, reason: "ELIGIBLE" } as const : { eligible: false, reason: gate } as const;

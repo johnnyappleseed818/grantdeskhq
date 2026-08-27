@@ -1165,7 +1165,11 @@ export async function saveInstantlyRecord(record: InstantlyIntegrationRecord) {
 
 export interface InstantlyHandoffRecord extends HandoffReservation {
   source: string;
+  providerCampaignId: string;
+  providerMessageId: string;
   handoffStartedAt: string;
+  leaseOwner: string;
+  leaseExpiry: string;
   lastError: string;
   attemptCount: number;
 }
@@ -1179,7 +1183,8 @@ function handoffFromFields(fields: Record<string, unknown>): InstantlyHandoffRec
     idempotencyKey: String(fields.idempotencyKey || ""), normalizedEmail: String(fields.normalizedEmail || ""), campaignId: String(fields.campaignId || ""),
     handoffStatus: (fields.handoffStatus === "HANDED_OFF" || fields.handoffStatus === "FAILED" ? fields.handoffStatus : "HANDOFF_STARTED") as HandoffStatus,
     externalLeadId: String(fields.externalLeadId || ""), handedOffAt: String(fields.handedOffAt || ""), source: String(fields.source || ""),
-    handoffStartedAt: String(fields.handoffStartedAt || ""), lastError: String(fields.lastError || ""), attemptCount: Number(fields.attemptCount || 0)
+    providerCampaignId: String(fields.providerCampaignId || ""), providerMessageId: String(fields.providerMessageId || ""),
+    handoffStartedAt: String(fields.handoffStartedAt || ""), leaseOwner: String(fields.leaseOwner || ""), leaseExpiry: String(fields.leaseExpiry || ""), lastError: String(fields.lastError || ""), attemptCount: Number(fields.attemptCount || 0)
   };
 }
 
@@ -1190,7 +1195,7 @@ export async function reserveInstantlyHandoff(input: { idempotencyKey: string; n
   const accessToken = await gcpToken();
   const path = `gtm/instantly/handoffs/records/${handoffDocumentId(input.normalizedEmail)}`;
   const now = new Date().toISOString();
-  const initial: InstantlyHandoffRecord = { ...input, handoffStatus: "HANDOFF_STARTED", externalLeadId: "", handedOffAt: "", handoffStartedAt: now, lastError: "", attemptCount: 1 };
+  const initial: InstantlyHandoffRecord = { ...input, handoffStatus: "HANDOFF_STARTED", externalLeadId: "", handedOffAt: "", providerCampaignId: input.campaignId, providerMessageId: "", handoffStartedAt: now, leaseOwner: randomUUID(), leaseExpiry: new Date(Date.now() + 10 * 60 * 1_000).toISOString(), lastError: "", attemptCount: 1 };
   if (await writeDocumentIfAbsent(accessToken, path, { ...initial })) return { acquired: true, record: initial };
   const response = await authorizedFetch(`${firestoreBase}/${path}`, accessToken);
   if (!response.ok) throw new Error(`Instantly handoff reservation could not be loaded (${response.status}).`);
@@ -1212,7 +1217,7 @@ export async function completeInstantlyHandoff(idempotencyKey: string, normalize
   if (!response.ok) throw new Error(`Instantly handoff reservation could not be loaded (${response.status}).`);
   const current = handoffFromFields(decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}));
   if (current.idempotencyKey !== idempotencyKey) throw new Error("Instantly handoff reservation key mismatch.");
-  await writeDocument(accessToken, path, { ...current, handoffStatus: "HANDED_OFF", externalLeadId, handedOffAt: new Date().toISOString(), lastError: "", attemptCount: current.attemptCount + 1 });
+  await writeDocument(accessToken, path, { ...current, handoffStatus: "HANDED_OFF", externalLeadId, providerCampaignId: current.campaignId, handedOffAt: new Date().toISOString(), leaseExpiry: "", lastError: "", attemptCount: current.attemptCount + 1 });
 }
 
 export async function failInstantlyHandoff(idempotencyKey: string, normalizedEmail: string, message: string) {
@@ -1223,6 +1228,30 @@ export async function failInstantlyHandoff(idempotencyKey: string, normalizedEma
   const current = handoffFromFields(decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}));
   if (current.idempotencyKey !== idempotencyKey) throw new Error("Instantly handoff reservation key mismatch.");
   await writeDocument(accessToken, path, { ...current, handoffStatus: "FAILED", lastError: message.slice(0, 300), attemptCount: current.attemptCount + 1 });
+}
+
+export interface OutboundCircuitBreakerState {
+  tripped: boolean;
+  reason: string;
+  detail: string;
+  trippedAt: string;
+}
+
+const outboundCircuitPath = "gtm/instantly/safety/circuit-breaker";
+
+export async function assertOutboundCircuitClosed() {
+  const accessToken = await gcpToken();
+  const response = await authorizedFetch(`${firestoreBase}/${outboundCircuitPath}`, accessToken);
+  if (response.status === 404) return;
+  if (!response.ok) throw new Error(`Outbound circuit breaker could not be read (${response.status}).`);
+  const fields = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
+  if (fields.tripped === true || String(fields.tripped) === "true") throw new Error("Outbound circuit breaker is tripped.");
+}
+
+export async function tripOutboundCircuitBreaker(reason: string, detail: string) {
+  const accessToken = await gcpToken();
+  const state: OutboundCircuitBreakerState = { tripped: true, reason: reason.slice(0, 120), detail: detail.slice(0, 300), trippedAt: new Date().toISOString() };
+  await writeDocument(accessToken, outboundCircuitPath, { ...state });
 }
 
 export async function readInstantlyRecords(limit = 200): Promise<InstantlyIntegrationRecord[]> {

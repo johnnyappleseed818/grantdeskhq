@@ -15,6 +15,8 @@ const csvPath = path.resolve(
 );
 const shouldSend = process.argv.includes("--send");
 
+if (shouldSend) throw new Error("Direct prospect email is disabled. Instantly is the sole prospect-delivery provider.");
+
 const rows = parseCsv(await fs.readFile(csvPath, "utf8"));
 const recipients = rows.filter(isEligibleRecipient);
 

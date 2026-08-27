@@ -1,0 +1,41 @@
+{
+  "incident": "outbound-duplicate-2026-08-27",
+  "updatedAt": "2026-08-27T19:36:18Z",
+  "production": {
+    "knownGoodRevision": "grantdeskhq-prototype-00387-ker",
+    "traffic": "100%",
+    "candidateRevision": "grantdeskhq-prototype-00395-san",
+    "candidateTraffic": "0%"
+  },
+  "phases": {
+    "phase0": {
+      "status": "PASS",
+      "evidence": [
+        "Git remote backup: b5fa1fd06bb11ef5c162ff3698935f7dbcf22896",
+        "Remote checkpoint: recovery/pre-relaunch-20260827 at b5fa1fd06bb11ef5c162ff3698935f7dbcf22896"
+      ]
+    },
+    "phase1": {
+      "status": "PARTIAL",
+      "evidence": [
+        "POST /api/v2/leads/move with a nonexistent destination returned 403 request ID 8536881377151467713: Access Denied: No access to this list.",
+        "POST /api/v2/leads/move with actual mapped campaign, actual incident-hold list, and no lead IDs returned background job 6a9091b11eafe1c72b3de90e, terminal success.",
+        "Current provider reconciliation found 16 duplicate-message lead IDs; 9 remain in mapped campaigns and 7 are absent from current mapped campaign membership."
+      ],
+      "next": "Reconcile every duplicate lead against its actual source campaign/list before provider cleanup; do not move an ID using a stale campaign filter."
+    },
+    "phase2": { "status": "IN_PROGRESS", "next": "Complete non-bypassable guardrails and tests before candidate deployment." },
+    "phase3": { "status": "BLOCKED_BY_PHASE2", "next": "Suppress internally and use only membership-reconciled provider moves/block-list operations." },
+    "phase4": { "status": "NOT_STARTED" },
+    "phase5": { "status": "NOT_STARTED" },
+    "phase6": { "status": "NOT_STARTED" },
+    "phase7": { "status": "NOT_STARTED" },
+    "phase8": { "status": "NOT_STARTED" },
+    "phase9": { "status": "NOT_STARTED" }
+  },
+  "outbound": {
+    "campaignsPaused": true,
+    "dispatcherEnabled": false,
+    "directSendEnabled": false
+  }
+}

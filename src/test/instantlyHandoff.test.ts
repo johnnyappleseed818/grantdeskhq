@@ -52,6 +52,23 @@ describe("final Instantly handoff safety", () => {
     expect(complete).toHaveBeenCalledWith(expect.any(String), "casey@example.org", "provider_lead");
   });
 
+  it("fails closed and trips the circuit when an ambiguous retry has no provider lead", async () => {
+    const failed: HandoffReservation = { idempotencyKey: "x", normalizedEmail: "casey@example.org", campaignId: "campaign_a", handoffStatus: "FAILED", externalLeadId: "", handedOffAt: "" };
+    const createLead = vi.fn();
+    const tripCircuitBreaker = vi.fn().mockResolvedValue(undefined);
+    await expect(executeFinalInstantlyHandoff(valid, { reserve: vi.fn().mockResolvedValue({ acquired: false, record: failed }), findExistingLead: vi.fn().mockResolvedValue(null), createLead, complete: vi.fn(), fail: vi.fn(), tripCircuitBreaker })).rejects.toThrow("ambiguous");
+    expect(createLead).not.toHaveBeenCalled();
+    expect(tripCircuitBreaker).toHaveBeenCalledWith("AMBIGUOUS_PROVIDER_OUTCOME", expect.any(String));
+  });
+
+  it("trips the circuit before a provider write when rendered content is unsafe", async () => {
+    const createLead = vi.fn();
+    const tripCircuitBreaker = vi.fn().mockResolvedValue(undefined);
+    await expect(executeFinalInstantlyHandoff({ ...valid, subject: "{{missing}}" }, { reserve: vi.fn(), findExistingLead: vi.fn(), createLead, complete: vi.fn(), fail: vi.fn(), tripCircuitBreaker })).rejects.toThrow("subject");
+    expect(createLead).not.toHaveBeenCalled();
+    expect(tripCircuitBreaker).toHaveBeenCalledWith("INVALID_OUTBOUND_CONTENT", expect.any(String));
+  });
+
   it("does not mark a handoff failed after provider success followed by local completion failure", async () => {
     const fail = vi.fn();
     await expect(executeFinalInstantlyHandoff(valid, { reserve: vi.fn().mockResolvedValue({ acquired: true, record: { idempotencyKey: "x", normalizedEmail: "casey@example.org", campaignId: "campaign_a", handoffStatus: "HANDOFF_STARTED", externalLeadId: "", handedOffAt: "" } }), findExistingLead: vi.fn(), createLead: vi.fn().mockResolvedValue({ id: "provider_lead" }), complete: vi.fn().mockRejectedValue(new Error("Firestore timeout")), fail })).rejects.toThrow("Firestore timeout");

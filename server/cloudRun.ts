@@ -14,7 +14,7 @@ import { validateFeedbackInput, type FeedbackSubmission } from "../src/lib/feedb
 import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
 import { confirmedHumanOutreach, summarizeOutreach } from "../src/lib/gtmOutreach.ts";
 import { reconcileGtmOutreachLedger, updateFeedbackReview } from "./persistence.ts";
-import { completeInstantlyHandoff, failInstantlyHandoff, reserveInstantlyHandoff } from "./persistence.ts";
+import { assertOutboundCircuitClosed, completeInstantlyHandoff, failInstantlyHandoff, reserveInstantlyHandoff, tripOutboundCircuitBreaker } from "./persistence.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { runDailySocialScan } from "./gtmDailyScanner.ts";
 import { runPartnerPublicDiscovery } from "./gtmPartnerDiscovery.ts";
@@ -499,6 +499,11 @@ async function handleGtmInstantly(request: IncomingMessage, response: ServerResp
 async function handleGtmInstantlyStage(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   requireGtmAdmin(await requireUser(request));
+  // List staging wrote directly to Instantly outside the durable campaign
+  // enrollment guard. It is intentionally disabled while Instantly is the
+  // sole prospect-delivery owner.
+  return json(response, 409, { error: "Direct list staging is disabled. Use the guarded Instantly enrollment dispatcher." });
+  /* c8 ignore start -- retained as historical reference during recovery. */
   const config = instantlyConfig();
   const model = await readCanonicalGtmModel();
   const outreach = await reconcileGtmOutreachLedger(confirmedHumanOutreach);
@@ -520,6 +525,7 @@ async function handleGtmInstantlyStage(request: IncomingMessage, response: Serve
     return persisted;
   }));
   return json(response, 200, { mode: "STAGED_PENDING_APPROVAL", staged: staged.length, records: staged });
+  /* c8 ignore stop */
 }
 
 /** Founder-authorized, exact-cohort route. It is scheduler-authenticated, capped
@@ -650,6 +656,8 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
       reserve: reserveInstantlyHandoff,
       complete: completeInstantlyHandoff,
       fail: failInstantlyHandoff,
+      assertCircuitClosed: assertOutboundCircuitClosed,
+      tripCircuitBreaker: tripOutboundCircuitBreaker,
       findExistingLead: (email, campaign) => client.findLeadByEmail(email, campaign),
       createLead: () => client.createLeadInControlledCampaign({ email: record.email || "", firstName, lastName: rest.join(" "), companyName: record.organization, jobTitle: record.title || "", campaignId, personalization: body, subject, sequenceId: "initial-v1", segment: record.segment, customVariables: { batch_id: batchId, canonical_organization_id: record.organizationId, canonical_contact_id: `${record.organizationId}:${record.email}`, segment: record.segment, source: record.sourceUrl, why_now_or_fit: record.whyNow, openingLine: controlledOpening(record), message_version: "controlled-benefit-led-v2" } }, batchId)
     });
@@ -747,15 +755,21 @@ function controlledCampaignPatch(segment: "DIRECT" | "PARTNER", maximum: number,
     open_tracking: false, link_tracking: false, daily_limit: maximum, daily_max_leads: maximum,
     // All subjects are provider-ready literals. Never rely on a lead variable
     // to render a mandatory subject line. Instantly owns delivery sequencing;
-    // the configured four-day delay is above the application hard minimum.
-    sequences: [{ steps: [{ type: "email", delay: 0, delay_unit: "days", variants: [{ subject: direct ? "Less time preparing grant reports" : "One client grant report, free", body: initialBody, v_disabled: false }] }, { type: "email", delay: 4, delay_unit: "days", variants: [{ subject: direct ? "A simpler way to prep funder reports" : "A simpler way to prep client grant reports", body: "<div>Hi {{firstName}},</div><div><br /></div><div>Just following up in case this is useful. You can try one real award for free here: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: false }] }, { type: "email", delay: 7, delay_unit: "days", variants: [{ subject: direct ? "Worth trying on one award?" : "Worth trying with one client award?", body: "<div>Hi {{firstName}},</div><div><br /></div><div>One last note: GrantDeskHQ is designed to reduce the repetitive first-pass work of assembling a grant report. If useful, your first award is free: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: false }] }] }]
+    // Five calendar days on a business-hour schedule is never shorter than the
+    // three-business-day minimum for the first follow-up.
+    sequences: [{ steps: [{ type: "email", delay: 0, delay_unit: "days", variants: [{ subject: direct ? "Less time preparing grant reports" : "One client grant report, free", body: initialBody, v_disabled: false }] }, { type: "email", delay: 5, delay_unit: "days", variants: [{ subject: direct ? "A simpler way to prep funder reports" : "A simpler way to prep client grant reports", body: "<div>Hi {{firstName}},</div><div><br /></div><div>Just following up in case this is useful. You can try one real award for free here: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: false }] }, { type: "email", delay: 7, delay_unit: "days", variants: [{ subject: direct ? "Worth trying on one award?" : "Worth trying with one client award?", body: "<div>Hi {{firstName}},</div><div><br /></div><div>One last note: GrantDeskHQ is designed to reduce the repetitive first-pass work of assembling a grant report. If useful, your first award is free: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: false }] }] }]
   };
 }
 
 function controlledCampaignReady(campaign: Record<string, unknown>, sender: string, allowedStatuses = [0, 1]) {
   const summary = controlledCampaignSafetySummary(campaign);
   const first = summary.firstEmailVariants.find((variant) => !variant.disabled);
-  return allowedStatuses.includes(Number(summary.status)) && campaignUsesOnlySender(campaign, sender) && summary.stopOnReply && summary.bounceProtectionEnabled && !summary.openTracking && !summary.linkTracking && Number(summary.dailyMaxLeads) === 5 && Boolean(first?.body.includes("https://grantdeskhq.com/assessment") && first.body.toLowerCase().includes("free"));
+  const sequence = Array.isArray(campaign.sequences) ? campaign.sequences[0] : null;
+  const steps = sequence && typeof sequence === "object" && Array.isArray((sequence as Record<string, unknown>).steps) ? (sequence as Record<string, unknown>).steps as Array<Record<string, unknown>> : [];
+  const emailSteps = steps.filter((step) => step.type === "email");
+  const contentValid = emailSteps.length >= 3 && emailSteps.every((step) => Array.isArray(step.variants) && (step.variants as Array<Record<string, unknown>>).some((variant) => String(variant.subject || "").trim() && String(variant.body || "").trim()));
+  const firstFollowUpDelay = Number(emailSteps[1]?.delay);
+  return allowedStatuses.includes(Number(summary.status)) && campaignUsesOnlySender(campaign, sender) && summary.stopOnReply && summary.stopOnAutoReply && summary.bounceProtectionEnabled && !summary.openTracking && !summary.linkTracking && Number(summary.dailyMaxLeads) === 5 && contentValid && firstFollowUpDelay >= 5 && Boolean(first?.subject.trim() && first.body.includes("https://grantdeskhq.com/assessment") && first.body.toLowerCase().includes("free"));
 }
 
 function instantlyOutcomeType(type: string): GtmOutcomeType | null {

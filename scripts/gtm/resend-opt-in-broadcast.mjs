@@ -18,6 +18,8 @@ const eligibleRecipients = rows.filter(isEligibleOptIn);
 const createDraft = process.argv.includes("--create-draft");
 const sendNow = process.argv.includes("--send");
 
+if (sendNow) throw new Error("Direct prospect email is disabled. Instantly is the sole prospect-delivery provider.");
+
 console.log(`Loaded ${rows.length} row(s); ${eligibleRecipients.length} documented opt-in recipient(s).`);
 console.log(renderOptInEmailText({
   questionnaireUrl: process.env.QUESTIONNAIRE_URL ?? "{{QUESTIONNAIRE_URL}}",
