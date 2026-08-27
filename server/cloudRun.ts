@@ -692,12 +692,22 @@ async function handleInstantlyIncidentRemediate(request: IncomingMessage, respon
   const lists = instantlyItems(await client.listLeadLists()); const name = "GrantDeskHQ — Incident Hold 2026-08-27";
   const list = lists.find((item) => String(item.name || "") === name) || await client.createLeadList(name);
   const listId = String(list.id || ""); if (!listId) throw new Error("Incident hold list could not be resolved.");
-  const jobs = [] as string[];
-  for (const [campaign, items] of Object.entries(Object.groupBy(affected, (row) => row.campaign))) {
-    const ids = (items || []).map((row) => row.leadId).filter((id, index, all) => all.indexOf(id) === index);
-    if (ids.length) jobs.push(String((await client.moveLeadsToList(ids, campaign, listId)).id || ""));
+  const backgroundJobs: string[] = [];
+  const unresolvedLeadIds: string[] = [];
+  // Email evidence retains the campaign at send time, which may be stale once
+  // a lead has been moved or removed. Resolve membership from the provider for
+  // each individual lead before issuing a move; never replay old event data.
+  for (const leadId of [...new Set(affected.map((row) => row.leadId))]) {
+    const lead = await client.getLead(leadId);
+    const currentCampaign = instantlyLeadCampaignId(lead);
+    if (!currentCampaign) { unresolvedLeadIds.push(leadId); continue; }
+    const job = await client.moveLeadsToList([leadId], currentCampaign, listId);
+    const jobId = String(job.id || "").trim();
+    if (!jobId) throw new Error("Instantly did not return a background job ID for incident remediation.");
+    await client.waitForBackgroundJob(jobId);
+    backgroundJobs.push(jobId);
   }
-  return json(response, 200, { affectedRecipients: unique.length, affectedLeadEnrollments: new Set(affected.map((row) => row.leadId)).size, holdingListId: listId, backgroundJobs: jobs.filter(Boolean), campaignsRemainPaused: true });
+  return json(response, 200, { affectedRecipients: unique.length, affectedLeadEnrollments: new Set(affected.map((row) => row.leadId)).size, holdingListId: listId, backgroundJobs, unresolvedLeadIds, campaignsRemainPaused: true });
 }
 
 function controlledSubject(record: Awaited<ReturnType<typeof readCanonicalGtmModel>>["records"][number]) {

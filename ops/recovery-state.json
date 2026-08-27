@@ -1,6 +1,6 @@
 {
   "incident": "outbound-duplicate-2026-08-27",
-  "updatedAt": "2026-08-27T19:36:18Z",
+  "updatedAt": "2026-08-27T20:02:30Z",
   "production": {
     "knownGoodRevision": "grantdeskhq-prototype-00387-ker",
     "traffic": "100%",
@@ -24,8 +24,8 @@
       ],
       "next": "Reconcile every duplicate lead against its actual source campaign/list before provider cleanup; do not move an ID using a stale campaign filter."
     },
-    "phase2": { "status": "IN_PROGRESS", "next": "Complete non-bypassable guardrails and tests before candidate deployment." },
-    "phase3": { "status": "BLOCKED_BY_PHASE2", "next": "Suppress internally and use only membership-reconciled provider moves/block-list operations." },
+    "phase2": { "status": "IN_PROGRESS", "next": "Guarded candidate deployed at zero traffic; runtime authentication and production-data dry run remain required." },
+    "phase3": { "status": "IN_PROGRESS", "next": "Use the membership-reconciled remediation route only after candidate validation; provider cleanup remains paused." },
     "phase4": { "status": "NOT_STARTED" },
     "phase5": { "status": "NOT_STARTED" },
     "phase6": { "status": "NOT_STARTED" },
@@ -36,6 +36,8 @@
   "outbound": {
     "campaignsPaused": true,
     "dispatcherEnabled": false,
-    "directSendEnabled": false
+    "directSendEnabled": false,
+    "candidateRevision": "grantdeskhq-prototype-00396-kix",
+    "candidateImageDigest": "sha256:ee2c7b26d41a65fc77bb3759d4675ee656a24ae6d0539ed50b7278ea25d2c6a4"
   }
 }

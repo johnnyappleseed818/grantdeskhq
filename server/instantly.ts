@@ -244,17 +244,25 @@ export class InstantlyClient {
   private async api<T>(path: string, init: RequestInit = {}): Promise<T> {
     this.assertReadable();
     for (let attempt = 0; attempt < 2; attempt++) {
-      const response = await this.request(`${apiBase}${path}`, {
-        ...init,
-        headers: { "Authorization": `Bearer ${this.apiKey}`, "Content-Type": "application/json", ...init.headers }
-      });
+      let response: Response;
+      try {
+        response = await this.request(`${apiBase}${path}`, {
+          ...init,
+          signal: init.signal || AbortSignal.timeout(20_000),
+          headers: { "Authorization": `Bearer ${this.apiKey}`, "Content-Type": "application/json", ...init.headers }
+        });
+      } catch (error) {
+        if (attempt === 0) { await this.wait(500); continue; }
+        throw new Error(`Instantly API request timed out or failed for ${path}.`);
+      }
       if (response.ok) return response.json() as Promise<T>;
-      if (response.status === 429 && attempt === 0) {
+      if ([429, 500, 502, 503, 504].includes(response.status) && attempt === 0) {
         const retryAfter = Number(response.headers.get("retry-after"));
         await this.wait(Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1_000, 5_000) : 1_000);
         continue;
       }
-      throw new Error(`Instantly API request failed (${response.status}).`);
+      const requestId = String(response.headers.get("x-request-id") || "").trim();
+      throw new Error(`Instantly API request failed (${response.status})${requestId ? ` request ${requestId}` : ""}.`);
     }
     throw new Error("Instantly API request exhausted its bounded retry.");
   }
@@ -272,6 +280,16 @@ export class InstantlyClient {
   listRecentEmailEvidence(limit = 100) { return this.api<unknown>(`/emails?limit=${Math.min(Math.max(limit, 1), 100)}`); }
   moveLeadsToList(ids: string[], campaignId: string, listId: string) { return this.api<Record<string, unknown>>("/leads/move", { method: "POST", body: JSON.stringify({ ids, campaign: campaignId, to_list_id: listId, check_duplicates: true }) }); }
   getBackgroundJob(id: string) { return this.api<Record<string, unknown>>(`/background-jobs/${encodeURIComponent(id)}`); }
+  async waitForBackgroundJob(id: string) {
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const job = await this.getBackgroundJob(id);
+      const status = String(job.status || "").trim().toLowerCase();
+      if (["success", "completed", "complete"].includes(status)) return job;
+      if (["failed", "error", "cancelled", "canceled"].includes(status)) throw new Error(`Instantly background job ${id} ended ${status}.`);
+      await this.wait(Math.min(500 * (attempt + 1), 3_000));
+    }
+    throw new Error(`Instantly background job ${id} did not reach a terminal state within the bounded wait.`);
+  }
   listWebhooks() { return this.api<unknown>("/webhooks?limit=100"); }
   listWebhookEventTypes() { return this.api<unknown>("/webhooks/event-types"); }
   async listRecentLeads(maximum = 500) {
