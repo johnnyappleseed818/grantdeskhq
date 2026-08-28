@@ -2,85 +2,68 @@
 
 ## Operational outcome
 
-The Channel Results scan is now represented in the canonical production GTM datastore as 30 source-tagged organization seeds: 20 Direct and 10 Partner. The import is authenticated, idempotent, provider-free, and explicitly prevents those seeds from being treated as contactable prospects until independent verification occurs.
+The August 28 Channel Results are represented in canonical Firestore as 30 idempotent, source-tagged organization seeds (20 Direct and 10 Partner). The serving production revision remains `grantdeskhq-prototype-00402-zuv` at 100% traffic. The latest candidate, `grantdeskhq-prototype-00409-yed`, is healthy at 0% traffic and uses image digest `sha256:955a0f8fbdbd7c1b7c2a20277b8a15e70879a66fe63928f4e020b2b0a1b6980f` from commit `f384c2e`.
 
-Production serves `grantdeskhq-prototype-00400-qug` at 100% traffic. `/api/health` returned HTTP 200 after promotion. Known-good rollback revision `grantdeskhq-prototype-00387-ker` is preserved.
+The final Secret Manager reference is `grantdeskhq-instantly-api-key:latest`. Its V2 API access was exercised successfully for account reads, lead-list reads, SuperSearch preview/enrichment, and email-verification creation. The documented verification flow was corrected: Instantly returns 404 until verification is created; the candidate now reads an existing job or creates it before accepting any result.
 
-The full outbound loop is **not operational**. All effective outbound flags are false and campaigns/reconciliation schedulers remain paused. Incident cleanup is now complete, but the replacement Instantly V2 key lacks the campaign-update and SuperSearch-preview permissions necessary for safe activation and provider-first enrichment.
+Outbound is deliberately still disabled. `OUTBOUND_EMAIL_ENABLED`, `INSTANTLY_OUTBOUND_ENABLED`, `INSTANTLY_AUTO_HANDOFF_ENABLED`, `DIRECT_INSTANTLY_ENABLED`, and `PARTNER_INSTANTLY_ENABLED` are all false on the serving service. No campaign enrollment, scheduling, or email delivery occurred during this run.
 
-## Seed import evidence
+## Seed lifecycle evidence
 
 | Metric | Result |
 | --- | --- |
-| Seed source | `chatgpt_channel_scan_2026_08_28` |
-| Source URL | `https://chatgpt.com/share/6a913e29-1c68-83ed-acc3-8c6e00423acb?ogimg=plain` |
-| Direct organization seeds | 20 |
-| Partner organization seeds | 10 |
-| First authenticated import | 30 created |
-| Immediate rerun | 0 created, 30 duplicate (idempotent) |
-| Provider enrichment calls during import | 0 |
-| Instantly leads/campaign enrollments during import | 0 |
-| Emails sent during import | 0 |
+| Manifest source | `chatgpt_channel_scan_2026_08_28` |
+| Source organizations | 30 (20 Direct, 10 Partner) |
+| Latest authenticated idempotent import | 0 new, 29 duplicate, 1 independently evidenced upgrade |
+| Independently evidenced Partner organizations submitted to SuperSearch | 5 |
+| Partner SuperSearch preview matches | 3 |
+| Provider contacts returned to Partner list | 3 |
+| Partner canonical provider-verified contacts | 2 |
+| Partner contacts rejected during canonical reconciliation | 1 |
+| Partner seeds still pending provider contact/verification | 3 |
+| Independently evidenced Direct organization submitted to SuperSearch | 1 (Mama's Kitchen) |
+| Direct SuperSearch preview matches | 0 |
+| Direct canonical provider-verified contacts | 0 |
+| Remaining organization-only seeds requiring independent evidence | 24 |
+| Instantly campaign enrollments from this run | 0 |
+| Provider-confirmed sends from this run | 0 |
 
-Every record is `DISCOVERED` and retains explicit blockers: independent public organization/signal verification, resolved domain, named role-fit contact, and verified business email. The shared scan is not used as personalization or as proof of an award, grant need, role, or email.
+The two canonical Partner contacts were accepted only after Instantly returned a role-fit contact and its dedicated verifier returned `verified` and non-catch-all. The rejected provider contact is stored as `ENRICHMENT_FAILED` with a non-PII rejection reason. It is not eligible for handoff.
 
-## Implementation and deployment
+## Safety and incident preservation
 
-- `src/lib/gtmChannelSeeds.ts`: deterministic 30-record manifest and non-contactable canonical mapping.
-- `server/persistence.ts`: Firestore `currentDocument.exists=false` seed persistence and bounded read model access.
-- `server/gtmCanonical.ts`: server-canonical dashboard composition includes persisted seeds.
-- `server/cloudRun.ts`: scheduler-authenticated import endpoint. It makes no enrichment, Instantly, or delivery call.
-- `.gcloudignore`: excludes `incident/`, `artifacts/`, and `.worktrees/` from Cloud Build uploads.
+- The 16 recipients affected by the August 27 duplicate-email incident remain internally suppressed and provider block-listed.
+- Direct and Partner campaigns remain paused. No affected recipient was re-enrolled.
+- The candidate cannot enroll or send because all final delivery switches remain false.
+- The provider list-enrichment and canonical reconciliation endpoints are no-send paths; they do not map a contact to a campaign.
+- Known-good rollback revision `grantdeskhq-prototype-00387-ker` remains preserved.
 
-Build: `7d323080-5003-4fd6-b827-b57f93e45a08` — `SUCCESS`.
-
-Image digest: `sha256:df33b33bebe6ab7dd2e39051e4a79ca06e5e77da48662005eabaa8b15d7e6b47`.
-
-Revision: `grantdeskhq-prototype-00400-qug` — Ready and 100% traffic.
-
-Structured logs contain two `GTM_CHANNEL_SEED_IMPORT` events: first run `30/0/30` (imported/duplicate/total), immediate rerun `0/30/30`. The promoted revision had no error-severity Cloud Run log entries for this run.
-
-## Verification
+## Candidate verification
 
 | Gate | Result |
 | --- | --- |
-| Focused seed/idempotency plus final-handoff safety tests | PASS — 11 tests |
-| Full test suite | PASS |
-| TypeScript | PASS |
+| Candidate health | PASS — HTTP 200, revision `00409-yed` |
+| Candidate error logs after final reconciliation | PASS — no ERROR entries observed |
+| Partner reconciliation | PASS — 2 canonical verified, 1 rejected, 3 pending; no sends |
+| Direct reconciliation | PASS — 0 verified / 1 pending after a zero-match preview; no sends |
+| Instantly verification flow regression | PASS — create-on-404 coverage added |
+| Focused Instantly, seed, and contact tests | PASS — 42 tests |
 | ESLint | PASS |
 | Production build | PASS |
-| Candidate health | PASS |
-| Authenticated Firestore seed import | PASS |
-| Idempotent rerun | PASS |
-| Production health after promotion | PASS |
-| Provider-enrichment / verified contact stage | NOT RUN — seed records intentionally lack independently verified domains and signals |
-| Instantly staging / scheduling / sending / reconciliation | BLOCKED — safety cleanup cannot be completed with current provider scope |
+| Direct canary | NOT RUN — no verified Direct contact exists |
+| Partner canary | NOT RUN — no approved internal Partner-canary recipient exists; prospects are not used as canaries |
+| Delivery flags / recurring handoff jobs | NOT ENABLED — canary and evidence gates are incomplete |
 
-## Effective serving configuration and schedules
+## Current blocker and safe continuation
 
-The serving revision reports all five delivery controls false: `OUTBOUND_EMAIL_ENABLED`, `INSTANTLY_OUTBOUND_ENABLED`, `INSTANTLY_AUTO_HANDOFF_ENABLED`, `DIRECT_INSTANTLY_ENABLED`, and `PARTNER_INSTANTLY_ENABLED`.
-
-Paused: `grantdeskhq-instantly-reconciliation`, `grantdeskhq-daily-partner-reconciliation`, `grantdeskhq-direct-live-reconcile`, and the historical partner-live reconciliation job. Enabled and non-delivery: `grantdeskhq-daily-social-scan`, `grantdeskhq-seo-reconciliation`, and `grantdeskhq-daily-reliability-canary`.
-
-## Incident safety gate
-
-Incident reconciliation established 16 affected duplicate-email recipients. All 16 are internally suppressed; seven provider membership moves reached terminal background-job success. Nine historical recipients no longer have current campaign membership and must be provider-blocklisted rather than guessed or re-enrolled.
-
-The replacement Instantly V2 key created and verified 16 provider block-list entries for the 16 internally suppressed incident recipients. Seven prior provider moves to the incident holding list had already reached terminal success. No affected recipient is eligible for re-enrollment.
-
-Read-only V2 preflight is healthy for accounts, campaigns, lead lists, leads, email polling, and block-list reads. Both mapped GrantDeskHQ campaigns are paused and retain their weekday America/Detroit schedules, nonblank sequence subjects, reply stops, bounce protection, and disabled open/click tracking.
-
-The key does not include the documented `campaigns:update` permission required to activate or patch either campaign. It also returned HTTP 401 request `917946528970865119` for documented SuperSearch preview, requiring `supersearch_enrichments:read`. The default workspace already returns the intended GrantDeskHQ campaigns; `workspaces:read` is not operationally required for this mapping, but its dedicated endpoint returned HTTP 401 request `1965603776546794708`.
-
-## Required external action
-
-Update the existing V2 API key so it retains its current scopes and adds `campaigns:update`, `supersearch_enrichments:read`, and `supersearch_enrichments:create`; then replace the value at the existing Secret Manager reference `grantdeskhq-instantly-api-key`. The first two are required by documented campaign activation/patch and non-mutating SuperSearch preview; the create scope is required by documented SuperSearch enrichment creation. No source code, Firebase, Cloud Run authentication, or campaign change is required. After the refreshed secret is deployed, the recovery can execute campaign-update preflight, Direct and Partner internal canaries, then provider-first enrichment and enrollment gates.
+This is **not** an API-key scope or workspace blocker. The active limitation is evidence quality: 24 seed organizations retain only the ChatGPT scan reference and cannot be sent to credit-consuming enrichment under the production evidence contract. In addition, there is no independently verified Direct contact and no approved internal two-segment canary pair. The automated loop must remain disabled until those gates have real, documented inputs.
 
 ## Git
 
 - Branch: `incident-recovery-2026-08-27`
-- Seed-import commit: `eca4c4d`
-- Cloud Build privacy exclusion: `b42e6c6`
-- Both commits were pushed to `origin` (`https://github.com/johnnyappleseed818/grantdeskhq.git`).
+- Latest source commit: `f384c2e48843a06517147c9edf76582656236688` (`fix: create missing Instantly verification jobs`)
+- Previous checkpoint: `e34aec5273d9b43df1c80ae59d4dacf5a7437195` (`fix: fail closed per seed reconciliation`)
+- Remote: `https://github.com/johnnyappleseed818/grantdeskhq.git`
+- Remote branch proof: `f384c2e48843a06517147c9edf76582656236688 refs/heads/incident-recovery-2026-08-27`
 
-Unrelated generated sample assets, `.worktrees/`, and local incident artifacts remain uncommitted and were preserved.
+Unrelated sample assets, `.worktrees/`, and `incident/` remain uncommitted and preserved.

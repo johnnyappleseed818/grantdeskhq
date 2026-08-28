@@ -1,14 +1,14 @@
 {
   "project": "outbound-incident-recovery",
   "status": "PARTIAL",
-  "completedAt": "2026-08-28T09:00:00Z",
+  "completedAt": "2026-08-28T10:15:00Z",
   "canonicalBranch": "incident-recovery-2026-08-27",
-  "commit": "b42e6c635feb10e5dc90690015555ca72c10fd85",
+  "commit": "f384c2e48843a06517147c9edf76582656236688",
   "productionChanged": true,
   "productionRevision": "grantdeskhq-prototype-00402-zuv",
   "rollbackRevision": "grantdeskhq-prototype-00387-ker",
-  "candidateRevision": "grantdeskhq-prototype-00400-qug",
-  "candidateTraffic": "100%",
+  "candidateRevision": "grantdeskhq-prototype-00409-yed",
+  "candidateTraffic": "0%",
   "emailIncident": {
     "affectedRecipients": 16,
     "internalSuppressionsApplied": 16,
@@ -17,17 +17,17 @@
     "unresolvedProviderMemberships": 0
   },
   "gates": {
-    "targetedOutboundTests": "PASS (28)",
+    "targetedOutboundTests": "PASS (42 focused Instantly, seed, and contact tests)",
     "typescript": "PASS",
     "lint": "PASS",
-    "candidateHealth": "PASS; production health PASS after 100% promotion",
-    "channelSeedImport": "PASS (30 imported, idempotent rerun 0 new / 30 duplicates; zero provider calls and zero sends)",
+    "candidateHealth": "PASS; 00409-yed HTTP 200 with no post-run ERROR logs",
+    "channelSeedImport": "PARTIAL (30 canonical seeds; latest rerun 0 new / 29 duplicate / 1 independent-evidence upgrade; zero sends)",
     "schedulerOidcPreflight": "PASS (fail-closed campaign pause)",
     "providerBlockListCreate": "PASS (16 entries created and verified by read-only count)",
-    "campaignActivation": "BLOCKED (replacement V2 key lacks campaigns:update)",
-    "supersearchPreview": "BLOCKED (replacement V2 key lacks supersearch_enrichments:read)"
+    "supersearch": "PARTIAL (5 Partner and 1 Direct independently evidenced organizations processed; 2 Partner provider-verified contacts persisted; no Direct contact match)",
+    "campaignActivation": "NOT_RUN (no verified Direct canary and no approved internal two-segment canary pair)"
   },
   "liveOutboundChanged": false,
   "emailsSent": 0,
-  "humanActionRequired": "Update the existing V2 Instantly key at Secret Manager reference grantdeskhq-instantly-api-key to retain all current scopes and add campaigns:update, supersearch_enrichments:read, and supersearch_enrichments:create. Do not enable outbound until campaign update preflight and the internal Direct/Partner canaries pass."
+  "humanActionRequired": "No credential or scope action is required. Delivery remains disabled because 24 organization-only seeds lack independently verified evidence and no verified Direct contact/internal two-segment canary pair exists."
 }
