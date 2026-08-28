@@ -693,7 +693,7 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
     ...(direct.length > 0 ? [client.getCampaign(config.directCampaignId)] : []),
     ...(partner.length > 0 ? [client.getCampaign(config.partnerCampaignId)] : [])
   ]);
-  if (!configuredCampaigns.every((campaign) => controlledCampaignReady(campaign, approvedSender))) return json(response, 409, { error: "Selected campaign read-back did not satisfy sender, reply-stop, tracking, CTA, and safety requirements." });
+  if (!configuredCampaigns.every((campaign) => controlledCampaignReady(campaign, approvedSender, [0, 1, 2]))) return json(response, 409, { error: "Selected campaign read-back did not satisfy sender, reply-stop, tracking, CTA, and safety requirements." });
   const created = [] as import("./instantly.ts").InstantlyIntegrationRecord[];
   for (const record of cohort) {
     const [firstName, ...rest] = String(record.contact || "").split(/\s+/);
