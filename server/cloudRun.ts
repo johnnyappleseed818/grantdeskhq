@@ -565,9 +565,11 @@ async function handleGtmInstantlyStage(request: IncomingMessage, response: Serve
 async function handleControlledInstantlyBatch(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
-  const input = await readJson(request) as { batchId?: string; execute?: boolean; repairOpeningLines?: boolean; repairPartnerFirstTouches?: boolean };
+  const input = await readJson(request) as { batchId?: string; execute?: boolean; segment?: unknown; limit?: unknown; repairOpeningLines?: boolean; repairPartnerFirstTouches?: boolean };
   const batchId = String(input.batchId || "");
   if (!/^gdh-controlled-batch-\d{8}-\d{2}$/.test(batchId)) return json(response, 400, { error: "A valid controlled batch ID is required." });
+  const requestedSegment = input.segment === "DIRECT" || input.segment === "PARTNER" ? input.segment : null;
+  const requestedLimit = requestedSegment ? Math.max(1, Math.min(5, Number.isInteger(input.limit) ? Number(input.limit) : 1)) : 5;
   // Reconcile provider membership before calculating canonical eligibility.
   // A persisted staging record without a provider lead must not permanently
   // consume an otherwise valid contact or create a false prior-contact state.
@@ -580,8 +582,12 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
     if (!gate) return false;
     return stagingEligibility(record, outreach, { ...config, directEnabled: true, partnerEnabled: true }).eligible;
   });
-  const direct = eligible.filter((record) => record.segment === "DIRECT").slice(0, 5);
-  const partner = eligible.filter((record) => record.segment === "PARTNER").slice(0, 5);
+  const directEligible = eligible.filter((record) => record.segment === "DIRECT");
+  const partnerEligible = eligible.filter((record) => record.segment === "PARTNER");
+  // Each segment owns its own readiness and canary. A Direct shortage must
+  // never block an otherwise valid Partner canary (and vice versa).
+  const direct = requestedSegment === "PARTNER" ? [] : directEligible.slice(0, requestedSegment === "DIRECT" ? requestedLimit : 5);
+  const partner = requestedSegment === "DIRECT" ? [] : partnerEligible.slice(0, requestedSegment === "PARTNER" ? requestedLimit : 5);
   const cohort = [...direct, ...partner];
   const client = config.apiKeyConfigured && config.integrationEnabled ? new InstantlyClient(config) : null;
   const campaignDetails = client ? await Promise.all([config.directCampaignId ? client.getCampaign(config.directCampaignId) : null, config.partnerCampaignId ? client.getCampaign(config.partnerCampaignId) : null]) : [null, null];
@@ -600,10 +606,10 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
   // empty campaign permanently unable to receive its founder-authorized batch.
   const campaignConfigurationAllowed = selectedCampaigns.every((campaign) => [0, 1].includes(Number(campaign.status)) && campaignSenderAddresses(campaign).every((sender) => sender === approvedSender));
   const senderReady = Boolean(client && config.integrationEnabled && config.apiKeyConfigured && mailboxReady && selectedCampaigns.length > 0 && selectedCampaigns.every((campaign) => controlledCampaignReady(campaign, approvedSender)));
-  const fullControlledCohort = direct.length === 5 && partner.length === 5;
+  const fullControlledCohort = requestedSegment ? cohort.length === requestedLimit : direct.length === 5 && partner.length === 5;
   const gate = !mailboxReady ? "MAILBOX" : !client ? "API_CLIENT" : !campaignConfigurationAllowed ? "CAMPAIGN_CONFIGURATION" : !config.controlledBatchEnabled || config.controlledBatchId !== batchId ? "BATCH_CONFIGURATION" : !fullControlledCohort ? "COHORT_INCOMPLETE" : "READY";
   const reasonCode = gate === "MAILBOX" ? "SENDER_NOT_READY" : gate === "API_CLIENT" ? "INTEGRATION_OR_KEY_UNAVAILABLE" : gate === "CAMPAIGN_CONFIGURATION" ? "MAPPED_CAMPAIGN_UNSAFE" : gate === "BATCH_CONFIGURATION" ? "EXACT_BATCH_DISABLED" : gate === "COHORT_INCOMPLETE" ? "CANONICAL_READY_INSUFFICIENT" : "OK";
-  const preflightTelemetry = { event: "CONTROLLED_BATCH_PREFLIGHT", gate, reasonCode, directEligibleCount: direct.length, partnerEligibleCount: partner.length, campaignIdPresent: Boolean(config.directCampaignId || config.partnerCampaignId), providerWorkspaceResolved: true, timestamp: new Date().toISOString() };
+  const preflightTelemetry = { event: "CONTROLLED_BATCH_PREFLIGHT", gate, reasonCode, segment: requestedSegment || "BOTH", requestedLimit, directEligibleCount: directEligible.length, partnerEligibleCount: partnerEligible.length, selectedDirectCount: direct.length, selectedPartnerCount: partner.length, campaignIdPresent: Boolean(config.directCampaignId || config.partnerCampaignId), providerWorkspaceResolved: true, timestamp: new Date().toISOString() };
   // A single JSON line is parsed by Cloud Logging into jsonPayload. Keep this
   // strictly aggregate and non-PII because it is production observability.
   console.info(JSON.stringify(preflightTelemetry));
@@ -661,12 +667,12 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
     return json(response, 200, { mode: "PARTNER_COPY_REPAIRED_BEFORE_SEND", batchId, repaired, alreadySent: alreadySent.map((record) => ({ organization: record.organization, instantlyLeadId: record.instantlyLeadId })), campaign: resumedSummary });
   }
   if (!input.execute) {
-    if (gate !== "READY") return json(response, 409, { error: "The controlled batch is not safe to execute.", gate, reasonCode, directEligibleCount: direct.length, partnerEligibleCount: partner.length });
-    return json(response, 200, { mode: "PREFLIGHT", batchId, senderReady, campaignConfigurationAllowed, approvedSender, mailbox: approvedAccount ? { email: approvedAccount.email, status: approvedAccount.status, warmupStatus: approvedAccount.warmup_status, setupPending: approvedAccount.setup_pending === true, hasError: Boolean(String(approvedAccount.e_message || "").trim()), dailyLimit: approvedAccount.daily_limit ?? approvedAccount.warmup_limit ?? null } : null, flags: { integrationEnabled: config.integrationEnabled, outboundEnabled: config.outboundEnabled, autoHandoffEnabled: config.autoHandoffEnabled, directEnabled: config.directEnabled, partnerEnabled: config.partnerEnabled, controlledBatchEnabled: config.controlledBatchEnabled }, campaigns: campaignDetails.map((campaign) => campaign ? controlledCampaignSafetySummary(campaign) : null), proposedConfiguration: { direct: controlledCampaignPatch("DIRECT", 5, approvedSender), partner: controlledCampaignPatch("PARTNER", 5, approvedSender) }, campaignLeadCount: Object.fromEntries(campaignLeadCount), direct: direct.map(summary), partner: partner.map(summary), exclusions: { priorContact: model.records.filter((record) => record.priorContact).length, suppressed: model.records.filter((record) => record.suppressionStatus !== "CLEAR").length, existingInstantly: existingEmails.size } });
+    if (gate !== "READY") return json(response, 409, { error: "The controlled batch is not safe to execute.", gate, reasonCode, segment: requestedSegment || "BOTH", requestedLimit, directEligibleCount: directEligible.length, partnerEligibleCount: partnerEligible.length });
+    return json(response, 200, { mode: "PREFLIGHT", batchId, segment: requestedSegment || "BOTH", requestedLimit, senderReady, campaignConfigurationAllowed, approvedSender, mailbox: approvedAccount ? { email: approvedAccount.email, status: approvedAccount.status, warmupStatus: approvedAccount.warmup_status, setupPending: approvedAccount.setup_pending === true, hasError: Boolean(String(approvedAccount.e_message || "").trim()), dailyLimit: approvedAccount.daily_limit ?? approvedAccount.warmup_limit ?? null } : null, flags: { integrationEnabled: config.integrationEnabled, outboundEnabled: config.outboundEnabled, autoHandoffEnabled: config.autoHandoffEnabled, directEnabled: config.directEnabled, partnerEnabled: config.partnerEnabled, controlledBatchEnabled: config.controlledBatchEnabled }, campaigns: campaignDetails.map((campaign) => campaign ? controlledCampaignSafetySummary(campaign) : null), proposedConfiguration: { direct: controlledCampaignPatch("DIRECT", 5, approvedSender), partner: controlledCampaignPatch("PARTNER", 5, approvedSender) }, campaignLeadCount: Object.fromEntries(campaignLeadCount), direct: direct.map(summary), partner: partner.map(summary), exclusions: { priorContact: model.records.filter((record) => record.priorContact).length, suppressed: model.records.filter((record) => record.suppressionStatus !== "CLEAR").length, existingInstantly: existingEmails.size } });
   }
   if (!mailboxReady || !client || !campaignConfigurationAllowed) return json(response, 409, { error: "Approved mailbox or mapped campaigns are not safe for a controlled batch.", gate, reasonCode });
   if (!config.controlledBatchEnabled || config.controlledBatchId !== batchId) return json(response, 409, { error: "This exact controlled batch is not enabled." });
-  if (!fullControlledCohort) return json(response, 409, { error: "The exact five-by-five controlled cohort is not available.", gate, reasonCode, directEligibleCount: direct.length, partnerEligibleCount: partner.length });
+  if (!fullControlledCohort) return json(response, 409, { error: requestedSegment ? `The requested ${requestedSegment.toLowerCase()} controlled cohort is not available.` : "The exact five-by-five controlled cohort is not available.", gate, reasonCode, segment: requestedSegment || "BOTH", requestedLimit, directEligibleCount: directEligible.length, partnerEligibleCount: partnerEligible.length });
   if ((direct.length > 0 && campaignLeadCount.get(config.directCampaignId)) || (partner.length > 0 && campaignLeadCount.get(config.partnerCampaignId))) return json(response, 409, { error: "The selected campaign already contains leads; refusing to risk an outside-batch send." });
   const selectedCampaignConfigurations = await Promise.all([
     ...(direct.length > 0 ? [client.configureControlledCampaign(config.directCampaignId, controlledCampaignPatch("DIRECT", 5, approvedSender), batchId)] : []),
