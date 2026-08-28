@@ -616,7 +616,8 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
   ]) : [];
   // Existing terminal provider history (bounce, unsubscribe, complete) cannot
   // send again. Any nonterminal member remains a hard stop before activation.
-  const campaignHasUnsafeMember = selectedCampaignInventories.some((inventory) => (inventory.items || []).some((lead) => ![-3, -2, -1, 3].includes(Number(lead.status))));
+  const knownGuardedProviderLeadIds = new Set(existingRecords.filter((record) => record.instantlyLeadId && (record.segment === "DIRECT" || record.segment === "PARTNER")).map((record) => record.instantlyLeadId));
+  const campaignHasUnsafeMember = selectedCampaignInventories.some((inventory) => (inventory.items || []).some((lead) => ![-3, -2, -1, 3].includes(Number(lead.status)) && !knownGuardedProviderLeadIds.has(String(lead.id || ""))));
   const gate = !mailboxReady ? "MAILBOX" : !client ? "API_CLIENT" : !campaignConfigurationAllowed ? "CAMPAIGN_CONFIGURATION" : !config.controlledBatchEnabled || config.controlledBatchId !== batchId ? "BATCH_CONFIGURATION" : !fullControlledCohort ? "COHORT_INCOMPLETE" : "READY";
   const reasonCode = gate === "MAILBOX" ? "SENDER_NOT_READY" : gate === "API_CLIENT" ? "INTEGRATION_OR_KEY_UNAVAILABLE" : gate === "CAMPAIGN_CONFIGURATION" ? "MAPPED_CAMPAIGN_UNSAFE" : gate === "BATCH_CONFIGURATION" ? "EXACT_BATCH_DISABLED" : gate === "COHORT_INCOMPLETE" ? "CANONICAL_READY_INSUFFICIENT" : "OK";
   const preflightTelemetry = { event: "CONTROLLED_BATCH_PREFLIGHT", gate, reasonCode, segment: requestedSegment || "BOTH", requestedLimit, directEligibleCount: directEligible.length, partnerEligibleCount: partnerEligible.length, selectedDirectCount: direct.length, selectedPartnerCount: partner.length, campaignIdPresent: Boolean(config.directCampaignId || config.partnerCampaignId), providerWorkspaceResolved: true, timestamp: new Date().toISOString() };
