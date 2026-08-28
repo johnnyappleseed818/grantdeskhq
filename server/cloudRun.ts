@@ -610,6 +610,13 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
   const campaignConfigurationAllowed = selectedCampaigns.every((campaign) => [0, 1, 2].includes(Number(campaign.status)) && campaignSenderAddresses(campaign).every((sender) => sender === approvedSender));
   const senderReady = Boolean(client && config.integrationEnabled && config.apiKeyConfigured && mailboxReady && selectedCampaigns.length > 0 && selectedCampaigns.every((campaign) => controlledCampaignReady(campaign, approvedSender, [0, 1, 2])));
   const fullControlledCohort = requestedSegment ? cohort.length === requestedLimit : direct.length === 5 && partner.length === 5;
+  const selectedCampaignInventories = client ? await Promise.all([
+    ...(direct.length > 0 ? [client.listLeadsInCampaign(config.directCampaignId)] : []),
+    ...(partner.length > 0 ? [client.listLeadsInCampaign(config.partnerCampaignId)] : [])
+  ]) : [];
+  // Existing terminal provider history (bounce, unsubscribe, complete) cannot
+  // send again. Any nonterminal member remains a hard stop before activation.
+  const campaignHasUnsafeMember = selectedCampaignInventories.some((inventory) => (inventory.items || []).some((lead) => ![-3, -2, -1, 3].includes(Number(lead.status))));
   const gate = !mailboxReady ? "MAILBOX" : !client ? "API_CLIENT" : !campaignConfigurationAllowed ? "CAMPAIGN_CONFIGURATION" : !config.controlledBatchEnabled || config.controlledBatchId !== batchId ? "BATCH_CONFIGURATION" : !fullControlledCohort ? "COHORT_INCOMPLETE" : "READY";
   const reasonCode = gate === "MAILBOX" ? "SENDER_NOT_READY" : gate === "API_CLIENT" ? "INTEGRATION_OR_KEY_UNAVAILABLE" : gate === "CAMPAIGN_CONFIGURATION" ? "MAPPED_CAMPAIGN_UNSAFE" : gate === "BATCH_CONFIGURATION" ? "EXACT_BATCH_DISABLED" : gate === "COHORT_INCOMPLETE" ? "CANONICAL_READY_INSUFFICIENT" : "OK";
   const preflightTelemetry = { event: "CONTROLLED_BATCH_PREFLIGHT", gate, reasonCode, segment: requestedSegment || "BOTH", requestedLimit, directEligibleCount: directEligible.length, partnerEligibleCount: partnerEligible.length, selectedDirectCount: direct.length, selectedPartnerCount: partner.length, campaignIdPresent: Boolean(config.directCampaignId || config.partnerCampaignId), providerWorkspaceResolved: true, timestamp: new Date().toISOString() };
@@ -676,7 +683,7 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
   if (!mailboxReady || !client || !campaignConfigurationAllowed) return json(response, 409, { error: "Approved mailbox or mapped campaigns are not safe for a controlled batch.", gate, reasonCode });
   if (!config.controlledBatchEnabled || config.controlledBatchId !== batchId) return json(response, 409, { error: "This exact controlled batch is not enabled." });
   if (!fullControlledCohort) return json(response, 409, { error: requestedSegment ? `The requested ${requestedSegment.toLowerCase()} controlled cohort is not available.` : "The exact five-by-five controlled cohort is not available.", gate, reasonCode, segment: requestedSegment || "BOTH", requestedLimit, directEligibleCount: directEligible.length, partnerEligibleCount: partnerEligible.length });
-  if ((direct.length > 0 && campaignLeadCount.get(config.directCampaignId)) || (partner.length > 0 && campaignLeadCount.get(config.partnerCampaignId))) return json(response, 409, { error: "The selected campaign already contains leads; refusing to risk an outside-batch send." });
+  if (campaignHasUnsafeMember) return json(response, 409, { error: "The selected campaign contains a nonterminal provider lead; refusing to risk an outside-batch send." });
   const selectedCampaignConfigurations = await Promise.all([
     ...(direct.length > 0 ? [client.configureControlledCampaign(config.directCampaignId, controlledCampaignPatch("DIRECT", 5, approvedSender), batchId)] : []),
     ...(partner.length > 0 ? [client.configureControlledCampaign(config.partnerCampaignId, controlledCampaignPatch("PARTNER", 5, approvedSender), batchId)] : [])

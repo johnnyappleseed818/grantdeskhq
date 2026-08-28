@@ -281,6 +281,7 @@ export class InstantlyClient {
   listRecentEmails() { return this.api<unknown>("/emails?limit=10&preview_only=true"); }
   listRecentEmailEvidence(limit = 100) { return this.api<unknown>(`/emails?limit=${Math.min(Math.max(limit, 1), 100)}`); }
   listLeadsInList(listId: string, limit = 100) { return this.api<{ items?: Record<string, unknown>[] }>("/leads/list", { method: "POST", body: JSON.stringify({ limit: Math.min(Math.max(limit, 1), 100), list_id: listId }) }); }
+  listLeadsInCampaign(campaignId: string, limit = 100) { return this.api<{ items?: Record<string, unknown>[] }>("/leads/list", { method: "POST", body: JSON.stringify({ limit: Math.min(Math.max(limit, 1), 100), campaign: campaignId }) }); }
   getEmailVerification(email: string) { return this.api<{ verification_status?: string; catch_all?: boolean | string }>(`/email-verification/${encodeURIComponent(normalizeOutboundEmail(email))}`); }
   createEmailVerification(email: string) { return this.api<{ verification_status?: string; catch_all?: boolean | string }>("/email-verification", { method: "POST", body: JSON.stringify({ email: normalizeOutboundEmail(email) }) }); }
   /** Instantly returns 404 until a verification job exists. Create it once;

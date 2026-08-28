@@ -28,6 +28,13 @@ describe("Instantly fail-closed integration", () => {
     expect(request).toHaveBeenNthCalledWith(2, "https://api.instantly.ai/api/v2/email-verification", expect.objectContaining({ method: "POST" }));
   });
 
+  it("uses Instantly's documented campaign filter when inspecting campaign membership", async () => {
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [] }), { status: 200 }));
+    const client = new InstantlyClient(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true" }), "key", request);
+    await expect(client.listLeadsInCampaign("campaign_1")).resolves.toEqual({ items: [] });
+    expect(request).toHaveBeenCalledWith("https://api.instantly.ai/api/v2/leads/list", expect.objectContaining({ method: "POST", body: JSON.stringify({ limit: 100, campaign: "campaign_1" }) }));
+  });
+
   it("allows only qualified, ready, clear, previously-uncontacted records to stage", () => {
     expect(stagingEligibility(record, [], instantlyConfig(enabledEnv))).toEqual({ eligible: true, reason: "ELIGIBLE" });
     expect(stagingEligibility({ ...record, priorContact: true }, [], instantlyConfig(enabledEnv))).toEqual({ eligible: false, reason: "SUPPRESSED_OR_PRIOR_CONTACT" });
