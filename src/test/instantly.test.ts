@@ -17,6 +17,17 @@ describe("Instantly fail-closed integration", () => {
     expect(request).not.toHaveBeenCalled();
   });
 
+  it("creates a provider verification only when no existing verification job is found", async () => {
+    const request = vi.fn()
+      .mockResolvedValueOnce(new Response("missing", { status: 404 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ verification_status: "verified", catch_all: false }), { status: 200 }));
+    const client = new InstantlyClient(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true" }), "key", request);
+    await expect(client.ensureEmailVerification("casey@example.org")).resolves.toMatchObject({ verification_status: "verified" });
+    expect(request.mock.calls[0]?.[0]).toBe("https://api.instantly.ai/api/v2/email-verification/casey%40example.org");
+    expect((request.mock.calls[0]?.[1] as RequestInit).method).toBeUndefined();
+    expect(request).toHaveBeenNthCalledWith(2, "https://api.instantly.ai/api/v2/email-verification", expect.objectContaining({ method: "POST" }));
+  });
+
   it("allows only qualified, ready, clear, previously-uncontacted records to stage", () => {
     expect(stagingEligibility(record, [], instantlyConfig(enabledEnv))).toEqual({ eligible: true, reason: "ELIGIBLE" });
     expect(stagingEligibility({ ...record, priorContact: true }, [], instantlyConfig(enabledEnv))).toEqual({ eligible: false, reason: "SUPPRESSED_OR_PRIOR_CONTACT" });

@@ -40,7 +40,7 @@ export async function reconcileChannelSeedEnrichment(segment: ChannelSeedEnrichm
   for (const seed of seeds) {
     const lead = leads.find((item) => norm(text(item.company_name)) === norm(seed.organization) && roleFits(segment, text(item.job_title)) && text(item.email));
     if (!lead) continue;
-    const email = text(lead.email); const verification = await client.getEmailVerification(email);
+    const email = text(lead.email); const verification = await client.ensureEmailVerification(email);
     if (String(verification.verification_status || "").toLowerCase() !== "verified" || verification.catch_all === true || verification.catch_all === "true") continue;
     const firstName = text(lead.first_name) || "Contact"; const lastName = text(lead.last_name) || "Research";
     try {

@@ -282,6 +282,17 @@ export class InstantlyClient {
   listRecentEmailEvidence(limit = 100) { return this.api<unknown>(`/emails?limit=${Math.min(Math.max(limit, 1), 100)}`); }
   listLeadsInList(listId: string, limit = 100) { return this.api<{ items?: Record<string, unknown>[] }>("/leads/list", { method: "POST", body: JSON.stringify({ limit: Math.min(Math.max(limit, 1), 100), list_id: listId }) }); }
   getEmailVerification(email: string) { return this.api<{ verification_status?: string; catch_all?: boolean | string }>(`/email-verification/${encodeURIComponent(normalizeOutboundEmail(email))}`); }
+  createEmailVerification(email: string) { return this.api<{ verification_status?: string; catch_all?: boolean | string }>("/email-verification", { method: "POST", body: JSON.stringify({ email: normalizeOutboundEmail(email) }) }); }
+  /** Instantly returns 404 until a verification job exists. Create it once;
+   * later reconciliation reads the existing job instead of treating 404 as a
+   * valid verification result. */
+  async ensureEmailVerification(email: string) {
+    try { return await this.getEmailVerification(email); }
+    catch (error) {
+      if (!String(error).includes("(404)")) throw error;
+      return this.createEmailVerification(email);
+    }
+  }
   previewSuperSearch(input: { companyNames: string[]; titles: string[]; limit: number }) {
     return this.api<{ number_of_leads?: number; number_of_redacted_results?: number }>("/supersearch-enrichment/preview-leads-from-supersearch", { method: "POST", body: JSON.stringify({ search_filters: { company_name: { include: input.companyNames, exclude: [] }, title: { include: input.titles, exclude: [] }, skip_owned_leads: true, show_one_lead_per_company: true }, limit: input.limit }) });
   }
