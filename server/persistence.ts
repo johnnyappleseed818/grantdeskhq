@@ -1223,7 +1223,12 @@ export interface InstantlyHandoffRecord extends HandoffReservation {
 }
 
 function handoffDocumentId(normalizedEmail: string) {
+
   return `handoff_${createHash("sha256").update(normalizedEmail).digest("hex")}`;
+}
+
+export function instantlyHandoffDocumentPath(normalizedEmail: string) {
+  return "gtm/instantly/handoffs/" + handoffDocumentId(normalizedEmail);
 }
 
 function handoffFromFields(fields: Record<string, unknown>): InstantlyHandoffRecord {
@@ -1241,7 +1246,7 @@ function handoffFromFields(fields: Record<string, unknown>): InstantlyHandoffRec
  * both exact campaign idempotency and the cross-campaign 30-day cooldown. */
 export async function reserveInstantlyHandoff(input: { idempotencyKey: string; normalizedEmail: string; campaignId: string; source: string }) {
   const accessToken = await gcpToken();
-  const path = `gtm/instantly/handoffs/records/${handoffDocumentId(input.normalizedEmail)}`;
+  const path = instantlyHandoffDocumentPath(input.normalizedEmail);
   const now = new Date().toISOString();
   const initial: InstantlyHandoffRecord = { ...input, handoffStatus: "HANDOFF_STARTED", externalLeadId: "", handedOffAt: "", providerCampaignId: input.campaignId, providerMessageId: "", handoffStartedAt: now, leaseOwner: randomUUID(), leaseExpiry: new Date(Date.now() + 10 * 60 * 1_000).toISOString(), lastError: "", attemptCount: 1 };
   if (await writeDocumentIfAbsent(accessToken, path, { ...initial })) return { acquired: true, record: initial };
@@ -1260,7 +1265,7 @@ export async function reserveInstantlyHandoff(input: { idempotencyKey: string; n
 
 export async function completeInstantlyHandoff(idempotencyKey: string, normalizedEmail: string, externalLeadId: string) {
   const accessToken = await gcpToken();
-  const path = `gtm/instantly/handoffs/records/${handoffDocumentId(normalizedEmail)}`;
+  const path = instantlyHandoffDocumentPath(normalizedEmail);
   const response = await authorizedFetch(`${firestoreBase}/${path}`, accessToken);
   if (!response.ok) throw new Error(`Instantly handoff reservation could not be loaded (${response.status}).`);
   const current = handoffFromFields(decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}));
@@ -1270,7 +1275,7 @@ export async function completeInstantlyHandoff(idempotencyKey: string, normalize
 
 export async function failInstantlyHandoff(idempotencyKey: string, normalizedEmail: string, message: string) {
   const accessToken = await gcpToken();
-  const path = `gtm/instantly/handoffs/records/${handoffDocumentId(normalizedEmail)}`;
+  const path = instantlyHandoffDocumentPath(normalizedEmail);
   const response = await authorizedFetch(`${firestoreBase}/${path}`, accessToken);
   if (!response.ok) throw new Error(`Instantly handoff reservation could not be loaded (${response.status}).`);
   const current = handoffFromFields(decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}));
