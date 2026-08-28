@@ -22,3 +22,13 @@
 - Seven membership-reconciled provider moves reached terminal background-job success. Nine lead IDs have no current campaign membership and were deliberately left unresolved rather than moved using stale historical campaign evidence.
 - The V2 key successfully read the documented provider block-list endpoint, then the documented create operation returned HTTP 401 with request ID `6966065546653089158`. No provider block-list entry was created by that failed request.
 - Campaigns and reconciliation schedulers remain paused. Candidate `grantdeskhq-prototype-00399-mol` is zero traffic; known-good production `grantdeskhq-prototype-00387-ker` remains at 100%.
+
+## 2026-08-28 08:26–08:35 UTC: canonical Channel Results seed import
+
+- Commit `eca4c4d` adds an idempotent, scheduler-authenticated import for the 20 Direct and 10 Partner organization seeds from `chatgpt_channel_scan_2026_08_28`. The shared scan is retained only as a source pointer; it does not establish domain, nonprofit status, pain, person, title, email, or delivery eligibility.
+- Commit `b42e6c6` excludes local `incident/`, `artifacts/`, and historical `.worktrees/` paths from Cloud Build uploads. This prevents the local incident CSV from entering a build source archive.
+- Cloud Build `7d323080-5003-4fd6-b827-b57f93e45a08` built immutable image digest `sha256:df33b33bebe6ab7dd2e39051e4a79ca06e5e77da48662005eabaa8b15d7e6b47`.
+- Candidate `grantdeskhq-prototype-00400-qug` passed health at zero traffic. Authenticated scheduler import returned `imported: 30`, `duplicate: 0`, `providerCalls: 0`, `sends: 0`; the immediate idempotency rerun returned `imported: 0`, `duplicate: 30`.
+- Structured Cloud Run logs recorded both import runs. No candidate error-severity log was present after the import.
+- The candidate was promoted to 100% production traffic after full source tests, TypeScript, lint, production build, candidate health, and import idempotency checks. `grantdeskhq-prototype-00387-ker` remains available as the verified rollback revision.
+- All effective outbound flags remain false on the serving revision. No Instantly lead creation, campaign enrollment, or email delivery occurred in this phase.
