@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import type { GtmOpportunity } from "./gtm.ts";
+import type { PartnerDiscoveryOpportunity } from "../../server/gtmPartnerDiscovery.ts";
 import type { CanonicalGtmCandidate, CanonicalSegment } from "./gtmCanonical.ts";
 
 /** Imported organization seeds are not contact records. */
@@ -7,7 +9,7 @@ export interface ChannelSeedRecord {
   organization: string;
   segment: CanonicalSegment;
   targetRoleGroup: string[];
-  source: "chatgpt_channel_scan_2026_08_28";
+  source: string;
   sourceUrl: string;
   observedAt: string;
   importedAt: string;
@@ -69,17 +71,40 @@ export function channelSeedManifest(importedAt = new Date().toISOString()): Chan
   return [...directOrganizations.map((organization) => build(organization, "DIRECT")), ...partnerOrganizations.map((organization) => build(organization, "PARTNER"))];
 }
 
-/** Seed records enter the canonical view but cannot become sendable. */
+/** Converts public, evidence-backed organization discovery into the existing
+ * Instantly-first enrichment queue. This preserves the source signal but does
+ * not create a contact, enroll a campaign, or allow a send. */
+export function discoveredOpportunityToChannelSeed(opportunity: GtmOpportunity, importedAt = new Date().toISOString()): ChannelSeedRecord {
+  return dynamicSeed({ organization: opportunity.organization, segment: "DIRECT", organizationDomain: domainFromUrl(opportunity.organizationUrl || ""), sourceUrl: opportunity.evidence[0]?.url || opportunity.organizationUrl || "", observedAt: opportunity.observedAt || importedAt, evidenceSummary: opportunity.whyNow, targetRoleGroup: ["CFO", "Finance Director", "Controller", "Director of Grants", "Grants Manager", "Institutional Giving leader"], importedAt });
+}
+
+export function discoveredPartnerToChannelSeed(opportunity: PartnerDiscoveryOpportunity, importedAt = new Date().toISOString()): ChannelSeedRecord {
+  return dynamicSeed({ organization: opportunity.organization, segment: "PARTNER", organizationDomain: opportunity.organizationDomain, sourceUrl: opportunity.sourceUrl, observedAt: opportunity.observedAt || importedAt, evidenceSummary: opportunity.whyFit, targetRoleGroup: ["Founder", "CEO", "Managing Partner", "Nonprofit Practice Lead", "Partner", "Principal"], importedAt });
+}
+
+function dynamicSeed(input: { organization: string; segment: CanonicalSegment; organizationDomain: string; sourceUrl: string; observedAt: string; evidenceSummary: string; targetRoleGroup: string[]; importedAt: string }): ChannelSeedRecord {
+  const organization = input.organization.trim();
+  return { id: recordId(input.segment, organization), organization, segment: input.segment, targetRoleGroup: input.targetRoleGroup, source: "gtm_public_discovery", sourceUrl: input.sourceUrl, observedAt: input.observedAt, importedAt: input.importedAt, lifecycle: "ENRICHMENT_PENDING", organizationDomain: input.organizationDomain || null, evidenceSummary: input.evidenceSummary, qualificationReasons: ["Evidence-backed organization signal was saved by the daily GrantDeskHQ discovery worker.", "Provider enrichment must produce a verified business email before readiness."], rejectionReason: null, enrichmentProvider: null, enrichmentResult: null, deduplicationKey: input.segment + ":" + organization.normalize("NFKC").trim().toLowerCase() };
+}
+
+function domainFromUrl(value: string) { try { return new URL(value).hostname.toLowerCase().replace(/^www\./, ""); } catch { return ""; } }
+
+/** Seed records remain organization evidence until provider reconciliation records a
+ * role-fit, verified business contact. Their lifecycle is visible in the
+ * canonical queue; it never implies an email has been sent. */
 export function channelSeedToCanonicalCandidate(seed: ChannelSeedRecord): CanonicalGtmCandidate {
+  const evidenceVerified = Boolean(seed.organizationDomain && ["ENRICHMENT_PENDING", "ENRICHMENT_SUBMITTED", "VERIFIED"].includes(seed.lifecycle));
+  const providerVerified = seed.lifecycle === "VERIFIED";
+  const blockers = providerVerified ? [] : seed.lifecycle === "ENRICHMENT_SUBMITTED" ? ["INSTANTLY_ENRICHMENT_PENDING"] : seed.lifecycle === "ENRICHMENT_FAILED" ? ["ENRICHMENT_FAILED"] : ["SEED_REQUIRES_INDEPENDENT_PUBLIC_VERIFICATION", "NO_RESOLVED_DOMAIN", "NO_NAMED_CONTACT", "NO_VERIFIED_BUSINESS_EMAIL"];
   return {
-    id: seed.id, segment: seed.segment, qualified: false,
+    id: seed.id, segment: seed.segment, qualified: evidenceVerified,
     target: {
       organization: seed.organization,
       organizationDomain: seed.organizationDomain || `${seed.id}.unresolved.invalid`,
       domainSourceUrl: seed.sourceUrl,
       person: { firstName: "Contact", lastName: "Research", fullName: "Contact research required", currentTitle: "Role research required", titleSourceUrl: seed.sourceUrl }
     },
-    sourceUrl: seed.sourceUrl, whyNow: seed.evidenceSummary, priority: 0,
-    blockers: ["SEED_REQUIRES_INDEPENDENT_PUBLIC_VERIFICATION", "NO_RESOLVED_DOMAIN", "NO_NAMED_CONTACT", "NO_VERIFIED_BUSINESS_EMAIL"]
+    sourceUrl: seed.sourceUrl, whyNow: seed.evidenceSummary, priority: providerVerified ? 90 : evidenceVerified ? 70 : 0,
+    blockers
   };
 }

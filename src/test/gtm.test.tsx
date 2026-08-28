@@ -1,21 +1,16 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { initialOpportunities } from "../data/gtmData";
-import { GtmDashboardContent } from "../pages/GtmDashboardPage";
-import type { ControlPlaneQueueReconciliation } from "../lib/gtmControlPlaneQueue";
-import type { GtmOverview } from "../lib/gtmOverview";
+import { GtmExecutiveOverview, GtmOpportunityQueue } from "../components/GtmCanonicalOperations";
+import type { CanonicalGtmModel, CanonicalGtmRecord } from "../lib/gtmCanonical";
 import {
   assessOpportunityAccuracy,
   canMoveToContacted,
   findDuplicateOpportunities,
   rankGtmOpportunities,
   scoreOpportunity,
-  type AwardDiscoveryScan,
   type GtmOpportunity
 } from "../lib/gtm";
-import type { DailySocialScan } from "../lib/gtm";
 
 beforeEach(() => localStorage.clear());
 
@@ -97,168 +92,36 @@ describe("GTM opportunity accuracy", () => {
 });
 
 describe("GTM command center", () => {
-  const dailyScan: DailySocialScan = {
-    generatedAt: "2026-08-06T13:35:00.000Z",
-    windowDays: 7,
-    queryCount: 2,
-    sourceCount: 3,
-    itemsExamined: 1,
-    itemsQualified: 1,
-    itemsSuppressed: 0,
-    errors: [],
-    coverage: "3 indexed sources checked; 1 passed the strict gates.",
-    limitations: ["Search indexes can delay public posts."],
-    items: [{
-      id: "social-daily-one",
-      platform: "reddit",
-      title: "Manual grant reporting workflow",
-      url: "https://www.reddit.com/r/nonprofit/comments/example/manual_grant_reporting/",
-      author: "unknown",
-      publishedAt: "2026-08-06",
-      observedAt: "2026-08-06T13:35:00.000Z",
-      evidenceSummary: "A finance user describes rebuilding funder reports in spreadsheets.",
-      observedPain: "Accounting exports still require manual funder-category mapping.",
-      painThemes: ["spreadsheet_bridge"],
-      whyRelevant: "Supports the post-award reporting workflow.",
-      suggestedResponse: "A source-linked first draft can reduce the manual assembly while preserving review.",
-      status: "ACTIONABLE"
-    }]
-  };
-  const awardCandidate: GtmOpportunity = {
-    ...initialOpportunities[0],
-    id: "usaspending-research-candidate",
-    organization: "Community Action Network",
-    primaryContact: undefined,
-    targetTier: "emerging",
-    amount: 75_000,
-    evidence: [{ ...initialOpportunities[0].evidence[0], id: "award-source", authority: "official", title: "USAspending award" }]
-  };
-  const awardScan: AwardDiscoveryScan = {
-    generatedAt: "2026-08-10T08:00:00.000Z",
-    source: "https://api.usaspending.gov/api/v2/search/spending_by_award/",
-    scanStatus: "success",
-    lastSuccessfulScanAt: "2026-08-10T08:00:00.000Z",
-    criteria: { startDate: "2026-05-12", endDate: "2026-08-10", minimumAward: 25_000, recipientTypes: ["Nonprofit Organization"], awardTypes: ["02", "03", "04", "05"], pageSize: 100, maxPages: 4, maxCandidates: 100 },
-    recordsChecked: 100,
-    pagesChecked: 1,
-    newAwardCount: 1,
-    duplicateCount: 0,
-    errorCount: 0,
-    coverage: "100 recent federal grant records checked.",
-    opportunities: [awardCandidate],
-    limitations: ["Contacts require verification."]
-  };
 
-  it("renders the alert queue, source evidence, and no-send boundary", async () => {
-    const user = userEvent.setup();
-    render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} /></MemoryRouter>);
-    expect(screen.getByRole("heading", { name: /Founder GTM Command Center/i })).toBeInTheDocument();
-    await user.click(screen.getByRole("tab", { name: "Leads" }));
-    expect(screen.getByRole("heading", { name: "Junior Achievement of South Florida" })).toBeInTheDocument();
-    expect(screen.getByText(/Confirmed manual outreach and canonical pipeline records only/i)).toBeInTheDocument();
-    await user.click(screen.getAllByRole("button", { name: "Review evidence" })[0]);
-    expect(screen.getByText("Observed evidence")).toBeInTheDocument();
-    expect(screen.getAllByText(/Maureen Lister/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/info@perkins\.org/).length).toBeGreaterThan(0);
-    expect(document.querySelectorAll("a[href^=\"mailto:\"]")).toHaveLength(0);
+  function canonicalRecord(overrides: Partial<CanonicalGtmRecord> = {}): CanonicalGtmRecord {
+    return { id: "canonical-one", organizationId: "org:example.org", organization: "Example Nonprofit", organizationDomain: "example.org", segment: "DIRECT", state: "READY_TO_SEND", qualified: true, contact: "Casey Finance", title: "Finance Director", email: "casey@example.org", verificationStatus: "VERIFIED", suppressionStatus: "CLEAR", priorContact: false, blockers: [], nextAction: "Instantly handoff after final guardrails.", whyNow: "Recent award announcement", sourceUrl: "https://example.org/award", partnerType: null, subject: "Grant reporting", draft: "Hi Casey", instantlyStatus: null, instantlyLeadId: null, instantlyCampaignId: null, lastUpdated: "2026-08-28T00:00:00.000Z", ...overrides };
+  }
+  function canonicalModel(records: CanonicalGtmRecord[]): CanonicalGtmModel { return { generatedAt: "2026-08-28T00:00:00.000Z", records, queues: { RESEARCH_BACKLOG: [], NEEDS_VERIFICATION: [], READY_TO_SEND: [], ALREADY_CONTACTED: [], AWAITING_REPLY: [], FOLLOW_UP_DUE: [], REPLIED: [], POSITIVE: [], TRIAL: [], PAID: [] }, metrics: { directReady: 1, partnerReady: 0, directNeedsVerification: 0, partnerNeedsVerification: 0, followUpsDue: 0, awaitingReply: 0, replies: 0, positiveReplies: 0, trials: 0, paid: 0, mrr: 0 } }; }
+
+  it("separates the executive overview from detailed canonical opportunities", () => {
+    const model = canonicalModel([canonicalRecord(), canonicalRecord({ id: "partner-one", organization: "Example Accounting", organizationId: "org:example-accounting.com", organizationDomain: "example-accounting.com", segment: "PARTNER", contact: "Pat Partner", title: "Managing Partner", email: "pat@example-accounting.com", instantlyStatus: "IN_CAMPAIGN" })]);
+    const { rerender } = render(<GtmExecutiveOverview model={model} health={null} persisted={null} seo={{ published: 0, indexed: null, impressions: null, clicks: null, nextPublication: null, error: null }} />);
+    expect(screen.getByRole("heading", { name: /Demand, delivery, and blockers/i })).toBeInTheDocument();
+    expect(screen.queryByText("Example Nonprofit")).not.toBeInTheDocument();
+    rerender(<GtmOpportunityQueue model={model} />);
+    expect(screen.getByRole("heading", { name: "Opportunities" })).toBeInTheDocument();
+    expect(screen.getByText("Example Nonprofit")).toBeInTheDocument();
+    expect(screen.getByText("Example Accounting")).toBeInTheDocument();
   });
 
-  it("keeps email-client handoff and external action marking locked in SHADOW mode", () => {
-    render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} /></MemoryRouter>);
-    expect(screen.getByText(/AUTOMATED OUTBOUND LOCKED/i)).toBeInTheDocument();
-    expect(document.querySelectorAll("a[href^=\"mailto:\"]")).toHaveLength(0);
-    expect(screen.getByText(/AUTOMATED OUTBOUND LOCKED/i)).toBeInTheDocument();
+  it("labels provider enrollment as scheduled and reserves sent for provider evidence", () => {
+    const model = canonicalModel([canonicalRecord({ instantlyStatus: "IN_CAMPAIGN" }), canonicalRecord({ id: "sent", organization: "Sent Nonprofit", organizationId: "org:sent.org", email: "finance@sent.org", instantlyStatus: "SENT", state: "AWAITING_REPLY", priorContact: true })]);
+    render(<GtmOpportunityQueue model={model} />);
+    expect(screen.getAllByText("SCHEDULED").length).toBeGreaterThan(1);
+    expect(screen.getAllByText("SENT").length).toBeGreaterThan(1);
   });
 
-  it("supports keyboard-accessible tab and filter controls", () => {
-    render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} /></MemoryRouter>);
-    const sourcesTab = screen.getByRole("tab", { name: "System Health" });
-    fireEvent.click(sourcesTab);
-    expect(sourcesTab).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("heading", { name: /Know exactly which scanners are active/i })).toBeInTheDocument();
-    for (const button of [...screen.getAllByRole("tab"), ...screen.queryAllByRole("button")]) {
-      expect((button.getAttribute("aria-label") || button.textContent || "").trim()).not.toBe("");
-    }
-  });
-
-  it("shows the latest daily social scan as research-only evidence", async () => {
-    const user = userEvent.setup();
-    render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} initialDailyScan={dailyScan} /></MemoryRouter>);
-    await user.click(screen.getByRole("tab", { name: "System Health" }));
-    expect(screen.getByRole("heading", { name: "1 source-linked result" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Manual grant reporting workflow/i })).toHaveAttribute("href", dailyScan.items[0].url);
-    expect(screen.getAllByText("research only").length).toBeGreaterThan(0);
-  });
-
-  it("renders the protected canonical Control Plane queue without a delivery action", async () => {
-    const user = userEvent.setup();
-    const controlPlane: ControlPlaneQueueReconciliation = {
-      uniqueOrganizations: 1,
-      counts: { DISQUALIFIED: 0, QUALIFIED: 0, CONTACT_RESEARCH_REQUIRED: 0, ENRICHMENT_READY: 0, EMAIL_VERIFICATION_REQUIRED: 0, SUPPRESSION_CHECK_REQUIRED: 0, DRAFT_REQUIRED: 0, READY_FOR_HUMAN_REVIEW: 1, ALREADY_CONTACTED: 0, CUSTOMER: 0, DUPLICATE: 0 },
-      cards: [{ cardId: "award-one", canonicalCardId: "award-one", organization: "Example Community Action", normalizedOrganization: "example community action", signalKind: "grant_award", observedAt: "2026-08-16", sourceUrls: ["https://example.org/award"], state: "READY_FOR_HUMAN_REVIEW", reason: "Direct business email, suppression, and a human-review-only draft are present." }]
-    };
-    render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} initialControlPlane={controlPlane} /></MemoryRouter>);
-    await user.click(screen.getByRole("tab", { name: "Leads" }));
-    expect(screen.getByRole("heading", { name: /Every award lead has one visible queue state/i })).toBeInTheDocument();
-    expect(screen.getByText("Example Community Action")).toBeInTheDocument();
-    expect(screen.getByText("human-review only")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /outbound locked/i }).every((button) => (button as HTMLButtonElement).disabled)).toBe(true);
-    expect(document.querySelectorAll("a[href^=\"mailto:\"]")).toHaveLength(0);
-  });
-
-  it("shows expanded award candidates without allowing unverified outreach", async () => {
-    const user = userEvent.setup();
-    render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} initialAwardScan={awardScan} /></MemoryRouter>);
-    await user.click(screen.getByRole("tab", { name: "Leads" }));
-    expect(screen.getByRole("heading", { name: "Community Action Network" })).toBeInTheDocument();
-    expect(screen.getByText("emerging target")).toBeInTheDocument();
-    const card = screen.getByRole("heading", { name: "Community Action Network" }).closest("article")!;
-    expect(card.textContent).toMatch(/Contact research needed/i);
-    await user.click(screen.getByRole("tab", { name: "System Health" }));
-    expect(screen.getByRole("heading", { name: /Research and drafts stay reviewable/i })).toBeInTheDocument();
-    expect(screen.getByText("Outbound delivery").closest("article")?.textContent).toMatch(/Disabled/i);
-  });
-
-  it("renders the current read-only outreach history without a delivery action", async () => {
-    const user = userEvent.setup();
-    render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} /></MemoryRouter>);
-    await user.click(screen.getByRole("tab", { name: "Outreach" }));
-    expect(screen.getByRole("heading", { name: /Contact history is factual and read-only/i })).toBeInTheDocument();
-    expect(screen.getByLabelText("Outreach ledger summary")).toHaveTextContent("25sent events25unique organizations contacted7direct unique18partner unique");
-    expect(screen.getAllByText("pending canonical link").length).toBeGreaterThan(0);
-    expect(document.querySelectorAll("a[href^=\"mailto:\"]")).toHaveLength(0);
-  });
-  it("keeps the Overview commercial-first and filters the confirmed manual ledger", async () => {
-    const user = userEvent.setup();
-    render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} /></MemoryRouter>);
-    expect(screen.getByLabelText("Commercial funnel")).toHaveTextContent("25Sent25Awaiting reply0Replies0Positive replies0Trials or Free First Awards0Paid");
-    expect(screen.getByLabelText("Commercial funnel")).toHaveTextContent("MRR");
-    expect(screen.getByLabelText("Direct funnel")).toHaveTextContent(/7Sent.*0Replies.*0Positive replies.*0Free First Award.*0Paid/);
-    expect(screen.getByLabelText("Partner funnel")).toHaveTextContent(/18Sent.*0Replies.*0Positive replies.*0Trial with client or award.*0Paid customers influenced/);
-    expect(screen.queryByText(/NOT_INSTRUMENTED/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Not instrumented/i)).not.toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "View in Outreach" })).toHaveLength(25);
-    expect(screen.getByText("REVIEW_FEEDBACK")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Open feedback review" }));
-    expect(screen.getByRole("heading", { name: "Feedback review" })).toBeInTheDocument();
-    await user.click(screen.getByRole("tab", { name: "Overview" }));
-    await user.click(screen.getAllByRole("button", { name: "View in Outreach" })[0]);
-    expect(screen.getByRole("heading", { name: /Contact history is factual and read-only/i })).toBeInTheDocument();
-  });
-  it("uses canonical actual-target inventory and deduplicated manual sends", async () => {
-    const user = userEvent.setup();
-    const overview = { direct: { metrics: { qualified: { actual: 13, target: 100, gap: 87 }, humanReview: { actual: 2, target: 25, gap: 23 }, sent: { actual: 5, target: null, gap: null } } }, partner: { metrics: { researched: { actual: 50, target: 50, gap: 0 }, highFit: { actual: 20, target: 20, gap: 0 }, humanReview: { actual: 0, target: 5, gap: 5 }, contacted: { actual: 5, target: null, gap: null } } } } as unknown as GtmOverview;
-    render(<MemoryRouter><GtmDashboardContent seedOpportunities={initialOpportunities} initialOverview={overview} /></MemoryRouter>);
-    await user.click(screen.getByRole("tab", { name: "Leads" }));
-    expect(screen.getByLabelText("Direct lead inventory")).toHaveTextContent("13Qualified / 100 target2Ready to send / 25 target7Manual sent");
-    await user.click(screen.getByRole("tab", { name: "Partners" }));
-    expect(screen.getByLabelText("Partner inventory")).toHaveTextContent("50Researched / 50 target20High fit / 20 target0Ready to send / 5 target18Manual sent");
-    await user.click(screen.getByRole("tab", { name: "Outreach" }));
-    await user.click(screen.getByRole("tab", { name: "Outreach" }));
-    await user.selectOptions(screen.getByLabelText("Filter outreach type"), "partner");
-    expect(screen.getAllByText("Partner", { selector: "td" })).toHaveLength(18);
-    await user.type(screen.getByLabelText("Search outreach history"), "Vault Consulting");
-    expect(screen.getByText("Vault Consulting")).toBeInTheDocument();
-    expect(screen.queryByText("Goldin Group")).not.toBeInTheDocument();
+  it("exposes searchable, segment, lifecycle, and blocker filters", () => {
+    const model = canonicalModel([canonicalRecord(), canonicalRecord({ id: "blocked", organization: "Blocked Partner", organizationId: "org:blocked.com", organizationDomain: "blocked.com", segment: "PARTNER", blockers: ["Suppressed by policy"], suppressionStatus: "BLOCKED" })]);
+    render(<GtmOpportunityQueue model={model} />);
+    expect(screen.getByPlaceholderText(/Search organization/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Filter segment")).toBeInTheDocument();
+    expect(screen.getByLabelText("Filter lifecycle stage")).toBeInTheDocument();
+    expect(screen.getByLabelText("Filter blocker")).toBeInTheDocument();
   });
 });

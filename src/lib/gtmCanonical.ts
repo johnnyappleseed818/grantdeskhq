@@ -59,6 +59,10 @@ export interface CanonicalGtmRecord {
   followUpDueAt?: string | null;
   secondFollowUpDueAt?: string | null;
   finalCloseDueAt?: string | null;
+  /** Instantly is the delivery authority; blank means no provider enrollment. */
+  instantlyStatus?: string | null;
+  instantlyLeadId?: string | null;
+  instantlyCampaignId?: string | null;
   lastUpdated: string | null;
 }
 
@@ -178,15 +182,14 @@ export function buildCanonicalGtmModel(input: {
 }
 
 function applyExternalCommercialState(record: CanonicalGtmRecord, external: CanonicalExternalOutreachState): CanonicalGtmRecord {
-  // Human-confirmed ledger history is still stronger than an external sync;
-  // this only lets real delivery/reply outcomes enrich the same read model.
-  if (record.priorContact && record.sentAt) return record;
+  const provider = { instantlyStatus: external.instantlySyncStatus, instantlyLeadId: (external as CanonicalExternalOutreachState & { instantlyLeadId?: string }).instantlyLeadId || null, instantlyCampaignId: (external as CanonicalExternalOutreachState & { instantlyCampaignId?: string }).instantlyCampaignId || null };
+  if (record.priorContact && record.sentAt) return { ...record, ...provider };
   const status = external.instantlySyncStatus;
-  if (status === "SENT") return { ...record, state: "AWAITING_REPLY", priorContact: true, blockers: [], sentAt: external.firstSentAt || record.sentAt || null, nextAction: "AWAIT RESPONSE; DELIVERY WAS RECORDED BY INSTANTLY." };
-  if (status === "REPLIED") return { ...record, state: "REPLIED", priorContact: true, blockers: [], sentAt: external.firstSentAt || record.sentAt || null, nextAction: "REPLY REQUIRES HUMAN RESPONSE IN INSTANTLY." };
-  if (status === "POSITIVE") return { ...record, state: "POSITIVE", priorContact: true, blockers: [], sentAt: external.firstSentAt || record.sentAt || null, nextAction: "REVIEW INTERESTED REPLY IN INSTANTLY." };
-  if (["BOUNCED", "UNSUBSCRIBED", "NOT_INTERESTED", "SEQUENCE_COMPLETE"].includes(status)) return { ...record, state: "ALREADY_CONTACTED", priorContact: true, suppressionStatus: ["BOUNCED", "UNSUBSCRIBED"].includes(status) ? "BLOCKED" : record.suppressionStatus, blockers: [status], sentAt: external.firstSentAt || record.sentAt || null, nextAction: "PRESERVE EXTERNAL OUTREACH HISTORY; DO NOT CREATE A NEW FIRST-TOUCH ACTION." };
-  return record;
+  if (status === "SENT") return { ...record, ...provider, state: "AWAITING_REPLY", priorContact: true, blockers: [], sentAt: external.firstSentAt || record.sentAt || null, nextAction: "Await a provider-recorded response; no new first touch is eligible." };
+  if (status === "REPLIED") return { ...record, ...provider, state: "REPLIED", priorContact: true, blockers: [], sentAt: external.firstSentAt || record.sentAt || null, nextAction: "Human response is required in Instantly." };
+  if (status === "POSITIVE") return { ...record, ...provider, state: "POSITIVE", priorContact: true, blockers: [], sentAt: external.firstSentAt || record.sentAt || null, nextAction: "Review the interested reply in Instantly." };
+  if (["BOUNCED", "UNSUBSCRIBED", "NOT_INTERESTED", "SEQUENCE_COMPLETE"].includes(status)) return { ...record, ...provider, state: "ALREADY_CONTACTED", priorContact: true, suppressionStatus: ["BOUNCED", "UNSUBSCRIBED"].includes(status) ? "BLOCKED" : record.suppressionStatus, blockers: [status], sentAt: external.firstSentAt || record.sentAt || null, nextAction: "Preserve provider history; do not create a new first touch." };
+  return { ...record, ...provider, nextAction: status === "STAGED" ? "Await provider campaign scheduling; this is not an email sent event." : status === "IN_CAMPAIGN" || status === "APPROVED_FOR_CAMPAIGN" ? "Provider enrollment is recorded; await an actual provider send event." : record.nextAction };
 }
 
 function toCanonicalRecord(organizationId: string, candidate: CanonicalGtmCandidate, enrichment?: ContactEnrichmentRecord, history?: OutreachRecord): CanonicalGtmRecord {
@@ -213,6 +216,7 @@ function toCanonicalRecord(organizationId: string, candidate: CanonicalGtmCandid
     followUpDueAt: history?.followUpDueAt || null,
     secondFollowUpDueAt: history?.secondFollowUpDueAt || null,
     finalCloseDueAt: history?.finalCloseDueAt || null,
+    instantlyStatus: null, instantlyLeadId: null, instantlyCampaignId: null,
     lastUpdated: history?.updatedAt || enrichment?.updatedAt || null
   };
 }
@@ -227,7 +231,7 @@ function stateFromOutreach(record: OutreachRecord): CanonicalGtmState {
 }
 
 function nextAction(state: CanonicalGtmState, blockers: string[]) {
-  if (state === "READY_TO_SEND") return "COPY OR OPEN THE HUMAN-APPROVED DRAFT; OUTBOUND REMAINS MANUAL.";
+  if (state === "READY_TO_SEND") return "Eligible for the segment-specific Instantly handoff after final provider and suppression checks.";
   if (state === "FOLLOW_UP_DUE") return "REVIEW FOLLOW-UP; SEPARATE HUMAN AUTHORIZATION IS REQUIRED.";
   if (state === "AWAITING_REPLY") return "AWAIT RESPONSE; NO DELIVERY OR OUTCOME IS INFERRED.";
   if (state === "ALREADY_CONTACTED") return "PRESERVE HISTORY; DO NOT CREATE A NEW FIRST-TOUCH ACTION.";

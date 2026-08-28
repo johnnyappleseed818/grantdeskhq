@@ -36,7 +36,7 @@ export async function runPartnerPublicDiscovery(input: { knownDomains: string[];
   const generatedAt = now.toISOString();
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured.");
-  const maximum = Math.max(20, Math.min(30, Math.floor(input.maximum || 25)));
+  const maximum = Math.max(25, Math.min(50, Math.floor(input.maximum || 50)));
   const response = await fetch(apiUrl, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },

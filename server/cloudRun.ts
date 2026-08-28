@@ -41,7 +41,7 @@ import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
 import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
 import { executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
-import { channelSeedManifest } from "../src/lib/gtmChannelSeeds.ts";
+import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
 import { enrichChannelSeedsWithInstantly, reconcileChannelSeedEnrichment } from "./gtmChannelSeedEnrichment.ts";
 
 const port = Number(process.env.PORT || 8080);
@@ -1092,13 +1092,17 @@ async function handleScheduledPartnerHunterReconciliation(request: IncomingMessa
   const instantly = await reconcileInstantlyPolling();
   const before = await readCanonicalGtmModel();
   const decision = inventoryDecision("partner", before.metrics.partnerReady);
+  const partnerEvidenceQualified = before.records.filter((record) => record.segment === "PARTNER" && record.qualified && !record.priorContact).length;
+  const shouldDiscoverPartner = partnerEvidenceQualified < 150 || before.metrics.partnerReady < GTM_INVENTORY_POLICY.partner.target;
   let discovery = await readGtmPartnerDiscoveryScan();
   let partner = null;
-  if (decision.triggered) {
+  if (shouldDiscoverPartner) {
     const knownDomains = before.records.filter((record) => record.segment === "PARTNER").map((record) => record.organizationDomain);
     const priorContactDomains = before.records.filter((record) => record.segment === "PARTNER" && record.priorContact).map((record) => record.organizationDomain);
-    try { discovery = await runPartnerPublicDiscovery({ knownDomains, priorContactDomains, maximum: 25 }).then(saveGtmPartnerDiscoveryScan); }
-    catch (error) { console.error("GTM_PARTNER_DISCOVERY", error); }
+    try {
+      discovery = await runPartnerPublicDiscovery({ knownDomains, priorContactDomains, maximum: 50 }).then(saveGtmPartnerDiscoveryScan);
+      if (discovery?.opportunities.length) await importGtmChannelSeeds(discovery.opportunities.map((opportunity) => discoveredPartnerToChannelSeed(opportunity)));
+    } catch (error) { console.error("GTM_PARTNER_DISCOVERY", error); }
     const limit = boundedEnrichmentLimit("partner", before.metrics.partnerReady, Math.min(configuredPositiveInteger("HUNTER_MAX_LOOKUPS_PER_RUN", 10), 10));
     if (limit > 0) partner = await runContactEnrichmentBatch({ segment: "partner", limit, discoveredPartner: discovery?.opportunities || [] });
   }
@@ -1153,14 +1157,16 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
   catch (error) { errors.push(error instanceof Error ? error.message : "Instantly reconciliation failed before Direct inventory evaluation."); }
   const before = await readCanonicalGtmModel();
   const directDecision = inventoryDecision("direct", before.metrics.directReady);
+  const directEvidenceQualified = before.records.filter((record) => record.segment === "DIRECT" && record.qualified && !record.priorContact).length;
+  const shouldDiscoverDirect = directEvidenceQualified < 500 || before.metrics.directReady < GTM_INVENTORY_POLICY.direct.target;
   let awardScan;
-  if (before.metrics.directReady < GTM_INVENTORY_POLICY.direct.target) {
+  if (shouldDiscoverDirect) {
     try { awardScan = await runDailyAwardScan().then(saveGtmAwardScan); }
     catch (error) { errors.push(error instanceof Error ? error.message : "Award scan failed."); }
   }
   const opportunities = awardScan?.opportunities || [];
   let directDiscovery;
-  if (before.metrics.directReady < GTM_INVENTORY_POLICY.direct.target) try {
+  if (shouldDiscoverDirect) try {
     directDiscovery = await runDirectPublicDiscovery({
       knownOrganizationIds: before.records.map((record) => record.organizationId),
       priorContactOrganizationIds: before.records.filter((record) => record.priorContact).map((record) => record.organizationId),
@@ -1170,6 +1176,10 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
     directDiscovery = await saveGtmDirectDiscoveryScan(directDiscovery);
   } catch (error) { errors.push(error instanceof Error ? error.message : "Public Direct discovery could not be saved."); }
   const directOpportunities = directDiscovery?.opportunities || [];
+  if (directOpportunities.length) {
+    try { await importGtmChannelSeeds(directOpportunities.map((opportunity) => discoveredOpportunityToChannelSeed(opportunity))); }
+    catch (error) { errors.push(error instanceof Error ? error.message : "Direct discovery could not enter the Instantly enrichment queue."); }
+  }
   let reconciliation;
   if (awardScan || directDiscovery) {
     try { reconciliation = await reconcileAndSaveControlPlane([...initialOpportunities, ...opportunities, ...directOpportunities]); }

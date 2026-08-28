@@ -23,9 +23,7 @@ import {
   UsersRound
 } from "lucide-react";
 import { Link, Navigate } from "react-router-dom";
-import { referralChannels } from "../data/gtmData";
 import { apiRequest } from "../lib/api";
-import { loadCanonicalGtmModel, requestGtmWithFreshToken, type GtmTokenProvider } from "../lib/gtmDashboardApi";
 import {
   assessOpportunityAccuracy,
   formatOpportunityScore,
@@ -42,15 +40,16 @@ import { useAuth } from "../lib/auth";
 import type { ControlPlaneLeadState, ControlPlaneQueueReconciliation } from "../lib/gtmControlPlaneQueue";
 import type { GtmOverview, GtmMetric } from "../lib/gtmOverview";
 import { confirmedHumanOutreach, reconcileOutreachControlPlane, summarizeOutreach, type OutreachRecord } from "../lib/gtmOutreach";
-import type { CanonicalGtmModel, CanonicalGtmRecord, CanonicalGtmState } from "../lib/gtmCanonical";
+import type { CanonicalGtmModel } from "../lib/gtmCanonical";
 import type { SearchConsoleState } from "../../server/searchConsole";
 import type { ContentEngineState } from "../lib/gtmContentEngine";
-import type { InventoryAutopilotSnapshot } from "../lib/gtmInventoryPolicy";
-import { founderOpportunityQueue, type GtmOpportunityEngineState, type OpportunityClusterStatus } from "../lib/gtmOpportunityEngine";
+import { GtmExecutiveOverview, GtmOpportunityQueue } from "../components/GtmCanonicalOperations";
 
-type DashboardTab = "overview" | "opportunities" | "outreach" | "leads" | "partners" | "social" | "seo" | "feedback" | "system-health" | "research";
+type DashboardTab = "overview" | "opportunities" | "outreach" | "social" | "seo" | "feedback" | "system-health" | "research";
 type StageState = Record<string, OpportunityStage>;
 type OutreachFilter = "all" | "awaiting" | "follow_up_due" | "replied" | "positive" | "trial" | "paid" | "direct" | "partner";
+type GtmTokenProvider = (forceRefresh?: boolean) => Promise<string>;
+type GtmRequest = <T>(path: string, token: string, init?: RequestInit) => Promise<T>;
 type InstantlyHealth = { status: string; integrationEnabled: boolean; apiKeyConfigured: boolean; webhookSecretConfigured: boolean; outboundEnabled: boolean; autoHandoffEnabled: boolean; directEnabled: boolean; partnerEnabled: boolean; firstTouchLinkEnabled: boolean; eventSyncMode: "POLLING" | "WEBHOOKS"; webhookSubscription: string; mappings: { directList: boolean; partnerList: boolean; directCampaign: boolean; partnerCampaign: boolean } };
 type InstantlyPersistedStatus = { lastSuccessfulSync?: string; reconciliation?: string; pollingCadence?: string; replyContent?: string; polledRecords?: number; errors?: string[] };
 
@@ -88,16 +87,12 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   const [directDiscovery, setDirectDiscovery] = useState<DirectDiscoveryScan | null>(null);
   const [controlPlane, setControlPlane] = useState<ControlPlaneQueueReconciliation | null>(initialControlPlane);
   const [overview, setOverview] = useState<GtmOverview | null>(initialOverview);
-  const [inventory, setInventory] = useState<InventoryAutopilotSnapshot | null>(null);
   const [canonical, setCanonical] = useState<CanonicalGtmModel | null>(null);
   const [canonicalLoading, setCanonicalLoading] = useState(Boolean(dailySignalToken));
   const [canonicalError, setCanonicalError] = useState("");
   const [canonicalRetry, setCanonicalRetry] = useState(0);
   const [searchConsole, setSearchConsole] = useState<SearchConsoleState | null>(null);
   const [contentEngine, setContentEngine] = useState<ContentEngineState | null>(null);
-  const [opportunityEngine, setOpportunityEngine] = useState<GtmOpportunityEngineState | null>(null);
-  const [opportunityEngineError, setOpportunityEngineError] = useState("");
-  const [opportunityPending, setOpportunityPending] = useState<string | null>(null);
   const [contentError, setContentError] = useState("");
   const [contentPending, setContentPending] = useState<string | null>(null);
   const [instantly, setInstantly] = useState<{ health: InstantlyHealth; persisted: InstantlyPersistedStatus | null } | null>(null);
@@ -118,26 +113,21 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
       apiRequest<{ scan: AwardDiscoveryScan | null }>("/api/gtm/award-signals", idToken),
       apiRequest<{ scan: DirectDiscoveryScan | null }>("/api/gtm/direct-discovery", idToken),
       apiRequest<{ reconciliation: ControlPlaneQueueReconciliation | null }>("/api/gtm/control-plane-queue", idToken),
-      apiRequest<{ overview: GtmOverview; inventory: InventoryAutopilotSnapshot | null }>("/api/gtm/overview", idToken),
+      apiRequest<{ overview: GtmOverview }>("/api/gtm/overview", idToken),
       apiRequest<{ state: SearchConsoleState | null }>("/api/gtm/search-console", idToken),
-      apiRequest<{ state: ContentEngineState | null }>("/api/gtm/content-engine", idToken),
-      apiRequest<{ state: GtmOpportunityEngineState | null }>("/api/gtm/opportunity-clusters", idToken)
+      apiRequest<{ state: ContentEngineState | null }>("/api/gtm/content-engine", idToken)
     ]))
-      .then(([opportunityResult, socialResult, awardResult, directResult, controlPlaneResult, overviewResult, searchConsoleResult, contentResult, opportunityEngineResult]) => {
+      .then(([opportunityResult, socialResult, awardResult, directResult, controlPlaneResult, overviewResult, searchConsoleResult, contentResult]) => {
         if (!active) return;
-        const failures = [opportunityResult, socialResult, awardResult, directResult, controlPlaneResult, overviewResult, searchConsoleResult, contentResult, opportunityEngineResult].filter((result) => result.status === "rejected");
+        const failures = [opportunityResult, socialResult, awardResult, directResult, controlPlaneResult, overviewResult, searchConsoleResult, contentResult].filter((result) => result.status === "rejected");
         if (failures.length) setSignalsError("Some secondary GTM data could not be loaded. Commercial queues remain available.");
         if (socialResult.status === "fulfilled") setDailyScan(socialResult.value.scan);
         if (awardResult.status === "fulfilled") setAwardScan(awardResult.value.scan);
         if (directResult.status === "fulfilled") setDirectDiscovery(directResult.value.scan);
         if (controlPlaneResult.status === "fulfilled") setControlPlane(controlPlaneResult.value.reconciliation);
-        if (overviewResult.status === "fulfilled") {
-          setOverview(overviewResult.value.overview);
-          setInventory(overviewResult.value.inventory);
-        }
+        if (overviewResult.status === "fulfilled") setOverview(overviewResult.value.overview);
         if (searchConsoleResult.status === "fulfilled") setSearchConsole(searchConsoleResult.value.state);
         if (contentResult.status === "fulfilled") setContentEngine(contentResult.value.state);
-        if (opportunityEngineResult.status === "fulfilled") setOpportunityEngine(opportunityEngineResult.value.state);
         if (opportunityResult.status === "fulfilled") {
           setLiveOpportunities(mergeAwardCandidates(awardResult.status === "fulfilled" ? awardResult.value.scan?.opportunities || [] : [], opportunityResult.value.opportunities));
           setExpanded((current) => current || opportunityResult.value.opportunities[0]?.id || null);
@@ -188,7 +178,6 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
   });
   const unresolvedAwardCandidates = ranked.filter((item) => item.signalKind === "grant_award" && !item.primaryContact?.email).length;
   const outreachMetrics = summarizeOutreach(outreach);
-  const pipelineStages: OpportunityStage[] = ["new", "reviewing", "ready", "contacted", "replied", "converted", "dismissed"];
 
   const updateStage = (id: string, stage: OpportunityStage) => setStages((current) => ({ ...current, [id]: stage }));
   const copyDraft = async (opportunity: GtmOpportunity) => {
@@ -224,20 +213,11 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
     } catch { setContentError("Unable to save the content review state. Please retry."); }
     finally { setContentPending(null); }
   };
-  const updateOpportunityCluster = async (clusterId: string, status: OpportunityClusterStatus) => {
-    if (!dailySignalToken) return;
-    setOpportunityEngineError(""); setOpportunityPending(clusterId);
-    try {
-      const result = await requestGtmWithFreshToken<{ state: GtmOpportunityEngineState }>(dailySignalToken, "/api/gtm/opportunity-clusters", apiRequest, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clusterId, status }) });
-      setOpportunityEngine(result.state);
-    } catch { setOpportunityEngineError("Unable to save the founder decision. Nothing was staged or sent."); }
-    finally { setOpportunityPending(null); }
-  };
 
   return <div className="gtm-page">
     <header className="gtm-header">
       <div className="site-shell py-9 lg:py-12">
-        <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end"><div><div className="prototype-pill"><span aria-hidden="true" /> Private founder console · human approval required</div><p className="eyebrow mt-6">Commercial operating view</p><h1>Founder GTM Command Center</h1><p>Confirmed manual outreach and canonical pipeline records only. Nothing is posted or emailed automatically.</p></div><span className="status-badge status-neutral">AUTOMATED OUTBOUND LOCKED</span></div>
+        <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end"><div><div className="prototype-pill"><span aria-hidden="true" /> Private founder console · canonical provider reconciliation</div><p className="eyebrow mt-6">Commercial operating view</p><h1>Founder GTM Command Center</h1><p>Source-backed organizations, verified contacts, provider enrollment, scheduled email, and provider-confirmed delivery are shown as separate states.</p></div><span className="status-badge status-neutral">PROVIDER-BACKED LIFECYCLE</span></div>
         <div className="gtm-metrics" aria-label="Commercial KPIs">
           <Metric icon={MailCheck} label="Direct ready" value={canonical?.metrics.directReady ?? "—"} detail="canonical first-touch queue" />
           <Metric icon={Handshake} label="Partner ready" value={canonical?.metrics.partnerReady ?? "—"} detail="canonical first-touch queue" />
@@ -255,15 +235,15 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
     <div className="gtm-tab-wrap">
       <div className="site-shell gtm-tabs" role="tablist" aria-label="GTM dashboard sections">
         {([
-          ["overview", "Overview"], ["opportunities", "Opportunities"], ["outreach", "Outreach"], ["leads", "Leads"], ["partners", "Partners"], ["social", "Social"], ["seo", "SEO & Content"], ["feedback", "Feedback"], ["system-health", "System Health"]
+          ["overview", "Overview"], ["opportunities", "Opportunities"], ["outreach", "Outreach history"], ["social", "Social"], ["seo", "SEO & Content"], ["feedback", "Feedback"], ["system-health", "System Health"]
         ] as Array<[DashboardTab, string]>).map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={activeTab === id} className={activeTab === id ? "is-active" : ""} onClick={() => setActiveTab(id)}>{label}</button>)}
       </div>
     </div>
 
     <div className="site-shell py-8 lg:py-12">
-      {activeTab === "overview" && (canonicalRuntime ? <><OpportunityRadarPanel state={opportunityEngine} error={opportunityEngineError} pendingId={opportunityPending} onDecision={updateOpportunityCluster} compact /><InventoryAutopilotPanel inventory={inventory} /><CanonicalOperationalPanel model={canonical} loading={canonicalLoading} error={canonicalError} onRetry={() => setCanonicalRetry((value) => value + 1)} /></> : <><OpportunityRadarPanel state={opportunityEngine} error={opportunityEngineError} pendingId={opportunityPending} onDecision={updateOpportunityCluster} compact /><InventoryAutopilotPanel inventory={inventory} /><FounderOverview records={outreach} overview={overview} onOpenOutreach={() => setActiveTab("outreach")} onOpenFeedback={() => setActiveTab("feedback")} /></>)}
-      {activeTab === "opportunities" && <OpportunityRadarPanel state={opportunityEngine} error={opportunityEngineError} pendingId={opportunityPending} onDecision={updateOpportunityCluster} />}
-      {(activeTab === "research" || activeTab === "leads" && !canonicalRuntime) && <section aria-labelledby="hot-list-heading">
+      {activeTab === "overview" && (canonicalRuntime ? canonicalLoading ? <section className="workspace-empty"><LoaderCircle className="animate-spin" aria-hidden="true" /><h2>Loading canonical GTM data</h2></section> : canonicalError ? <section className="workspace-empty"><AlertCircle aria-hidden="true" /><h2>Canonical GTM data is unavailable</h2><p>{canonicalError}</p><button type="button" className="button button-primary" onClick={() => setCanonicalRetry((value) => value + 1)}>Retry</button></section> : <GtmExecutiveOverview model={canonical} health={instantly?.health || null} persisted={instantly?.persisted || null} seo={seoSummary(searchConsole, contentEngine)} /> : <FounderOverview records={outreach} overview={overview} onOpenOutreach={() => setActiveTab("outreach")} onOpenFeedback={() => setActiveTab("feedback")} />)}
+      {activeTab === "opportunities" && canonicalRuntime && <GtmOpportunityQueue model={canonical} />}
+      {(activeTab === "research" || activeTab === "opportunities" && !canonicalRuntime) && <section aria-labelledby="hot-list-heading">
         <InventorySummary title="Direct lead inventory" metrics={overview?.direct.metrics} sent={outreachMetrics.directSent} />
         <div className="gtm-section-heading"><div><p className="eyebrow">Today’s review queue</p><h2 id="hot-list-heading">Prioritized by pain, timing, fit, and potential value</h2><p>A high score never replaces evidence. Every row shows what is known, what is inferred, and what still needs confirmation.</p></div><div className="status-badge status-success"><RefreshCw aria-hidden="true" /> Award feed scheduled daily</div></div>
         <div className="gtm-toolbar">
@@ -305,51 +285,30 @@ export function GtmDashboardContent({ dailySignalToken, initialDailyScan = null,
         </div>
       </section>}
 
-      {activeTab === "leads" && canonicalRuntime && <CanonicalOperationalPanel model={canonical} segment="DIRECT" directDiscovery={directDiscovery} loading={canonicalLoading} error={canonicalError} onRetry={() => setCanonicalRetry((value) => value + 1)} />}
-      {activeTab === "leads" && !canonicalRuntime && <ControlPlanePanel reconciliation={controlPlane} />}
+      {activeTab === "opportunities" && !canonicalRuntime && <ControlPlanePanel reconciliation={controlPlane} />}
       {activeTab === "outreach" && <OutreachHistoryPanel records={outreach} canonicalOpportunityIds={controlPlane?.cards.map((card) => card.canonicalCardId) || ranked.map((opportunity) => opportunity.id)} filter={outreachFilter} query={outreachQuery} onFilter={setOutreachFilter} onQuery={setOutreachQuery} />}
-      {activeTab === "partners" && (canonicalRuntime ? <CanonicalOperationalPanel model={canonical} segment="PARTNER" loading={canonicalLoading} error={canonicalError} onRetry={() => setCanonicalRetry((value) => value + 1)} /> : <PartnersPanel records={outreach} overview={overview} />)}
       {activeTab === "social" && <SocialQueuePanel scan={dailyScan} onReview={reviewSocial} pendingId={socialReviewPending} error={socialReviewError} />}
       {activeTab === "seo" && <SeoQueuePanel state={searchConsole} content={contentEngine} error={contentError} pendingId={contentPending} onUpdate={updateContent} />}
       {activeTab === "feedback" && <FeedbackPanel />}
-      {activeTab === "system-health" && <><InventoryAutopilotPanel inventory={inventory} detailed /><OverviewPanel overview={overview} inMain /><div className="mt-8"><InstantlyHealthPanel health={instantly?.health || null} persisted={instantly?.persisted || null} /></div><div className="mt-8"><SignalsPanel dailyScan={dailyScan} directDiscovery={directDiscovery} loading={signalsLoading} error={signalsError} /></div><div className="mt-8"><SourcesPanel dailyScan={dailyScan} directDiscovery={directDiscovery} /></div><div className="mt-8"><PipelinePanel opportunities={ranked} stages={stages} stagesOrder={pipelineStages} onStageChange={updateStage} /></div><div className="mt-8"><OutreachAutomationPanel opportunities={ranked} stages={stages} /></div><div className="mt-8"><AccuracyPanel /></div></>}
+      {activeTab === "system-health" && <><OverviewPanel overview={overview} inMain /><div className="mt-8"><InstantlyHealthPanel health={instantly?.health || null} persisted={instantly?.persisted || null} /></div><div className="mt-8"><SignalsPanel dailyScan={dailyScan} directDiscovery={directDiscovery} loading={signalsLoading} error={signalsError} /></div><div className="mt-8"><SourcesPanel dailyScan={dailyScan} directDiscovery={directDiscovery} /></div><div className="mt-8"><AccuracyPanel /></div></>}
     </div>
   </div>;
 }
 
+function seoSummary(state: SearchConsoleState | null, content: ContentEngineState | null) {
+  const pages = state?.ranges.last28Days?.pages || [];
+  return {
+    published: content?.drafts.filter((draft) => draft.status === "PUBLISHED").length || 0,
+    indexed: state?.analyticsStatus === "PASS" ? pages.length : null,
+    impressions: state?.analyticsStatus === "PASS" ? pages.reduce((total, row) => total + row.impressions, 0) : null,
+    clicks: state?.analyticsStatus === "PASS" ? pages.reduce((total, row) => total + row.clicks, 0) : null,
+    nextPublication: content?.cadence || null,
+    error: state?.errors[0] || null
+  };
+}
+
 function InstantlyHealthPanel({ health, persisted }: { health: InstantlyHealth | null; persisted: InstantlyPersistedStatus | null }) {
   return <section className="panel" aria-label="Instantly integration health"><div className="panel-heading"><div><p className="eyebrow">Outbound delivery integration</p><h3>Instantly</h3></div><span className={`status-badge ${health?.apiKeyConfigured ? "status-info" : "status-neutral"}`}>{health?.status || "UNAVAILABLE"}</span></div>{!health ? <p>Instantly health could not be read. No delivery state is assumed.</p> : <div className="grid gap-3 text-sm sm:grid-cols-2"><p>API credential: <strong>{health.apiKeyConfigured ? "configured" : "not configured"}</strong></p><p>Event sync: <strong>{health.eventSyncMode}</strong></p><p>Webhooks: <strong>{health.webhookSubscription === "NOT_AVAILABLE_ON_CURRENT_PLAN_OPTIONAL" ? "optional — not available on current plan" : health.webhookSubscription}</strong></p><p>Last reconciliation: <strong>{persisted?.lastSuccessfulSync ? formatHistoryDate(persisted.lastSuccessfulSync) : "not yet recorded"}</strong></p><p>Outbound: <strong>{health.outboundEnabled ? "enabled" : "disabled"}</strong></p><p>Automatic handoff: <strong>{health.autoHandoffEnabled ? "enabled" : "disabled"}</strong></p><p>Reply content: <strong>{persisted?.replyContent === "AVAILABLE" ? "available" : "optional emails:read scope"}</strong></p><p>Polling cadence: <strong>{persisted?.pollingCadence || "hourly when live"}</strong></p></div>}<p className="mt-3 text-sm text-slate-600">Polling is the normal event-sync path on the current plan. GrantDeskHQ stages only eligible, uncontacted records; Instantly owns sequences and inbox handling when explicitly enabled.</p></section>;
-}
-
-function InventoryAutopilotPanel({ inventory, detailed = false }: { inventory: InventoryAutopilotSnapshot | null; detailed?: boolean }) {
-  if (!inventory) return <section className="panel mb-8" aria-label="GTM inventory autopilot"><p className="eyebrow">Inventory autopilot</p><h2>Inventory status will appear after the next protected reconciliation</h2><p className="mt-2 text-sm text-slate-600">The operating policy is active. It never stages or sends a lead, publishes an article, or posts to a community.</p></section>;
-  const channels = [
-    { label: "Direct inventory", count: inventory.direct.decision.ready, policy: `Floor ${inventory.direct.decision.floor} · target ${inventory.direct.decision.target}`, state: inventory.direct.decision.state, reason: inventory.direct.bottleneck },
-    { label: "Partner inventory", count: inventory.partner.decision.ready, policy: `Floor ${inventory.partner.decision.floor} · target ${inventory.partner.decision.target}`, state: inventory.partner.decision.state, reason: inventory.partner.bottleneck },
-    { label: "Content inventory", count: inventory.content.decision.ready, policy: `Floor ${inventory.content.decision.floor} · target ${inventory.content.decision.target}`, state: inventory.content.decision.state, reason: inventory.content.bottleneck },
-    { label: "Social", count: inventory.social.actionable, policy: `Preferred ${inventory.social.targetRange[0]}–${inventory.social.targetRange[1]}`, state: inventory.social.state, reason: inventory.social.bottleneck }
-  ];
-  const badgeClass = (state: string) => state === "HEALTHY" ? "status-success" : state === "BLOCKED" ? "status-blocked" : "status-review";
-  return <section className="panel mb-8" aria-label="GTM inventory autopilot"><div className="panel-heading"><div><p className="eyebrow">Inventory autopilot</p><h2>Working inventory stays bounded</h2></div><span className="status-badge status-neutral">NO AUTO HANDOFF</span></div><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 mt-5">{channels.map((channel) => <article className="rounded-xl border border-slate-200 p-4" key={channel.label}><div className="flex items-start justify-between gap-3"><strong className="text-2xl text-slate-950">{channel.count}</strong><span className={`status-badge ${badgeClass(channel.state)}`}>{channel.state.replaceAll("_", " ")}</span></div><h3 className="mt-3 text-sm font-semibold text-slate-900">{channel.label}</h3><p className="mt-1 text-xs text-slate-600">{channel.policy}</p>{detailed && <p className="mt-3 text-xs text-slate-500">{channel.reason}</p>}</article>)}</div><p className="mt-4 text-xs text-slate-600">Updated {formatDateTime(inventory.generatedAt)} · Content auto-publish, Social posting, and Instantly automatic handoff remain disabled.</p></section>;
-}
-
-function OpportunityRadarPanel({ state, error, pendingId, onDecision, compact = false }: { state: GtmOpportunityEngineState | null; error: string; pendingId: string | null; onDecision(clusterId: string, status: OpportunityClusterStatus): Promise<void>; compact?: boolean }) {
-  if (!state) return <section className="panel mb-8" aria-label="Opportunity radar"><p className="eyebrow">Opportunity radar</p><h2>Market-event clusters will appear after the next protected GTM reconciliation</h2><p className="mt-2 text-sm text-slate-600">This view combines saved award, hiring, partner, and community evidence. It cannot create a campaign, stage a lead, or send outreach.</p></section>;
-  const clusters = founderOpportunityQueue(state, compact ? 5 : 10);
-  const distribution = new Map(state.distributionNodes.map((node) => [node.id, node]));
-  const statusClass = (value: string) => value === "ATTACK" ? "status-review" : value === "APPROVED" ? "status-success" : "status-neutral";
-  return <section aria-label="Today’s GTM opportunities" className="mb-8"><div className="gtm-section-heading"><div><p className="eyebrow">Today’s GTM opportunities</p><h2>Markets forming around post-award reporting work</h2><p>Scores make the tradeoff visible; every claim retains public evidence. Approval records the founder’s decision only—campaign execution remains locked.</p></div><span className="status-badge status-neutral">FOUNDER APPROVAL REQUIRED</span></div>
-    <div className="gtm-automation-metrics mt-5" aria-label="Opportunity radar summary"><article><strong>{state.radar.newSignals}</strong><span>new signals</span></article><article><strong>{state.radar.highIntentAccounts}</strong><span>high-intent accounts</span></article><article><strong>{state.radar.verifiedBuyers}</strong><span>canonical Ready buyers</span></article><article><strong>{state.radar.highLeveragePartners}</strong><span>high-leverage partners</span></article><article><strong>{state.radar.attackClusters}</strong><span>attack clusters</span></article></div>
-    {error && <p role="alert" className="mt-4 text-sm text-rose-700">{error}</p>}
-    <div className="gtm-opportunity-list mt-6">{clusters.map((cluster) => {
-      const partners = cluster.distributionPartnerIds.map((id) => distribution.get(id)).filter(Boolean);
-      const evidence = [
-        ...cluster.signalIds.map((id) => state.signals.find((signal) => signal.id === id)).filter(Boolean).flatMap((signal) => signal!.evidence),
-        ...partners.flatMap((partner) => partner!.evidence)
-      ];
-      const experiment = state.experiments.find((item) => item.clusterId === cluster.id);
-      return <article className="gtm-opportunity" key={cluster.id}><div className="gtm-score" data-label="evidence-backed"><strong>{cluster.score.total}</strong><span>opportunity score</span></div><div className="gtm-opportunity-main"><div className="gtm-opportunity-top"><div className="flex flex-wrap gap-2"><span className={`status-badge ${statusClass(cluster.recommendation)}`}>{cluster.recommendation}</span><span className="status-badge status-info">{cluster.type.replaceAll("_", " ")}</span><span className="status-badge status-neutral">{cluster.status}</span></div><span className="text-xs text-slate-500">Updated {formatDateTime(cluster.updatedAt)}</span></div><h3>{cluster.name}</h3><p className="gtm-why"><strong>Why now:</strong> {cluster.commonReasonNow}</p><div className="gtm-facts"><span><Building2 aria-hidden="true" />{cluster.accountCount} accounts</span><span><UsersRound aria-hidden="true" />{cluster.reachableDecisionMakers} Ready buyers</span>{partners.length > 0 && <span><Handshake aria-hidden="true" />{partners.length} distribution routes</span>}</div><p className="gtm-why"><strong>Recommended attack:</strong> {cluster.playbook.channels.join(" + ").replaceAll("_", " ")} · {cluster.playbook.primaryOffer}</p>{experiment && <p className="gtm-why"><strong>Learning:</strong> {experiment.recommendation.replaceAll("_", " ")} · {experiment.decision}</p>}<div className="gtm-actions"><button type="button" className="button button-primary button-small" disabled={pendingId === cluster.id} onClick={() => void onDecision(cluster.id, "APPROVED")}>{pendingId === cluster.id ? "Saving…" : "Approve strategy"}</button><button type="button" className="button button-secondary button-small" disabled={pendingId === cluster.id} onClick={() => void onDecision(cluster.id, "SNOOZED")}>Snooze</button><button type="button" className="gtm-dismiss" disabled={pendingId === cluster.id} onClick={() => void onDecision(cluster.id, "REJECTED")}>Reject</button></div><details className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4"><summary className="cursor-pointer font-semibold text-slate-900">Evidence, graph, and scoring</summary><div className="mt-4 grid gap-5 lg:grid-cols-2"><div><p className="eyebrow">Evidence drawer</p>{evidence.map((item) => <article className="gtm-source-evidence" key={item.id}><a href={item.url} target="_blank" rel="noreferrer">{item.title}<ExternalLink aria-hidden="true" /></a><blockquote>“{item.excerpt}”</blockquote><p>{item.confidence} · supports {item.supports.join(", ")}</p></article>)}</div><div><p className="eyebrow">Decision basis</p><p className="text-sm text-slate-700">{cluster.commercialRationale}</p><ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-700">{cluster.score.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul><p className="mt-4 text-sm text-slate-600">{cluster.estimates.note}</p>{partners.map((partner) => <div className="mt-4 rounded-lg border border-slate-200 bg-white p-3" key={partner!.id}><strong>{partner!.organization}</strong><p className="text-sm text-slate-600">{partner!.type.replaceAll("_", " ")} · leverage {partner!.leverageScore}/100</p><p className="text-sm text-slate-600">{partner!.rationale[0]}</p></div>)}</div></div></details></div></article>;
-    })}</div>{!clusters.length && <div className="workspace-empty"><Radar aria-hidden="true" /><h2>No reviewable opportunity clusters yet</h2><p>Nothing is fabricated to fill the queue. The next daily source reconciliation can create a cluster only from retained evidence.</p></div>}<p className="mt-5 text-xs text-slate-600">Source confidence distinguishes known facts from inferred or estimated commercial context. Uploaded grant documents are excluded unless the user explicitly consents to a separate use.</p></section>;
 }
 
 function FounderOverview({ records, overview, onOpenOutreach, onOpenFeedback }: { records: OutreachRecord[]; overview: GtmOverview | null; onOpenOutreach(): void; onOpenFeedback(): void }) {
@@ -360,43 +319,58 @@ function FounderOverview({ records, overview, onOpenOutreach, onOpenFeedback }: 
 }
 
 /** Server-derived action queues. Browser state never changes commercial status. */
-function CanonicalOperationalPanel({ model, segment, directDiscovery, loading, error, onRetry }: { model: CanonicalGtmModel | null; segment?: "DIRECT" | "PARTNER"; directDiscovery?: DirectDiscoveryScan | null; loading: boolean; error: string; onRetry(): void }) {
-  const [state, setState] = useState<CanonicalGtmState>("READY_TO_SEND");
-  const [copied, setCopied] = useState<string | null>(null);
-  if (!model && loading) return <section className="workspace-empty"><LoaderCircle className="animate-spin" aria-hidden="true" /><h2>Loading canonical GTM records</h2><p>Commercial queues remain unavailable until the protected canonical model is read.</p></section>;
-  if (!model) return <section className="workspace-empty"><AlertCircle aria-hidden="true" /><h2>Unable to load GTM records.</h2><p>{error || "The protected canonical model is unavailable right now."}</p><button type="button" className="button button-primary" onClick={onRetry}>Retry</button></section>;
-  const records = model.records.filter((record) => (!segment || record.segment === segment) && record.state === state);
-  const states: CanonicalGtmState[] = segment
-    ? ["READY_TO_SEND", "FOLLOW_UP_DUE", "AWAITING_REPLY", "REPLIED", "POSITIVE", "TRIAL", "PAID", "NEEDS_VERIFICATION", "RESEARCH_BACKLOG", "ALREADY_CONTACTED"]
-    : ["READY_TO_SEND", "FOLLOW_UP_DUE", "AWAITING_REPLY", "REPLIED", "POSITIVE", "TRIAL", "PAID", "NEEDS_VERIFICATION"];
-  const label = segment === "DIRECT" ? "Customers" : segment === "PARTNER" ? "Partners" : "Overview";
-  const copy = async (record: CanonicalGtmRecord, kind: "subject" | "email") => {
-    const value = kind === "subject" ? record.subject : [record.email ? `To: ${record.email}` : "", record.subject ? `Subject: ${record.subject}` : "", record.draft || ""].filter(Boolean).join("\n\n");
-    if (!value) return;
-    try { await navigator.clipboard.writeText(value); setCopied(`${record.id}:${kind}`); window.setTimeout(() => setCopied(null), 1500); } catch { setCopied(null); }
-  };
-  return <section aria-label={`${label} canonical queues`}>
-    <div className="gtm-section-heading"><div><p className="eyebrow">Canonical operating model</p><h2>{segment === "DIRECT" ? "Customer execution queue" : segment === "PARTNER" ? "Partner execution queue" : "Founder operating view"}</h2><p>Readiness, prior-contact protection, suppression, verification, and next action are calculated server-side. Outbound remains manual and disabled.</p></div><span className="status-badge status-neutral">CANONICAL</span></div>
-    <div className="gtm-filters" aria-label="Canonical queue filter">{states.map((item) => {
-      const count = model.records.filter((record) => (!segment || record.segment === segment) && record.state === item).length;
-      return <button type="button" key={item} className={state === item ? "is-active" : ""} aria-pressed={state === item} onClick={() => setState(item)}>{item.replaceAll("_", " ")} · {count}</button>;
-    })}</div>
-    {segment === "DIRECT" && directDiscovery && <div className="gtm-criteria-note mt-5"><Radar aria-hidden="true" /><div><strong>Direct replenishment telemetry</strong><p>Last scan {formatDateTime(directDiscovery.telemetry.lastScan)} · {directDiscovery.telemetry.rawCandidatesExamined} examined · {directDiscovery.telemetry.qualified} qualified · {directDiscovery.telemetry.readyCreated} Ready · {directDiscovery.telemetry.hunterFinderCalls} Hunter Finder call(s).</p><small>Main bottleneck: {directDiscovery.telemetry.mainBottleneck}</small></div></div>}
-    <div className="gtm-opportunity-list mt-6" aria-live="polite">{records.map((record) => <article className="gtm-opportunity" key={record.id}>
-      <div className="gtm-opportunity-main"><div className="gtm-opportunity-top"><span className="status-badge status-info">{record.state.replaceAll("_", " ")}</span><span className="status-badge status-neutral">{record.segment === "DIRECT" ? "Direct" : record.partnerType || "Partner"}</span></div>
-        <h3>{record.organization}</h3><p className="gtm-why"><strong>Why now:</strong> {record.whyNow}</p>
-        <div className="gtm-contact-summary"><MailCheck aria-hidden="true" /><div><span>Canonical recipient</span><strong>{record.contact || "No contact established"}{record.title ? ` · ${record.title}` : ""}</strong><span>{record.email || "No verified business email"}{record.verificationStatus ? ` · ${record.verificationStatus}` : ""}</span></div></div>
-        {record.blockers.length > 0 && <div className="gtm-caveats"><AlertCircle aria-hidden="true" /><div><strong>Blocking condition</strong><p>{record.blockers.join(" ")}</p></div></div>}
-        <p className="gtm-why"><strong>Next action:</strong> {record.nextAction}</p>
-        {record.sentAt && <p className="gtm-why"><strong>Sent:</strong> {formatHistoryDate(record.sentAt)}</p>}
-        {record.followUpDueAt && <p className="gtm-why"><strong>Next follow-up:</strong> {formatHistoryDate(record.followUpDueAt)}</p>}
-        <p><a href={record.sourceUrl} target="_blank" rel="noreferrer">Open source <ExternalLink aria-hidden="true" /></a></p>
-        {record.state === "READY_TO_SEND" && <div className="gtm-actions"><button type="button" className="button button-secondary button-small" onClick={() => copy(record, "subject")}><Copy aria-hidden="true" />{copied === `${record.id}:subject` ? "Copied" : "Copy subject"}</button><button type="button" className="button button-secondary button-small" onClick={() => copy(record, "email")}><Copy aria-hidden="true" />{copied === `${record.id}:email` ? "Copied" : "Copy email"}</button>{record.email && record.subject && <a className="button button-secondary button-small" href={`mailto:${record.email}?subject=${encodeURIComponent(record.subject)}`}>Open email</a>}<span className="status-badge status-neutral">MARK SENT REQUIRES EXPLICIT HUMAN RECORDING</span></div>}
-      </div>
-    </article>)}{!records.length && <div className="workspace-empty"><ClipboardCheck aria-hidden="true" /><h2>No records in this queue</h2><p>No result is inferred or manufactured. Change the canonical queue filter to inspect the next operational state.</p></div>}</div>
-  </section>;
+
+const GTM_REQUEST_TIMEOUT_MS = 15_000;
+
+/** A bounded, one-refresh request path for founder-only GTM reads. */
+// eslint-disable-next-line react-refresh/only-export-components -- testable authenticated API helper.
+export async function requestGtmWithFreshToken<T>(tokenProvider: GtmTokenProvider, path: string, request: GtmRequest = apiRequest, init?: RequestInit): Promise<T> {
+  try {
+    return await requestGtmOnce(tokenProvider, false, path, request, init);
+  } catch (error) {
+    if (!isAuthenticationFailure(error)) throw error;
+    return requestGtmOnce(tokenProvider, true, path, request, init);
+  }
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- testable canonical model loader.
+export async function loadCanonicalGtmModel(tokenProvider: GtmTokenProvider, request: GtmRequest = apiRequest): Promise<CanonicalGtmModel> {
+  const body = await requestGtmWithFreshToken<{ model: CanonicalGtmModel }>(tokenProvider, "/api/gtm/canonical", request);
+  if (!isCanonicalGtmModel(body?.model)) throw new Error("The canonical GTM response is invalid.");
+  return body.model;
+}
+
+async function requestGtmOnce<T>(tokenProvider: GtmTokenProvider, forceRefresh: boolean, path: string, request: GtmRequest, init?: RequestInit) {
+  const token = await withinTimeout(tokenProvider(forceRefresh), "GTM authentication took too long.");
+  const controller = new AbortController();
+  try {
+    return await withinTimeout(request<T>(path, token, { ...init, signal: controller.signal }), "GTM records took too long to load.");
+  } catch (error) {
+    controller.abort();
+    throw error;
+  }
+}
+
+function withinTimeout<T>(promise: Promise<T>, timeoutMessage: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error(timeoutMessage)), GTM_REQUEST_TIMEOUT_MS);
+    promise.then(resolve, reject).finally(() => window.clearTimeout(timeout));
+  });
+}
+
+function isAuthenticationFailure(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  return /\b401\b|session expired|sign in to continue|account session/.test(message);
+}
+
+function isCanonicalGtmModel(value: unknown): value is CanonicalGtmModel {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<CanonicalGtmModel>;
+  const metrics = candidate.metrics;
+  return Array.isArray(candidate.records)
+    && Boolean(metrics)
+    && ["directReady", "partnerReady", "directNeedsVerification", "partnerNeedsVerification", "followUpsDue", "awaitingReply", "replies", "positiveReplies", "trials", "paid", "mrr"].every((key) => Number.isFinite(metrics?.[key as keyof CanonicalGtmModel["metrics"]]));
+}
 
 function SocialQueuePanel({ scan, onReview, pendingId, error }: { scan: DailySocialScan | null; onReview(id: string, status: "RESPONDED" | "SKIPPED"): Promise<void>; pendingId: string | null; error: string }) {
   const [copied, setCopied] = useState<string | null>(null);
@@ -421,12 +395,11 @@ function SeoQueuePanel({ state, content, error, pendingId, onUpdate }: { state: 
     <div className="gtm-automation-metrics"><article><strong>{healthy ? "GOOD" : "ATTENTION"}</strong><span>SEO health</span></article><article><strong>{pages.length}</strong><span>pages with data</span></article><article><strong>{state.ranges.last28Days?.queries.length || 0}</strong><span>queries with data</span></article><article><strong>{state.sitemap.result}</strong><span>sitemap submission</span></article></div>
     <div className="gtm-opportunity-list mt-6">{actions.map((item, index) => <article className="gtm-opportunity" key={`${item.page}:${index}`}><div className="gtm-opportunity-main"><span className="status-badge status-neutral">{item.action}</span><h3>{item.page || "Search performance monitoring"}</h3><p>{item.reason}</p>{item.page && <a href={item.page} target="_blank" rel="noreferrer">Open affected page <ExternalLink aria-hidden="true" /></a>}</div></article>)}</div>
     {!actions.length && <div className="workspace-empty"><ClipboardCheck aria-hidden="true" /><h2>No existing-page SEO action required</h2><p>Search Console has no page-specific, commercially meaningful task that meets the action threshold.</p></div>}
-    <section className="mt-10"><div className="gtm-section-heading"><div><p className="eyebrow">Content opportunities</p><h2>What GrantDeskHQ should create next</h2><p>Opportunities use community/direct themes, Search Console, and bounded public competitor evidence; low query volume does not create fake SEO work.</p></div><span className="status-badge status-neutral">FOUNDER APPROVAL REQUIRED</span></div>
+    <section className="mt-10"><div className="gtm-section-heading"><div><p className="eyebrow">Content opportunities</p><h2>What GrantDeskHQ should create next</h2><p>Opportunities use community/direct themes and content gaps; low query volume does not create fake SEO work.</p></div><span className="status-badge status-neutral">FOUNDER APPROVAL REQUIRED</span></div>
       {error && <div className="compiler-error" role="alert"><AlertCircle aria-hidden="true" />{error}</div>}
       {!content && <div className="workspace-empty"><LoaderCircle className="animate-spin" aria-hidden="true" /><h2>Loading content opportunities</h2><p>The content queue is protected founder data.</p></div>}
       {content && <><div className="gtm-automation-metrics"><article><strong>{content.opportunities.filter((item) => item.status !== "SKIPPED").length}</strong><span>opportunities</span></article><article><strong>{content.drafts.filter((item) => item.status === "READY_FOR_REVIEW").length}</strong><span>ready for review</span></article><article><strong>{content.distributionTasks.filter((item) => item.status === "READY").length}</strong><span>manual distribution tasks</span></article><article><strong>FALSE</strong><span>auto publish</span></article></div>
-      <div className="gtm-boundary-note mt-6"><ClipboardCheck aria-hidden="true" /><div><strong>Competitor SEO intelligence</strong><p>{content.competitorSeo ? `${content.competitorSeo.pages.length} bounded public pages reviewed across Instrumentl, Foundant / GrantHub, AmpliFund, and adjacent providers. ${content.competitorSeo.opportunities.length} deduped intents inform the queue; deeper review is ${content.competitorSeo.refreshCadence.toLowerCase()}.` : "Public competitor intelligence will appear after the next protected content reconciliation."}</p></div></div>
-      <div className="gtm-opportunity-list mt-6">{content.opportunities.filter((item) => item.status !== "SKIPPED").sort((a, b) => seoPriorityRank(a.seoPriority) - seoPriorityRank(b.seoPriority) || b.priorityScore - a.priorityScore).map((item) => { const draft = draftsByOpportunity.get(item.id); return <article className="gtm-opportunity" key={item.id}><div className="gtm-opportunity-main"><div className="flex flex-wrap gap-2"><span className="status-badge status-neutral">{item.recommendedAction}</span><span className="status-badge status-review">{item.status.replaceAll("_", " ")}</span>{item.seoPriority && <span className="status-badge status-neutral">{item.seoPriority}</span>}<span className="status-badge status-neutral">priority {item.priorityScore}</span></div><h3>{item.workingTitle}</h3>{item.proposedUrl && <p><strong>Proposed URL:</strong> {item.proposedUrl}</p>}<p><strong>User problem:</strong> {item.primaryUserProblem}</p><p><strong>Evidence:</strong> {item.sourceOfIdea.join(" · ")}</p><p><strong>Why GrantDeskHQ can add value:</strong> {item.differentiation}</p><div className="gtm-actions">{draft && <Link className="button button-primary button-small" to={`/gtm/seo/content/${draft.id}`}>Review draft</Link>}<button type="button" disabled={pendingId === item.id} className="button button-secondary button-small" onClick={() => void onUpdate("opportunity", item.id, "SKIPPED")}>{pendingId === item.id ? "Saving…" : "Skip"}</button></div></div></article>; })}</div>
+      <div className="gtm-opportunity-list mt-6">{content.opportunities.filter((item) => item.status !== "SKIPPED").sort((a, b) => b.priorityScore - a.priorityScore).map((item) => { const draft = draftsByOpportunity.get(item.id); return <article className="gtm-opportunity" key={item.id}><div className="gtm-opportunity-main"><div className="flex flex-wrap gap-2"><span className="status-badge status-neutral">{item.recommendedAction}</span><span className="status-badge status-review">{item.status.replaceAll("_", " ")}</span><span className="status-badge status-neutral">priority {item.priorityScore}</span></div><h3>{item.workingTitle}</h3><p><strong>User problem:</strong> {item.primaryUserProblem}</p><p><strong>Evidence:</strong> {item.sourceOfIdea.join(" · ")}</p><div className="gtm-actions">{draft && <Link className="button button-primary button-small" to={`/gtm/seo/content/${draft.id}`}>Review draft</Link>}<button type="button" disabled={pendingId === item.id} className="button button-secondary button-small" onClick={() => void onUpdate("opportunity", item.id, "SKIPPED")}>{pendingId === item.id ? "Saving…" : "Skip"}</button></div></div></article>; })}</div>
       <div className="mt-10"><p className="eyebrow">Content pipeline</p><h2 className="text-2xl font-bold">Review before publication</h2><p className="text-slate-600">Drafts are not public pages. Approval records readiness only; no content is published by this command center.</p><h3 className="mt-5 text-lg font-bold text-slate-900">Ready for review ({content.drafts.filter((draft) => draft.status === "READY_FOR_REVIEW").length})</h3><div className="gtm-opportunity-list mt-4">{content.drafts.map((draft) => <article className="gtm-opportunity" key={draft.id}><div className="gtm-opportunity-main"><div className="flex flex-wrap gap-2"><span className="status-badge status-review">{draft.status.replaceAll("_", " ")}</span><span className="status-badge status-neutral">{content.opportunities.find((item) => item.id === draft.opportunityId)?.topic || "Content"}</span></div><h3>{draft.title}</h3><p><strong>Planned URL:</strong> {draft.canonicalUrl}</p><p><strong>Updated:</strong> {formatDateTime(draft.updatedAt)}</p><div className="gtm-actions"><Link className="button button-primary button-small" to={`/gtm/seo/content/${draft.id}`}>Review draft</Link></div></div></article>)}</div></div>
       <div className="mt-10"><p className="eyebrow">Manual distribution</p><h2 className="text-2xl font-bold">Useful follow-on tasks only</h2><p className="text-slate-600">Nothing posts externally. Medium, Reddit, Quora, LinkedIn, and forum tasks stay manual.</p><div className="gtm-opportunity-list mt-5">{content.distributionTasks.filter((task) => task.status === "READY").map((task) => <article className="gtm-opportunity" key={task.id}><div className="gtm-opportunity-main"><span className="status-badge status-neutral">{task.platform}</span><h3>{task.sourceOrCommunity}</h3><p>{task.whyRelevant}</p><p>{task.draftText}</p><p><strong>Source article:</strong> {task.canonicalArticleUrl}</p><div className="gtm-actions"><button type="button" className="button button-secondary button-small" onClick={() => navigator.clipboard.writeText(task.draftText)}>Copy</button><button type="button" disabled={pendingId === task.id} className="button button-secondary button-small" onClick={() => void onUpdate("distribution", task.id, "POSTED")}>{pendingId === task.id ? "Saving…" : "Mark posted"}</button><button type="button" disabled={pendingId === task.id} className="button button-secondary button-small" onClick={() => void onUpdate("distribution", task.id, "SKIPPED")}>Skip</button></div></div></article>)}</div></div></>}
     </section>
@@ -447,8 +420,6 @@ function seoActions(state: SearchConsoleState) {
   }
   return [...byPage.entries()].flatMap(([page, row]) => row.impressions >= 50 && row.position >= 8 && row.position <= 20 ? [{ page, action: "CONTENT REFRESH", reason: "Meaningful impressions with average position 8–20." }] : row.impressions >= 50 && row.ctr < 0.02 ? [{ page, action: "TITLE / META", reason: "Meaningful impressions with a low click-through rate." }] : []);
 }
-
-function seoPriorityRank(priority: "P0" | "P1" | "P2" | undefined) { return priority === "P0" ? 0 : priority === "P1" ? 1 : priority === "P2" ? 2 : 3; }
 
 function FunnelCard({ title, metrics, records }: { title: string; metrics: Record<string, GtmMetric> | undefined; records: OutreachRecord[] }) { const direct = title === "Direct funnel"; const manualSent = records.filter((record) => record.status === "SENT").length; const recorded = (key: string) => metrics?.[key]?.actual; const stages = (direct ? [["Qualified", recorded("qualified")], ["Ready to send", recorded("humanReview")], ["Sent", Math.max(recorded("sent") || 0, manualSent)], ["Replies", records.filter((record) => record.replied).length], ["Positive replies", records.filter((record) => record.replySentiment === "POSITIVE").length], ["Free First Award", records.filter((record) => record.trial).length], ["Paid", records.filter((record) => record.customer).length]] : [["High fit", recorded("highFit")], ["Ready to send", recorded("humanReview")], ["Sent", Math.max(recorded("contacted") || 0, manualSent)], ["Replies", records.filter((record) => record.replied).length], ["Positive replies", records.filter((record) => record.replySentiment === "POSITIVE").length], ["Trial with client or award", records.filter((record) => record.trial).length], ["Paid customers influenced", records.filter((record) => record.customer).length]]).filter(([, value]) => value !== null && value !== undefined) as Array<[string, number]>; return <div className="panel"><p className="eyebrow">{title}</p><div className="gtm-automation-metrics mt-4" aria-label={title}>{stages.map(([label, value]) => <article key={label}><strong>{value}</strong><span>{label}</span></article>)}</div></div>; }
 
@@ -510,32 +481,6 @@ function SignalsPanel({ dailyScan, directDiscovery, loading, error }: { dailySca
 function SourcesPanel({ dailyScan, directDiscovery }: { dailyScan: DailySocialScan | null; directDiscovery: DirectDiscoveryScan | null }) {
   const sources = [...(directDiscovery?.sourceRegistry || []), ...(dailyScan?.sourceRegistry || [])];
   return <section><div className="gtm-section-heading"><div><p className="eyebrow">Signal engines</p><h2>Know exactly which scanners are active—and which are not</h2><p>The registry reflects the latest bounded Direct and Social runs. It does not imply that private networks are searched.</p></div></div><div className="gtm-source-registry">{sources.length ? sources.map((source) => <article key={source.name}><div className="gtm-source-icon"><Radar aria-hidden="true" /></div><div><div className="flex flex-wrap items-center gap-2"><h3>{source.name}</h3><span className={`status-badge ${source.status === "PASS" ? "status-success" : source.status === "ERROR" ? "status-review" : "status-neutral"}`}>{source.status}</span></div><p>{source.type} · {source.mode.replaceAll("_", " ")}</p><small>Last attempt {source.lastAttempt ? formatDateTime(source.lastAttempt) : "not run"}{source.lastSuccess ? ` · last success ${formatDateTime(source.lastSuccess)}` : ""}</small></div><div className="gtm-source-boundary"><strong>Boundary</strong><p>{source.enabled ? "Bounded source-backed research only; no automated outreach or social posting." : "Manual authenticated watchlist only; no automated access."}</p>{source.error && <p>{source.error}</p>}</div></article>) : <article className="panel"><p>No source registry has been saved yet.</p></article>}</div></section>;
-}
-
-function PartnersPanel({ records, overview }: { records: OutreachRecord[]; overview: GtmOverview | null }) {
-  const metrics = summarizeOutreach(records);
-  return <section><div className="gtm-section-heading"><div><p className="eyebrow">Partner distribution</p><h2>Reach nonprofit teams through people they already trust</h2><p>Accountants and grant consultants can introduce the readiness assessment without making unverified partnership or referral-fee claims.</p></div></div><InventorySummary title="Partner inventory" metrics={overview?.partner.metrics} sent={metrics.partnerSent} /><div className="gtm-partner-grid">{referralChannels.map((channel) => <article key={channel.name}><Handshake aria-hidden="true" /><span className="status-badge status-neutral">{channel.status}</span><h3>{channel.name}</h3><strong>{channel.offer}</strong><p>{channel.value}</p><div><small>Next action</small><p>{channel.nextAction}</p></div></article>)}</div></section>;
-}
-
-function PipelinePanel({ opportunities, stages, stagesOrder, onStageChange }: { opportunities: GtmOpportunity[]; stages: StageState; stagesOrder: OpportunityStage[]; onStageChange(id: string, stage: OpportunityStage): void }) {
-  return <section><div className="gtm-section-heading"><div><p className="eyebrow">Progress monitor</p><h2>Track every opportunity without pretending there is a CRM</h2><p>Progress is saved in this private browser workspace. No external CRM, email inbox, or campaign analytics are connected yet.</p></div></div><div className="gtm-pipeline-summary">{stagesOrder.map((stage) => <article key={stage}><strong>{opportunities.filter((item) => (stages[item.id] || "new") === stage).length}</strong><span>{stage.replaceAll("_", " ")}</span></article>)}</div><div className="panel panel-flush mt-6"><div className="table-scroll"><table className="data-table gtm-pipeline-table"><thead><tr><th>Organization</th><th>Signal</th><th>Score</th><th>Evidence</th><th>Progress</th></tr></thead><tbody>{opportunities.map((opportunity) => { const accuracy = assessOpportunityAccuracy(opportunity); return <tr key={opportunity.id}><th>{opportunity.organization}</th><td>{labelForSignal(opportunity.signalKind)}</td><td>{accuracy.score} · {formatOpportunityScore(accuracy.label)}</td><td>{opportunity.evidence.length} source{opportunity.evidence.length === 1 ? "" : "s"} · {accuracy.confidence}</td><td><label className="sr-only" htmlFor={`stage-${opportunity.id}`}>Progress for {opportunity.organization}</label><select id={`stage-${opportunity.id}`} className="table-select" value={stages[opportunity.id] || "new"} onChange={(event) => onStageChange(opportunity.id, event.target.value as OpportunityStage)}>{stagesOrder.map((stage) => <option value={stage} key={stage}>{stage.replaceAll("_", " ")}</option>)}</select></td></tr>; })}</tbody></table></div></div></section>;
-}
-
-function OutreachAutomationPanel({ opportunities, stages }: { opportunities: GtmOpportunity[]; stages: StageState }) {
-  const verifiedContacts = opportunities.filter((item) => assessOpportunityAccuracy(item).readyForAction);
-  const approved = verifiedContacts.filter((item) => stages[item.id] === "ready");
-  const steps = [
-    ["Daily signal discovery", "Active", "The bounded USAspending award scan runs once per day. Reddit and LinkedIn stay manual-only."],
-    ["Contact enrichment", "Needs provider", "Resolve a current finance or grants leader and verify the address from an authoritative source. Apollo, Clay, or another permissioned provider can fill this lane."],
-    ["Personalized draft", "Active", "Each supported lead receives a signal-specific subject and first-touch draft. Unknown details remain blank."],
-    ["Human approval", "Required", "A reviewer checks the recipient, evidence, and message. The record remains a SHADOW draft and does not enter a send queue."],
-    ["Outbound delivery", "Disabled", "No Resend, Gmail, SMTP, LinkedIn, Reddit, contact-form, or campaign integration is enabled in SHADOW mode."]
-  ];
-  return <section><div className="gtm-section-heading"><div><p className="eyebrow">SHADOW outreach drafting</p><h2>Research and drafts stay reviewable. Delivery stays locked.</h2><p>The workspace prepares source-backed draft language only. It does not contact anyone, hand off an email-client draft, or export a send queue.</p></div><button type="button" className="button button-primary" disabled title="Outbound remains locked in SHADOW mode"><MailCheck aria-hidden="true" />Outbound locked</button></div>
-    <div className="gtm-automation-metrics"><article><strong>{opportunities.length}</strong><span>research candidates</span></article><article><strong>{verifiedContacts.length}</strong><span>verified contacts</span></article><article><strong>{approved.length}</strong><span>drafts awaiting review</span></article><article><strong>0</strong><span>outbound actions sent</span></article></div>
-    <div className="gtm-automation-flow">{steps.map(([title, status, detail], index) => <article key={title}><span>{index + 1}</span><div><div className="flex flex-wrap items-center gap-2"><h3>{title}</h3><small className={`status-badge ${status === "Active" ? "status-success" : status === "Required" ? "status-review" : "status-neutral"}`}>{status}</small></div><p>{detail}</p></div></article>)}</div>
-    <div className="gtm-boundary-note"><ShieldCheck aria-hidden="true" /><div><strong>Future LIVE gate is disabled</strong><p>Limit automated delivery to U.S. recipients with a verified business role and address, include an accurate sender identity, advertisement disclosure, physical postal address, and working opt-out, suppress every opt-out immediately, and never send more than one automated follow-up. Keep LinkedIn messages and comments manual.</p></div></div>
-  </section>;
 }
 
 function AccuracyPanel() {
