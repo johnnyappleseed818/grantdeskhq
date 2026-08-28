@@ -778,6 +778,18 @@ export async function listGtmChannelSeeds(limit = 100): Promise<ChannelSeedRecor
   });
 }
 
+/** Retains only safe organization-seed lifecycle data; provider contact data
+ * stays in Instantly until independently verified and reconciled. */
+export async function saveGtmChannelSeed(seed: ChannelSeedRecord): Promise<ChannelSeedRecord> {
+  const accessToken = await gcpToken();
+  await writeDocument(accessToken, `gtm/channel-seeds/records/${safeChannelSeedDocumentId(seed.id)}`, {
+    importedAt: seed.importedAt, segment: seed.segment, lifecycle: seed.lifecycle,
+    enrichmentResourceId: seed.enrichmentResourceId || "", enrichmentUpdatedAt: seed.enrichmentUpdatedAt || "",
+    recordJson: JSON.stringify(seed)
+  });
+  return seed;
+}
+
 export async function saveGtmInventoryAutopilot(snapshot: InventoryAutopilotSnapshot) {
   const accessToken = await gcpToken();
   await writeDocument(accessToken, "gtm/inventory-autopilot", { generatedAt: snapshot.generatedAt, stateJson: JSON.stringify(snapshot) });

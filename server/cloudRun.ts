@@ -42,6 +42,7 @@ import { applicationEnvironment, applicationRevision, deploymentRevision } from 
 import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
 import { executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { channelSeedManifest } from "../src/lib/gtmChannelSeeds.ts";
+import { enrichChannelSeedsWithInstantly, reconcileChannelSeedEnrichment } from "./gtmChannelSeedEnrichment.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
@@ -145,6 +146,8 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/award-signals") return await handleGtmAwardSignals(request, response);
     if (url.pathname === "/api/gtm/direct-discovery") return await handleGtmDirectDiscovery(request, response);
     if (url.pathname === "/api/gtm/channel-seeds/import") return await handleGtmChannelSeedImport(request, response);
+    if (url.pathname === "/api/gtm/channel-seeds/enrich") return await handleGtmChannelSeedEnrich(request, response);
+    if (url.pathname === "/api/gtm/channel-seeds/enrich/reconcile") return await handleGtmChannelSeedEnrichReconcile(request, response);
     if (url.pathname === "/api/gtm/direct-recipient-resolution") return await handleGtmDirectRecipientResolution(request, response);
     if (url.pathname === "/api/gtm/social-discovery/reconcile") return await handleGtmSocialDiscoveryReconcile(request, response);
     if (url.pathname === "/api/gtm/control-plane-queue") return await handleGtmControlPlaneQueue(request, response);
@@ -441,6 +444,24 @@ async function handleGtmChannelSeedImport(request: IncomingMessage, response: Se
   const result = await importGtmChannelSeeds(channelSeedManifest());
   console.info(JSON.stringify({ event: "GTM_CHANNEL_SEED_IMPORT", source: "chatgpt_channel_scan_2026_08_28", imported: result.imported, duplicate: result.duplicate, total: result.total, timestamp: new Date().toISOString() }));
   return json(response, 200, { ...result, lifecycle: "DISCOVERED", providerCalls: 0, sends: 0 });
+}
+
+async function handleGtmChannelSeedEnrich(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const input = await readJson(request) as { segment?: unknown };
+  if (input.segment !== "DIRECT" && input.segment !== "PARTNER") return json(response, 400, { error: "segment must be DIRECT or PARTNER." });
+  const result = await enrichChannelSeedsWithInstantly(input.segment);
+  console.info(JSON.stringify({ event: "GTM_CHANNEL_SEED_SUPERSEARCH", segment: result.segment, selected: result.selected, previewCount: result.previewCount, submitted: result.submitted, resourceIdPresent: Boolean(result.resourceId), blocked: result.blocked, timestamp: new Date().toISOString() }));
+  return json(response, 200, result);
+}
+
+async function handleGtmChannelSeedEnrichReconcile(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const input = await readJson(request) as { segment?: unknown };
+  if (input.segment !== "DIRECT" && input.segment !== "PARTNER") return json(response, 400, { error: "segment must be DIRECT or PARTNER." });
+  return json(response, 200, await reconcileChannelSeedEnrichment(input.segment));
 }
 
 /** Existing-inventory recipient resolution. This path is bounded and never discovers organizations. */

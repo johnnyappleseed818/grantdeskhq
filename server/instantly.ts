@@ -280,6 +280,14 @@ export class InstantlyClient {
   listCampaignAnalytics() { return this.api<unknown>("/campaigns/analytics"); }
   listRecentEmails() { return this.api<unknown>("/emails?limit=10&preview_only=true"); }
   listRecentEmailEvidence(limit = 100) { return this.api<unknown>(`/emails?limit=${Math.min(Math.max(limit, 1), 100)}`); }
+  previewSuperSearch(input: { companyNames: string[]; titles: string[]; limit: number }) {
+    return this.api<{ number_of_leads?: number; number_of_redacted_results?: number }>("/supersearch-enrichment/preview-leads-from-supersearch", { method: "POST", body: JSON.stringify({ search_filters: { company_name: { include: input.companyNames, exclude: [] }, title: { include: input.titles, exclude: [] }, skip_owned_leads: true, show_one_lead_per_company: true }, limit: input.limit }) });
+  }
+  /** List-only provider enrichment; this cannot enroll a campaign or send mail. */
+  enrichSuperSearch(input: { companyNames: string[]; titles: string[]; listId: string; limit: number; searchName: string }) {
+    return this.api<{ id?: string; resource_id?: string; status?: string }>("/supersearch-enrichment/enrich-leads-from-supersearch", { method: "POST", body: JSON.stringify({ search_filters: { company_name: { include: input.companyNames, exclude: [] }, title: { include: input.titles, exclude: [] }, skip_owned_leads: true, show_one_lead_per_company: true }, limit: input.limit, resource_id: input.listId, search_name: input.searchName, work_email_enrichment: true, skip_rows_without_email: true, auto_update: false }) });
+  }
+  getSuperSearchEnrichment(id: string) { return this.api<Record<string, unknown>>(`/supersearch-enrichment/${encodeURIComponent(id)}`); }
   moveLeadsToList(ids: string[], campaignId: string, listId: string) { return this.api<Record<string, unknown>>("/leads/move", { method: "POST", body: JSON.stringify({ ids, campaign: campaignId, to_list_id: listId, check_duplicates: true }) }); }
   getBackgroundJob(id: string) { return this.api<Record<string, unknown>>(`/background-jobs/${encodeURIComponent(id)}`); }
   async waitForBackgroundJob(id: string) {

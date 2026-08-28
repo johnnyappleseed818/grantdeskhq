@@ -11,13 +11,15 @@ export interface ChannelSeedRecord {
   sourceUrl: string;
   observedAt: string;
   importedAt: string;
-  lifecycle: "DISCOVERED" | "DUPLICATE" | "REJECTED" | "ROLE_UNRESOLVED" | "ENRICHMENT_PENDING";
+  lifecycle: "DISCOVERED" | "DUPLICATE" | "REJECTED" | "ROLE_UNRESOLVED" | "ENRICHMENT_PENDING" | "ENRICHMENT_SUBMITTED" | "ENRICHMENT_FAILED";
   organizationDomain: string | null;
   evidenceSummary: string;
   qualificationReasons: string[];
   rejectionReason: string | null;
   enrichmentProvider: string | null;
   enrichmentResult: string | null;
+  enrichmentResourceId?: string | null;
+  enrichmentUpdatedAt?: string | null;
   deduplicationKey: string;
 }
 

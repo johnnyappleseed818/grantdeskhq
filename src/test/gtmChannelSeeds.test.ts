@@ -18,4 +18,9 @@ describe("2026-08-28 channel seed import", () => {
     expect(candidate.target.person.fullName).toBe("Contact research required");
     expect(candidate.blockers).toContain("NO_VERIFIED_BUSINESS_EMAIL");
   });
+
+  it("does not upgrade a submitted provider seed into a contactable candidate", () => {
+    const seed = { ...channelSeedManifest()[0]!, lifecycle: "ENRICHMENT_SUBMITTED" as const, enrichmentProvider: "instantly_supersearch", enrichmentResourceId: "resource-1" };
+    expect(channelSeedToCanonicalCandidate(seed).blockers).toContain("NO_VERIFIED_BUSINESS_EMAIL");
+  });
 });
