@@ -1,11 +1,11 @@
 {
   "project": "outbound-incident-recovery",
   "status": "PARTIAL",
-  "completedAt": "2026-08-28T08:35:00Z",
+  "completedAt": "2026-08-28T09:00:00Z",
   "canonicalBranch": "incident-recovery-2026-08-27",
   "commit": "b42e6c635feb10e5dc90690015555ca72c10fd85",
   "productionChanged": true,
-  "productionRevision": "grantdeskhq-prototype-00400-qug",
+  "productionRevision": "grantdeskhq-prototype-00402-zuv",
   "rollbackRevision": "grantdeskhq-prototype-00387-ker",
   "candidateRevision": "grantdeskhq-prototype-00400-qug",
   "candidateTraffic": "100%",
@@ -13,7 +13,8 @@
     "affectedRecipients": 16,
     "internalSuppressionsApplied": 16,
     "providerHoldingListJobsSucceeded": 7,
-    "unresolvedProviderMemberships": 9
+    "providerBlockListEntriesCreated": 16,
+    "unresolvedProviderMemberships": 0
   },
   "gates": {
     "targetedOutboundTests": "PASS (28)",
@@ -22,9 +23,11 @@
     "candidateHealth": "PASS; production health PASS after 100% promotion",
     "channelSeedImport": "PASS (30 imported, idempotent rerun 0 new / 30 duplicates; zero provider calls and zero sends)",
     "schedulerOidcPreflight": "PASS (fail-closed campaign pause)",
-    "providerBlockListCreate": "BLOCKED (HTTP 401 request 6966065546653089158)"
+    "providerBlockListCreate": "PASS (16 entries created and verified by read-only count)",
+    "campaignActivation": "BLOCKED (replacement V2 key lacks campaigns:update)",
+    "supersearchPreview": "BLOCKED (replacement V2 key lacks supersearch_enrichments:read)"
   },
   "liveOutboundChanged": false,
   "emailsSent": 0,
-  "humanActionRequired": "Replace the existing V2 Instantly key stored in Secret Manager reference grantdeskhq-instantly-api-key with a least-privilege key that retains the currently working scopes and adds block_list_entries:create."
+  "humanActionRequired": "Update the existing V2 Instantly key at Secret Manager reference grantdeskhq-instantly-api-key to retain all current scopes and add campaigns:update plus supersearch_enrichments:read. Do not enable outbound until campaign update preflight and the internal Direct/Partner canaries pass."
 }

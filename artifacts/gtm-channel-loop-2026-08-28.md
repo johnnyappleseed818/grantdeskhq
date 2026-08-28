@@ -6,7 +6,7 @@ The Channel Results scan is now represented in the canonical production GTM data
 
 Production serves `grantdeskhq-prototype-00400-qug` at 100% traffic. `/api/health` returned HTTP 200 after promotion. Known-good rollback revision `grantdeskhq-prototype-00387-ker` is preserved.
 
-The full outbound loop is **not operational**. All effective outbound flags are false and campaigns/reconciliation schedulers remain paused. This is intentional because the current Instantly V2 key cannot create provider block-list entries for the 16 recipients affected by the duplicate-email incident.
+The full outbound loop is **not operational**. All effective outbound flags are false and campaigns/reconciliation schedulers remain paused. Incident cleanup is now complete, but the replacement Instantly V2 key lacks the campaign-update and SuperSearch-preview permissions necessary for safe activation and provider-first enrichment.
 
 ## Seed import evidence
 
@@ -66,13 +66,15 @@ Paused: `grantdeskhq-instantly-reconciliation`, `grantdeskhq-daily-partner-recon
 
 Incident reconciliation established 16 affected duplicate-email recipients. All 16 are internally suppressed; seven provider membership moves reached terminal background-job success. Nine historical recipients no longer have current campaign membership and must be provider-blocklisted rather than guessed or re-enrolled.
 
-The existing Instantly V2 key can read block-list entries but its documented block-list create request returned HTTP 401, provider request ID `6966065546653089158`, with `Invalid scope. Required: block_list_entries:create`.
+The replacement Instantly V2 key created and verified 16 provider block-list entries for the 16 internally suppressed incident recipients. Seven prior provider moves to the incident holding list had already reached terminal success. No affected recipient is eligible for re-enrollment.
 
-No delivery may be enabled until this exact scope is present and the existing affected-recipient cleanup has succeeded provider-side. This is not inferred from tests or configuration.
+Read-only V2 preflight is healthy for accounts, campaigns, lead lists, leads, email polling, and block-list reads. Both mapped GrantDeskHQ campaigns are paused and retain their weekday America/Detroit schedules, nonblank sequence subjects, reply stops, bounce protection, and disabled open/click tracking.
+
+The key does not include the documented `campaigns:update` permission required to activate or patch either campaign. It also returned HTTP 401 request `917946528970865119` for documented SuperSearch preview, requiring `supersearch_enrichments:read`. The default workspace already returns the intended GrantDeskHQ campaigns; `workspaces:read` is not operationally required for this mapping, but its dedicated endpoint returned HTTP 401 request `1965603776546794708`.
 
 ## Required external action
 
-In Instantly, create or reissue the existing V2 API key with all its current working scopes plus only `block_list_entries:create`, then replace the value at the existing Secret Manager reference `grantdeskhq-instantly-api-key`. No source code, Firebase, Cloud Run authentication, or campaign change is required. After that one action, the recovery can resume at provider block-list cleanup, then run documented provider enrichment and final enrollment gates.
+Update the existing V2 API key so it retains its current scopes and adds `campaigns:update` and `supersearch_enrichments:read`; then replace the value at the existing Secret Manager reference `grantdeskhq-instantly-api-key`. No source code, Firebase, Cloud Run authentication, or campaign change is required. After the refreshed secret is deployed, the recovery can execute campaign-update preflight, Direct and Partner internal canaries, then provider-first enrichment and enrollment gates.
 
 ## Git
 
