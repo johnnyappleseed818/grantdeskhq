@@ -118,6 +118,21 @@ export async function recordPublishedGtmContact(target: EnrichmentTarget, email:
   return record;
 }
 
+/** Stores an email only after Instantly's dedicated verifier returns verified
+ * and non-catch-all. It records provider provenance; it never enrolls or
+ * sends. */
+export async function recordInstantlyVerifiedGtmContact(target: EnrichmentTarget, email: string, providerLeadId: string, sourceUrl: string, prior?: ContactEnrichmentRecord): Promise<ContactEnrichmentRecord> {
+  const now = new Date().toISOString();
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!isVerifiedBusinessEmail(normalizedEmail, target.organizationDomain) || !providerLeadId || !/^https:\/\//.test(sourceUrl)) throw new Error("A verified provider business email, lead ID, and evidence source are required.");
+  const suppression = await readGtmContactSuppression(normalizedEmail);
+  const attempt = { provider: "instantly" as const, status: "VERIFIED" as const, email: normalizedEmail, confidence: 100, sourceUrls: [{ url: sourceUrl }], providerMetadata: { providerLeadId, verification: "instantly_email_verification", catchAll: false }, attemptedAt: now, attempted: true, providerRequestType: "EMAIL_FINDER_AND_VERIFIER" as const, finderResult: "FOUND" as const, verifierStatus: "VERIFIED" as const, verificationTimestamp: now, verificationSource: [{ url: sourceUrl }] };
+  const base = buildContactEnrichmentRecord(target, [attempt], suppression, now, prior);
+  const record: ContactEnrichmentRecord = { ...base, provider: "instantly", result: base.readiness, ...(base.readyForHumanApproval ? {} : { failureReason: base.verification.readyBlocker || base.blockers.join(" ") }), candidateFingerprint: candidateFingerprint(target), lastEnrichmentAttempt: now, verification: { ...base.verification, lastEnrichmentAttempt: now } };
+  await saveGtmContactEnrichment(record);
+  return record;
+}
+
 /** Rebuild canonical readiness from stored attempts only. This never calls a provider or changes retry eligibility. */
 export async function reconcileStoredGtmContact(
   target: EnrichmentTarget,

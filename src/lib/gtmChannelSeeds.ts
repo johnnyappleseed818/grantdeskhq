@@ -11,7 +11,7 @@ export interface ChannelSeedRecord {
   sourceUrl: string;
   observedAt: string;
   importedAt: string;
-  lifecycle: "DISCOVERED" | "DUPLICATE" | "REJECTED" | "ROLE_UNRESOLVED" | "ENRICHMENT_PENDING" | "ENRICHMENT_SUBMITTED" | "ENRICHMENT_FAILED";
+  lifecycle: "DISCOVERED" | "DUPLICATE" | "REJECTED" | "ROLE_UNRESOLVED" | "ENRICHMENT_PENDING" | "ENRICHMENT_SUBMITTED" | "ENRICHMENT_FAILED" | "VERIFIED";
   organizationDomain: string | null;
   evidenceSummary: string;
   qualificationReasons: string[];
@@ -35,6 +35,9 @@ const independentlyVerifiedPartnerSeeds: Record<string, Pick<ChannelSeedRecord, 
   "JFW Accounting Services": { organizationDomain: "jfwaccountingservices.cpa", sourceUrl: "https://jfwaccountingservices.cpa/", evidenceSummary: "JFW's official site identifies Jo-Anne Williams-Barnes as Founder & CEO and describes nonprofit accounting, restricted-fund, audit, and grant-reporting services.", qualificationReasons: ["Official organization domain confirmed.", "Official founder/CEO role confirmed.", "Official source describes nonprofit grant and compliance work."] },
   "DSD Business Systems": { organizationDomain: "dsdinc.com", sourceUrl: "https://www.dsdinc.com/about-us/", evidenceSummary: "DSD's official team page identifies its founder and describes accounting/ERP implementation services; partner relevance remains limited to evidence-supported technology/service collaboration.", qualificationReasons: ["Official organization domain confirmed.", "Official founder role confirmed.", "Official source describes accounting/ERP services."] }
 };
+const independentlyVerifiedDirectSeeds: Record<string, Pick<ChannelSeedRecord, "organizationDomain" | "sourceUrl" | "evidenceSummary" | "qualificationReasons">> = {
+  "Mama’s Kitchen": { organizationDomain: "mamaskitchen.org", sourceUrl: "https://mamaskitchen.org/wp-content/uploads/2026/02/MAMAS-KITCHEN-INC-MAMAS-KITCHEN-6-30-25-AUDITED-FINANCIAL-STATEMENTS-FINAL.pdf", evidenceSummary: "Mama's Kitchen's published audited financial statements include federal grant activity and Uniform Guidance reporting context; finance/grants operating-owner search is appropriate.", qualificationReasons: ["Official organization domain confirmed.", "Published financial statement documents federal grant activity.", "Finance/grants role group is required for any provider contact search."] }
+};
 
 const directOrganizations = [
   "Avenge Pediatric Cancer Foundation", "Freedom Service Dogs of America", "Mama’s Kitchen", "Armand Bayou Nature Center", "Barbara Bush Houston Literacy Foundation", "Baytown Habitat for Humanity", "Compudopt", "Galena Park Resource and Training Center", "Lee College Foundation", "Kids’ Meals", "Second Servings of Houston", "Target Hunger", "Ronald McDonald House Charities Greater Houston", "The Rose", "SERJobs", "Women Offshore Foundation", "Prison Entrepreneurship Program", "Houston Symphony Society", "Segundo Barrio Children’s Chorus", "Experiences That Matter Foundation"
@@ -49,7 +52,7 @@ function recordId(segment: CanonicalSegment, organization: string) {
 
 export function channelSeedManifest(importedAt = new Date().toISOString()): ChannelSeedRecord[] {
   const build = (organization: string, segment: CanonicalSegment): ChannelSeedRecord => {
-    const verified = segment === "PARTNER" ? independentlyVerifiedPartnerSeeds[organization] : undefined;
+    const verified = segment === "PARTNER" ? independentlyVerifiedPartnerSeeds[organization] : independentlyVerifiedDirectSeeds[organization];
     return {
     id: recordId(segment, organization), organization, segment,
     targetRoleGroup: segment === "DIRECT"
@@ -72,7 +75,7 @@ export function channelSeedToCanonicalCandidate(seed: ChannelSeedRecord): Canoni
     id: seed.id, segment: seed.segment, qualified: false,
     target: {
       organization: seed.organization,
-      organizationDomain: `${seed.id}.unresolved.invalid`,
+      organizationDomain: seed.organizationDomain || `${seed.id}.unresolved.invalid`,
       domainSourceUrl: seed.sourceUrl,
       person: { firstName: "Contact", lastName: "Research", fullName: "Contact research required", currentTitle: "Role research required", titleSourceUrl: seed.sourceUrl }
     },

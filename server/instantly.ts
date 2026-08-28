@@ -280,6 +280,8 @@ export class InstantlyClient {
   listCampaignAnalytics() { return this.api<unknown>("/campaigns/analytics"); }
   listRecentEmails() { return this.api<unknown>("/emails?limit=10&preview_only=true"); }
   listRecentEmailEvidence(limit = 100) { return this.api<unknown>(`/emails?limit=${Math.min(Math.max(limit, 1), 100)}`); }
+  listLeadsInList(listId: string, limit = 100) { return this.api<{ items?: Record<string, unknown>[] }>("/leads/list", { method: "POST", body: JSON.stringify({ limit: Math.min(Math.max(limit, 1), 100), list_id: listId }) }); }
+  getEmailVerification(email: string) { return this.api<{ verification_status?: string; catch_all?: boolean | string }>(`/email-verification/${encodeURIComponent(normalizeOutboundEmail(email))}`); }
   previewSuperSearch(input: { companyNames: string[]; titles: string[]; limit: number }) {
     return this.api<{ number_of_leads?: number; number_of_redacted_results?: number }>("/supersearch-enrichment/preview-leads-from-supersearch", { method: "POST", body: JSON.stringify({ search_filters: { company_name: { include: input.companyNames, exclude: [] }, title: { include: input.titles, exclude: [] }, skip_owned_leads: true, show_one_lead_per_company: true }, limit: input.limit }) });
   }

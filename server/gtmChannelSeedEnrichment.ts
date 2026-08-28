@@ -1,6 +1,6 @@
-import type { ChannelSeedRecord } from "../src/lib/gtmChannelSeeds.ts";
 import { InstantlyClient, instantlyConfig } from "./instantly.ts";
 import { listGtmChannelSeeds, saveGtmChannelSeed } from "./persistence.ts";
+import { recordInstantlyVerifiedGtmContact } from "./contactEnrichment.ts";
 
 export type ChannelSeedEnrichmentSegment = "DIRECT" | "PARTNER";
 const titles: Record<ChannelSeedEnrichmentSegment, string[]> = {
@@ -33,15 +33,23 @@ export async function reconcileChannelSeedEnrichment(segment: ChannelSeedEnrichm
   const seeds = (await listGtmChannelSeeds()).filter((seed) => seed.segment === segment && seed.lifecycle === "ENRICHMENT_SUBMITTED" && seed.enrichmentResourceId);
   if (!config.integrationEnabled || !config.apiKeyConfigured || !seeds.length) return { segment, reconciled: 0, pending: seeds.length, failed: 0 };
   const client = new InstantlyClient(config, env.INSTANTLY_API_KEY || "");
-  const groups = new Map<string, ChannelSeedRecord[]>();
-  for (const seed of seeds) groups.set(seed.enrichmentResourceId!, [...(groups.get(seed.enrichmentResourceId!) || []), seed]);
-  let reconciled = 0; let failed = 0;
-  for (const [resourceId, group] of groups) {
-    const state = await client.getSuperSearchEnrichment(resourceId);
-    const status = String(state.status || "").trim().toLowerCase();
-    if (!["failed", "error", "cancelled", "canceled"].includes(status)) continue;
-    failed += group.length; reconciled += group.length;
-    await Promise.all(group.map((seed) => saveGtmChannelSeed({ ...seed, lifecycle: "ENRICHMENT_FAILED", enrichmentResult: `Instantly SuperSearch terminal status: ${status}.`, enrichmentUpdatedAt: new Date().toISOString() })));
+  const listId = segment === "DIRECT" ? config.directListId : config.partnerListId;
+  const listed = await client.listLeadsInList(listId);
+  const leads = Array.isArray(listed.items) ? listed.items : [];
+  let reconciled = 0; const failed = 0; let verified = 0;
+  for (const seed of seeds) {
+    const lead = leads.find((item) => norm(text(item.company_name)) === norm(seed.organization) && roleFits(segment, text(item.job_title)) && text(item.email));
+    if (!lead) continue;
+    const email = text(lead.email); const verification = await client.getEmailVerification(email);
+    if (String(verification.verification_status || "").toLowerCase() !== "verified" || verification.catch_all === true || verification.catch_all === "true") continue;
+    const firstName = text(lead.first_name) || "Contact"; const lastName = text(lead.last_name) || "Research";
+    await recordInstantlyVerifiedGtmContact({ organization: seed.organization, organizationDomain: seed.organizationDomain!, domainSourceUrl: seed.sourceUrl, person: { firstName, lastName, fullName: `${firstName} ${lastName}`.trim(), currentTitle: text(lead.job_title), titleSourceUrl: seed.sourceUrl, responsibilityEvidence: "Instantly provider returned a role within the independently verified target-role group." } }, email, text(lead.id), seed.sourceUrl);
+    await saveGtmChannelSeed({ ...seed, lifecycle: "VERIFIED", enrichmentResult: "Instantly returned a role-fit contact with a verified, non-catch-all business email; final suppression, deduplication, content, and campaign gates remain required.", enrichmentUpdatedAt: new Date().toISOString() });
+    reconciled += 1; verified += 1;
   }
-  return { segment, reconciled, pending: seeds.length - reconciled, failed };
+  return { segment, reconciled, pending: seeds.length - reconciled, failed, verified };
 }
+
+function text(value: unknown) { return typeof value === "string" ? value.trim() : ""; }
+function norm(value: string) { return value.normalize("NFKC").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
+function roleFits(segment: ChannelSeedEnrichmentSegment, title: string) { return segment === "DIRECT" ? /\b(cfo|finance director|controller|director of grants|grants manager|institutional giving)\b/i.test(title) : /\b(founder|ceo|managing partner|partner|principal)\b/i.test(title); }
