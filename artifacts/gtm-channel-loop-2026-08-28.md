@@ -74,7 +74,7 @@ The key does not include the documented `campaigns:update` permission required t
 
 ## Required external action
 
-Update the existing V2 API key so it retains its current scopes and adds `campaigns:update` and `supersearch_enrichments:read`; then replace the value at the existing Secret Manager reference `grantdeskhq-instantly-api-key`. No source code, Firebase, Cloud Run authentication, or campaign change is required. After the refreshed secret is deployed, the recovery can execute campaign-update preflight, Direct and Partner internal canaries, then provider-first enrichment and enrollment gates.
+Update the existing V2 API key so it retains its current scopes and adds `campaigns:update`, `supersearch_enrichments:read`, and `supersearch_enrichments:create`; then replace the value at the existing Secret Manager reference `grantdeskhq-instantly-api-key`. The first two are required by documented campaign activation/patch and non-mutating SuperSearch preview; the create scope is required by documented SuperSearch enrichment creation. No source code, Firebase, Cloud Run authentication, or campaign change is required. After the refreshed secret is deployed, the recovery can execute campaign-update preflight, Direct and Partner internal canaries, then provider-first enrichment and enrollment gates.
 
 ## Git
 

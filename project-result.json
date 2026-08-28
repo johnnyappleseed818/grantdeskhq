@@ -29,5 +29,5 @@
   },
   "liveOutboundChanged": false,
   "emailsSent": 0,
-  "humanActionRequired": "Update the existing V2 Instantly key at Secret Manager reference grantdeskhq-instantly-api-key to retain all current scopes and add campaigns:update plus supersearch_enrichments:read. Do not enable outbound until campaign update preflight and the internal Direct/Partner canaries pass."
+  "humanActionRequired": "Update the existing V2 Instantly key at Secret Manager reference grantdeskhq-instantly-api-key to retain all current scopes and add campaigns:update, supersearch_enrichments:read, and supersearch_enrichments:create. Do not enable outbound until campaign update preflight and the internal Direct/Partner canaries pass."
 }
