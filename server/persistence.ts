@@ -755,14 +755,23 @@ export async function readGtmPartnerDiscoveryScan(): Promise<PartnerDiscoverySca
 /** Idempotent organization-only storage. It cannot call an enrichment or delivery provider. */
 export async function importGtmChannelSeeds(seeds: readonly ChannelSeedRecord[]) {
   const accessToken = await gcpToken();
-  let imported = 0; let duplicate = 0;
+  const existing = new Map((await listGtmChannelSeeds()).map((seed) => [seed.id, seed]));
+  let imported = 0; let duplicate = 0; let upgraded = 0;
   for (const seed of seeds) {
     const created = await writeDocumentIfAbsent(accessToken, `gtm/channel-seeds/records/${safeChannelSeedDocumentId(seed.id)}`, {
       importedAt: seed.importedAt, segment: seed.segment, lifecycle: seed.lifecycle, recordJson: JSON.stringify(seed)
     });
-    if (created) imported += 1; else duplicate += 1;
+    if (created) imported += 1;
+    else {
+      const prior = existing.get(seed.id);
+      const canUpgrade = prior?.lifecycle === "DISCOVERED" && Boolean(seed.organizationDomain) && seed.sourceUrl !== "https://chatgpt.com/share/6a913e29-1c68-83ed-acc3-8c6e00423acb?ogimg=plain";
+      if (canUpgrade) {
+        await writeDocument(accessToken, `gtm/channel-seeds/records/${safeChannelSeedDocumentId(seed.id)}`, { importedAt: prior!.importedAt, segment: seed.segment, lifecycle: seed.lifecycle, recordJson: JSON.stringify({ ...seed, importedAt: prior!.importedAt }) });
+        upgraded += 1;
+      } else duplicate += 1;
+    }
   }
-  return { imported, duplicate, total: seeds.length };
+  return { imported, duplicate, upgraded, total: seeds.length };
 }
 
 export async function listGtmChannelSeeds(limit = 100): Promise<ChannelSeedRecord[]> {

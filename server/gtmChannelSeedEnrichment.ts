@@ -13,7 +13,7 @@ export interface ChannelSeedEnrichmentResult { segment: ChannelSeedEnrichmentSeg
  * considered email verification and this function cannot touch campaigns. */
 export async function enrichChannelSeedsWithInstantly(segment: ChannelSeedEnrichmentSegment, env: NodeJS.ProcessEnv = process.env): Promise<ChannelSeedEnrichmentResult> {
   const config = instantlyConfig(env);
-  const seeds = (await listGtmChannelSeeds()).filter((seed) => seed.segment === segment && ["DISCOVERED", "ENRICHMENT_FAILED"].includes(seed.lifecycle));
+  const seeds = (await listGtmChannelSeeds()).filter((seed) => seed.segment === segment && ["ENRICHMENT_PENDING", "ENRICHMENT_FAILED"].includes(seed.lifecycle) && Boolean(seed.organizationDomain));
   if (!config.integrationEnabled || !config.apiKeyConfigured) return { segment, selected: seeds.length, previewCount: null, submitted: 0, resourceId: null, providerStatus: null, blocked: "INSTANTLY_NOT_CONFIGURED" };
   const listId = segment === "DIRECT" ? config.directListId : config.partnerListId;
   if (!listId) return { segment, selected: seeds.length, previewCount: null, submitted: 0, resourceId: null, providerStatus: null, blocked: "MISSING_SEGMENT_LIST" };

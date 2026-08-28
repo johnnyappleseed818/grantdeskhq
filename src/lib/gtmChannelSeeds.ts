@@ -25,6 +25,17 @@ export interface ChannelSeedRecord {
 
 export const CHANNEL_SCAN_SOURCE_URL = "https://chatgpt.com/share/6a913e29-1c68-83ed-acc3-8c6e00423acb?ogimg=plain";
 
+/** A deliberately small, primary-source verified subset. Every other shared
+ * scan row stays DISCOVERED until an independent verifier supplies the same
+ * organization/domain/role evidence. */
+const independentlyVerifiedPartnerSeeds: Record<string, Pick<ChannelSeedRecord, "organizationDomain" | "sourceUrl" | "evidenceSummary" | "qualificationReasons">> = {
+  "Jitasa": { organizationDomain: "jitasagroup.com", sourceUrl: "https://www.jitasagroup.com/about/", evidenceSummary: "Jitasa's official management page identifies its leadership and describes nonprofit accounting services; founder/executive leadership is an appropriate partner-role group.", qualificationReasons: ["Official organization domain confirmed.", "Official management page confirms a partner decision-maker role group.", "Official site describes nonprofit accounting services."] },
+  "GrantWin Consulting": { organizationDomain: "grantwinconsulting.com", sourceUrl: "https://www.grantwinacademy.com/global-grant-collective", evidenceSummary: "GrantWin's official founder page identifies Patrice Davis and describes pre- and post-award consulting and training.", qualificationReasons: ["Official organization domain confirmed.", "Official founder role confirmed.", "Official source describes post-award grant-management work."] },
+  "CFO Leverage": { organizationDomain: "cfoleverage.com", sourceUrl: "https://www.cfoleverage.com/about", evidenceSummary: "CFO Leverage's official team page identifies co-founders and describes nonprofit financial leadership and accounting services.", qualificationReasons: ["Official organization domain confirmed.", "Official co-founder role confirmed.", "Official site describes nonprofit financial services."] },
+  "JFW Accounting Services": { organizationDomain: "jfwaccountingservices.cpa", sourceUrl: "https://jfwaccountingservices.cpa/", evidenceSummary: "JFW's official site identifies Jo-Anne Williams-Barnes as Founder & CEO and describes nonprofit accounting, restricted-fund, audit, and grant-reporting services.", qualificationReasons: ["Official organization domain confirmed.", "Official founder/CEO role confirmed.", "Official source describes nonprofit grant and compliance work."] },
+  "DSD Business Systems": { organizationDomain: "dsdinc.com", sourceUrl: "https://www.dsdinc.com/about-us/", evidenceSummary: "DSD's official team page identifies its founder and describes accounting/ERP implementation services; partner relevance remains limited to evidence-supported technology/service collaboration.", qualificationReasons: ["Official organization domain confirmed.", "Official founder role confirmed.", "Official source describes accounting/ERP services."] }
+};
+
 const directOrganizations = [
   "Avenge Pediatric Cancer Foundation", "Freedom Service Dogs of America", "Mama’s Kitchen", "Armand Bayou Nature Center", "Barbara Bush Houston Literacy Foundation", "Baytown Habitat for Humanity", "Compudopt", "Galena Park Resource and Training Center", "Lee College Foundation", "Kids’ Meals", "Second Servings of Houston", "Target Hunger", "Ronald McDonald House Charities Greater Houston", "The Rose", "SERJobs", "Women Offshore Foundation", "Prison Entrepreneurship Program", "Houston Symphony Society", "Segundo Barrio Children’s Chorus", "Experiences That Matter Foundation"
 ];
@@ -37,18 +48,21 @@ function recordId(segment: CanonicalSegment, organization: string) {
 }
 
 export function channelSeedManifest(importedAt = new Date().toISOString()): ChannelSeedRecord[] {
-  const build = (organization: string, segment: CanonicalSegment): ChannelSeedRecord => ({
+  const build = (organization: string, segment: CanonicalSegment): ChannelSeedRecord => {
+    const verified = segment === "PARTNER" ? independentlyVerifiedPartnerSeeds[organization] : undefined;
+    return {
     id: recordId(segment, organization), organization, segment,
     targetRoleGroup: segment === "DIRECT"
       ? ["CFO", "Finance Director", "Controller", "Director of Grants", "Grants Manager", "Institutional Giving leader"]
       : ["Founder", "CEO", "Managing Partner", "Nonprofit Practice Lead", "Grants-management or alliances leader"],
-    source: "chatgpt_channel_scan_2026_08_28", sourceUrl: CHANNEL_SCAN_SOURCE_URL,
-    observedAt: "2026-08-28", importedAt, lifecycle: "DISCOVERED", organizationDomain: null,
-    evidenceSummary: "Organization seed imported from a shared channel scan; no scan claim is treated as verified evidence.",
-    qualificationReasons: ["Requires independent public organization, signal, role, and email verification before enrichment."],
+    source: "chatgpt_channel_scan_2026_08_28", sourceUrl: verified?.sourceUrl || CHANNEL_SCAN_SOURCE_URL,
+    observedAt: "2026-08-28", importedAt, lifecycle: verified ? "ENRICHMENT_PENDING" : "DISCOVERED", organizationDomain: verified?.organizationDomain || null,
+    evidenceSummary: verified?.evidenceSummary || "Organization seed imported from a shared channel scan; no scan claim is treated as verified evidence.",
+    qualificationReasons: verified?.qualificationReasons || ["Requires independent public organization, signal, role, and email verification before enrichment."],
     rejectionReason: null, enrichmentProvider: null, enrichmentResult: null,
     deduplicationKey: `${segment}:${organization.normalize("NFKC").trim().toLowerCase()}`
-  });
+    };
+  };
   return [...directOrganizations.map((organization) => build(organization, "DIRECT")), ...partnerOrganizations.map((organization) => build(organization, "PARTNER"))];
 }
 

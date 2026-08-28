@@ -23,4 +23,11 @@ describe("2026-08-28 channel seed import", () => {
     const seed = { ...channelSeedManifest()[0]!, lifecycle: "ENRICHMENT_SUBMITTED" as const, enrichmentProvider: "instantly_supersearch", enrichmentResourceId: "resource-1" };
     expect(channelSeedToCanonicalCandidate(seed).blockers).toContain("NO_VERIFIED_BUSINESS_EMAIL");
   });
+
+  it("marks only independently verified partner rows eligible for provider enrichment", () => {
+    const partners = channelSeedManifest().filter((seed) => seed.segment === "PARTNER");
+    expect(partners.filter((seed) => seed.lifecycle === "ENRICHMENT_PENDING")).toHaveLength(5);
+    expect(partners.filter((seed) => seed.lifecycle === "DISCOVERED")).toHaveLength(5);
+    expect(partners.find((seed) => seed.organization === "Jitasa")?.organizationDomain).toBe("jitasagroup.com");
+  });
 });
