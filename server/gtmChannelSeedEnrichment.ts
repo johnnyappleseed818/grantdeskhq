@@ -36,16 +36,23 @@ export async function reconcileChannelSeedEnrichment(segment: ChannelSeedEnrichm
   const listId = segment === "DIRECT" ? config.directListId : config.partnerListId;
   const listed = await client.listLeadsInList(listId);
   const leads = Array.isArray(listed.items) ? listed.items : [];
-  let reconciled = 0; const failed = 0; let verified = 0;
+  let reconciled = 0; let failed = 0; let verified = 0;
   for (const seed of seeds) {
     const lead = leads.find((item) => norm(text(item.company_name)) === norm(seed.organization) && roleFits(segment, text(item.job_title)) && text(item.email));
     if (!lead) continue;
     const email = text(lead.email); const verification = await client.getEmailVerification(email);
     if (String(verification.verification_status || "").toLowerCase() !== "verified" || verification.catch_all === true || verification.catch_all === "true") continue;
     const firstName = text(lead.first_name) || "Contact"; const lastName = text(lead.last_name) || "Research";
-    await recordInstantlyVerifiedGtmContact({ organization: seed.organization, organizationDomain: seed.organizationDomain!, domainSourceUrl: seed.sourceUrl, person: { firstName, lastName, fullName: `${firstName} ${lastName}`.trim(), currentTitle: text(lead.job_title), titleSourceUrl: seed.sourceUrl, responsibilityEvidence: "Instantly provider returned a role within the independently verified target-role group." } }, email, text(lead.id), seed.sourceUrl);
-    await saveGtmChannelSeed({ ...seed, lifecycle: "VERIFIED", enrichmentResult: "Instantly returned a role-fit contact with a verified, non-catch-all business email; final suppression, deduplication, content, and campaign gates remain required.", enrichmentUpdatedAt: new Date().toISOString() });
-    reconciled += 1; verified += 1;
+    try {
+      await recordInstantlyVerifiedGtmContact({ organization: seed.organization, organizationDomain: seed.organizationDomain!, domainSourceUrl: seed.sourceUrl, person: { firstName, lastName, fullName: `${firstName} ${lastName}`.trim(), currentTitle: text(lead.job_title), titleSourceUrl: seed.sourceUrl, responsibilityEvidence: "Instantly provider returned a role within the independently verified target-role group." } }, email, text(lead.id), seed.sourceUrl);
+      await saveGtmChannelSeed({ ...seed, lifecycle: "VERIFIED", enrichmentResult: "Instantly returned a role-fit contact with a verified, non-catch-all business email; final suppression, deduplication, content, and campaign gates remain required.", enrichmentUpdatedAt: new Date().toISOString() });
+      reconciled += 1; verified += 1;
+    } catch {
+      // A provider match that cannot satisfy the canonical business-email and
+      // evidence contract remains blocked; it must not abort other no-send rows.
+      await saveGtmChannelSeed({ ...seed, lifecycle: "ENRICHMENT_FAILED", enrichmentResult: "Provider contact was rejected during canonical reconciliation because it did not meet the verified business-email or evidence contract.", enrichmentUpdatedAt: new Date().toISOString() });
+      failed += 1;
+    }
   }
   return { segment, reconciled, pending: seeds.length - reconciled, failed, verified };
 }
