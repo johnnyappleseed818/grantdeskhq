@@ -9,7 +9,7 @@ import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { addSupportingEvidence, beginFreeFirstAward, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readFreeFirstAwardStatus, readGtmAwardScan, readGtmContactSuppression, readGtmContentEngineState, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmDirectDiscoveryScan, readGtmEnrichmentUsage, readGtmInventoryAutopilot, readGtmOpportunityEngineState, readGtmOutcomeEvents, readGtmPartnerDiscoveryScan, readGtmShadowStatus, readInstantlyRecords, readInstantlyStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, recordGtmContactSuppression, reconcileLifecycleNurture, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveFunnelPreferences, saveGtmContentEngineState, saveGtmDailyScan, saveGtmDirectDiscoveryScan, saveGtmInventoryAutopilot, saveGtmOpportunityEngineState, saveGtmOutcomeEvent, saveGtmPartnerDiscoveryScan, saveInstantlyRecord, saveInstantlyStatus, saveInstantlyWebhookEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview, updateGtmDailySocialItem } from "./persistence.ts";
+import { addSupportingEvidence, beginFreeFirstAward, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, importGtmChannelSeeds, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readFreeFirstAwardStatus, readGtmAwardScan, readGtmContactSuppression, readGtmContentEngineState, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmDirectDiscoveryScan, readGtmEnrichmentUsage, readGtmInventoryAutopilot, readGtmOpportunityEngineState, readGtmOutcomeEvents, readGtmPartnerDiscoveryScan, readGtmShadowStatus, readInstantlyRecords, readInstantlyStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, recordGtmContactSuppression, reconcileLifecycleNurture, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveFunnelPreferences, saveGtmContentEngineState, saveGtmDailyScan, saveGtmDirectDiscoveryScan, saveGtmInventoryAutopilot, saveGtmOpportunityEngineState, saveGtmOutcomeEvent, saveGtmPartnerDiscoveryScan, saveInstantlyRecord, saveInstantlyStatus, saveInstantlyWebhookEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview, updateGtmDailySocialItem } from "./persistence.ts";
 import { validateFeedbackInput, type FeedbackSubmission } from "../src/lib/feedback.ts";
 import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
 import { confirmedHumanOutreach, summarizeOutreach } from "../src/lib/gtmOutreach.ts";
@@ -41,6 +41,7 @@ import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
 import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
 import { executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
+import { channelSeedManifest } from "../src/lib/gtmChannelSeeds.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
@@ -143,6 +144,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/social") return await handleGtmSocial(request, response);
     if (url.pathname === "/api/gtm/award-signals") return await handleGtmAwardSignals(request, response);
     if (url.pathname === "/api/gtm/direct-discovery") return await handleGtmDirectDiscovery(request, response);
+    if (url.pathname === "/api/gtm/channel-seeds/import") return await handleGtmChannelSeedImport(request, response);
     if (url.pathname === "/api/gtm/direct-recipient-resolution") return await handleGtmDirectRecipientResolution(request, response);
     if (url.pathname === "/api/gtm/social-discovery/reconcile") return await handleGtmSocialDiscoveryReconcile(request, response);
     if (url.pathname === "/api/gtm/control-plane-queue") return await handleGtmControlPlaneQueue(request, response);
@@ -430,6 +432,15 @@ async function handleGtmDirectDiscovery(request: IncomingMessage, response: Serv
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   requireGtmAdmin(await requireUser(request));
   return json(response, 200, { scan: await readGtmDirectDiscoveryScan() });
+}
+
+/** Scheduler-only, idempotent organization seed import. It never enriches, stages, or sends. */
+async function handleGtmChannelSeedImport(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const result = await importGtmChannelSeeds(channelSeedManifest());
+  console.info(JSON.stringify({ event: "GTM_CHANNEL_SEED_IMPORT", source: "chatgpt_channel_scan_2026_08_28", imported: result.imported, duplicate: result.duplicate, total: result.total, timestamp: new Date().toISOString() }));
+  return json(response, 200, { ...result, lifecycle: "DISCOVERED", providerCalls: 0, sends: 0 });
 }
 
 /** Existing-inventory recipient resolution. This path is bounded and never discovers organizations. */

@@ -18,6 +18,7 @@ import type { AuthenticatedUser } from "./auth.ts";
 import { BillingError, normalizeAttribution, type Attribution, type BillingEventSnapshot } from "./billing.ts";
 import { subscriptionIsEntitled } from "../src/content/pricing.ts";
 import type { InstantlyIntegrationRecord, InstantlyWebhookEvent } from "./instantly.ts";
+import type { ChannelSeedRecord } from "../src/lib/gtmChannelSeeds.ts";
 import type { HandoffReservation, HandoffStatus } from "./instantlyHandoff.ts";
 import { analyzeSupportingEvidence, applyEvidenceMatches, buildEvidenceTargets, normalizeSupportingEvidenceFiles } from "./evidenceReconciliation.ts";
 import { applyDeterministicAccuracyChecks } from "./accuracy.ts";
@@ -749,6 +750,32 @@ export async function readGtmPartnerDiscoveryScan(): Promise<PartnerDiscoverySca
   const record = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
   try { return record.scanJson ? JSON.parse(String(record.scanJson)) as PartnerDiscoveryScan : null; }
   catch { return null; }
+}
+
+/** Idempotent organization-only storage. It cannot call an enrichment or delivery provider. */
+export async function importGtmChannelSeeds(seeds: readonly ChannelSeedRecord[]) {
+  const accessToken = await gcpToken();
+  let imported = 0; let duplicate = 0;
+  for (const seed of seeds) {
+    const created = await writeDocumentIfAbsent(accessToken, `gtm/channel-seeds/records/${safeChannelSeedDocumentId(seed.id)}`, {
+      importedAt: seed.importedAt, segment: seed.segment, lifecycle: seed.lifecycle, recordJson: JSON.stringify(seed)
+    });
+    if (created) imported += 1; else duplicate += 1;
+  }
+  return { imported, duplicate, total: seeds.length };
+}
+
+export async function listGtmChannelSeeds(limit = 100): Promise<ChannelSeedRecord[]> {
+  const accessToken = await gcpToken();
+  const response = await authorizedFetch(`${firestoreBase}/gtm/channel-seeds/records?pageSize=${Math.min(Math.max(limit, 1), 100)}`, accessToken);
+  if (response.status === 404) return [];
+  if (!response.ok) throw new Error(`GTM channel seeds could not be loaded (${response.status}).`);
+  const body = await response.json() as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> };
+  return (body.documents || []).flatMap((document) => {
+    const value = decodeFields(document.fields || {}).recordJson;
+    try { return value ? [JSON.parse(String(value)) as ChannelSeedRecord] : []; }
+    catch { return []; }
+  });
 }
 
 export async function saveGtmInventoryAutopilot(snapshot: InventoryAutopilotSnapshot) {
@@ -1849,6 +1876,11 @@ function safeGtmContactDocumentId(value: string) {
   const safe = value.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 180);
   if (!/^contact_[a-zA-Z0-9_-]+$/.test(safe)) throw new Error("Invalid GTM contact enrichment identifier.");
   return safe;
+}
+
+function safeChannelSeedDocumentId(value: string) {
+  if (!/^channel_seed_[a-f0-9]{24}$/.test(value)) throw new Error("Invalid GTM channel seed identifier.");
+  return value;
 }
 
 function safeFeedbackDocumentId(value: string) {
