@@ -604,8 +604,11 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
   // exact controlled cohort only after the API lead read confirms zero members
   // for that campaign. Treating every active campaign as unsafe left a healthy
   // empty campaign permanently unable to receive its founder-authorized batch.
-  const campaignConfigurationAllowed = selectedCampaigns.every((campaign) => [0, 1].includes(Number(campaign.status)) && campaignSenderAddresses(campaign).every((sender) => sender === approvedSender));
-  const senderReady = Boolean(client && config.integrationEnabled && config.apiKeyConfigured && mailboxReady && selectedCampaigns.length > 0 && selectedCampaigns.every((campaign) => controlledCampaignReady(campaign, approvedSender)));
+  // A paused campaign is the expected starting state after incident recovery.
+  // It is eligible only for this explicit canary path, which reads it back and
+  // activates it after the final handoff gates have passed.
+  const campaignConfigurationAllowed = selectedCampaigns.every((campaign) => [0, 1, 2].includes(Number(campaign.status)) && campaignSenderAddresses(campaign).every((sender) => sender === approvedSender));
+  const senderReady = Boolean(client && config.integrationEnabled && config.apiKeyConfigured && mailboxReady && selectedCampaigns.length > 0 && selectedCampaigns.every((campaign) => controlledCampaignReady(campaign, approvedSender, [0, 1, 2])));
   const fullControlledCohort = requestedSegment ? cohort.length === requestedLimit : direct.length === 5 && partner.length === 5;
   const gate = !mailboxReady ? "MAILBOX" : !client ? "API_CLIENT" : !campaignConfigurationAllowed ? "CAMPAIGN_CONFIGURATION" : !config.controlledBatchEnabled || config.controlledBatchId !== batchId ? "BATCH_CONFIGURATION" : !fullControlledCohort ? "COHORT_INCOMPLETE" : "READY";
   const reasonCode = gate === "MAILBOX" ? "SENDER_NOT_READY" : gate === "API_CLIENT" ? "INTEGRATION_OR_KEY_UNAVAILABLE" : gate === "CAMPAIGN_CONFIGURATION" ? "MAPPED_CAMPAIGN_UNSAFE" : gate === "BATCH_CONFIGURATION" ? "EXACT_BATCH_DISABLED" : gate === "COHORT_INCOMPLETE" ? "CANONICAL_READY_INSUFFICIENT" : "OK";
