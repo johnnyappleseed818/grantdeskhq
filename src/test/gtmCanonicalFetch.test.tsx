@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CanonicalGtmModel } from "../lib/gtmCanonical";
@@ -52,11 +52,11 @@ describe("canonical GTM loading", () => {
     const tokenPromise = new Promise<string>((resolve) => { releaseToken = resolve; });
     const delayedToken = vi.fn(() => tokenPromise);
     render(<MemoryRouter><GtmDashboardContent dailySignalToken={delayedToken} /></MemoryRouter>);
-    fireEvent.click(screen.getByRole("tab", { name: "Leads" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Opportunities" }));
     expect(screen.getByText("Loading canonical GTM records")).toBeInTheDocument();
     releaseToken("delayed-token");
-    await screen.findByRole("heading", { name: "Customer execution queue" });
-    expect(screen.getByText(/READY TO SEND · 0/i)).toBeInTheDocument();
+    await screen.findByRole("heading", { name: "Opportunities" });
+    expect(screen.getByText("Verified Partner")).toBeInTheDocument();
   });
 
   it("uses a one-time refreshed Firebase token after a 401", async () => {
@@ -78,10 +78,10 @@ describe("canonical GTM loading", () => {
       return Promise.resolve(auxiliaryResponse(path));
     });
     render(<MemoryRouter><GtmDashboardContent dailySignalToken={mocks.auth.token} /></MemoryRouter>);
-    fireEvent.click(screen.getByRole("tab", { name: "Leads" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Opportunities" }));
     await screen.findByRole("heading", { name: "Unable to load GTM records." });
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-    await screen.findByRole("heading", { name: "Customer execution queue" });
+    await screen.findByRole("heading", { name: "Opportunities" });
     expect(screen.queryByText("Loading canonical GTM records")).not.toBeInTheDocument();
   });
 
@@ -93,10 +93,10 @@ describe("canonical GTM loading", () => {
     mocks.auth.user = { uid: "admin", email: "admin@example.org" };
     rendered.rerender(<MemoryRouter><GtmDashboardPage /></MemoryRouter>);
     await waitFor(() => expect(mocks.apiRequest).toHaveBeenCalledWith("/api/gtm/access", "token", expect.any(Object)));
-    await screen.findByRole("heading", { name: "Founder operating view" });
-    fireEvent.click(screen.getByRole("tab", { name: "Partners" }));
+    await screen.findByRole("heading", { name: "Demand, delivery, and blockers" });
+    fireEvent.click(screen.getByRole("tab", { name: "Opportunities" }));
     expect(await screen.findByText("Verified Partner")).toBeInTheDocument();
-    expect(screen.getByText(/READY TO SEND · 1/i)).toBeInTheDocument();
+    expect(within(screen.getByRole("row", { name: /Verified Partner/ })).getByText("READY")).toBeInTheDocument();
   });
 
   it("rejects an invalid canonical response instead of rendering an ambiguous queue", async () => {

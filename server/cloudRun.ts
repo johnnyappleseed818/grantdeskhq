@@ -591,7 +591,13 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
   const cohort = [...direct, ...partner];
   const client = config.apiKeyConfigured && config.integrationEnabled ? new InstantlyClient(config) : null;
   const campaignDetails = client ? await Promise.all([config.directCampaignId ? client.getCampaign(config.directCampaignId) : null, config.partnerCampaignId ? client.getCampaign(config.partnerCampaignId) : null]) : [null, null];
-  const [leadInventory, approvedAccount] = client ? await Promise.all([client.listRecentLeads(200), client.getAccount("eli.katz@grantdeskhq.com")]) : [{ items: [], truncated: false }, null] as const;
+  const [leadInventory, approvedAccount, providerEmailEvidence] = client ? await Promise.all([client.listRecentLeads(500), client.getAccount("eli.katz@grantdeskhq.com"), client.listRecentEmailEvidence(100)]) : [{ items: [], truncated: false }, null, []] as const;
+  const recentProviderProspectingSends = new Set(instantlyItems(providerEmailEvidence).flatMap((item) => {
+    const campaign = String(item.campaign_id || "");
+    const timestamp = Date.parse(String(item.timestamp_email || item.timestamp_created || ""));
+    const email = String(item.to_address_email_list || item.to_email || item.email || "").trim().toLowerCase();
+    return email && [config.directCampaignId, config.partnerCampaignId].includes(campaign) && Number.isFinite(timestamp) && Date.now() - timestamp < 24 * 60 * 60 * 1_000 ? [email] : [];
+  }));
   const campaignLeadCount = new Map<string, number>();
   for (const lead of leadInventory.items) {
     const id = instantlyLeadCampaignId(lead);
@@ -707,7 +713,11 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
       fail: failInstantlyHandoff,
       assertCircuitClosed: assertOutboundCircuitClosed,
       tripCircuitBreaker: tripOutboundCircuitBreaker,
-      findExistingLead: (email, campaign) => client.findLeadByEmail(email, campaign),
+      findExistingLead: async (email, campaign) => {
+        const lead = await client.findLeadByEmail(email, campaign);
+        return lead ? { id: String(lead.id || ""), campaignId: instantlyLeadCampaignId(lead) } : null;
+      },
+      hasRecentProspectingSend: async (email) => recentProviderProspectingSends.has(email.trim().toLowerCase()),
       createLead: () => client.createLeadInControlledCampaign({ email: record.email || "", firstName, lastName: rest.join(" "), companyName: record.organization, jobTitle: record.title || "", campaignId, personalization: body, subject, sequenceId: "initial-v1", segment: record.segment, customVariables: { batch_id: batchId, canonical_organization_id: record.organizationId, canonical_contact_id: `${record.organizationId}:${record.email}`, segment: record.segment, source: record.sourceUrl, why_now_or_fit: record.whyNow, openingLine: controlledOpening(record), message_version: "controlled-benefit-led-v2" } }, batchId)
     });
     const preview = instantlyPreviewRecord(record);
@@ -829,7 +839,7 @@ function controlledCampaignPatch(segment: "DIRECT" | "PARTNER", maximum: number,
     // to render a mandatory subject line. Instantly owns delivery sequencing;
     // Five calendar days on a business-hour schedule is never shorter than the
     // three-business-day minimum for the first follow-up.
-    sequences: [{ steps: [{ type: "email", delay: 0, delay_unit: "days", variants: [{ subject: direct ? "Less time preparing grant reports" : "One client grant report, free", body: initialBody, v_disabled: false }] }, { type: "email", delay: 5, delay_unit: "days", variants: [{ subject: direct ? "A simpler way to prep funder reports" : "A simpler way to prep client grant reports", body: "<div>Hi {{firstName}},</div><div><br /></div><div>Just following up in case this is useful. You can try one real award for free here: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: false }] }, { type: "email", delay: 7, delay_unit: "days", variants: [{ subject: direct ? "Worth trying on one award?" : "Worth trying with one client award?", body: "<div>Hi {{firstName}},</div><div><br /></div><div>One last note: GrantDeskHQ is designed to reduce the repetitive first-pass work of assembling a grant report. If useful, your first award is free: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: false }] }] }]
+    sequences: [{ steps: [{ type: "email", delay: 0, delay_unit: "days", variants: [{ subject: direct ? "Less time preparing grant reports" : "One client grant report, free", body: initialBody, v_disabled: false }] }, { type: "email", delay: 5, delay_unit: "days", variants: [{ subject: direct ? "A simpler way to prep funder reports" : "A simpler way to prep client grant reports", body: "<div>Hi {{firstName}},</div><div><br /></div><div>Just following up in case this is useful. You can try one real award for free here: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: true }] }, { type: "email", delay: 7, delay_unit: "days", variants: [{ subject: direct ? "Worth trying on one award?" : "Worth trying with one client award?", body: "<div>Hi {{firstName}},</div><div><br /></div><div>One last note: GrantDeskHQ is designed to reduce the repetitive first-pass work of assembling a grant report. If useful, your first award is free: https://grantdeskhq.com/assessment</div><div><br /></div><div>Best,</div><div>Eli</div>", v_disabled: true }] }] }]
   };
 }
 
@@ -841,7 +851,8 @@ function controlledCampaignReady(campaign: Record<string, unknown>, sender: stri
   const emailSteps = steps.filter((step) => step.type === "email");
   const contentValid = emailSteps.length >= 3 && emailSteps.every((step) => Array.isArray(step.variants) && (step.variants as Array<Record<string, unknown>>).some((variant) => String(variant.subject || "").trim() && String(variant.body || "").trim()));
   const firstFollowUpDelay = Number(emailSteps[1]?.delay);
-  return allowedStatuses.includes(Number(summary.status)) && campaignUsesOnlySender(campaign, sender) && summary.stopOnReply && summary.stopOnAutoReply && summary.bounceProtectionEnabled && !summary.openTracking && !summary.linkTracking && Number(summary.dailyMaxLeads) === 5 && contentValid && firstFollowUpDelay >= 5 && Boolean(first?.subject.trim() && first.body.includes("https://grantdeskhq.com/assessment") && first.body.toLowerCase().includes("free"));
+  const followUpsDisabled = emailSteps.slice(1).every((step) => Array.isArray(step.variants) && (step.variants as Array<Record<string, unknown>>).every((variant) => variant.v_disabled === true));
+  return allowedStatuses.includes(Number(summary.status)) && campaignUsesOnlySender(campaign, sender) && summary.stopOnReply && summary.stopOnAutoReply && summary.bounceProtectionEnabled && !summary.openTracking && !summary.linkTracking && Number(summary.dailyMaxLeads) === 5 && contentValid && followUpsDisabled && firstFollowUpDelay >= 5 && Boolean(first?.subject.trim() && first.body.includes("https://grantdeskhq.com/assessment") && first.body.toLowerCase().includes("free"));
 }
 
 function instantlyOutcomeType(type: string): GtmOutcomeType | null {

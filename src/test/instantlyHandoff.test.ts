@@ -83,4 +83,19 @@ describe("final Instantly handoff safety", () => {
     await expect(executeFinalInstantlyHandoff(valid, { reserve: vi.fn().mockResolvedValue({ acquired: true, record: { idempotencyKey: "x", normalizedEmail: "casey@example.org", campaignId: "campaign_a", handoffStatus: "HANDOFF_STARTED", externalLeadId: "", handedOffAt: "" } }), findExistingLead: vi.fn(), createLead: vi.fn().mockResolvedValue({ id: "provider_lead" }), complete: vi.fn().mockRejectedValue(new Error("Firestore timeout")), fail })).rejects.toThrow("Firestore timeout");
     expect(fail).not.toHaveBeenCalled();
   });
+  it("rejects an existing provider enrollment before a second external write", async () => {
+    const createLead = vi.fn();
+    const tripCircuitBreaker = vi.fn().mockResolvedValue(undefined);
+    await expect(executeFinalInstantlyHandoff(valid, { reserve: vi.fn().mockResolvedValue({ acquired: true, record: { idempotencyKey: "x", normalizedEmail: "casey@example.org", campaignId: "campaign_a", handoffStatus: "HANDOFF_STARTED", externalLeadId: "", handedOffAt: "" } }), findExistingLead: vi.fn().mockResolvedValue({ id: "provider_lead", campaignId: "other_campaign" }), createLead, complete: vi.fn(), fail: vi.fn(), tripCircuitBreaker })).rejects.toThrow("active or unresolved");
+    expect(createLead).not.toHaveBeenCalled();
+    expect(tripCircuitBreaker).toHaveBeenCalledWith("DUPLICATE_PROVIDER_ENROLLMENT", expect.any(String));
+  });
+
+  it("rejects a provider-confirmed same-day prospecting send before enrollment", async () => {
+    const createLead = vi.fn();
+    const tripCircuitBreaker = vi.fn().mockResolvedValue(undefined);
+    await expect(executeFinalInstantlyHandoff(valid, { reserve: vi.fn().mockResolvedValue({ acquired: true, record: { idempotencyKey: "x", normalizedEmail: "casey@example.org", campaignId: "campaign_a", handoffStatus: "HANDOFF_STARTED", externalLeadId: "", handedOffAt: "" } }), findExistingLead: vi.fn().mockResolvedValue(null), hasRecentProspectingSend: vi.fn().mockResolvedValue(true), createLead, complete: vi.fn(), fail: vi.fn(), tripCircuitBreaker })).rejects.toThrow("last 24 hours");
+    expect(createLead).not.toHaveBeenCalled();
+    expect(tripCircuitBreaker).toHaveBeenCalledWith("RECIPIENT_DAILY_SEND_LIMIT", expect.any(String));
+  });
 });

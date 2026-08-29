@@ -184,8 +184,8 @@ export function instantlyHealth(config = instantlyConfig()) {
 
 export function normalizeOutboundEmail(value: string) { return value.trim().toLowerCase(); }
 
-export function instantlyHandoffIdempotencyKey(campaignId: string, email: string) {
-  return createHash("sha256").update(`${campaignId.trim()}|${normalizeOutboundEmail(email)}`).digest("hex");
+export function instantlyHandoffIdempotencyKey(campaignId: string, email: string, sequenceVersion = "initial-v1") {
+  return createHash("sha256").update(`${campaignId.trim()}|${normalizeOutboundEmail(email)}|${sequenceVersion.trim()}`).digest("hex");
 }
 
 const invalidRenderedValue = /\{\{[^}]+\}\}|\b(?:null|undefined)\b/i;
