@@ -576,7 +576,7 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
   await reconcileInstantlyPolling();
   const config = instantlyConfig();
   const [model, outreach, existingRecords] = await Promise.all([readCanonicalGtmModel(), reconcileGtmOutreachLedger(confirmedHumanOutreach), readInstantlyRecords()]);
-  const existingEmails = new Set(existingRecords.map((record) => record.email.toLowerCase()).filter(Boolean));
+  const existingEmails = new Set(existingRecords.filter((record) => ["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus) && Boolean(record.instantlyLeadId)).map((record) => record.email.toLowerCase()).filter(Boolean));
   const eligible = model.records.filter((record) => {
     const gate = record.state === "READY_TO_SEND" && Boolean(record.email && record.contact) && !record.priorContact && record.suppressionStatus === "CLEAR" && !existingEmails.has(String(record.email).toLowerCase());
     if (!gate) return false;
