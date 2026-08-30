@@ -224,7 +224,7 @@ async function handleCompiler(request: IncomingMessage, response: ServerResponse
     );
     return json(response, 200, await saveCompilation(user, normalized.request, result));
   } catch (error) {
-    console.error("GrantDeskHQ compiler error:", error instanceof Error ? error.message : "Unknown error");
+    console.error(JSON.stringify(compilerFailureTelemetry(error)));
     const timedOut = isTimeoutFailure(error);
     return json(response, timedOut ? 504 : 502, {
       error: timedOut
@@ -232,6 +232,18 @@ async function handleCompiler(request: IncomingMessage, response: ServerResponse
         : "Report generation was temporarily interrupted. Your source files were not changed. Please try again."
     });
   }
+}
+
+export function compilerFailureTelemetry(error: unknown) {
+  const value = error instanceof Error ? error : new Error("Unknown compiler error");
+  const redact = (input: string) => input
+    .replace(/https?:\/\/[^\s)]+/g, "[url]")
+    .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+/g, "[email]")
+    .replace(/(?:api[_ -]?key|token|password|authorization)\s*[:=]\s*[^\s,;]+/gi, "[redacted]")
+    .replace(/[\r\n\t]+/g, " ")
+    .trim()
+    .slice(0, 480);
+  return { event: "REPORT_COMPILER_FAILURE", errorName: value.name || "Error", errorMessage: redact(value.message), errorStack: redact(value.stack || "") };
 }
 
 function isTimeoutFailure(error: unknown) {
