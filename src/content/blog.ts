@@ -171,6 +171,36 @@ export const BLOG_POSTS: BlogPost[] = [
         "GrantDeskHQ is designed for the post-award reporting workflow: it turns the agreement, accounting data, program updates, and supporting evidence into a reviewable funder-report draft. It keeps the nonprofit team in control of review and submission. Try one award through the Free First Award flow to evaluate the workflow against your own reporting requirements." ] }
     ]
   }
+  ,{
+    slug: "funder-report-supporting-evidence-checklist",
+    title: "What documents do you need for a funder report? A practical evidence checklist",
+    description: "A practical checklist for organizing the agreement, financial support, program records, and review trail behind a funder report.",
+    publishedAt: "2026-08-30",
+    readingMinutes: 6,
+    resourceCategory: "checklist",
+    sources: [
+      { title: "Uniform Administrative Requirements, Cost Principles, and Audit Requirements for Federal Awards (2 CFR Part 200)", url: "https://www.ecfr.gov/current/title-2/subtitle-A/chapter-II/part-200" },
+      { title: "Grants.gov applicant resources", url: "https://www.grants.gov/applicants/applicant-resources" }
+    ],
+    sections: [
+      { heading: "Start with the controlling reporting requirements", paragraphs: [
+        "Begin with the executed award agreement, amendments, approved budget, reporting instructions, and funder template or portal questions. Those materials, not a generic checklist, define the reporting period, required schedules, narrative questions, certifications, attachments, and deadline for the award.",
+        "Create a short requirement register with the deliverable, due date, accountable owner, source document, reviewer, and unresolved question. If a requirement is unclear, retain it as an open item for the award owner instead of treating an assumption as a reporting fact."
+      ] },
+      { heading: "Keep financial support traceable", paragraphs: [
+        "Use the accounting export covering the reporting period and map it to the approved grant budget. Preserve the ledger detail, category mapping, calculation, allocation method, and source for each material total. A reviewer should be able to follow a reported figure back to its accounting support without recreating the work from memory.",
+        "For a material budget-to-actual variance, keep the confirmed amount separate from the operational explanation and any approval question. The award terms determine whether a variance, amendment, or prior approval needs additional action; a polished sentence is not evidence of approval."
+      ] },
+      { heading: "Collect program and supporting evidence as work happens", paragraphs: [
+        "Program narratives need dated support appropriate to the award: activity logs, attendance exports, deliverables, case-management summaries, evaluation records, or other source material. Keep invoices, payroll support, contracts, correspondence, and approvals with the financial or narrative claim they support.",
+        "Do not hide a missing document. A useful draft makes the source-backed statements and the remaining evidence gaps visible, assigns a next owner, and gives the organization time to resolve the gap before final review."
+      ] },
+      { heading: "Run a human review before submission", paragraphs: [
+        "Before submission, compare the completed package with the current award terms: reporting dates, financial categories, metric definitions, required attachments, certifications, amendment conditions, and portal instructions. The person responsible for the award should make the final review and submission decision.",
+        "GrantDeskHQ helps teams bring the agreement, accounting data, program updates, and supporting evidence into a source-linked report draft for review. Try the workflow with one real award through the Free First Award flow; your team keeps final review and submission control."
+      ] }
+    ]
+  }
 ];
 
 export function findBlogPost(slug: string | undefined) { return BLOG_POSTS.find((post) => post.slug === slug); }

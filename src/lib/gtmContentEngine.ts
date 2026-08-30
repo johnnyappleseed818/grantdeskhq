@@ -1,6 +1,10 @@
 import { GTM_INVENTORY_POLICY, inventoryDecision } from "./gtmInventoryPolicy.ts";
 import { buildCompetitorSeoSnapshot, type CompetitorSeoSnapshot, type SeoGrowthOpportunity } from "./competitorSeo.ts";
 
+/** Public publication is proved by a deployed static route and sitemap entry,
+ * never merely by a review-state mutation. */
+const STATIC_PUBLISHED_DRAFTS = new Set(["draft-supporting-evidence"]);
+
 export type ContentOpportunityStatus = "OPPORTUNITY" | "DRAFTING" | "READY_FOR_REVIEW" | "APPROVED" | "PUBLISHED" | "SKIPPED" | "REFRESH";
 export type DistributionStatus = "READY" | "POSTED" | "SKIPPED";
 export type DistributionPlatform = "MEDIUM" | "REDDIT" | "QUORA" | "LINKEDIN" | "FORUM";
@@ -138,7 +142,9 @@ export function reconcileContentEngine(existing: ContentEngineState | null, gene
     for (const item of persisted) values.set(item.id, item);
     return [...values.values()];
   };
-  return { ...starter, generatedAt, opportunities: merge(starter.opportunities, existing.opportunities), drafts: merge(starter.drafts, existing.drafts), distributionTasks: merge(starter.distributionTasks, existing.distributionTasks), sourceSummary: existing.sourceSummary || starter.sourceSummary, competitorSeo: existing.competitorSeo || starter.competitorSeo };
+  const drafts = merge(starter.drafts, existing.drafts).map((draft) => STATIC_PUBLISHED_DRAFTS.has(draft.id) && draft.status === "APPROVED" ? { ...draft, status: "PUBLISHED" as const, updatedAt: generatedAt } : draft);
+  const publishedOpportunityIds = new Set(drafts.filter((draft) => draft.status === "PUBLISHED").map((draft) => draft.opportunityId));
+  return { ...starter, generatedAt, opportunities: merge(starter.opportunities, existing.opportunities).map((opportunity) => publishedOpportunityIds.has(opportunity.id) ? { ...opportunity, status: "PUBLISHED" as const } : opportunity), drafts, distributionTasks: merge(starter.distributionTasks, existing.distributionTasks), sourceSummary: existing.sourceSummary || starter.sourceSummary, competitorSeo: existing.competitorSeo || starter.competitorSeo };
 }
 
 /** Adds only a small number of high-fit, non-duplicate NEW-topic drafts when
@@ -184,8 +190,9 @@ export function updateContentEngineState(state: ContentEngineState, input: { kin
   if (input.kind === "draft") {
     const valid: ContentDraft["status"][] = ["READY_FOR_REVIEW", "APPROVED", "PUBLISHED", "SKIPPED"];
     if (!valid.includes(input.status as ContentDraft["status"])) throw new Error("Invalid content draft status.");
-    if (!state.drafts.some((item) => item.id === input.id)) throw new Error("Content draft was not found.");
-    if (input.status === "PUBLISHED") throw new Error("Content publication is disabled; founder approval remains required.");
+    const existingDraft = state.drafts.find((item) => item.id === input.id);
+    if (!existingDraft) throw new Error("Content draft was not found.");
+    if (input.status === "PUBLISHED" && (!STATIC_PUBLISHED_DRAFTS.has(input.id) || existingDraft.status !== "APPROVED")) throw new Error("A draft can be marked published only after founder approval and a deployed production-rendered route with a sitemap entry.");
     return { ...state, generatedAt: updatedAt, drafts: state.drafts.map((item) => item.id === input.id ? { ...item, status: input.status as ContentDraft["status"], updatedAt } : item) };
   }
   const valid: DistributionStatus[] = ["READY", "POSTED", "SKIPPED"];
