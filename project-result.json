@@ -1,33 +1,29 @@
 {
-  "project": "outbound-incident-recovery",
+  "project": "gtm-production-live-smoke-and-remediation",
   "status": "PARTIAL",
-  "completedAt": "2026-08-28T10:15:00Z",
-  "canonicalBranch": "incident-recovery-2026-08-27",
-  "commit": "f384c2e48843a06517147c9edf76582656236688",
-  "productionChanged": true,
-  "productionRevision": "grantdeskhq-prototype-00402-zuv",
-  "rollbackRevision": "grantdeskhq-prototype-00387-ker",
-  "candidateRevision": "grantdeskhq-prototype-00409-yed",
-  "candidateTraffic": "0%",
-  "emailIncident": {
-    "affectedRecipients": 16,
-    "internalSuppressionsApplied": 16,
-    "providerHoldingListJobsSucceeded": 7,
-    "providerBlockListEntriesCreated": 16,
-    "unresolvedProviderMemberships": 0
+  "completedAt": "2026-08-30T17:50:00Z",
+  "productionRevision": "grantdeskhq-prototype-00438-xiv",
+  "traffic": "100%",
+  "releaseSmoke": {
+    "health": "PASS",
+    "customDomainAuthentication": "PASS",
+    "dashboardRoute": "PASS",
+    "approvedSeoArticle": "PASS",
+    "sitemapEntry": "PASS",
+    "gtmRoleBoundary": "PASS"
   },
-  "gates": {
-    "targetedOutboundTests": "PASS (42 focused Instantly, seed, and contact tests)",
-    "typescript": "PASS",
-    "lint": "PASS",
-    "candidateHealth": "PASS; 00409-yed HTTP 200 with no post-run ERROR logs",
-    "channelSeedImport": "PARTIAL (30 canonical seeds; latest rerun 0 new / 29 duplicate / 1 independent-evidence upgrade; zero sends)",
-    "schedulerOidcPreflight": "PASS (fail-closed campaign pause)",
-    "providerBlockListCreate": "PASS (16 entries created and verified by read-only count)",
-    "supersearch": "PARTIAL (5 Partner and 1 Direct independently evidenced organizations processed; 2 Partner provider-verified contacts persisted; no Direct contact match)",
-    "campaignActivation": "NOT_RUN (no verified Direct canary and no approved internal two-segment canary pair)"
+  "outbound": {
+    "OUTBOUND_EMAIL_ENABLED": false,
+    "INSTANTLY_OUTBOUND_ENABLED": false,
+    "INSTANTLY_AUTO_HANDOFF_ENABLED": false,
+    "DIRECT_INSTANTLY_ENABLED": false,
+    "PARTNER_INSTANTLY_ENABLED": false,
+    "providerCampaigns": "PAUSED",
+    "reason": "Outbound remains fail-closed pending a validated live handoff/canary."
   },
-  "liveOutboundChanged": false,
-  "emailsSent": 0,
-  "humanActionRequired": "No credential or scope action is required. Delivery remains disabled because 24 organization-only seeds lack independently verified evidence and no verified Direct contact/internal two-segment canary pair exists."
+  "remaining": [
+    "Partner public discovery schema repair 9825ecc is tested and pushed but intentionally not deployed under the no-new-deployment constraint.",
+    "The VM service account cannot read canonical Firestore data directly (403), so protected GTM dashboard aggregates could not be independently read from this runtime.",
+    "The reliability scheduler still targets stale QA infrastructure; this was recorded as a separate non-blocking item."
+  ]
 }
