@@ -601,17 +601,25 @@ export async function readReliabilityDashboard(): Promise<ReliabilityDashboardSn
     queryReliabilityCollection<ReliabilityIncident>(accessToken, "reliability/canary/incidents?pageSize=50&orderBy=updatedAt%20desc", "incidentJson"),
     readLastKnownGoodRelease()
   ]);
+  const environment = applicationEnvironment();
+  const currentApplicationRevision = applicationRevision();
+  const currentDeploymentRevision = deploymentRevision();
+  const activeIncidents = incidents.filter((incident) => ["open", "unknown"].includes(incident.finalStatus));
+  const escalatedIncidents = incidents.filter((incident) => incident.finalStatus === "escalated");
+  const latestMatchesCurrentRelease = Boolean(latest && latest.environment === environment && latest.applicationRevision === currentApplicationRevision && latest.deploymentRevision === currentDeploymentRevision);
+  const latestFresh = Boolean(latest && Number.isFinite(Date.parse(latest.completedAt)) && Date.now() - Date.parse(latest.completedAt) <= 36 * 60 * 60 * 1000);
+  const overallHealth = !latest || !latestMatchesCurrentRelease || !latestFresh ? "unknown" : latest.status === "healthy" && (activeIncidents.length || escalatedIncidents.length) ? "degraded" : latest.status;
   return {
-    environment: applicationEnvironment(),
-    applicationRevision: applicationRevision(),
-    deploymentRevision: deploymentRevision(),
-    overallHealth: latest?.status || "unknown",
+    environment,
+    applicationRevision: currentApplicationRevision,
+    deploymentRevision: currentDeploymentRevision,
+    overallHealth,
     latestCanary: latest,
     lastSuccessfulCanary: runs.find((run) => run.status === "healthy")?.completedAt || null,
     recentDriftEvents: drift,
     recentDeployments: [...new Set(runs.map((run) => run.deploymentRevision).filter(Boolean))].slice(0, 10),
-    activeIncidents: incidents.filter((incident) => ["open", "unknown"].includes(incident.finalStatus)),
-    escalatedIncidents: incidents.filter((incident) => incident.finalStatus === "escalated"),
+    activeIncidents,
+    escalatedIncidents,
     lastKnownGood
   };
 }

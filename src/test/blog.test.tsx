@@ -8,8 +8,8 @@ import { BlogIndexPage, BlogPostPage } from "../pages/BlogPage";
 import { ResourcesPage } from "../pages/ResourcesPage";
 
 describe("public GrantDeskHQ blog", () => {
-  it("publishes six substantive, source-linked articles", () => {
-    expect(BLOG_POSTS).toHaveLength(6);
+  it("publishes seven substantive, source-linked articles", () => {
+    expect(BLOG_POSTS).toHaveLength(7);
     for (const post of BLOG_POSTS) {
       expect(blogWordCount(post)).toBeGreaterThan(250);
       expect(post.description.length).toBeGreaterThan(60);
@@ -70,6 +70,6 @@ describe("public GrantDeskHQ blog", () => {
 
   it("renders both articles on the public index", () => {
     render(<MemoryRouter><BlogIndexPage /></MemoryRouter>);
-    expect(screen.getAllByRole("link", { name: /read article/i })).toHaveLength(6);
+    expect(screen.getAllByRole("link", { name: /read article/i })).toHaveLength(7);
   });
 });

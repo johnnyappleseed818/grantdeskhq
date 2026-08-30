@@ -17,11 +17,12 @@ describe("canonical content opportunity engine", () => {
     expect(reconciled.opportunities.find((item) => item.id === "content-reporting-calendar")?.status).toBe("SKIPPED");
   });
 
-  it("requires founder review and blocks direct publication", () => {
+  it("publishes only an approved draft with a deployed static route", () => {
     const state = buildInitialContentEngineState();
+    expect(() => updateContentEngineState(state, { kind: "draft", id: "draft-supporting-evidence", status: "PUBLISHED" })).toThrow(/founder approval/i);
     const approved = updateContentEngineState(state, { kind: "draft", id: "draft-supporting-evidence", status: "APPROVED" });
-    expect(approved.drafts[0].status).toBe("APPROVED");
-    expect(() => updateContentEngineState(state, { kind: "draft", id: "draft-supporting-evidence", status: "PUBLISHED" })).toThrow(/publication is disabled/i);
+    expect(reconcileContentEngine(approved, "2026-08-30T00:00:00.000Z").drafts[0].status).toBe("PUBLISHED");
+    expect(() => updateContentEngineState(approved, { kind: "draft", id: "draft-reporting-ownership", status: "PUBLISHED" })).toThrow(/deployed production-rendered route/i);
   });
 
   it("keeps distribution manual and only persists a founder-reviewed state", () => {
