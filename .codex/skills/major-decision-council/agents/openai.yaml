@@ -1,0 +1,6 @@
+interface:
+  display_name: "Major Decision Council"
+  short_description: "Independent review for consequential decisions"
+  default_prompt: "Use $major-decision-council to evaluate this consequential GrantDeskHQ decision."
+policy:
+  allow_implicit_invocation: true
