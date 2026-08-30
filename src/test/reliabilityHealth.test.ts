@@ -20,7 +20,7 @@ import {
   validatedConfigurationDecision
 } from "../../server/selfHealing";
 import { notifyReliabilityResult, reliabilityNotification } from "../../server/reliabilityNotifier";
-import { canaryHealthStatus } from "../../server/northstarCanary";
+import { canaryHealthStatus, sanitizedCanaryError } from "../../server/northstarCanary";
 
 describe("GrantDeskHQ runtime reliability invariants", () => {
   it("detects a wrong Technology actual as critical financial drift", () => {
@@ -118,6 +118,12 @@ describe("GrantDeskHQ runtime reliability invariants", () => {
   it("never reports a canary as healthy when no health assertions could execute", () => {
     expect(buildReliabilityScorecard([]).status).toBe("unknown");
     expect(canaryHealthStatus("dependency_or_network", "healthy")).toBe("unknown");
+  });
+
+  it("stores bounded secret-safe detail for a failed canary", () => {
+    const detail = sanitizedCanaryError(new Error("POST https://example.test/path?token=secret api_key=abc"));
+    expect(detail).not.toContain("secret");
+    expect(detail).toContain("[redacted]");
   });
 
   it("sends a redacted critical alert through the pluggable notifier", async () => {

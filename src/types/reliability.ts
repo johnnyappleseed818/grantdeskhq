@@ -138,6 +138,8 @@ export interface ReliabilityCanaryResult {
   cleanup: { reportsDeleted: number; identityDeleted: boolean; errors: string[] };
   artifacts: CanaryDiagnosticArtifact[];
   errorCategory?: string;
+  /** Bounded, secret-safe operational detail when the canary cannot complete. */
+  errorDetail?: string;
 }
 
 export interface ReliabilityDashboardSnapshot {

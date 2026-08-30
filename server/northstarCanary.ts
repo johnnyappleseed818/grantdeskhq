@@ -44,6 +44,7 @@ export async function runNorthstarReliabilityCanary(options: NorthstarCanaryOpti
   let sameReportHashes: string[] = [];
   let crossReportHashes: string[] = [];
   let errorCategory: string | undefined;
+  let errorDetail: string | undefined;
   let analysisPerformance: AnalysisPerformance | undefined;
   const driftEvents: AnalysisDriftEvent[] = [];
   try {
@@ -87,6 +88,7 @@ export async function runNorthstarReliabilityCanary(options: NorthstarCanaryOpti
     if (reconciled.manifest && reconciledB.manifest) driftEvents.push(...compareAnalysisManifests(reconciled.manifest, reconciledB.manifest).events);
   } catch (error) {
     errorCategory = classifyError(error);
+    errorDetail = sanitizedCanaryError(error);
     assertions.push(assertion("canary-execution", "availability", "critical", false, "The synthetic canary did not complete its full customer workflow.", "completed", errorCategory));
   } finally {
     if (identity) await cleanupIdentity(options.origin.replace(/\/$/, ""), identity, reportIds, cleanup, options.firebaseReferer);
@@ -119,7 +121,8 @@ export async function runNorthstarReliabilityCanary(options: NorthstarCanaryOpti
     failingAssertionIds,
     cleanup,
     artifacts: [],
-    ...(errorCategory ? { errorCategory } : {})
+    ...(errorCategory ? { errorCategory } : {}),
+    ...(errorDetail ? { errorDetail } : {})
   };
 
   await persistCanaryDiagnostics(result, canonicalState);
@@ -147,6 +150,17 @@ export async function runNorthstarReliabilityCanary(options: NorthstarCanaryOpti
 
 export function canaryHealthStatus(errorCategory: string | undefined, scorecardStatus: ReliabilityCanaryResult["status"]) {
   return errorCategory ? "unknown" as const : scorecardStatus;
+}
+
+export function sanitizedCanaryError(error: unknown) {
+  const value = error instanceof Error ? error.message : "Unknown canary error";
+  return value
+    .replace(/https?:\/\/[^\s)]+/g, "[url]")
+    .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+/g, "[email]")
+    .replace(/(?:api[_ -]?key|token|password|authorization)\s*[:=]\s*[^\s,;]+/gi, "[redacted]")
+    .replace(/[\r\n\t]+/g, " ")
+    .trim()
+    .slice(0, 240);
 }
 
 function assertCoreSources(assertions: ReliabilityAssertion[], response: PersistedCompilationResponse) {
