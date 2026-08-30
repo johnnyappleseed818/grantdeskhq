@@ -509,8 +509,8 @@ async function handleGtmControlPlaneQueue(request: IncomingMessage, response: Se
 async function handleGtmOverview(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   requireGtmAdmin(await requireUser(request));
-  const [reconciliation, shadowStatus, usage, inventory] = await Promise.all([readGtmControlPlaneReconciliation(), readGtmShadowStatus(), readGtmEnrichmentUsage(), readGtmInventoryAutopilot()]);
-  return json(response, 200, { overview: buildGtmOverview({ reconciliation, shadowStatus, usage, hunterLookupLimit: configuredPositiveInteger("HUNTER_MAX_LOOKUPS_PER_RUN", 2) }), inventory });
+  const [model, reconciliation, shadowStatus, usage, inventory] = await Promise.all([readCanonicalGtmModel(), readGtmControlPlaneReconciliation(), readGtmShadowStatus(), readGtmEnrichmentUsage(), readGtmInventoryAutopilot()]);
+  return json(response, 200, { overview: buildGtmOverview({ model, reconciliation, shadowStatus, usage, hunterLookupLimit: configuredPositiveInteger("HUNTER_MAX_LOOKUPS_PER_RUN", 2) }), inventory });
 }
 
 async function handleGtmCanonical(request: IncomingMessage, response: ServerResponse) {

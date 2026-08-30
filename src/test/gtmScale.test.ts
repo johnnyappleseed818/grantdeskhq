@@ -20,7 +20,7 @@ describe("GTM scale model", () => {
   it("does not treat provider enrollment as an actual send", () => {
     expect(lifecycleStageFor(record({ instantlyStatus: "STAGED" }))).toBe("STAGED");
     expect(lifecycleStageFor(record({ instantlyStatus: "IN_CAMPAIGN" }))).toBe("SCHEDULED");
-    expect(lifecycleStageFor(record({ instantlyStatus: "SENT", state: "AWAITING_REPLY", priorContact: true }))).toBe("SENT");
+    expect(lifecycleStageFor(record({ instantlyStatus: "SENT", state: "AWAITING_REPLY", priorContact: true, sentAt: "2026-08-28T12:00:00.000Z" }))).toBe("SENT");
   });
 
   it("uses ten business days of capacity when that exceeds the target floor", () => {

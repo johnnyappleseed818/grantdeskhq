@@ -1,3 +1,5 @@
+import { buildGtmScaleModel } from "./gtmScale";
+import type { CanonicalGtmModel } from "./gtmCanonical";
 import type { EnrichmentUsage } from "./contactEnrichment";
 // This value import is also loaded by the Node 22 Cloud Run runtime. Node's
 // TypeScript stripper requires the explicit source extension at runtime.
@@ -15,7 +17,7 @@ export interface GtmOverview {
   funnel: Record<string, GtmMetric>;
   outboundEnabled: false;
 }
-export interface GtmOverviewInput { reconciliation: ControlPlaneQueueReconciliation | null; shadowStatus: ShadowPipelineStatus | null; usage: EnrichmentUsage | null; now?: string; hunterLookupLimit?: number; }
+export interface GtmOverviewInput { model?: CanonicalGtmModel | null; reconciliation: ControlPlaneQueueReconciliation | null; shadowStatus: ShadowPipelineStatus | null; usage: EnrichmentUsage | null; now?: string; hunterLookupLimit?: number; }
 const directTargets = { qualified: 100, contactIdentified: 50, enrichmentReady: 50, emailVerified: 25, humanReview: 25 };
 const partnerTargets: Record<string, number> = { researched: 50, highFit: 20, enrichmentReady: 10, humanReview: 5 };
 const partnerPipelineSnapshot = {
@@ -33,7 +35,23 @@ const sum = (r: ControlPlaneQueueReconciliation | null, states: ControlPlaneLead
 const metric = (actual: number | null, target: number | null = null): GtmMetric => ({ actual, target, gap: actual === null || target === null ? null : Math.max(0, target - actual) });
 const stale = (value: string | undefined, now: string) => { const then = Date.parse(value || ""); return !Number.isFinite(then) || Date.parse(now) - then > 36 * 60 * 60 * 1000; };
 
-export function buildGtmOverview({ reconciliation, shadowStatus, usage, now = new Date().toISOString(), hunterLookupLimit = 2 }: GtmOverviewInput): GtmOverview {
+function buildCanonicalOverview(model: CanonicalGtmModel, usage: EnrichmentUsage | null, now: string, hunterLookupLimit: number): GtmOverview {
+  const scale = buildGtmScaleModel(model);
+  const segment = (key: "DIRECT" | "PARTNER") => {
+    const value = key === "DIRECT" ? scale.direct : scale.partner;
+    const records = model.records.filter((record) => record.segment === key);
+    const metrics: Record<string, GtmMetric> = { qualified: metric(value.evidenceQualified, value.target.evidenceQualified.target), contactIdentified: metric(value.stages.CONTACT_FOUND), emailVerified: metric(value.verifiedContacts), suppressionClear: metric(records.filter((record) => record.suppressionStatus === "CLEAR" && !record.priorContact).length), ready: metric(value.ready, value.target.ready.target), staged: metric(value.stages.STAGED), scheduled: metric(value.stages.SCHEDULED), sent: metric(value.stages.SENT), replied: metric(value.stages.REPLIED), blocked: metric(records.filter((record) => record.blockers.length > 0).length) };
+    const health: GtmHealth = stale(model.generatedAt, now) ? "STALE" : value.ready < (value.readinessFloor ?? value.target.ready.floor) ? "NEEDS_REPLENISHMENT" : "HEALTHY";
+    return { health, metrics, topNextEnrichmentCandidates: records.filter((record) => !record.contact || String(record.verificationStatus || "").toUpperCase() !== "VERIFIED").map((record) => record.organization).slice(0, 10) };
+  };
+  const direct = segment("DIRECT");
+  const partner = segment("PARTNER");
+  const suppressed = model.records.filter((record) => record.suppressionStatus && record.suppressionStatus !== "CLEAR").length;
+  return { generatedAt: model.generatedAt, direct, partner: { ...partner, sourceNote: "Canonical evidence, enrichment, and provider-event records.", lastUpdated: model.generatedAt, source: "server canonical GTM lifecycle" }, controlPlane: { health: stale(model.generatedAt, now) ? "STALE" : "HEALTHY", lastRefresh: model.generatedAt, cards: model.records.length, uniqueOrganizations: new Set(model.records.map((record) => record.organizationId)).size, duplicates: null, disqualified: suppressed, missingOrUnaccounted: 0 }, enrichment: { health: !usage ? "NOT_INSTRUMENTED" : stale(usage.updatedAt, now) ? "STALE" : "HEALTHY", hunterLookups: usage?.hunterLookups ?? null, hunterLookupLimit, hunterVerifications: usage?.hunterVerifications ?? null, apolloLookups: usage?.apolloLookups ?? null, verifiedEmails: scale.direct.verifiedContacts + scale.partner.verifiedContacts, notFound: usage?.contactsNotFound ?? null, acceptAll: null, unknown: null, suppressed, contactNotEstablished: model.records.filter((record) => !record.contact).length, lastRun: usage?.updatedAt || null }, funnel: { providerConfirmedInitialSends: metric(scale.direct.stages.SENT + scale.partner.stages.SENT), replies: metric(scale.direct.stages.REPLIED + scale.partner.stages.REPLIED), positiveReplies: metric(model.metrics.positiveReplies), freeFirstAwardTrials: metric(model.metrics.trials), paidCustomers: metric(model.metrics.paid), mrr: metric(model.metrics.mrr) }, outboundEnabled: false };
+}
+
+export function buildGtmOverview({ model = null, reconciliation, shadowStatus, usage, now = new Date().toISOString(), hunterLookupLimit = 2 }: GtmOverviewInput): GtmOverview {
+  if (model) return buildCanonicalOverview(model, usage, now, hunterLookupLimit);
   const replenishment = reconciliation?.replenishment || (reconciliation ? directProspectReplenishment(reconciliation.uniqueOrganizations, reconciliation.counts) : null);
   const qualified = replenishment?.sourceQualified.actual ?? null;
   const contactIdentified = reconciliation ? sum(reconciliation, contactStates) : null;

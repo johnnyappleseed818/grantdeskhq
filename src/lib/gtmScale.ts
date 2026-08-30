@@ -36,7 +36,7 @@ export interface GtmScaleModel {
 export function lifecycleStageFor(record: CanonicalGtmRecord): GtmLifecycleStage {
   const status = String(record.instantlyStatus || "").toUpperCase();
   if (["REPLIED", "POSITIVE"].includes(status) || ["REPLIED", "POSITIVE"].includes(record.state)) return "REPLIED";
-  if (status === "SENT" || record.state === "AWAITING_REPLY" || record.state === "FOLLOW_UP_DUE") return "SENT";
+  if (status === "SENT" && record.sentAt) return "SENT";
   if (["SCHEDULED", "IN_CAMPAIGN", "APPROVED_FOR_CAMPAIGN"].includes(status)) return "SCHEDULED";
   if (status === "STAGED") return "STAGED";
   if (record.state === "READY_TO_SEND") return "READY";

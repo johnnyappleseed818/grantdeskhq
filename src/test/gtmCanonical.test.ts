@@ -23,4 +23,10 @@ describe("canonical GTM model", () => {
  it("keeps a missing verifier result explicit", () => { const record = buildCanonicalGtmModel({ candidates: [candidate], enrichments: [enrichment("VERIFICATION_RESULT_MISSING")], outreach: [] }).records[0]; expect(record.state).toBe("NEEDS_VERIFICATION"); expect(record.blockers).toContain("VERIFICATION_MISSING"); });
  it("never returns a contacted organization to first touch", () => expect(buildCanonicalGtmModel({ candidates: [candidate], enrichments: [enrichment("VERIFIED", true)], outreach: [outreach()] }).records[0].state).toBe("AWAITING_REPLY"));
  it("protects the explicit historical prior-contact record without inventing a send", () => { const perkins = { ...candidate, target: { ...candidate.target, organization: "Perkins School for the Blind", organizationDomain: "perkins.org" } }; expect(buildCanonicalGtmModel({ candidates: [perkins], enrichments: [enrichment("VERIFIED", true)], outreach: [] }).records[0].state).toBe("ALREADY_CONTACTED"); });
+ it("does not count a provider status as sent without provider send evidence", () => {
+   const external = [{ canonicalOrganizationId: "org:oceanology.org", email: "lisa@oceanology.org", instantlySyncStatus: "SENT" }];
+   const record = buildCanonicalGtmModel({ candidates: [candidate], enrichments: [enrichment("VERIFIED", true)], outreach: [], instantly: external }).records[0];
+   expect(record.sentAt).toBeNull();
+   expect(record.blockers).toContain("PROVIDER_SEND_TIMESTAMP_MISSING");
+ });
 });
