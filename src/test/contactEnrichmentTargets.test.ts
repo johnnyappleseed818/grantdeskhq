@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildContactEnrichmentRecord, createTopicalShadowDraft, type SuppressionCheck } from "../lib/contactEnrichment";
 import { firstTwoShadowContactEnrichmentCandidates } from "../data/gtmContactEnrichmentTargets";
 import { partnerTargets } from "../../server/contactEnrichmentBatch";
-import { normalizePartnerDiscovery } from "../../server/gtmPartnerDiscovery";
+import { normalizePartnerDiscovery, partnerDiscoverySchema } from "../../server/gtmPartnerDiscovery";
 
 const unknownSuppression: SuppressionCheck = {
   status: "UNKNOWN",
@@ -26,6 +26,13 @@ describe("first-two real contact-enrichment SHADOW fixtures", () => {
       expect(draft.subject).toBe("Save time preparing grant reports");
       expect(draft.body).toContain("https://grantdeskhq.com/assessment");
     }
+  });
+});
+
+describe("Partner discovery strict response schema", () => {
+  it("requires publicEmail so strict structured output is valid", () => {
+    const item = (partnerDiscoverySchema as { properties: { candidates: { items: { required: string[] } } } }).properties.candidates.items;
+    expect(item.required).toContain("publicEmail");
   });
 });
 
