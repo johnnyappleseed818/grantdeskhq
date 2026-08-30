@@ -1,5 +1,5 @@
-import { buildGtmScaleModel } from "./gtmScale";
-import type { CanonicalGtmModel } from "./gtmCanonical";
+import { buildGtmScaleModel } from "./gtmScale.ts";
+import type { CanonicalGtmModel } from "./gtmCanonical.ts";
 import type { EnrichmentUsage } from "./contactEnrichment";
 // This value import is also loaded by the Node 22 Cloud Run runtime. Node's
 // TypeScript stripper requires the explicit source extension at runtime.
