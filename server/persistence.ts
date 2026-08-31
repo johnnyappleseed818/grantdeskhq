@@ -1300,6 +1300,10 @@ export interface OutboundCircuitBreakerState {
 
 const outboundCircuitPath = "gtm/instantly/safety/circuit-breaker";
 
+export function outboundCircuitEventId(state: Pick<OutboundCircuitBreakerState, "reason" | "detail" | "trippedAt">) {
+  return createHash("sha256").update(`${state.reason}:${state.detail}:${state.trippedAt}`).digest("hex").slice(0, 24);
+}
+
 export async function assertOutboundCircuitClosed() {
   const accessToken = await gcpToken();
   const response = await authorizedFetch(`${firestoreBase}/${outboundCircuitPath}`, accessToken);
@@ -1309,12 +1313,45 @@ export async function assertOutboundCircuitClosed() {
   if (fields.tripped === true || String(fields.tripped) === "true") throw new Error("Outbound circuit breaker is tripped.");
 }
 
+
+export async function readOutboundCircuitBreaker() {
+  const accessToken = await gcpToken();
+  const response = await authorizedFetch(`${firestoreBase}/${outboundCircuitPath}`, accessToken);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Outbound circuit breaker could not be read (${response.status}).`);
+  const fields = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
+  return { tripped: fields.tripped === true || String(fields.tripped) === "true", reason: String(fields.reason || ""), detail: String(fields.detail || ""), trippedAt: String(fields.trippedAt || ""), resetEventId: String(fields.resetEventId || ""), resetReason: String(fields.resetReason || "") };
+}
+
 export async function tripOutboundCircuitBreaker(reason: string, detail: string) {
   const accessToken = await gcpToken();
   const state: OutboundCircuitBreakerState = { tripped: true, reason: reason.slice(0, 120), detail: detail.slice(0, 300), trippedAt: new Date().toISOString() };
   await writeDocument(accessToken, outboundCircuitPath, { ...state });
 }
 
+export async function resetOutboundCircuitBreaker(input: { expectedEventId: string; reason: string; executionIdentity: string; prerequisites: Record<string, boolean>; dryRun: boolean }) {
+  const current = await readOutboundCircuitBreaker();
+  if (!current) throw new Error("No outbound circuit-breaker event exists.");
+  const eventId = outboundCircuitEventId(current);
+  if (eventId !== input.expectedEventId) throw new Error("Outbound circuit-breaker event is stale.");
+  if (!current.tripped) {
+    if (current.resetEventId === eventId && current.resetReason === input.reason) return { eventId, idempotent: true, cleared: true };
+    throw new Error("Outbound circuit breaker is already cleared by a different reset.");
+  }
+  if (!input.reason.trim()) throw new Error("An explicit circuit-breaker reset reason is required.");
+  if (!Object.values(input.prerequisites).every(Boolean)) throw new Error("Outbound circuit-breaker reset prerequisites are not satisfied.");
+  const auditId = safeDocumentId(`reset:${eventId}:${input.reason.trim().toLowerCase()}`);
+  const audit = { eventId, prior: current, reason: input.reason.trim().slice(0, 300), executionIdentity: input.executionIdentity, prerequisites: input.prerequisites, timestamp: new Date().toISOString() };
+  if (input.dryRun) return { eventId, auditId, idempotent: false, cleared: false, audit };
+  const accessToken = await gcpToken();
+  const created = await writeDocumentIfAbsent(accessToken, `gtm/instantly/safety/reset-audits/${auditId}`, audit);
+  if (!created) {
+    const after = await readOutboundCircuitBreaker();
+    if (after?.resetEventId === eventId && after.resetReason === audit.reason) return { eventId, auditId, idempotent: true, cleared: true };
+  }
+  await writeDocument(accessToken, outboundCircuitPath, { ...current, tripped: false, resetEventId: eventId, resetReason: audit.reason, resetExecutionIdentity: input.executionIdentity, resetAt: audit.timestamp });
+  return { eventId, auditId, idempotent: false, cleared: true };
+}
 export async function readInstantlyRecords(limit = 200): Promise<InstantlyIntegrationRecord[]> {
   const accessToken = await gcpToken();
   const response = await authorizedFetch(`${firestoreBase}/gtm/instantly/records?pageSize=${Math.min(Math.max(limit, 1), 200)}`, accessToken);

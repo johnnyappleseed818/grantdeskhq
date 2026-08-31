@@ -14,7 +14,7 @@ import { validateFeedbackInput, type FeedbackSubmission } from "../src/lib/feedb
 import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
 import { confirmedHumanOutreach, summarizeOutreach } from "../src/lib/gtmOutreach.ts";
 import { reconcileGtmOutreachLedger, updateFeedbackReview } from "./persistence.ts";
-import { assertOutboundCircuitClosed, completeInstantlyHandoff, failInstantlyHandoff, reserveInstantlyHandoff, tripOutboundCircuitBreaker } from "./persistence.ts";
+import { assertOutboundCircuitClosed, completeInstantlyHandoff, failInstantlyHandoff, gcpToken, outboundCircuitEventId, readOutboundCircuitBreaker, reserveInstantlyHandoff, resetOutboundCircuitBreaker, tripOutboundCircuitBreaker } from "./persistence.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { runDailySocialScan } from "./gtmDailyScanner.ts";
 import { runPartnerPublicDiscovery } from "./gtmPartnerDiscovery.ts";
@@ -157,6 +157,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/instantly/stage") return await handleGtmInstantlyStage(request, response);
     if (url.pathname === "/api/gtm/instantly/controlled-batch") return await handleControlledInstantlyBatch(request, response);
     if (url.pathname === "/api/gtm/instantly/incident-remediate") return await handleInstantlyIncidentRemediate(request, response);
+    if (url.pathname === "/api/gtm/instantly/circuit-breaker/reset") return await handleOutboundCircuitReset(request, response);
     if (url.pathname === "/api/gtm/instantly/reconcile") return await handleInstantlyReconcile(request, response);
     if (url.pathname === "/api/gtm/instantly/ensure-lists") return await handleInstantlyEnsureLists(request, response);
     if (url.pathname === "/api/gtm/instantly/webhook") return await handleInstantlyWebhook(request, response);
@@ -732,6 +733,37 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
   }
   await Promise.all([...new Set(created.map((record) => record.instantlyCampaignId))].map((campaignId) => client.activateControlledCampaign(campaignId, batchId)));
   return json(response, 200, { mode: "HANDOFF_COMPLETE_AWAITING_PROVIDER_SEND", batchId, created: created.map((record) => ({ organization: record.organization, email: record.email, segment: record.segment, campaign: record.instantlyCampaignId, state: record.instantlySyncStatus })) });
+}
+
+async function schedulerJobPaused(name: string) {
+  const token = await gcpToken();
+  const project = process.env.GOOGLE_CLOUD_PROJECT || "grantdeskhq-proto-ek-2026";
+  const response = await fetch(`https://cloudscheduler.googleapis.com/v1/projects/${project}/locations/us-central1/jobs/${name}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) throw new Error(`Scheduler state could not be verified (${response.status}).`);
+  return String((await response.json() as { state?: unknown }).state || "") === "PAUSED";
+}
+
+async function handleOutboundCircuitReset(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  const identity = await requireGtmScheduler(request);
+  const input = await readJson(request) as { expectedEventId?: unknown; reason?: unknown; apply?: unknown };
+  const circuit = await readOutboundCircuitBreaker();
+  if (!circuit?.tripped) return json(response, 409, { error: "No active outbound circuit-breaker event exists." });
+  const currentEventId = outboundCircuitEventId(circuit);
+  const apply = input.apply === true;
+  const expectedEventId = String(input.expectedEventId || "").trim() || currentEventId;
+  if (apply && expectedEventId !== currentEventId) return json(response, 409, { error: "Outbound circuit-breaker event is stale." });
+  const reason = String(input.reason || "").trim();
+  if (apply && reason.length < 12) return json(response, 400, { error: "An explicit reset reason is required." });
+  const config = instantlyConfig();
+  if (!config.apiKeyConfigured || !config.integrationEnabled) return json(response, 409, { error: "Instantly configuration is unavailable." });
+  const client = new InstantlyClient(config);
+  const [directPaused, partnerPaused, records, model] = await Promise.all([schedulerJobPaused("grantdeskhq-direct-live-reconcile"), schedulerJobPaused("grantdeskhq-partner-live-reconcile"), readInstantlyRecords(), readCanonicalGtmModel()]);
+  const directProviderExclusions = await Promise.all(model.records.filter((record) => record.segment === "DIRECT" && record.state === "READY_TO_SEND" && Boolean(record.email)).map(async (record) => client.findLeadByEmail(String(record.email), "")));
+  const prerequisites = { directSchedulerPaused: directPaused, partnerSchedulerPaused: partnerPaused, allRequiredFlags: Boolean(config.outboundEnabled && config.autoHandoffEnabled && config.directEnabled && config.partnerEnabled), noActiveReservation: !records.some((record) => ["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus)), legacyDirectStillExcluded: directProviderExclusions.some(Boolean) };
+  const result = await resetOutboundCircuitBreaker({ expectedEventId, reason: apply ? reason : "dry-run", executionIdentity: identity.email, prerequisites, dryRun: !apply });
+  console.info(JSON.stringify({ event: "OUTBOUND_CIRCUIT_RESET", mode: apply ? "APPLY" : "DRY_RUN", eventId: result.eventId, auditId: "auditId" in result ? result.auditId : null, prerequisites, timestamp: new Date().toISOString() }));
+  return json(response, 200, { ...result, currentEventId, prerequisites });
 }
 
 /** One-time incident containment: duplicate recipients in the bounded provider
