@@ -83,3 +83,14 @@ export async function executeFinalInstantlyHandoff(input: { email: string; campa
     throw error;
   }
 }
+
+/** Uses the same provider identity lookup as the final boundary so preview
+ * eligibility cannot select a legacy or unresolved provider enrollment. */
+export async function excludeProviderEnrolledCandidates<T extends { email?: string | null }>(records: readonly T[], findExistingLead: (normalizedEmail: string) => Promise<unknown>) {
+  const enrolled = new Set((await Promise.all(records.map(async (record) => {
+    const email = String(record.email || "").trim().toLowerCase();
+    if (!email) return "";
+    return await findExistingLead(email) ? email : "";
+  }))).filter(Boolean));
+  return records.filter((record) => !enrolled.has(String(record.email || "").trim().toLowerCase()));
+}

@@ -40,7 +40,7 @@ import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type G
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
 import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
-import { executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
+import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
 import { enrichChannelSeedsWithInstantly, reconcileChannelSeedEnrichment } from "./gtmChannelSeedEnrichment.ts";
 
@@ -576,12 +576,18 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
   await reconcileInstantlyPolling();
   const config = instantlyConfig();
   const [model, outreach, existingRecords] = await Promise.all([readCanonicalGtmModel(), reconcileGtmOutreachLedger(confirmedHumanOutreach), readInstantlyRecords()]);
+  const client = config.apiKeyConfigured && config.integrationEnabled ? new InstantlyClient(config) : null;
+  // The final enrollment boundary checks Instantly directly before any write.
+  // Preflight must use the same provider fact; otherwise it can report a
+  // record as eligible and then trip the duplicate circuit breaker when the
+  // final boundary discovers an unrecorded legacy enrollment.
   const existingEmails = new Set(existingRecords.filter((record) => ["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus) && Boolean(record.instantlyLeadId)).map((record) => record.email.toLowerCase()).filter(Boolean));
-  const eligible = model.records.filter((record) => {
+  const locallyEligible = model.records.filter((record) => {
     const gate = record.state === "READY_TO_SEND" && Boolean(record.email && record.contact) && !record.priorContact && record.suppressionStatus === "CLEAR" && !existingEmails.has(String(record.email).toLowerCase());
     if (!gate) return false;
     return stagingEligibility(record, outreach, { ...config, directEnabled: true, partnerEnabled: true }).eligible;
   });
+  const eligible = await excludeProviderEnrolledCandidates(locallyEligible, async (email) => client ? client.findLeadByEmail(email, "") : null);
   const directEligible = eligible.filter((record) => record.segment === "DIRECT");
   const partnerEligible = eligible.filter((record) => record.segment === "PARTNER");
   // Each segment owns its own readiness and canary. A Direct shortage must
@@ -589,7 +595,6 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
   const direct = requestedSegment === "PARTNER" ? [] : directEligible.slice(0, requestedSegment === "DIRECT" ? requestedLimit : 5);
   const partner = requestedSegment === "DIRECT" ? [] : partnerEligible.slice(0, requestedSegment === "PARTNER" ? requestedLimit : 5);
   const cohort = [...direct, ...partner];
-  const client = config.apiKeyConfigured && config.integrationEnabled ? new InstantlyClient(config) : null;
   const campaignDetails = client ? await Promise.all([config.directCampaignId ? client.getCampaign(config.directCampaignId) : null, config.partnerCampaignId ? client.getCampaign(config.partnerCampaignId) : null]) : [null, null];
   const [leadInventory, approvedAccount, providerEmailEvidence] = client ? await Promise.all([client.listRecentLeads(500), client.getAccount("eli.katz@grantdeskhq.com"), client.listRecentEmailEvidence(100)]) : [{ items: [], truncated: false }, null, []] as const;
   const recentProviderProspectingSends = new Set(instantlyItems(providerEmailEvidence).flatMap((item) => {

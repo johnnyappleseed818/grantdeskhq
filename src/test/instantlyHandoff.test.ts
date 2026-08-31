@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { assertInstantlyDeliveryEnabled, assertInstantlyDeliveryOwner, instantlyConfig, normalizeOutboundEmail, validateInstantlyOutboundInput } from "../../server/instantly.ts";
-import { executeFinalInstantlyHandoff, type HandoffReservation } from "../../server/instantlyHandoff.ts";
+import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff, type HandoffReservation } from "../../server/instantlyHandoff.ts";
 
 const valid = { email: " Casey@Example.org ", campaignId: "campaign_a", subject: "One grant report", body: "Hi Casey", sequenceId: "initial-v1", source: "test" };
 
@@ -97,5 +97,10 @@ describe("final Instantly handoff safety", () => {
     await expect(executeFinalInstantlyHandoff(valid, { reserve: vi.fn().mockResolvedValue({ acquired: true, record: { idempotencyKey: "x", normalizedEmail: "casey@example.org", campaignId: "campaign_a", handoffStatus: "HANDOFF_STARTED", externalLeadId: "", handedOffAt: "" } }), findExistingLead: vi.fn().mockResolvedValue(null), hasRecentProspectingSend: vi.fn().mockResolvedValue(true), createLead, complete: vi.fn(), fail: vi.fn(), tripCircuitBreaker })).rejects.toThrow("last 24 hours");
     expect(createLead).not.toHaveBeenCalled();
     expect(tripCircuitBreaker).toHaveBeenCalledWith("RECIPIENT_DAILY_SEND_LIMIT", expect.any(String));
+  });
+  it("excludes a legacy provider enrollment from controlled preflight eligibility", async () => {
+    const records = [{ email: "new@example.org" }, { email: " Legacy@Example.org " }];
+    const eligible = await excludeProviderEnrolledCandidates(records, async (email) => email === "legacy@example.org" ? { id: "provider-existing" } : null);
+    expect(eligible).toEqual([{ email: "new@example.org" }]);
   });
 });
