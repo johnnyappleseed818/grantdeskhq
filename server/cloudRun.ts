@@ -39,7 +39,7 @@ import { boundedEnrichmentLimit, GTM_INVENTORY_POLICY, inventoryDecision, social
 import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type GtmOutcomeEvent, type GtmOutcomeType, type OpportunityClusterStatus } from "../src/lib/gtmOpportunityEngine.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
-import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
+import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, verifyLegacyProviderExclusions } from "./instantly.ts";
 import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
 import { enrichChannelSeedsWithInstantly, reconcileChannelSeedEnrichment } from "./gtmChannelSeedEnrichment.ts";
@@ -759,8 +759,19 @@ async function handleOutboundCircuitReset(request: IncomingMessage, response: Se
   if (!config.apiKeyConfigured || !config.integrationEnabled) return json(response, 409, { error: "Instantly configuration is unavailable." });
   const client = new InstantlyClient(config);
   const [directPaused, partnerPaused, records, model] = await Promise.all([schedulerJobPaused("grantdeskhq-direct-live-reconcile"), schedulerJobPaused("grantdeskhq-partner-live-reconcile"), readInstantlyRecords(), readCanonicalGtmModel()]);
-  const directProviderExclusions = await Promise.all(model.records.filter((record) => record.segment === "DIRECT" && record.state === "READY_TO_SEND" && Boolean(record.email)).map(async (record) => client.findLeadByEmail(String(record.email), "")));
-  const prerequisites = { directSchedulerPaused: directPaused, partnerSchedulerPaused: partnerPaused, allRequiredFlags: Boolean(config.outboundEnabled && config.autoHandoffEnabled && config.directEnabled && config.partnerEnabled), noActiveReservation: !records.some((record) => ["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus)), legacyDirectStillExcluded: directProviderExclusions.some(Boolean) };
+  const legacyCandidates = model.records.filter((record) => record.segment === "DIRECT" && record.state !== "READY_TO_SEND" && Boolean(record.email) && (record.priorContact || record.suppressionStatus === "BLOCKED" || record.blockers.includes("ALREADY_CONTACTED")));
+  const providerLegacyLeads = await Promise.all(legacyCandidates.map(async (record) => ({ email: String(record.email).trim().toLowerCase(), lead: await client.findLeadByEmail(String(record.email), "") })));
+  const legacyProviderExclusions = verifyLegacyProviderExclusions({ records: model.records, integrationRecords: records, providerEnrolledEmails: new Set(providerLegacyLeads.flatMap(({ email, lead }) => lead ? [email] : [])) });
+  const legacyExcludedEmails = new Set(legacyProviderExclusions.excludedEmails);
+  const prerequisites = {
+    directSchedulerPaused: directPaused,
+    partnerSchedulerPaused: partnerPaused,
+    allRequiredFlags: Boolean(config.outboundEnabled && config.autoHandoffEnabled && config.directEnabled && config.partnerEnabled),
+    // IN_CAMPAIGN is unsafe unless it is the positively-proven legacy lead
+    // above; no absence-based or pending-handoff exemption is allowed.
+    noActiveReservation: !records.some((record) => ["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus) && !legacyExcludedEmails.has(String(record.email || "").trim().toLowerCase())),
+    legacyDirectStillExcluded: legacyProviderExclusions.satisfied
+  };
   const result = await resetOutboundCircuitBreaker({ expectedEventId, reason: apply ? reason : "dry-run", executionIdentity: identity.email, prerequisites, dryRun: !apply });
   console.info(JSON.stringify({ event: "OUTBOUND_CIRCUIT_RESET", mode: apply ? "APPLY" : "DRY_RUN", eventId: result.eventId, auditId: "auditId" in result ? result.auditId : null, prerequisites, timestamp: new Date().toISOString() }));
   return json(response, 200, { ...result, currentEventId, prerequisites });

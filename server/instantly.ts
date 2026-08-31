@@ -87,6 +87,47 @@ export interface InstantlyLeadPollingTransition {
   suppressEmail: "hard_bounce" | "unsubscribe" | null;
 }
 
+export interface LegacyProviderExclusionCheck {
+  satisfied: boolean;
+  /** Only emails with every required source of evidence are returned. */
+  excludedEmails: string[];
+}
+
+/**
+ * A pre-incident provider enrollment is not an active reservation when the
+ * canonical record has already been reconciled out of the first-touch queue.
+ * This deliberately requires positive evidence from both systems: canonical
+ * exclusion history and a still-present provider lead. It never infers safety
+ * from a missing record or a missing provider response.
+ */
+export function verifyLegacyProviderExclusions(input: {
+  records: readonly CanonicalGtmRecord[];
+  integrationRecords: readonly InstantlyIntegrationRecord[];
+  providerEnrolledEmails: ReadonlySet<string>;
+}): LegacyProviderExclusionCheck {
+  const normalize = (email: string | null | undefined) => String(email || "").trim().toLowerCase();
+  const pendingStates = new Set<InstantlySyncStatus>(["STAGED", "APPROVED_FOR_CAMPAIGN"]);
+  const excludedEmails: string[] = [];
+
+  for (const record of input.records) {
+    const email = normalize(record.email);
+    if (!email || record.segment !== "DIRECT") continue;
+    if (record.state === "READY_TO_SEND") continue;
+    const canonicalExclusion = record.priorContact
+      || String(record.suppressionStatus || "").toUpperCase() === "BLOCKED"
+      || record.blockers.some((blocker) => blocker === "ALREADY_CONTACTED");
+    if (!canonicalExclusion || !input.providerEnrolledEmails.has(email)) continue;
+    const hasPendingLocalHandoff = input.integrationRecords.some((integration) =>
+      normalize(integration.email) === email && pendingStates.has(integration.instantlySyncStatus)
+    );
+    const hasPendingCanonicalHandoff = ["STAGED", "APPROVED_FOR_CAMPAIGN", "PENDING_HANDOFF", "RESERVED", "ENROLLING", "CLAIMED"].includes(String(record.instantlyStatus || "").toUpperCase());
+    if (hasPendingLocalHandoff || hasPendingCanonicalHandoff) continue;
+    excludedEmails.push(email);
+  }
+
+  return { satisfied: excludedEmails.length > 0, excludedEmails: [...new Set(excludedEmails)] };
+}
+
 export function instantlyConfig(env: NodeJS.ProcessEnv = process.env): InstantlyConfig {
   const enabled = (name: string) => env[name] === "true";
   const requestedMode = String(env.INSTANTLY_EVENT_SYNC_MODE || "polling").trim().toUpperCase();
