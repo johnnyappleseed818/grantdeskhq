@@ -1868,17 +1868,22 @@ async function writeDocument(accessToken: string, path: string, record: Record<s
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     response = await authorizedFetch(url, accessToken, init);
     if (response.ok || !retryableStatuses.has(response.status) || attempt === maxAttempts) break;
-    const retryAfter = Number(response.headers.get("retry-after"));
     const configuredBase = Number(process.env.PERSISTENCE_RETRY_BASE_MS);
     const base = Number.isFinite(configuredBase) && configuredBase >= 0 ? configuredBase : 500;
-    const delay = Number.isFinite(retryAfter) && retryAfter >= 0
-      ? Math.min(retryAfter * 1000, 10_000)
-      : Math.min(base * (2 ** (attempt - 1)) + Math.floor(Math.random() * 250), 10_000);
+    const delay = persistenceRetryDelay(response.headers.get("retry-after"), attempt, base);
     await new Promise((resolve) => setTimeout(resolve, delay));
   }
   if (!response?.ok) throw new Error(`Workspace record could not be saved (${response?.status || 503}).`);
 }
 
+/** A zero Retry-After is not a safe immediate retry for a contended Firestore
+ * document. Preserve bounded exponential backoff unless the provider gives a
+ * positive wait value. */
+export function persistenceRetryDelay(retryAfterHeader: string | null, attempt: number, base: number, random = Math.random()) {
+  const retryAfter = Number(retryAfterHeader);
+  if (Number.isFinite(retryAfter) && retryAfter > 0) return Math.min(retryAfter * 1_000, 10_000);
+  return Math.min(Math.max(base, 1) * (2 ** Math.max(attempt - 1, 0)) + Math.floor(Math.max(0, Math.min(random, 0.999999)) * 250), 10_000);
+}
 export async function gcpToken() {
   if (tokenCache && tokenCache.expiresAt > Date.now() + 60_000) return tokenCache.token;
   const response = await fetch("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token", { headers: { "Metadata-Flavor": "Google" } });
