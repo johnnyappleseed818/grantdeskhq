@@ -1441,8 +1441,8 @@ export async function closeOutboundCircuitIncident(input: { expectedEventId: str
   const audit = { auditId, eventId, expectedVersion: input.expectedVersion, prior: current, reason: input.reason.trim().slice(0, 300), executionIdentity: input.executionIdentity, tombstoneId: input.tombstoneId, prerequisites: input.prerequisites, codeRuleVersion: "outbound-incident-closure-v1", timestamp: new Date().toISOString() };
   if (input.dryRun) return { eventId, auditId, cleared: false, idempotent: false, nextGeneration: current.generation + 1, audit };
   const accessToken = await gcpToken();
-  await writeDocumentIfAbsent(accessToken, `gtm/instantly/safety/incidents/${safeDocumentId(eventId)}`, { incidentId: eventId, stateJson: JSON.stringify(current), preservedAt: audit.timestamp, codeRuleVersion: audit.codeRuleVersion });
-  const created = await writeDocumentIfAbsent(accessToken, `gtm/instantly/safety/incident-closures/${auditId}`, audit);
+  await writeDocumentIfAbsent(accessToken, `gtm/instantly/safety/incidents/records/${safeDocumentId(eventId)}`, { incidentId: eventId, stateJson: JSON.stringify(current), preservedAt: audit.timestamp, codeRuleVersion: audit.codeRuleVersion });
+  const created = await writeDocumentIfAbsent(accessToken, `gtm/instantly/safety/incident-closures/records/${auditId}`, audit);
   if (!created) {
     const after = await readOutboundCircuitBreaker();
     if (after?.resetEventId === eventId && after.resetReason === audit.reason) return { eventId, auditId, cleared: true, idempotent: true, nextGeneration: after.generation };

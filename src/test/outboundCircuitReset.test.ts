@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { verifyLegacyProviderExclusions, type InstantlyIntegrationRecord } from "../../server/instantly.ts";
-import { hasActiveInstantlyHandoffReservation, outboundCircuitEventId, resetOutboundCircuitBreaker } from "../../server/persistence.ts";
+import { closeOutboundCircuitIncident, hasActiveInstantlyHandoffReservation, outboundCircuitEventId, resetOutboundCircuitBreaker } from "../../server/persistence.ts";
 import type { CanonicalGtmRecord } from "../lib/gtmCanonical.ts";
 
 const legacy = (overrides: Partial<CanonicalGtmRecord> = {}): CanonicalGtmRecord => ({
@@ -80,5 +80,20 @@ describe("audited legacy provider exclusion", () => {
 
     vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(firestore())));
     await expect(resetOutboundCircuitBreaker({ expectedEventId: eventId, reason: "verified legacy exclusion", executionIdentity: "scheduler@example.org", prerequisites: { ...prerequisites, legacyDirectStillExcluded: false }, dryRun: true })).rejects.toThrow("prerequisites");
+  });
+  it("writes incident preservation and closure audits to valid Firestore document paths", async () => {
+    const eventId = outboundCircuitEventId(breaker);
+    const prerequisites = { directSchedulerPaused: true, partnerSchedulerPaused: true, allRequiredFlags: true, noActiveReservation: true, canonicalHistory: true, providerConflictClear: true, absentFromOutboundStates: true, tombstoneMatches: true };
+    const writeFetch = vi.fn(async (url: string) => {
+      const target = String(url);
+      if (target.includes("metadata.google.internal")) return Response.json({ access_token: "test-token", expires_in: 3600 });
+      if (target.includes("circuit-breaker") && !target.includes("currentDocument.exists")) return firestore();
+      return Response.json({});
+    });
+    vi.stubGlobal("fetch", writeFetch);
+    await expect(closeOutboundCircuitIncident({ expectedEventId: eventId, expectedVersion: 1, reason: "verified immutable tombstone", executionIdentity: "scheduler@example.org", tombstoneId: "tombstone_one", prerequisites, dryRun: false })).resolves.toMatchObject({ cleared: true, eventId });
+    const closureUrls = writeFetch.mock.calls.map(([url]) => String(url)).filter((url) => url.includes("gtm/instantly/safety/incidents") || url.includes("gtm/instantly/safety/incident-closures"));
+    expect(closureUrls).toEqual(expect.arrayContaining([expect.stringContaining("/incidents/records/"), expect.stringContaining("/incident-closures/records/")]));
+    for (const url of closureUrls) expect(url.split("/documents/")[1].split("?")[0].split("/").length % 2).toBe(0);
   });
 });
