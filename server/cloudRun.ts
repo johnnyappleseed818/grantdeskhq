@@ -14,6 +14,7 @@ import { validateFeedbackInput, type FeedbackSubmission } from "../src/lib/feedb
 import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
 import { confirmedHumanOutreach, summarizeOutreach } from "../src/lib/gtmOutreach.ts";
 import { reconcileGtmOutreachLedger, updateFeedbackReview } from "./persistence.ts";
+import { hasActiveInstantlyHandoffReservation, listInstantlyHandoffReservations } from "./persistence.ts";
 import { assertOutboundCircuitClosed, completeInstantlyHandoff, failInstantlyHandoff, gcpToken, outboundCircuitEventId, readOutboundCircuitBreaker, reserveInstantlyHandoff, resetOutboundCircuitBreaker, tripOutboundCircuitBreaker } from "./persistence.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { runDailySocialScan } from "./gtmDailyScanner.ts";
@@ -758,18 +759,16 @@ async function handleOutboundCircuitReset(request: IncomingMessage, response: Se
   const config = instantlyConfig();
   if (!config.apiKeyConfigured || !config.integrationEnabled) return json(response, 409, { error: "Instantly configuration is unavailable." });
   const client = new InstantlyClient(config);
-  const [directPaused, partnerPaused, records, model] = await Promise.all([schedulerJobPaused("grantdeskhq-direct-live-reconcile"), schedulerJobPaused("grantdeskhq-partner-live-reconcile"), readInstantlyRecords(), readCanonicalGtmModel()]);
+  const [directPaused, partnerPaused, records, reservations, model] = await Promise.all([schedulerJobPaused("grantdeskhq-direct-live-reconcile"), schedulerJobPaused("grantdeskhq-partner-live-reconcile"), readInstantlyRecords(), listInstantlyHandoffReservations(), readCanonicalGtmModel()]);
   const legacyCandidates = model.records.filter((record) => record.segment === "DIRECT" && record.state !== "READY_TO_SEND" && Boolean(record.email) && (record.priorContact || record.suppressionStatus === "BLOCKED" || record.blockers.includes("ALREADY_CONTACTED")));
   const providerLegacyLeads = await Promise.all(legacyCandidates.map(async (record) => ({ email: String(record.email).trim().toLowerCase(), lead: await client.findLeadByEmail(String(record.email), "") })));
   const legacyProviderExclusions = verifyLegacyProviderExclusions({ records: model.records, integrationRecords: records, providerEnrolledEmails: new Set(providerLegacyLeads.flatMap(({ email, lead }) => lead ? [email] : [])) });
-  const legacyExcludedEmails = new Set(legacyProviderExclusions.excludedEmails);
   const prerequisites = {
     directSchedulerPaused: directPaused,
     partnerSchedulerPaused: partnerPaused,
     allRequiredFlags: Boolean(config.outboundEnabled && config.autoHandoffEnabled && config.directEnabled && config.partnerEnabled),
-    // IN_CAMPAIGN is unsafe unless it is the positively-proven legacy lead
-    // above; no absence-based or pending-handoff exemption is allowed.
-    noActiveReservation: !records.some((record) => ["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus) && !legacyExcludedEmails.has(String(record.email || "").trim().toLowerCase())),
+    // A historical IN_CAMPAIGN readback is not an active reservation.
+    noActiveReservation: !hasActiveInstantlyHandoffReservation(reservations),
     legacyDirectStillExcluded: legacyProviderExclusions.satisfied
   };
   const result = await resetOutboundCircuitBreaker({ expectedEventId, reason: apply ? reason : "dry-run", executionIdentity: identity.email, prerequisites, dryRun: !apply });

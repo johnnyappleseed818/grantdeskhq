@@ -1362,6 +1362,20 @@ export async function readInstantlyRecords(limit = 200): Promise<InstantlyIntegr
   });
 }
 
+/** Historical provider membership is not an in-flight write. The durable
+ * handoff lease is the only authoritative reservation boundary. */
+export async function listInstantlyHandoffReservations(limit = 200): Promise<InstantlyHandoffRecord[]> {
+  const accessToken = await gcpToken();
+  const response = await authorizedFetch(`${firestoreBase}/gtm/instantly/handoffs?pageSize=${Math.min(Math.max(limit, 1), 200)}`, accessToken);
+  if (response.status === 404) return [];
+  if (!response.ok) throw new Error(`Instantly handoff reservations could not be loaded (${response.status}).`);
+  return (((await response.json()) as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> }).documents || []).map((document) => handoffFromFields(decodeFields(document.fields || {})));
+}
+
+export function hasActiveInstantlyHandoffReservation(reservations: readonly InstantlyHandoffRecord[], now = Date.now()) {
+  return reservations.some((reservation) => reservation.handoffStatus === "HANDOFF_STARTED" && (!reservation.leaseExpiry || !Number.isFinite(Date.parse(reservation.leaseExpiry)) || Date.parse(reservation.leaseExpiry) > now));
+}
+
 export async function saveInstantlyWebhookEvent(event: InstantlyWebhookEvent) {
   const accessToken = await gcpToken();
   return writeDocumentIfAbsent(accessToken, `gtm/instantly/events/${safeDocumentId(event.id)}`, { eventJson: JSON.stringify(event), occurredAt: event.occurredAt });

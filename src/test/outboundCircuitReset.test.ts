@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { verifyLegacyProviderExclusions, type InstantlyIntegrationRecord } from "../../server/instantly.ts";
-import { outboundCircuitEventId, resetOutboundCircuitBreaker } from "../../server/persistence.ts";
+import { hasActiveInstantlyHandoffReservation, outboundCircuitEventId, resetOutboundCircuitBreaker } from "../../server/persistence.ts";
 import type { CanonicalGtmRecord } from "../lib/gtmCanonical.ts";
 
 const legacy = (overrides: Partial<CanonicalGtmRecord> = {}): CanonicalGtmRecord => ({
@@ -23,6 +23,22 @@ describe("audited legacy provider exclusion", () => {
   it("accepts a provider-enrolled Direct recipient after canonical reconciliation removed it from READY", () => {
     const result = verifyLegacyProviderExclusions({ records: [legacy()], integrationRecords: [inCampaign()], providerEnrolledEmails: new Set(["legacy@example.org"]) });
     expect(result).toEqual({ satisfied: true, excludedEmails: ["legacy@example.org"] });
+  });
+
+  it("accepts provider and canonical exclusion evidence when reconciliation has no duplicate local integration record", () => {
+    const result = verifyLegacyProviderExclusions({ records: [legacy()], integrationRecords: [], providerEnrolledEmails: new Set(["legacy@example.org"]) });
+    expect(result).toEqual({ satisfied: true, excludedEmails: ["legacy@example.org"] });
+  });
+
+  it("treats only an unexpired HANDOFF_STARTED lease as an active reservation", () => {
+    const observedHistoricalReservations = [
+      { handoffStatus: "HANDED_OFF", leaseExpiry: "", normalizedEmail: "one@example.org" },
+      { handoffStatus: "HANDED_OFF", leaseExpiry: "", normalizedEmail: "two@example.org" },
+      { handoffStatus: "FAILED", leaseExpiry: "2026-08-01T00:00:00.000Z", normalizedEmail: "three@example.org" }
+    ] as never[];
+    expect(hasActiveInstantlyHandoffReservation(observedHistoricalReservations, Date.parse("2026-09-01T00:00:00.000Z"))).toBe(false);
+    expect(hasActiveInstantlyHandoffReservation([{ handoffStatus: "HANDOFF_STARTED", leaseExpiry: "2026-09-01T00:10:00.000Z" }] as never[], Date.parse("2026-09-01T00:00:00.000Z"))).toBe(true);
+    expect(hasActiveInstantlyHandoffReservation([{ handoffStatus: "HANDOFF_STARTED", leaseExpiry: "not-a-timestamp" }] as never[], Date.parse("2026-09-01T00:00:00.000Z"))).toBe(true);
   });
 
   it("fails closed when the recipient returns to READY or a pending handoff state", () => {
