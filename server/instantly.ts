@@ -386,9 +386,15 @@ export class InstantlyClient {
     const validated = validateInstantlyOutboundInput({ email: input.email, campaignId: input.campaignId, subject: input.subject, body: input.personalization, sequenceId: input.sequenceId });
     return this.api<{ id?: string; lead_id?: string }>("/leads", { method: "POST", body: JSON.stringify({ email: validated.email, first_name: input.firstName, last_name: input.lastName, company_name: input.companyName, job_title: input.jobTitle, campaign: validated.campaignId, personalization: validated.body, custom_variables: { ...input.customVariables, subjectLine: validated.subject }, skip_if_in_workspace: true, skip_if_in_campaign: true }) });
   }
+  /** Exact provider identity lookup. Instantly's documented contacts filter is
+   * authoritative across the workspace, unlike a bounded recent-leads scan. */
   async findLeadByEmail(email: string, campaignId = "") {
     const normalized = normalizeOutboundEmail(email);
-    const { items } = await this.listRecentLeads(500);
+    const page = await this.api<{ items?: Record<string, unknown>[] }>("/leads/list", {
+      method: "POST",
+      body: JSON.stringify({ contacts: [normalized], search: normalized, limit: 10, ...(campaignId ? { campaign: campaignId } : {}) })
+    });
+    const items = Array.isArray(page.items) ? page.items.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object") : [];
     return items.find((item) => normalizeOutboundEmail(String(item.email || "")) === normalized && (!campaignId || instantlyLeadCampaignId(item) === campaignId)) || null;
   }
   async activateControlledCampaign(campaignId: string, batchId: string) {

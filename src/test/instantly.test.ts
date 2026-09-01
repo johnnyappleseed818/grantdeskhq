@@ -35,6 +35,13 @@ describe("Instantly fail-closed integration", () => {
     expect(request).toHaveBeenCalledWith("https://api.instantly.ai/api/v2/leads/list", expect.objectContaining({ method: "POST", body: JSON.stringify({ limit: 100, campaign: "campaign_1" }) }));
   });
 
+  it("uses Instantly's exact email contacts filter for legacy enrollment lookup", async () => {
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [{ id: "legacy_lead", email: "legacy@example.org", campaign: "campaign_legacy" }] }), { status: 200 }));
+    const client = new InstantlyClient(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true" }), "key", request);
+    await expect(client.findLeadByEmail(" Legacy@Example.org ")).resolves.toMatchObject({ id: "legacy_lead" });
+    expect(request).toHaveBeenCalledWith("https://api.instantly.ai/api/v2/leads/list", expect.objectContaining({ method: "POST", body: JSON.stringify({ contacts: ["legacy@example.org"], search: "legacy@example.org", limit: 10 }) }));
+  });
+
   it("allows only qualified, ready, clear, previously-uncontacted records to stage", () => {
     expect(stagingEligibility(record, [], instantlyConfig(enabledEnv))).toEqual({ eligible: true, reason: "ELIGIBLE" });
     expect(stagingEligibility({ ...record, priorContact: true }, [], instantlyConfig(enabledEnv))).toEqual({ eligible: false, reason: "SUPPRESSED_OR_PRIOR_CONTACT" });
