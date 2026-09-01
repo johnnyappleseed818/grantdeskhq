@@ -22,6 +22,14 @@ export interface ChannelSeedRecord {
   enrichmentResult: string | null;
   enrichmentResourceId?: string | null;
   enrichmentUpdatedAt?: string | null;
+  /** Instantly enrichment operation ID, distinct from the target lead list. */
+  enrichmentJobId?: string | null;
+  enrichmentProviderStatus?: "SUBMITTED" | "PROCESSING" | "COMPLETED" | "FAILED" | "MISSING_PROVIDER_OBJECT" | "STALE" | null;
+  enrichmentSubmittedAt?: string | null;
+  enrichmentLastCheckedAt?: string | null;
+  enrichmentAttemptCount?: number;
+  enrichmentLastProviderError?: string | null;
+  enrichmentTerminalAt?: string | null;
   deduplicationKey: string;
 }
 

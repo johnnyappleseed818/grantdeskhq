@@ -801,7 +801,7 @@ export async function saveGtmChannelSeed(seed: ChannelSeedRecord): Promise<Chann
   const accessToken = await gcpToken();
   await writeDocument(accessToken, `gtm/channel-seeds/records/${safeChannelSeedDocumentId(seed.id)}`, {
     importedAt: seed.importedAt, segment: seed.segment, lifecycle: seed.lifecycle,
-    enrichmentResourceId: seed.enrichmentResourceId || "", enrichmentUpdatedAt: seed.enrichmentUpdatedAt || "",
+    enrichmentResourceId: seed.enrichmentResourceId || "", enrichmentJobId: seed.enrichmentJobId || "", enrichmentProviderStatus: seed.enrichmentProviderStatus || "", enrichmentSubmittedAt: seed.enrichmentSubmittedAt || "", enrichmentLastCheckedAt: seed.enrichmentLastCheckedAt || "", enrichmentAttemptCount: seed.enrichmentAttemptCount || 0, enrichmentLastProviderError: seed.enrichmentLastProviderError || "", enrichmentTerminalAt: seed.enrichmentTerminalAt || "", enrichmentUpdatedAt: seed.enrichmentUpdatedAt || "",
     recordJson: JSON.stringify(seed)
   });
   return seed;
