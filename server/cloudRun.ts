@@ -789,6 +789,12 @@ async function handleOutboundCircuitReset(request: IncomingMessage, response: Se
     absentFromOutboundStates: closureEvidence.absentFromOutboundStates,
     tombstoneMatches: closureEvidence.tombstoneMatches
   };
+  // This records only the closure predicate vector—not recipient, provider, or
+  // campaign data—so a scheduler-authenticated dry run can be diagnosed when
+  // the response body is not retained by Cloud Scheduler.
+  try {
+    console.info(JSON.stringify({ event: "OUTBOUND_INCIDENT_CLOSURE_PREREQUISITES", mode, eventId: currentEventId, version: circuit.version, prerequisites, timestamp: new Date().toISOString() }));
+  } catch { /* Observability must never change fail-closed behavior. */ }
   if (mode === "PREPARE_TOMBSTONE") {
     if (!legacy || !closureEvidence.canonicalHistory || !closureEvidence.providerConflictClear || !closureEvidence.absentFromOutboundStates || !prerequisites.directSchedulerPaused || !prerequisites.partnerSchedulerPaused || !prerequisites.noActiveReservation) return json(response, 409, { error: "Incident tombstone prerequisites are not satisfied.", prerequisites });
     const historical = records.find((record) => String(record.email || "").trim().toLowerCase() === String(legacy.email || "").trim().toLowerCase());
