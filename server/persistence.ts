@@ -995,6 +995,78 @@ export async function readSearchConsoleState(): Promise<SearchConsoleState | nul
   catch { return null; }
 }
 
+export interface GtmOutboundTombstone {
+  tombstoneId: string;
+  emailHash: string;
+  organizationId: string;
+  canonicalRecordId: string;
+  reason: "ALREADY_CONTACTED";
+  priorContactReference: string;
+  priorContactAt: string;
+  historicalCampaignId: string;
+  historicalProviderLeadId: string;
+  incidentId: string;
+  creationSource: string;
+  creationOperator: string;
+  permanent: true;
+  createdAt: string;
+}
+
+function outboundTombstoneEmailHash(email: string) {
+  return createHash("sha256").update(email.trim().toLowerCase()).digest("hex");
+}
+
+function outboundTombstonePath(tombstoneId: string) {
+  return "gtm/outbound-tombstones/records/" + safeDocumentId(tombstoneId);
+}
+
+function outboundTombstoneIndexPath(email: string) {
+  return "gtm/outbound-tombstones/email-index/email_" + outboundTombstoneEmailHash(email).slice(0, 40);
+}
+
+function outboundTombstoneFromFields(fields: Record<string, unknown>): GtmOutboundTombstone | null {
+  if (String(fields.reason || "") !== "ALREADY_CONTACTED" || fields.permanent !== true) return null;
+  const tombstoneId = String(fields.tombstoneId || "");
+  if (!tombstoneId) return null;
+  return { tombstoneId, emailHash: String(fields.emailHash || ""), organizationId: String(fields.organizationId || ""), canonicalRecordId: String(fields.canonicalRecordId || ""), reason: "ALREADY_CONTACTED", priorContactReference: String(fields.priorContactReference || ""), priorContactAt: String(fields.priorContactAt || ""), historicalCampaignId: String(fields.historicalCampaignId || ""), historicalProviderLeadId: String(fields.historicalProviderLeadId || ""), incidentId: String(fields.incidentId || ""), creationSource: String(fields.creationSource || ""), creationOperator: String(fields.creationOperator || ""), permanent: true, createdAt: String(fields.createdAt || "") };
+}
+
+export async function readGtmOutboundTombstone(email: string, organizationId = ""): Promise<GtmOutboundTombstone | null> {
+  const normalized = email.trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized)) return null;
+  const token = await gcpToken();
+  const index = await authorizedFetch(firestoreBase + "/" + outboundTombstoneIndexPath(normalized), token);
+  if (index.status === 404) return null;
+  if (!index.ok) throw new Error("Outbound tombstone index could not be read (" + index.status + ").");
+  const indexFields = decodeFields(((await index.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
+  const tombstoneId = String(indexFields.tombstoneId || "");
+  if (!tombstoneId) throw new Error("Outbound tombstone index is invalid.");
+  const response = await authorizedFetch(firestoreBase + "/" + outboundTombstonePath(tombstoneId), token);
+  if (!response.ok) throw new Error("Outbound tombstone could not be read (" + response.status + ").");
+  const tombstone = outboundTombstoneFromFields(decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}));
+  if (!tombstone || tombstone.emailHash !== outboundTombstoneEmailHash(normalized) || (organizationId && tombstone.organizationId !== organizationId)) throw new Error("Outbound tombstone identity is invalid.");
+  return tombstone;
+}
+
+export async function createGtmOutboundTombstone(input: Omit<GtmOutboundTombstone, "tombstoneId" | "emailHash" | "createdAt" | "permanent"> & { email: string }) {
+  const normalized = input.email.trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized) || !input.organizationId || !input.canonicalRecordId || !input.priorContactReference) throw new Error("Outbound tombstone identity and prior-contact evidence are required.");
+  const emailHash = outboundTombstoneEmailHash(normalized);
+  const tombstoneId = "tombstone_" + createHash("sha256").update(emailHash + ":" + input.organizationId).digest("hex").slice(0, 40);
+  const tombstone: GtmOutboundTombstone = { ...input, tombstoneId, emailHash, reason: "ALREADY_CONTACTED", permanent: true, createdAt: new Date().toISOString() };
+  const token = await gcpToken();
+  const created = await writeDocumentIfAbsent(token, outboundTombstonePath(tombstoneId), tombstone as unknown as Record<string, unknown>);
+  if (!created) {
+    const existing = await readGtmOutboundTombstone(normalized, input.organizationId);
+    if (!existing || existing.canonicalRecordId !== input.canonicalRecordId || existing.priorContactReference !== input.priorContactReference || existing.incidentId !== input.incidentId) throw new Error("Existing outbound tombstone conflicts with immutable incident evidence.");
+    return { tombstone: existing, created: false };
+  }
+  const indexed = await writeDocumentIfAbsent(token, outboundTombstoneIndexPath(normalized), { tombstoneId, emailHash, organizationId: input.organizationId, status: "PERMANENT", createdAt: tombstone.createdAt });
+  if (!indexed) throw new Error("Outbound tombstone email identity is already assigned.");
+  await recordGtmContactSuppression(normalized, ["prior_outreach"], "outbound_incident_tombstone");
+  return { tombstone, created: true };
+}
+
 export async function readGtmContactSuppression(email: string): Promise<SuppressionCheck> {
   const normalizedEmail = email.trim().toLowerCase();
   const checkedAt = new Date().toISOString();
@@ -1003,6 +1075,8 @@ export async function readGtmContactSuppression(email: string): Promise<Suppress
   }
   try {
     const accessToken = await gcpToken();
+    const tombstone = await readGtmOutboundTombstone(normalizedEmail);
+    if (tombstone) return { status: "BLOCKED", reasons: ["permanent outbound tombstone"], checkedAt, sourcesChecked: ["gtm/outbound-tombstones"] };
     const response = await authorizedFetch(`${firestoreBase}/gtm/contact-suppressions/records/${contactSuppressionDocumentId(normalizedEmail)}`, accessToken);
     if (!response.ok && response.status !== 404) throw new Error(`Suppression document status ${response.status}`);
     const document = response.status === 404 ? null : await response.json() as { fields?: Record<string, FirestoreValue> };
@@ -1320,13 +1394,17 @@ export async function readOutboundCircuitBreaker() {
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`Outbound circuit breaker could not be read (${response.status}).`);
   const fields = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
-  return { tripped: fields.tripped === true || String(fields.tripped) === "true", reason: String(fields.reason || ""), detail: String(fields.detail || ""), trippedAt: String(fields.trippedAt || ""), resetEventId: String(fields.resetEventId || ""), resetReason: String(fields.resetReason || "") };
+  const base = { tripped: fields.tripped === true || String(fields.tripped) === "true", reason: String(fields.reason || ""), detail: String(fields.detail || ""), trippedAt: String(fields.trippedAt || "") };
+  return { ...base, incidentId: String(fields.incidentId || "") || outboundCircuitEventId(base), version: Math.max(1, Number(fields.version || 1)), generation: Math.max(1, Number(fields.generation || 1)), resetEventId: String(fields.resetEventId || ""), resetReason: String(fields.resetReason || "") };
 }
 
 export async function tripOutboundCircuitBreaker(reason: string, detail: string) {
+  const prior = await readOutboundCircuitBreaker();
+  if (prior?.tripped) return;
   const accessToken = await gcpToken();
   const state: OutboundCircuitBreakerState = { tripped: true, reason: reason.slice(0, 120), detail: detail.slice(0, 300), trippedAt: new Date().toISOString() };
-  await writeDocument(accessToken, outboundCircuitPath, { ...state });
+  const next = { ...state, incidentId: outboundCircuitEventId(state), generation: prior?.generation || 1, version: prior ? prior.version + 1 : 1 };
+  await writeDocument(accessToken, outboundCircuitPath, next);
 }
 
 export async function resetOutboundCircuitBreaker(input: { expectedEventId: string; reason: string; executionIdentity: string; prerequisites: Record<string, boolean>; dryRun: boolean }) {
@@ -1351,6 +1429,27 @@ export async function resetOutboundCircuitBreaker(input: { expectedEventId: stri
   }
   await writeDocument(accessToken, outboundCircuitPath, { ...current, tripped: false, resetEventId: eventId, resetReason: audit.reason, resetExecutionIdentity: input.executionIdentity, resetAt: audit.timestamp });
   return { eventId, auditId, idempotent: false, cleared: true };
+}
+
+export async function closeOutboundCircuitIncident(input: { expectedEventId: string; expectedVersion: number; reason: string; executionIdentity: string; tombstoneId: string; prerequisites: Record<string, boolean>; dryRun: boolean }) {
+  const current = await readOutboundCircuitBreaker();
+  if (!current?.tripped) throw new Error("No active outbound circuit-breaker incident exists.");
+  const eventId = outboundCircuitEventId(current);
+  if (eventId !== input.expectedEventId || current.version !== input.expectedVersion) throw new Error("Outbound circuit-breaker incident is stale.");
+  if (!input.reason.trim() || !input.tombstoneId.trim() || !Object.values(input.prerequisites).every(Boolean)) throw new Error("Outbound incident-closure prerequisites are not satisfied.");
+  const auditId = safeDocumentId(`closure:${eventId}:${input.tombstoneId}:${input.reason.trim().toLowerCase()}`);
+  const audit = { auditId, eventId, expectedVersion: input.expectedVersion, prior: current, reason: input.reason.trim().slice(0, 300), executionIdentity: input.executionIdentity, tombstoneId: input.tombstoneId, prerequisites: input.prerequisites, codeRuleVersion: "outbound-incident-closure-v1", timestamp: new Date().toISOString() };
+  if (input.dryRun) return { eventId, auditId, cleared: false, idempotent: false, nextGeneration: current.generation + 1, audit };
+  const accessToken = await gcpToken();
+  await writeDocumentIfAbsent(accessToken, `gtm/instantly/safety/incidents/${safeDocumentId(eventId)}`, { incidentId: eventId, stateJson: JSON.stringify(current), preservedAt: audit.timestamp, codeRuleVersion: audit.codeRuleVersion });
+  const created = await writeDocumentIfAbsent(accessToken, `gtm/instantly/safety/incident-closures/${auditId}`, audit);
+  if (!created) {
+    const after = await readOutboundCircuitBreaker();
+    if (after?.resetEventId === eventId && after.resetReason === audit.reason) return { eventId, auditId, cleared: true, idempotent: true, nextGeneration: after.generation };
+  }
+  const next = { ...current, tripped: false, version: current.version + 1, generation: current.generation + 1, resetEventId: eventId, resetReason: audit.reason, resetExecutionIdentity: input.executionIdentity, resetAt: audit.timestamp, resolvedIncidentId: eventId, resolutionAuditId: auditId, codeRuleVersion: audit.codeRuleVersion };
+  await writeDocument(accessToken, outboundCircuitPath, next);
+  return { eventId, auditId, cleared: true, idempotent: false, nextGeneration: next.generation };
 }
 export async function readInstantlyRecords(limit = 200): Promise<InstantlyIntegrationRecord[]> {
   const accessToken = await gcpToken();

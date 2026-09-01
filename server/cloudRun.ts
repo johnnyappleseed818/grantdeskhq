@@ -15,7 +15,8 @@ import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
 import { confirmedHumanOutreach, summarizeOutreach } from "../src/lib/gtmOutreach.ts";
 import { reconcileGtmOutreachLedger, updateFeedbackReview } from "./persistence.ts";
 import { hasActiveInstantlyHandoffReservation, listInstantlyHandoffReservations } from "./persistence.ts";
-import { assertOutboundCircuitClosed, completeInstantlyHandoff, failInstantlyHandoff, gcpToken, outboundCircuitEventId, readOutboundCircuitBreaker, reserveInstantlyHandoff, resetOutboundCircuitBreaker, tripOutboundCircuitBreaker } from "./persistence.ts";
+import { assertOutboundCircuitClosed, completeInstantlyHandoff, failInstantlyHandoff, gcpToken, outboundCircuitEventId, readOutboundCircuitBreaker, reserveInstantlyHandoff, tripOutboundCircuitBreaker } from "./persistence.ts";
+import { closeOutboundCircuitIncident, createGtmOutboundTombstone, readGtmOutboundTombstone } from "./persistence.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { runDailySocialScan } from "./gtmDailyScanner.ts";
 import { runPartnerPublicDiscovery } from "./gtmPartnerDiscovery.ts";
@@ -40,8 +41,9 @@ import { boundedEnrichmentLimit, GTM_INVENTORY_POLICY, inventoryDecision, social
 import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type GtmOutcomeEvent, type GtmOutcomeType, type OpportunityClusterStatus } from "../src/lib/gtmOpportunityEngine.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
-import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, verifyLegacyProviderExclusions } from "./instantly.ts";
+import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
 import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
+import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from "./outboundIncidentClosure.ts";
 import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
 import { enrichChannelSeedsWithInstantly, reconcileChannelSeedEnrichment } from "./gtmChannelSeedEnrichment.ts";
 
@@ -589,7 +591,12 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
     if (!gate) return false;
     return stagingEligibility(record, outreach, { ...config, directEnabled: true, partnerEnabled: true }).eligible;
   });
-  const eligible = await excludeProviderEnrolledCandidates(locallyEligible, async (email) => client ? client.findLeadByEmail(email, "") : null);
+  const suppressionChecks = await Promise.all(locallyEligible.map(async (record) => [record.id, await readGtmContactSuppression(record.email || "")] as const));
+  const suppressionByRecord = new Map(suppressionChecks);
+  const eligible = await excludeProviderEnrolledCandidates(
+    locallyEligible.filter((record) => suppressionByRecord.get(record.id)?.status === "CLEAR"),
+    async (email) => client ? client.findLeadByEmail(email, "") : null
+  );
   const directEligible = eligible.filter((record) => record.segment === "DIRECT");
   const partnerEligible = eligible.filter((record) => record.segment === "PARTNER");
   // Each segment owns its own readiness and canary. A Direct shortage must
@@ -715,7 +722,11 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
     const subject = controlledSubject(record);
     const body = controlledEmail(record);
     const handoff = await executeFinalInstantlyHandoff({ email: record.email || "", campaignId, subject, body, sequenceId: "initial-v1", source: record.sourceUrl }, {
-      reserve: reserveInstantlyHandoff,
+      reserve: async (input) => {
+        const suppression = await readGtmContactSuppression(input.normalizedEmail);
+        if (suppression.status !== "CLEAR") throw new Error("Recipient is permanently suppressed before the final Instantly handoff boundary.");
+        return reserveInstantlyHandoff(input);
+      },
       complete: completeInstantlyHandoff,
       fail: failInstantlyHandoff,
       assertCircuitClosed: assertOutboundCircuitClosed,
@@ -747,32 +758,46 @@ async function schedulerJobPaused(name: string) {
 async function handleOutboundCircuitReset(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   const identity = await requireGtmScheduler(request);
-  const input = await readJson(request) as { expectedEventId?: unknown; reason?: unknown; apply?: unknown };
+  const input = await readJson(request) as { expectedEventId?: unknown; expectedVersion?: unknown; reason?: unknown; apply?: unknown; mode?: unknown };
   const circuit = await readOutboundCircuitBreaker();
   if (!circuit?.tripped) return json(response, 409, { error: "No active outbound circuit-breaker event exists." });
   const currentEventId = outboundCircuitEventId(circuit);
+  const expectedEventId = String(input.expectedEventId || "").trim();
+  const expectedVersion = Number(input.expectedVersion);
+  if (expectedEventId !== currentEventId || !Number.isInteger(expectedVersion) || expectedVersion !== circuit.version) return json(response, 409, { error: "Outbound circuit-breaker incident is stale." });
   const apply = input.apply === true;
-  const expectedEventId = String(input.expectedEventId || "").trim() || currentEventId;
-  if (apply && expectedEventId !== currentEventId) return json(response, 409, { error: "Outbound circuit-breaker event is stale." });
+  const mode = String(input.mode || (apply ? "APPLY_CLOSURE" : "DRY_RUN"));
   const reason = String(input.reason || "").trim();
-  if (apply && reason.length < 12) return json(response, 400, { error: "An explicit reset reason is required." });
+  if (mode !== "PREPARE_TOMBSTONE" && mode !== "DRY_RUN" && mode !== "APPLY_CLOSURE") return json(response, 400, { error: "A valid incident-closure mode is required." });
+  if (mode === "APPLY_CLOSURE" && reason.length < 12) return json(response, 400, { error: "An explicit closure reason is required." });
   const config = instantlyConfig();
   if (!config.apiKeyConfigured || !config.integrationEnabled) return json(response, 409, { error: "Instantly configuration is unavailable." });
   const client = new InstantlyClient(config);
   const [directPaused, partnerPaused, records, reservations, model] = await Promise.all([schedulerJobPaused("grantdeskhq-direct-live-reconcile"), schedulerJobPaused("grantdeskhq-partner-live-reconcile"), readInstantlyRecords(), listInstantlyHandoffReservations(), readCanonicalGtmModel()]);
-  const legacyCandidates = model.records.filter((record) => record.segment === "DIRECT" && record.state !== "READY_TO_SEND" && Boolean(record.email) && (record.priorContact || record.suppressionStatus === "BLOCKED" || record.blockers.includes("ALREADY_CONTACTED")));
-  const providerLegacyLeads = await Promise.all(legacyCandidates.map(async (record) => ({ email: String(record.email).trim().toLowerCase(), lead: await client.findLeadByEmail(String(record.email), "") })));
-  const legacyProviderExclusions = verifyLegacyProviderExclusions({ records: model.records, integrationRecords: records, providerEnrolledEmails: new Set(providerLegacyLeads.flatMap(({ email, lead }) => lead ? [email] : [])) });
+  const legacy = findHistoricalClosureCandidate(model.records);
+  const providerLead = legacy?.email ? await client.findLeadByEmail(legacy.email, "") : null;
+  const tombstone = legacy?.email ? await readGtmOutboundTombstone(legacy.email, legacy.organizationId) : null;
+  const activeCanonicalOutboundState = Boolean(legacy && records.some((record) => String(record.email || "").trim().toLowerCase() === String(legacy.email || "").trim().toLowerCase() && ["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus)));
+  const closureEvidence = evaluateIncidentClosureEvidence({ candidate: legacy, tombstone, providerConflict: Boolean(providerLead), activeCanonicalOutboundState });
   const prerequisites = {
     directSchedulerPaused: directPaused,
     partnerSchedulerPaused: partnerPaused,
-    allRequiredFlags: Boolean(config.outboundEnabled && config.autoHandoffEnabled && config.directEnabled && config.partnerEnabled),
-    // A historical IN_CAMPAIGN readback is not an active reservation.
+    allRequiredFlags: Boolean(config.outboundEmailEnabled && config.outboundEnabled && config.autoHandoffEnabled && config.directEnabled && config.partnerEnabled),
     noActiveReservation: !hasActiveInstantlyHandoffReservation(reservations),
-    legacyDirectStillExcluded: legacyProviderExclusions.satisfied
+    canonicalHistory: closureEvidence.canonicalHistory,
+    providerConflictClear: closureEvidence.providerConflictClear,
+    absentFromOutboundStates: closureEvidence.absentFromOutboundStates,
+    tombstoneMatches: closureEvidence.tombstoneMatches
   };
-  const result = await resetOutboundCircuitBreaker({ expectedEventId, reason: apply ? reason : "dry-run", executionIdentity: identity.email, prerequisites, dryRun: !apply });
-  console.info(JSON.stringify({ event: "OUTBOUND_CIRCUIT_RESET", mode: apply ? "APPLY" : "DRY_RUN", eventId: result.eventId, auditId: "auditId" in result ? result.auditId : null, prerequisites, timestamp: new Date().toISOString() }));
+  if (mode === "PREPARE_TOMBSTONE") {
+    if (!legacy || !closureEvidence.canonicalHistory || !closureEvidence.providerConflictClear || !closureEvidence.absentFromOutboundStates || !prerequisites.directSchedulerPaused || !prerequisites.partnerSchedulerPaused || !prerequisites.noActiveReservation) return json(response, 409, { error: "Incident tombstone prerequisites are not satisfied.", prerequisites });
+    const historical = records.find((record) => String(record.email || "").trim().toLowerCase() === String(legacy.email || "").trim().toLowerCase());
+    const prepared = tombstone ? { tombstone, created: false } : await createGtmOutboundTombstone({ email: legacy.email || "", organizationId: legacy.organizationId, canonicalRecordId: legacy.id, reason: "ALREADY_CONTACTED", priorContactReference: legacy.id, priorContactAt: legacy.lastUpdated || circuit.trippedAt, historicalCampaignId: historical?.instantlyCampaignId || "", historicalProviderLeadId: historical?.instantlyLeadId || "", incidentId: currentEventId, creationSource: "outbound_circuit_incident_closure", creationOperator: identity.email });
+    return json(response, 200, { mode, tombstoneId: prepared.tombstone.tombstoneId, created: prepared.created, prerequisites });
+  }
+  if (!tombstone || !closureEvidence.satisfied) return json(response, 409, { error: "Incident closure prerequisites are not satisfied.", prerequisites });
+  const result = await closeOutboundCircuitIncident({ expectedEventId, expectedVersion, reason: apply ? reason : "dry-run", executionIdentity: identity.email, tombstoneId: tombstone.tombstoneId, prerequisites, dryRun: mode !== "APPLY_CLOSURE" });
+  console.info(JSON.stringify({ event: "OUTBOUND_INCIDENT_CLOSURE", mode, eventId: result.eventId, auditId: result.auditId, prerequisites, timestamp: new Date().toISOString() }));
   return json(response, 200, { ...result, currentEventId, prerequisites });
 }
 
