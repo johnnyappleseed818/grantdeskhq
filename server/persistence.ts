@@ -1493,6 +1493,20 @@ export async function readInstantlyStatus(): Promise<Record<string, unknown> | n
   try { return JSON.parse(String(decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}).statusJson || "")) as Record<string, unknown>; } catch { return null; }
 }
 
+export interface GtmDispatchActivation {
+  segment: "DIRECT" | "PARTNER"; campaignId: string; configurationFingerprint: string; canaryRecordId: string; providerLeadId: string; acceptedAt: string; providerSentAt: string; outcome: "NONE" | "ACCEPTED" | "SENT" | "FAILED"; dailyCapacity: number; lastSuccessfulDispatchAt: string; failureReason: string; stateVersion: number; updatedAt: string;
+}
+function dispatchActivationPath(segment: "DIRECT" | "PARTNER") { return `gtm/instantly/dispatch-activations/records/${segment.toLowerCase()}`; }
+export async function readGtmDispatchActivation(segment: "DIRECT" | "PARTNER"): Promise<GtmDispatchActivation | null> {
+  const token = await gcpToken(); const response = await authorizedFetch(`${firestoreBase}/${dispatchActivationPath(segment)}`, token);
+  if (response.status === 404) return null; if (!response.ok) throw new Error(`Dispatch activation could not be loaded (${response.status}).`);
+  try { return JSON.parse(String(decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}).activationJson || "")) as GtmDispatchActivation; } catch { return null; }
+}
+export async function saveGtmDispatchActivation(next: GtmDispatchActivation) {
+  const token = await gcpToken(); await writeDocument(token, dispatchActivationPath(next.segment), { activationJson: JSON.stringify(next), updatedAt: next.updatedAt });
+  await writeDocumentIfAbsent(token, `gtm/instantly/dispatch-audits/records/${safeDocumentId(`${next.segment}:${next.stateVersion}:${next.updatedAt}`)}`, { activationJson: JSON.stringify(next), occurredAt: next.updatedAt });
+}
+
 async function applyInstantlyProductLifecycle(accessToken: string, attribution: Attribution, event: LifecycleEventName, occurredAt: string, outcomeSource: "PRODUCT" | "STRIPE" = "PRODUCT", sourceEventId?: string) {
   const leadId = String(attribution.lead_id || "");
   if (!leadId) return;

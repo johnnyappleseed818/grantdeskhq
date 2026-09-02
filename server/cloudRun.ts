@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,6 +17,7 @@ import { reconcileGtmOutreachLedger, updateFeedbackReview } from "./persistence.
 import { hasActiveInstantlyHandoffReservation, listInstantlyHandoffReservations } from "./persistence.ts";
 import { assertOutboundCircuitClosed, completeInstantlyHandoff, failInstantlyHandoff, gcpToken, outboundCircuitEventId, readOutboundCircuitBreaker, reserveInstantlyHandoff, tripOutboundCircuitBreaker } from "./persistence.ts";
 import { closeOutboundCircuitIncident, createGtmOutboundTombstone, readGtmOutboundTombstone } from "./persistence.ts";
+import { readGtmDispatchActivation, saveGtmDispatchActivation } from "./persistence.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { runDailySocialScan } from "./gtmDailyScanner.ts";
 import { runPartnerPublicDiscovery } from "./gtmPartnerDiscovery.ts";
@@ -49,6 +50,7 @@ import { enrichChannelSeedsWithInstantly, reconcileChannelSeedEnrichment } from 
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
+import { decideControlledDispatch, type DispatchSegment } from "./gtmDispatch.ts";
 const maxBodyBytes = configuredPositiveInteger("MAX_REQUEST_BODY_BYTES", 24_000_000);
 
 function domainFromUrl(value: string) {
@@ -157,6 +159,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/overview") return await handleGtmOverview(request, response);
     if (url.pathname === "/api/gtm/canonical") return await handleGtmCanonical(request, response);
     if (url.pathname === "/api/gtm/instantly") return await handleGtmInstantly(request, response);
+    if (url.pathname === "/api/gtm/instantly/dispatch") return await handleAutomaticInstantlyDispatch(request, response);
     if (url.pathname === "/api/gtm/instantly/stage") return await handleGtmInstantlyStage(request, response);
     if (url.pathname === "/api/gtm/instantly/controlled-batch") return await handleControlledInstantlyBatch(request, response);
     if (url.pathname === "/api/gtm/instantly/incident-remediate") return await handleInstantlyIncidentRemediate(request, response);
@@ -957,12 +960,69 @@ async function saveInstantlyOutcome(record: import("./instantly.ts").InstantlyIn
     sourceEventId,
     type: outcomeType,
     occurredAt: record.lastProviderUpdatedAt || record.updatedAt || new Date().toISOString(),
+
     organization: record.organization || null,
     canonicalOrganizationId: record.canonicalOrganizationId || null,
     instantlyLeadId: record.instantlyLeadId || null,
     evidence: { source: "Instantly provider event", reference: sourceEventId, confidence: "KNOWN" }
   };
   return saveGtmOutcomeEvent(event);
+}
+/** Scheduler inputs may request only automatic evaluation. This is the sole
+ * autonomous dispatch controller; every send decision is derived from canonical
+ * state and current provider evidence, never from execute/limit payloads. */
+async function handleAutomaticInstantlyDispatch(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const input = await readJson(request) as { mode?: unknown; segment?: unknown };
+  const segment = input.segment === "DIRECT" || input.segment === "PARTNER" ? input.segment as DispatchSegment : null;
+  if (input.mode !== "auto" || !segment) return json(response, 400, { error: "Dispatch requires mode:auto and a valid segment." });
+  await reconcileInstantlyPolling();
+  const config = instantlyConfig();
+  const campaignId = segment === "DIRECT" ? config.directCampaignId : config.partnerCampaignId;
+  const client = config.apiKeyConfigured && config.integrationEnabled ? new InstantlyClient(config) : null;
+  const [circuit, model, outreach, records, activation] = await Promise.all([readOutboundCircuitBreaker(), readCanonicalGtmModel(), reconcileGtmOutreachLedger(confirmedHumanOutreach), readInstantlyRecords(), readGtmDispatchActivation(segment)]);
+  const campaign = client && campaignId ? await client.getCampaign(campaignId) : null;
+  const campaignSummary = campaign ? controlledCampaignSafetySummary(campaign) : null;
+  const fingerprint = campaign ? createHash("sha256").update(JSON.stringify(campaignSummary)).digest("hex") : "";
+  const now = new Date();
+  const clock = new Intl.DateTimeFormat("en-US", { timeZone: "America/Detroit", weekday: "short", hour: "2-digit", hourCycle: "h23" }).formatToParts(now);
+  const weekday = clock.find((part) => part.type === "weekday")?.value || "";
+  const hour = Number(clock.find((part) => part.type === "hour")?.value || "99");
+  const withinWindow = !["Sat", "Sun"].includes(weekday) && hour >= 9 && hour < 17;
+  const flagsEnabled = config.outboundEmailEnabled && config.outboundEnabled && config.autoHandoffEnabled && (segment === "DIRECT" ? config.directEnabled : config.partnerEnabled);
+  const segmentRecords = records.filter((record) => record.segment === segment && record.instantlyCampaignId === campaignId);
+  const outstanding = segmentRecords.filter((record) => ["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus));
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Detroit" }).format(now);
+  const sentToday = segmentRecords.filter((record) => record.firstSentAt && new Intl.DateTimeFormat("en-CA", { timeZone: "America/Detroit" }).format(new Date(record.firstSentAt)) === today).length;
+  const knownCanary = activation && activation.campaignId === campaignId && activation.configurationFingerprint === fingerprint ? activation : null;
+  const sentCanary = segmentRecords.filter((record) => record.firstSentAt).sort((a, b) => a.firstSentAt.localeCompare(b.firstSentAt))[0];
+  const acceptedCanary = outstanding.sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
+  const inferredCanary = knownCanary || (sentCanary ? { segment, campaignId, configurationFingerprint: fingerprint, canaryRecordId: sentCanary.id, providerLeadId: sentCanary.instantlyLeadId, acceptedAt: sentCanary.createdAt, providerSentAt: sentCanary.firstSentAt, outcome: "SENT" as const, dailyCapacity: 5, lastSuccessfulDispatchAt: sentCanary.firstSentAt, failureReason: "", stateVersion: 1, updatedAt: now.toISOString() } : acceptedCanary ? { segment, campaignId, configurationFingerprint: fingerprint, canaryRecordId: acceptedCanary.id, providerLeadId: acceptedCanary.instantlyLeadId, acceptedAt: acceptedCanary.updatedAt || acceptedCanary.createdAt, providerSentAt: "", outcome: "ACCEPTED" as const, dailyCapacity: 5, lastSuccessfulDispatchAt: "", failureReason: "", stateVersion: 1, updatedAt: now.toISOString() } : null);
+  const canary = inferredCanary || null;
+  const canaryState = canary?.outcome === "SENT" ? "SENT" : canary?.outcome === "ACCEPTED" ? "ACCEPTED" : canary?.outcome === "FAILED" ? "FAILED" : "NONE";
+  const localEligible = model.records.filter((record) => record.segment === segment && record.state === "READY_TO_SEND" && Boolean(record.email && record.contact) && !record.priorContact && record.suppressionStatus === "CLEAR" && stagingEligibility(record, outreach, config).eligible);
+  const suppression = await Promise.all(localEligible.map(async (record) => [record.id, await readGtmContactSuppression(record.email || "")] as const));
+  const eligible = localEligible.filter((record) => new Map(suppression).get(record.id)?.status === "CLEAR" && !segmentRecords.some((existing) => existing.email.toLowerCase() === String(record.email).toLowerCase()));
+  const decision = decideControlledDispatch({ breakerClosed: Boolean(circuit && !circuit.tripped), flagsEnabled, campaignActive: Boolean(campaign && Number(campaign.status) === 1 && controlledCampaignReady(campaign, "eli.katz@grantdeskhq.com", [1])), withinWindow, pendingProviderActivity: outstanding.length > 0, canaryState, fingerprintMatches: !activation || activation.configurationFingerprint === fingerprint, criticalFailure: segmentRecords.some((record) => ["BOUNCED", "UNSUBSCRIBED"].includes(record.instantlySyncStatus)), dailyLimit: 5, confirmedToday: sentToday, outstanding: outstanding.length, eligible: eligible.length });
+  const base = { mode: "AUTO", segment, decision, campaign: campaignSummary, eligible: eligible.length, outstanding: outstanding.length, sentToday };
+  if (canary && !knownCanary) await saveGtmDispatchActivation(canary);
+  if (!client || !campaign || decision.action === "NOOP" || decision.action === "RECONCILE") return json(response, 200, base);
+  const selected = eligible.slice(0, decision.count);
+  const created: import("./instantly.ts").InstantlyIntegrationRecord[] = [];
+  for (const record of selected) {
+    const [firstName, ...rest] = String(record.contact || "").split(/\s+/);
+    const handoff = await executeFinalInstantlyHandoff({ email: record.email || "", campaignId, subject: controlledSubject(record), body: controlledEmail(record), sequenceId: "initial-v1", source: record.sourceUrl }, {
+      reserve: async (value) => { const check = await readGtmContactSuppression(value.normalizedEmail); if (check.status !== "CLEAR") throw new Error("Suppression changed before handoff."); return reserveInstantlyHandoff(value); }, complete: completeInstantlyHandoff, fail: failInstantlyHandoff, assertCircuitClosed: assertOutboundCircuitClosed, tripCircuitBreaker: tripOutboundCircuitBreaker,
+      findExistingLead: async (email, providerCampaignId) => { const lead = await client.findLeadByEmail(email, providerCampaignId); return lead ? { id: String(lead.id || ""), campaignId: instantlyLeadCampaignId(lead) } : null; },
+      createLead: () => client.createLeadInControlledCampaign({ email: record.email || "", firstName, lastName: rest.join(" "), companyName: record.organization, jobTitle: record.title || "", campaignId, personalization: controlledEmail(record), subject: controlledSubject(record), sequenceId: "initial-v1", segment, customVariables: { batch_id: config.controlledBatchId, canonical_organization_id: record.organizationId, canonical_contact_id: `${record.organizationId}:${record.email}`, segment, source: record.sourceUrl, why_now_or_fit: record.whyNow, openingLine: controlledOpening(record), message_version: "auto-dispatch-v1" } }, config.controlledBatchId)
+    });
+    const persisted = { ...instantlyPreviewRecord(record), instantlyCampaignId: campaignId, instantlyLeadId: handoff.externalLeadId, instantlySyncStatus: "IN_CAMPAIGN" as const, messageVersion: "auto-dispatch-v1", controlledBatchId: config.controlledBatchId, failureReason: "", updatedAt: now.toISOString() };
+    await saveInstantlyRecord(persisted); created.push(persisted);
+  }
+  const canaryRecord = canary || created[0];
+  if (canaryRecord) await saveGtmDispatchActivation({ segment, campaignId, configurationFingerprint: fingerprint, canaryRecordId: canary ? canary.canaryRecordId : canaryRecord.id, providerLeadId: canary ? canary.providerLeadId : canaryRecord.instantlyLeadId, acceptedAt: canary ? canary.acceptedAt : now.toISOString(), providerSentAt: canary ? canary.providerSentAt : "", outcome: canary ? canary.outcome : "ACCEPTED", dailyCapacity: 5, lastSuccessfulDispatchAt: now.toISOString(), failureReason: "", stateVersion: (activation?.stateVersion || 0) + 1, updatedAt: now.toISOString() });
+  return json(response, 200, { ...base, handoff: { canonicalRecordId: record.id, state: persisted.instantlySyncStatus, created: handoff.created }, activation: { outcome: next.outcome, stateVersion: next.stateVersion } });
 }
 
 /** Scheduler-protected reconciliation uses read-only API polling. Webhooks are

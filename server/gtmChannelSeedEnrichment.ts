@@ -2,8 +2,6 @@ import { InstantlyClient, instantlyConfig } from "./instantly.ts";
 import { listGtmChannelSeeds, saveGtmChannelSeed } from "./persistence.ts";
 import { recordInstantlyVerifiedGtmContact } from "./contactEnrichment.ts";
 
-import type { ChannelSeedRecord } from "../src/lib/gtmChannelSeeds.ts";
-type ProviderLead = Record<string, unknown>;
 export type ChannelSeedEnrichmentSegment = "DIRECT" | "PARTNER";
 const titles: Record<ChannelSeedEnrichmentSegment, string[]> = {
   DIRECT: ["CFO", "Finance Director", "Controller", "Director of Grants", "Grants Manager", "Director of Institutional Giving"],
