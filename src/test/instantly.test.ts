@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "../../server/instantly";
+import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "../../server/instantly";
 import type { CanonicalGtmRecord } from "../lib/gtmCanonical";
 
 const record: CanonicalGtmRecord = {
@@ -159,6 +159,17 @@ describe("Instantly fail-closed integration", () => {
     expect(sent.record.firstSentAt).toBe("2026-08-23T09:59:00.000Z");
     expect(sent.record.sentAtSource).toBe("INSTANTLY_LEAD_LAST_STEP_TIMESTAMP");
     expect(reconcileInstantlyLead(sent.record, lead, "2026-08-23T10:02:00.000Z").event).toBeNull();
+  });
+
+  it("records an exact provider email event when lead-step metadata is unavailable", () => {
+    const staged = { ...instantlyPreviewRecord(record), instantlySyncStatus: "IN_CAMPAIGN" as const, instantlyLeadId: "lead_1", instantlyCampaignId: "campaign_1" };
+    const evidence = { id: "email_1", lead_id: "lead_1", campaign_id: "campaign_1", timestamp_email: "2026-08-23T09:59:00.000Z" };
+    const sent = reconcileInstantlyEmailEvidence(staged, evidence);
+    expect(sent?.event).toBe("EMAIL_SENT");
+    expect(sent?.record.firstSentAt).toBe("2026-08-23T09:59:00.000Z");
+    expect(sent?.record.sentAtSource).toBe("INSTANTLY_EMAIL_EVIDENCE");
+    expect(reconcileInstantlyEmailEvidence(sent!.record, evidence)).toBeNull();
+    expect(reconcileInstantlyEmailEvidence(staged, { ...evidence, campaign_id: "other_campaign" })).toBeNull();
   });
 
   it("maps reply, bounce, unsubscribe, completion, and explicit interest from lead polling", () => {

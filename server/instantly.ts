@@ -536,3 +536,20 @@ export function applyInstantlyEvent(record: InstantlyIntegrationRecord, event: I
   if (event.type === "SEQUENCE_COMPLETED") return { ...updated, instantlySyncStatus: "SEQUENCE_COMPLETE", sequenceCompletedAt: at };
   return { ...updated, replyDisposition: event.type };
 }
+
+/**
+ * Instantly's lead feed can lag its authoritative email-event feed. Reconcile
+ * only an event that exactly matches this durable lead and campaign record.
+ */
+export function reconcileInstantlyEmailEvidence(record: InstantlyIntegrationRecord, evidence: Record<string, unknown>) {
+  const providerEventId = text(evidence.id);
+  const providerLeadId = text(evidence.lead_id);
+  const campaignId = text(evidence.campaign_id);
+  const occurredAt = text(evidence.timestamp_email) || text(evidence.timestamp_created);
+  if (!providerEventId || !providerLeadId || !campaignId || !occurredAt) return null;
+  if (!record.instantlyLeadId || record.instantlyLeadId !== providerLeadId) return null;
+  if (!record.instantlyCampaignId || record.instantlyCampaignId !== campaignId) return null;
+  if (record.firstSentAt) return null;
+  const event: InstantlyWebhookEvent = { id: `email:${providerEventId}`, type: "EMAIL_SENT", instantlyLeadId: providerLeadId, email: record.email, occurredAt, campaignId, rawType: "email_evidence_poll" };
+  return { record: { ...applyInstantlyEvent(record, event), lastProviderUpdatedAt: occurredAt, sentAtSource: "INSTANTLY_EMAIL_EVIDENCE" }, event: "EMAIL_SENT" as const, sourceEventId: event.id };
+}

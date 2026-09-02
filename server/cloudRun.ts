@@ -41,7 +41,7 @@ import { boundedEnrichmentLimit, GTM_INVENTORY_POLICY, inventoryDecision, social
 import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type GtmOutcomeEvent, type GtmOutcomeType, type OpportunityClusterStatus } from "../src/lib/gtmOpportunityEngine.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
-import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
+import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
 import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from "./outboundIncidentClosure.ts";
 import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
@@ -975,7 +975,7 @@ async function reconcileInstantlyPolling() {
   }
   const client = new InstantlyClient();
   const [records, priorStatus] = await Promise.all([readInstantlyRecords(), readInstantlyStatus()]);
-  const results = await Promise.allSettled([client.listLeadLists(), client.listCampaigns(), client.listAccounts(), client.listRecentLeads(200), client.listCampaignAnalytics(), client.listRecentEmails()]);
+  const results = await Promise.allSettled([client.listLeadLists(), client.listCampaigns(), client.listAccounts(), client.listRecentLeads(200), client.listCampaignAnalytics(), client.listRecentEmailEvidence(100)]);
   const [lists, campaigns, accounts, leads, campaignAnalytics, recentEmails] = results.map((result) => result.status === "fulfilled" ? result.value : null);
   const model = await readCanonicalGtmModel();
   const leadItems = instantlyItems(leads);
@@ -1013,6 +1013,17 @@ async function reconcileInstantlyPolling() {
     }
     const suppressionReason = transition.suppressEmail || instantlyStopReason(transition.event);
     if (suppressionReason && transition.record.email) await recordGtmContactSuppression(transition.record.email, [suppressionReason], "instantly_polling");
+  }
+  // The /emails feed is provider-confirmed delivery evidence. It is used only
+  // when an event exactly matches a durable handoff record; enrollment alone
+  // is never treated as a send.
+  for (const record of records) {
+    const evidence = instantlyItems(recentEmails).find((item) => String(item.lead_id || "") === record.instantlyLeadId && String(item.campaign_id || "") === record.instantlyCampaignId);
+    const transition = evidence ? reconcileInstantlyEmailEvidence(record, evidence) : null;
+    if (!transition) continue;
+    await saveInstantlyRecord(transition.record);
+    transitions[transition.event] = (transitions[transition.event] || 0) + 1;
+    outcomeRecorded = await saveInstantlyOutcome(transition.record, transition.event, transition.sourceEventId) || outcomeRecorded;
   }
   const mappedCampaignIds = new Set([health.directCampaignId, health.partnerCampaignId].filter(Boolean));
   const analyticsItems = Array.isArray(campaignAnalytics) ? campaignAnalytics.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object") : instantlyItems(campaignAnalytics);
