@@ -43,7 +43,7 @@ import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type G
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
 import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
-import { adoptMappedInstantlyLead } from "./instantly.ts";
+import { adoptMappedInstantlyLead, canReplaceInstantlyPreview } from "./instantly.ts";
 import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from "./outboundIncidentClosure.ts";
 import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
@@ -1053,7 +1053,9 @@ async function reconcileInstantlyPolling() {
   const results = await Promise.allSettled([client.listLeadLists(), client.listCampaigns(), client.listAccounts(), client.listRecentLeads(200), client.listCampaignAnalytics(), client.listRecentEmailEvidence(100)]);
   const [lists, campaigns, accounts, leads, campaignAnalytics, recentEmails] = results.map((result) => result.status === "fulfilled" ? result.value : null);
   const model = await readCanonicalGtmModel();
-  const leadItems = instantlyItems(leads);
+  const cleanMemberships = await Promise.allSettled([health.directCampaignId ? client.listLeadsInCampaign(health.directCampaignId) : Promise.resolve({ items: [] }), health.partnerCampaignId ? client.listLeadsInCampaign(health.partnerCampaignId) : Promise.resolve({ items: [] })]);
+  const cleanProviderLeads = cleanMemberships.flatMap((result) => result.status === "fulfilled" ? instantlyItems(result.value) : []);
+  const leadItems = [...new Map([...instantlyItems(leads), ...cleanProviderLeads].map((lead) => [String(lead.id || ""), lead])).values()].filter((lead) => Boolean(String(lead.id || "")));
   // Only a complete provider lead read may invalidate a persisted pre-send
   // membership. This repairs interrupted/stale handoffs without ever clearing
   // actual SENT, bounced, or unsubscribed history.
@@ -1083,22 +1085,25 @@ async function reconcileInstantlyPolling() {
     const providerEmail = String(lead.email || "").trim().toLowerCase();
     const campaignId = instantlyLeadCampaignId(lead);
     const segment = cleanCampaignSegments.get(campaignId);
-    if (!segment || !providerLeadId || !providerEmail || recordsByLead.has(providerLeadId) || recordsByEmail.has(providerEmail)) continue;
+    if (!segment || !providerLeadId || !providerEmail || recordsByLead.has(providerLeadId)) continue;
     const canonical = canonicalByEmail.get(providerEmail);
     if (!canonical || canonical.segment !== segment) continue;
+    const existing = recordsByEmail.get(providerEmail);
+    if (!canReplaceInstantlyPreview(existing)) continue;
     const adoption = adoptMappedInstantlyLead({ canonical, lead, config });
     if (!adoption) continue;
-    await saveInstantlyRecord(adoption.record);
-    records.push(adoption.record);
-    recordsByLead.set(adoption.record.instantlyLeadId, adoption.record);
-    recordsByEmail.set(adoption.record.email.toLowerCase(), adoption.record);
+    const adopted = existing ? { ...adoption.record, id: existing.id, createdAt: existing.createdAt || adoption.record.createdAt } : adoption.record;
+    await saveInstantlyRecord(adopted);
+    if (existing) records.splice(records.indexOf(existing), 1, adopted); else records.push(adopted);
+    recordsByLead.set(adopted.instantlyLeadId, adopted);
+    recordsByEmail.set(adopted.email.toLowerCase(), adopted);
     adoptedCleanMemberships++;
     if (adoption.event) {
       transitions[adoption.event] = (transitions[adoption.event] || 0) + 1;
-      outcomeRecorded = await saveInstantlyOutcome(adoption.record, adoption.event, `poll:${adoption.record.instantlyLeadId}:${adoption.event}:${adoption.record.lastProviderUpdatedAt || adoption.record.updatedAt}`) || outcomeRecorded;
+      outcomeRecorded = await saveInstantlyOutcome(adopted, adoption.event, `poll:${adopted.instantlyLeadId}:${adoption.event}:${adopted.lastProviderUpdatedAt || adopted.updatedAt}`) || outcomeRecorded;
     }
     const suppressionReason = adoption.suppressEmail || instantlyStopReason(adoption.event);
-    if (suppressionReason && adoption.record.email) await recordGtmContactSuppression(adoption.record.email, [suppressionReason], "instantly_clean_membership_adoption");
+    if (suppressionReason && adopted.email) await recordGtmContactSuppression(adopted.email, [suppressionReason], "instantly_clean_membership_adoption");
   }
   let polledRecords = 0;
   for (const lead of leadItems) {

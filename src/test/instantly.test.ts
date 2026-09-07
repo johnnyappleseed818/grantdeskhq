@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "../../server/instantly";
+import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "../../server/instantly";
 import type { CanonicalGtmRecord } from "../lib/gtmCanonical";
 
 const record: CanonicalGtmRecord = {
@@ -116,6 +116,13 @@ describe("Instantly fail-closed integration", () => {
     expect(adopted).toMatchObject({ event: "EMAIL_SENT", record: { instantlyLeadId: "lead_clean", instantlyCampaignId: "clean_direct", instantlySyncStatus: "SENT", firstSentAt: "2026-09-07T13:25:00.000Z" } });
     expect(adoptMappedInstantlyLead({ canonical: record, config, lead: { id: "legacy", email: record.email, campaign: "legacy_direct" } })).toBeNull();
     expect(adoptMappedInstantlyLead({ canonical: { ...record, segment: "PARTNER" }, config, lead: { id: "wrong_segment", email: record.email, campaign: "clean_direct" } })).toBeNull();
+  });
+
+  it("replaces only a provider-free preview during clean-membership adoption", () => {
+    expect(canReplaceInstantlyPreview(undefined)).toBe(true);
+    expect(canReplaceInstantlyPreview(instantlyPreviewRecord(record))).toBe(true);
+    expect(canReplaceInstantlyPreview({ ...instantlyPreviewRecord(record), instantlySyncStatus: "ERROR", instantlyLeadId: "", instantlyCampaignId: "" })).toBe(true);
+    expect(canReplaceInstantlyPreview({ ...instantlyPreviewRecord(record), instantlySyncStatus: "IN_CAMPAIGN", instantlyLeadId: "provider_history", instantlyCampaignId: "legacy_direct" })).toBe(false);
   });
 
   it("permits a campaign configuration write only for the exact enabled batch", async () => {

@@ -310,6 +310,12 @@ export function adoptMappedInstantlyLead(input: { canonical: CanonicalGtmRecord;
   return reconcileInstantlyLead(preview, input.lead, now);
 }
 
+/** A provider membership may replace only a local preview that never had a
+ * provider identity. Historical or active records remain immutable evidence. */
+export function canReplaceInstantlyPreview(record: InstantlyIntegrationRecord | undefined) {
+  return !record || (!record.instantlyLeadId && !record.instantlyCampaignId && ["PREVIEW_ONLY", "ERROR"].includes(record.instantlySyncStatus));
+}
+
 /** No request can be made until integration is deliberately enabled and keyed. */
 export class InstantlyClient {
   private readonly config: InstantlyConfig;
