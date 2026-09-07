@@ -23,8 +23,12 @@ export interface InstantlyConfig {
   webhookSecretConfigured: boolean;
   directListId: string;
   partnerListId: string;
+  /** The only campaigns eligible for new autonomous enrollment. */
   directCampaignId: string;
   partnerCampaignId: string;
+  /** Historical campaigns are reconciliation-only and can never receive a new lead. */
+  legacyDirectCampaignId: string;
+  legacyPartnerCampaignId: string;
   controlledBatchEnabled: boolean;
   controlledBatchId: string;
 }
@@ -146,9 +150,28 @@ export function instantlyConfig(env: NodeJS.ProcessEnv = process.env): Instantly
     partnerListId: String(env.INSTANTLY_PARTNER_LIST_ID || "").trim(),
     directCampaignId: String(env.INSTANTLY_DIRECT_CAMPAIGN_ID || "").trim(),
     partnerCampaignId: String(env.INSTANTLY_PARTNER_CAMPAIGN_ID || "").trim(),
+    legacyDirectCampaignId: String(env.INSTANTLY_LEGACY_DIRECT_CAMPAIGN_ID || "").trim(),
+    legacyPartnerCampaignId: String(env.INSTANTLY_LEGACY_PARTNER_CAMPAIGN_ID || "").trim(),
     controlledBatchEnabled: enabled("INSTANTLY_CONTROLLED_BATCH_ENABLED"),
     controlledBatchId: String(env.INSTANTLY_CONTROLLED_BATCH_ID || "").trim()
   };
+}
+
+/** One authoritative writable campaign per segment. Historical memberships
+ * remain readable for suppression and reconciliation but are never eligible
+ * destinations for a new enrollment. */
+export function activeInstantlyCampaignId(config: InstantlyConfig, segment: InstantlySegment) {
+  return segment === "DIRECT" ? config.directCampaignId : config.partnerCampaignId;
+}
+
+export function legacyInstantlyCampaignIds(config: InstantlyConfig) {
+  return [config.legacyDirectCampaignId, config.legacyPartnerCampaignId].filter(Boolean);
+}
+
+export function assertActiveInstantlyCampaign(config: InstantlyConfig, segment: InstantlySegment, campaignId: string) {
+  const expected = activeInstantlyCampaignId(config, segment);
+  if (!expected || campaignId !== expected) throw new Error("New enrollment must use the configured active segment campaign.");
+  if (legacyInstantlyCampaignIds(config).includes(campaignId)) throw new Error("Historical Instantly campaigns are reconciliation-only.");
 }
 
 /** Campaign responses can expose sending accounts in a few documented shapes.
@@ -262,6 +285,29 @@ export function instantlyPreviewRecord(record: CanonicalGtmRecord, now = new Dat
     firstSentAt: "", lastSentAt: "", replyReceivedAt: "", replyDisposition: "", bounceAt: "", unsubscribeAt: "", sequenceCompletedAt: "",
     productAttributionId: "", freeFirstAwardStartedAt: "", reportGeneratedAt: "", paidAt: "", messageVersion: "benefit-led-v1", lastInstantlySyncAt: "", lastProviderUpdatedAt: "", lastKnownLeadStatus: "", lastKnownReplyCount: 0, lastProcessedSequenceStatus: "", lastCampaignStepAt: "", sentAtSource: "", sequenceStopRequestedAt: "", sequenceStopReason: "", failureReason: "API_KEY_NOT_CONFIGURED", createdAt: now, updatedAt: now
   };
+}
+
+/** Safely adopts a provider membership only when it belongs to the configured
+ * clean campaign and exactly matches an existing canonical recipient. This is
+ * reconciliation, never a provider write or a way to manufacture eligibility. */
+export function adoptMappedInstantlyLead(input: { canonical: CanonicalGtmRecord; lead: Record<string, unknown>; config: InstantlyConfig; now?: string }) {
+  const now = input.now || new Date().toISOString();
+  const campaignId = instantlyLeadCampaignId(input.lead);
+  const providerEmail = normalizeOutboundEmail(String(input.lead.email || ""));
+  const canonicalEmail = normalizeOutboundEmail(String(input.canonical.email || ""));
+  if (!providerEmail || providerEmail !== canonicalEmail || !campaignId) return null;
+  if (campaignId !== activeInstantlyCampaignId(input.config, input.canonical.segment)) return null;
+  if (legacyInstantlyCampaignIds(input.config).includes(campaignId)) return null;
+  const preview = {
+    ...instantlyPreviewRecord(input.canonical, now),
+    instantlyCampaignId: campaignId,
+    instantlyLeadId: String(input.lead.id || "").trim(),
+    instantlySyncStatus: "IN_CAMPAIGN" as const,
+    messageVersion: "provider-reconciled-clean-v1",
+    failureReason: ""
+  };
+  if (!preview.instantlyLeadId) return null;
+  return reconcileInstantlyLead(preview, input.lead, now);
 }
 
 /** No request can be made until integration is deliberately enabled and keyed. */
@@ -383,6 +429,7 @@ export class InstantlyClient {
     if (!this.config.controlledBatchEnabled || !this.config.controlledBatchId || this.config.controlledBatchId !== batchId) throw new Error("Controlled outbound batch is not enabled for this exact batch ID.");
     assertInstantlyDeliveryOwner("INSTANTLY");
     assertInstantlyDeliveryEnabled(this.config, input.segment);
+    assertActiveInstantlyCampaign(this.config, input.segment, input.campaignId);
     const validated = validateInstantlyOutboundInput({ email: input.email, campaignId: input.campaignId, subject: input.subject, body: input.personalization, sequenceId: input.sequenceId });
     return this.api<{ id?: string; lead_id?: string }>("/leads", { method: "POST", body: JSON.stringify({ email: validated.email, first_name: input.firstName, last_name: input.lastName, company_name: input.companyName, job_title: input.jobTitle, campaign: validated.campaignId, personalization: validated.body, custom_variables: { ...input.customVariables, subjectLine: validated.subject }, skip_if_in_workspace: true, skip_if_in_campaign: true }) });
   }
@@ -458,7 +505,7 @@ export function reconcileInstantlyLead(record: InstantlyIntegrationRecord, lead:
   }
   if (replyCount > (record.lastKnownReplyCount || 0)) return { record: event("REPLY_RECEIVED", providerUpdatedAt || now), event: "REPLY_RECEIVED", suppressEmail: null };
   if (!record.firstSentAt && campaignId && stepAt && stepFrom.toLowerCase() === "campaign") return { record: { ...event("EMAIL_SENT", stepAt), sentAtSource: "INSTANTLY_LEAD_LAST_STEP_TIMESTAMP" }, event: "EMAIL_SENT", suppressEmail: null };
-  if (providerStatus === 3 && replyCount === 0 && !record.replyReceivedAt) return { record: event("SEQUENCE_COMPLETED", providerUpdatedAt || now), event: "SEQUENCE_COMPLETED", suppressEmail: null };
+  if (providerStatus === 3 && replyCount === 0 && !record.replyReceivedAt && !record.firstSentAt) return { record: event("SEQUENCE_COMPLETED", providerUpdatedAt || now), event: "SEQUENCE_COMPLETED", suppressEmail: null };
   return { record: base, event: null, suppressEmail: null };
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "../../server/instantly";
+import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "../../server/instantly";
 import type { CanonicalGtmRecord } from "../lib/gtmCanonical";
 
 const record: CanonicalGtmRecord = {
@@ -101,6 +101,23 @@ describe("Instantly fail-closed integration", () => {
     expect(request).not.toHaveBeenCalled();
   });
 
+  it("uses the clean segment mapping and refuses legacy campaigns at the provider-write boundary", async () => {
+    const request = vi.fn();
+    const config = instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true", INSTANTLY_API_KEY: "configured", OUTBOUND_EMAIL_ENABLED: "true", INSTANTLY_OUTBOUND_ENABLED: "true", INSTANTLY_AUTO_HANDOFF_ENABLED: "true", DIRECT_INSTANTLY_ENABLED: "true", PARTNER_INSTANTLY_ENABLED: "true", INSTANTLY_CONTROLLED_BATCH_ENABLED: "true", INSTANTLY_CONTROLLED_BATCH_ID: "batch_1", INSTANTLY_DIRECT_CAMPAIGN_ID: "clean_direct", INSTANTLY_PARTNER_CAMPAIGN_ID: "clean_partner", INSTANTLY_LEGACY_DIRECT_CAMPAIGN_ID: "legacy_direct", INSTANTLY_LEGACY_PARTNER_CAMPAIGN_ID: "legacy_partner" });
+    expect(activeInstantlyCampaignId(config, "DIRECT")).toBe("clean_direct");
+    const client = new InstantlyClient(config, "key", request);
+    await expect(client.createLeadInControlledCampaign({ email: record.email!, firstName: "Casey", lastName: "Finance", companyName: record.organization, jobTitle: record.title!, campaignId: "legacy_direct", personalization: "Hello", subject: "A valid subject", sequenceId: "initial-v1", segment: "DIRECT", customVariables: {} }, "batch_1")).rejects.toThrow("configured active segment campaign");
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it("adopts only matching clean memberships and preserves first-step provider evidence", () => {
+    const config = instantlyConfig({ INSTANTLY_DIRECT_CAMPAIGN_ID: "clean_direct", INSTANTLY_PARTNER_CAMPAIGN_ID: "clean_partner", INSTANTLY_LEGACY_DIRECT_CAMPAIGN_ID: "legacy_direct" });
+    const adopted = adoptMappedInstantlyLead({ canonical: record, config, now: "2026-09-07T13:30:00.000Z", lead: { id: "lead_clean", email: record.email, campaign: "clean_direct", status: 3, last_step_from: "campaign", last_step_timestamp_executed: "2026-09-07T13:25:00.000Z", timestamp_updated: "2026-09-07T13:25:01.000Z" } });
+    expect(adopted).toMatchObject({ event: "EMAIL_SENT", record: { instantlyLeadId: "lead_clean", instantlyCampaignId: "clean_direct", instantlySyncStatus: "SENT", firstSentAt: "2026-09-07T13:25:00.000Z" } });
+    expect(adoptMappedInstantlyLead({ canonical: record, config, lead: { id: "legacy", email: record.email, campaign: "legacy_direct" } })).toBeNull();
+    expect(adoptMappedInstantlyLead({ canonical: { ...record, segment: "PARTNER" }, config, lead: { id: "wrong_segment", email: record.email, campaign: "clean_direct" } })).toBeNull();
+  });
+
   it("permits a campaign configuration write only for the exact enabled batch", async () => {
     const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "campaign_1" }), { status: 200 }));
     const config = instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true", INSTANTLY_API_KEY: "configured", INSTANTLY_CONTROLLED_BATCH_ENABLED: "true", INSTANTLY_CONTROLLED_BATCH_ID: "gdh-controlled-batch-20260824-01" });
@@ -177,7 +194,7 @@ describe("Instantly fail-closed integration", () => {
     expect(reconcileInstantlyLead(sent, { id: "lead_1", status: 1, email_reply_count: 1, timestamp_updated: "2026-08-23T10:00:00.000Z" }).record.instantlySyncStatus).toBe("REPLIED");
     expect(reconcileInstantlyLead(sent, { id: "lead_1", status: -1, email_reply_count: 0, timestamp_updated: "2026-08-23T10:00:00.000Z" }).suppressEmail).toBe("hard_bounce");
     expect(reconcileInstantlyLead(sent, { id: "lead_1", status: -2, email_reply_count: 0, timestamp_updated: "2026-08-23T10:00:00.000Z" }).suppressEmail).toBe("unsubscribe");
-    expect(reconcileInstantlyLead(sent, { id: "lead_1", status: 3, email_reply_count: 0, timestamp_updated: "2026-08-23T10:00:00.000Z" }).record.instantlySyncStatus).toBe("SEQUENCE_COMPLETE");
+    expect(reconcileInstantlyLead(sent, { id: "lead_1", status: 3, email_reply_count: 0, timestamp_updated: "2026-08-23T10:00:00.000Z" }).record.instantlySyncStatus).toBe("SENT");
     expect(reconcileInstantlyLead(sent, { id: "lead_1", status: 1, email_reply_count: 0, lt_interest_status: 1, timestamp_updated: "2026-08-23T10:00:00.000Z" }).record.instantlySyncStatus).toBe("POSITIVE");
     expect(reconcileInstantlyLead(sent, { id: "lead_1", status: 1, email_reply_count: 0, lt_interest_status: -1, timestamp_updated: "2026-08-23T10:00:00.000Z" }).record.instantlySyncStatus).toBe("NOT_INTERESTED");
   });

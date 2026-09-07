@@ -15,4 +15,9 @@ describe("server-authoritative controlled dispatch", () => {
     expect(decideControlledDispatch(safe)).toEqual(decideControlledDispatch(safe));
     expect(decideControlledDispatch({ ...safe, canaryState: "SENT", outstanding: 4, pendingProviderActivity: true, eligible: 5 })).toMatchObject({ action: "RECONCILE" });
   });
+  it("enforces the global 15-recipient initial-send ceiling across segment schedulers", () => {
+    expect(decideControlledDispatch({ ...safe, canaryState: "SENT", confirmedToday: 1, eligible: 5, globalRemaining: 2 })).toMatchObject({ action: "DISPATCH", count: 2, remaining: 2 });
+    expect(decideControlledDispatch({ ...safe, canaryState: "SENT", confirmedToday: 1, eligible: 5, globalRemaining: 0 })).toMatchObject({ action: "NOOP", reason: "DAILY_CAPACITY_REACHED", count: 0 });
+  });
+
 });

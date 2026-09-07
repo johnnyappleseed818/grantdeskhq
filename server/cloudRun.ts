@@ -43,6 +43,7 @@ import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type G
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
 import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
+import { adoptMappedInstantlyLead } from "./instantly.ts";
 import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from "./outboundIncidentClosure.ts";
 import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
@@ -996,20 +997,31 @@ async function handleAutomaticInstantlyDispatch(request: IncomingMessage, respon
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Detroit" }).format(now);
   const sentToday = segmentRecords.filter((record) => record.firstSentAt && new Intl.DateTimeFormat("en-CA", { timeZone: "America/Detroit" }).format(new Date(record.firstSentAt)) === today).length;
   const knownCanary = activation && activation.campaignId === campaignId && activation.configurationFingerprint === fingerprint ? activation : null;
+  const segmentCeiling = segment === "DIRECT" ? 10 : 5;
+  const providerLimit = Number(campaignSummary?.dailyMaxLeads ?? campaignSummary?.dailyLimit ?? segmentCeiling);
+  const segmentDailyLimit = Math.max(1, Math.min(segmentCeiling, Number.isFinite(providerLimit) && providerLimit > 0 ? providerLimit : segmentCeiling));
+  const relevantCampaignIds = new Set([config.directCampaignId, config.partnerCampaignId, config.legacyDirectCampaignId, config.legacyPartnerCampaignId].filter(Boolean));
+  const relevantRecords = records.filter((record) => relevantCampaignIds.has(record.instantlyCampaignId));
+  const wasSentToday = (record: import("./instantly.ts").InstantlyIntegrationRecord) => Boolean(record.firstSentAt) && new Intl.DateTimeFormat("en-CA", { timeZone: "America/Detroit" }).format(new Date(record.firstSentAt)) === today;
+  const globalSentToday = relevantRecords.filter(wasSentToday).length;
+  const globalOutstanding = relevantRecords.filter((record) => ["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus)).length;
+  const globalRemaining = Math.max(0, 15 - globalSentToday - globalOutstanding);
+  const campaignMappedToLegacy = [config.legacyDirectCampaignId, config.legacyPartnerCampaignId].filter(Boolean).includes(campaignId);
   const sentCanary = segmentRecords.filter((record) => record.firstSentAt).sort((a, b) => a.firstSentAt.localeCompare(b.firstSentAt))[0];
   const acceptedCanary = outstanding.sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
-  const inferredCanary = knownCanary || (sentCanary ? { segment, campaignId, configurationFingerprint: fingerprint, canaryRecordId: sentCanary.id, providerLeadId: sentCanary.instantlyLeadId, acceptedAt: sentCanary.createdAt, providerSentAt: sentCanary.firstSentAt, outcome: "SENT" as const, dailyCapacity: 5, lastSuccessfulDispatchAt: sentCanary.firstSentAt, failureReason: "", stateVersion: 1, updatedAt: now.toISOString() } : acceptedCanary ? { segment, campaignId, configurationFingerprint: fingerprint, canaryRecordId: acceptedCanary.id, providerLeadId: acceptedCanary.instantlyLeadId, acceptedAt: acceptedCanary.updatedAt || acceptedCanary.createdAt, providerSentAt: "", outcome: "ACCEPTED" as const, dailyCapacity: 5, lastSuccessfulDispatchAt: "", failureReason: "", stateVersion: 1, updatedAt: now.toISOString() } : null);
+  const inferredCanary = knownCanary || (sentCanary ? { segment, campaignId, configurationFingerprint: fingerprint, canaryRecordId: sentCanary.id, providerLeadId: sentCanary.instantlyLeadId, acceptedAt: sentCanary.createdAt, providerSentAt: sentCanary.firstSentAt, outcome: "SENT" as const, dailyCapacity: segmentDailyLimit, lastSuccessfulDispatchAt: sentCanary.firstSentAt, failureReason: "", stateVersion: 1, updatedAt: now.toISOString() } : acceptedCanary ? { segment, campaignId, configurationFingerprint: fingerprint, canaryRecordId: acceptedCanary.id, providerLeadId: acceptedCanary.instantlyLeadId, acceptedAt: acceptedCanary.updatedAt || acceptedCanary.createdAt, providerSentAt: "", outcome: "ACCEPTED" as const, dailyCapacity: segmentDailyLimit, lastSuccessfulDispatchAt: "", failureReason: "", stateVersion: 1, updatedAt: now.toISOString() } : null);
   const canary = inferredCanary || null;
   const canaryState = canary?.outcome === "SENT" ? "SENT" : canary?.outcome === "ACCEPTED" ? "ACCEPTED" : canary?.outcome === "FAILED" ? "FAILED" : "NONE";
   const localEligible = model.records.filter((record) => record.segment === segment && record.state === "READY_TO_SEND" && Boolean(record.email && record.contact) && !record.priorContact && record.suppressionStatus === "CLEAR" && stagingEligibility(record, outreach, config).eligible);
   const suppression = await Promise.all(localEligible.map(async (record) => [record.id, await readGtmContactSuppression(record.email || "")] as const));
   const eligible = localEligible.filter((record) => new Map(suppression).get(record.id)?.status === "CLEAR" && !segmentRecords.some((existing) => existing.email.toLowerCase() === String(record.email).toLowerCase()));
-  const decision = decideControlledDispatch({ breakerClosed: Boolean(circuit && !circuit.tripped), flagsEnabled, campaignActive: Boolean(campaign && Number(campaign.status) === 1 && controlledCampaignReady(campaign, "eli.katz@grantdeskhq.com", [1])), withinWindow, pendingProviderActivity: outstanding.length > 0, canaryState, fingerprintMatches: !activation || activation.configurationFingerprint === fingerprint, criticalFailure: segmentRecords.some((record) => ["BOUNCED", "UNSUBSCRIBED"].includes(record.instantlySyncStatus)), dailyLimit: 5, confirmedToday: sentToday, outstanding: outstanding.length, eligible: eligible.length });
-  const base = { mode: "AUTO", segment, decision, campaign: campaignSummary, eligible: eligible.length, outstanding: outstanding.length, sentToday };
+  const decision = decideControlledDispatch({ breakerClosed: Boolean(circuit && !circuit.tripped), flagsEnabled, campaignActive: Boolean(campaign && !campaignMappedToLegacy && Number(campaign.status) === 1 && controlledCampaignReady(campaign, "eli.katz@grantdeskhq.com", [1])), withinWindow, pendingProviderActivity: outstanding.length > 0, canaryState, fingerprintMatches: !activation || activation.configurationFingerprint === fingerprint, criticalFailure: segmentRecords.some((record) => ["BOUNCED", "UNSUBSCRIBED"].includes(record.instantlySyncStatus)), dailyLimit: segmentDailyLimit, confirmedToday: sentToday, outstanding: outstanding.length, eligible: eligible.length, globalRemaining });
+  const base = { mode: "AUTO", segment, decision, campaign: campaignSummary, eligible: eligible.length, outstanding: outstanding.length, sentToday, globalSentToday, globalOutstanding, globalRemaining, segmentDailyLimit };
   if (canary && !knownCanary) await saveGtmDispatchActivation(canary);
   if (!client || !campaign || decision.action === "NOOP" || decision.action === "RECONCILE") return json(response, 200, base);
   const selected = eligible.slice(0, decision.count);
   const created: import("./instantly.ts").InstantlyIntegrationRecord[] = [];
+  const handoffs: Array<{ canonicalRecordId: string; state: string; created: boolean }> = [];
   for (const record of selected) {
     const [firstName, ...rest] = String(record.contact || "").split(/\s+/);
     const handoff = await executeFinalInstantlyHandoff({ email: record.email || "", campaignId, subject: controlledSubject(record), body: controlledEmail(record), sequenceId: "initial-v1", source: record.sourceUrl }, {
@@ -1019,21 +1031,24 @@ async function handleAutomaticInstantlyDispatch(request: IncomingMessage, respon
     });
     const persisted = { ...instantlyPreviewRecord(record), instantlyCampaignId: campaignId, instantlyLeadId: handoff.externalLeadId, instantlySyncStatus: "IN_CAMPAIGN" as const, messageVersion: "auto-dispatch-v1", controlledBatchId: config.controlledBatchId, failureReason: "", updatedAt: now.toISOString() };
     await saveInstantlyRecord(persisted); created.push(persisted);
+    handoffs.push({ canonicalRecordId: record.id, state: persisted.instantlySyncStatus, created: handoff.created });
   }
   const canaryRecord = canary || created[0];
-  if (canaryRecord) await saveGtmDispatchActivation({ segment, campaignId, configurationFingerprint: fingerprint, canaryRecordId: canary ? canary.canaryRecordId : canaryRecord.id, providerLeadId: canary ? canary.providerLeadId : canaryRecord.instantlyLeadId, acceptedAt: canary ? canary.acceptedAt : now.toISOString(), providerSentAt: canary ? canary.providerSentAt : "", outcome: canary ? canary.outcome : "ACCEPTED", dailyCapacity: 5, lastSuccessfulDispatchAt: now.toISOString(), failureReason: "", stateVersion: (activation?.stateVersion || 0) + 1, updatedAt: now.toISOString() });
-  return json(response, 200, { ...base, handoff: { canonicalRecordId: record.id, state: persisted.instantlySyncStatus, created: handoff.created }, activation: { outcome: next.outcome, stateVersion: next.stateVersion } });
+  const nextActivation = canaryRecord ? { segment, campaignId, configurationFingerprint: fingerprint, canaryRecordId: canary ? canary.canaryRecordId : canaryRecord.id, providerLeadId: canary ? canary.providerLeadId : canaryRecord.instantlyLeadId, acceptedAt: canary ? canary.acceptedAt : now.toISOString(), providerSentAt: canary ? canary.providerSentAt : "", outcome: canary ? canary.outcome : "ACCEPTED" as const, dailyCapacity: segmentDailyLimit, lastSuccessfulDispatchAt: now.toISOString(), failureReason: "", stateVersion: (activation?.stateVersion || 0) + 1, updatedAt: now.toISOString() } : null;
+  if (nextActivation) await saveGtmDispatchActivation(nextActivation);
+  return json(response, 200, { ...base, handoffs, activation: nextActivation ? { outcome: nextActivation.outcome, stateVersion: nextActivation.stateVersion } : null });
 }
 
 /** Scheduler-protected reconciliation uses read-only API polling. Webhooks are
  * optional plan-dependent acceleration, not a correctness dependency. */
 async function reconcileInstantlyPolling() {
-  const health = instantlyHealth();
+  const config = instantlyConfig();
+  const health = instantlyHealth(config);
   if (!health.apiKeyConfigured || !health.integrationEnabled) {
     await saveInstantlyStatus({ ...health, checkedAt: new Date().toISOString(), reconciliation: "API_KEY_NOT_CONFIGURED" });
     return { mode: "PREVIEW_ONLY", health };
   }
-  const client = new InstantlyClient();
+  const client = new InstantlyClient(config);
   const [records, priorStatus] = await Promise.all([readInstantlyRecords(), readInstantlyStatus()]);
   const results = await Promise.allSettled([client.listLeadLists(), client.listCampaigns(), client.listAccounts(), client.listRecentLeads(200), client.listCampaignAnalytics(), client.listRecentEmailEvidence(100)]);
   const [lists, campaigns, accounts, leads, campaignAnalytics, recentEmails] = results.map((result) => result.status === "fulfilled" ? result.value : null);
@@ -1059,6 +1074,32 @@ async function reconcileInstantlyPolling() {
   const recordsByEmail = new Map(records.filter((record) => record.email).map((record) => [record.email.toLowerCase(), record]));
   const transitions: Record<string, number> = {};
   let outcomeRecorded = false;
+  const cleanCampaignSegments = new Map<string, DispatchSegment>();
+  if (health.directCampaignId) cleanCampaignSegments.set(health.directCampaignId, "DIRECT");
+  if (health.partnerCampaignId) cleanCampaignSegments.set(health.partnerCampaignId, "PARTNER");
+  let adoptedCleanMemberships = 0;
+  for (const lead of leadItems) {
+    const providerLeadId = String(lead.id || "");
+    const providerEmail = String(lead.email || "").trim().toLowerCase();
+    const campaignId = instantlyLeadCampaignId(lead);
+    const segment = cleanCampaignSegments.get(campaignId);
+    if (!segment || !providerLeadId || !providerEmail || recordsByLead.has(providerLeadId) || recordsByEmail.has(providerEmail)) continue;
+    const canonical = canonicalByEmail.get(providerEmail);
+    if (!canonical || canonical.segment !== segment) continue;
+    const adoption = adoptMappedInstantlyLead({ canonical, lead, config });
+    if (!adoption) continue;
+    await saveInstantlyRecord(adoption.record);
+    records.push(adoption.record);
+    recordsByLead.set(adoption.record.instantlyLeadId, adoption.record);
+    recordsByEmail.set(adoption.record.email.toLowerCase(), adoption.record);
+    adoptedCleanMemberships++;
+    if (adoption.event) {
+      transitions[adoption.event] = (transitions[adoption.event] || 0) + 1;
+      outcomeRecorded = await saveInstantlyOutcome(adoption.record, adoption.event, `poll:${adoption.record.instantlyLeadId}:${adoption.event}:${adoption.record.lastProviderUpdatedAt || adoption.record.updatedAt}`) || outcomeRecorded;
+    }
+    const suppressionReason = adoption.suppressEmail || instantlyStopReason(adoption.event);
+    if (suppressionReason && adoption.record.email) await recordGtmContactSuppression(adoption.record.email, [suppressionReason], "instantly_clean_membership_adoption");
+  }
   let polledRecords = 0;
   for (const lead of leadItems) {
     const record = recordsByLead.get(String(lead.id || "")) || recordsByEmail.get(String(lead.email || "").toLowerCase());
@@ -1085,7 +1126,7 @@ async function reconcileInstantlyPolling() {
     transitions[transition.event] = (transitions[transition.event] || 0) + 1;
     outcomeRecorded = await saveInstantlyOutcome(transition.record, transition.event, transition.sourceEventId) || outcomeRecorded;
   }
-  const mappedCampaignIds = new Set([health.directCampaignId, health.partnerCampaignId].filter(Boolean));
+  const mappedCampaignIds = new Set([health.directCampaignId, health.partnerCampaignId, config.legacyDirectCampaignId, config.legacyPartnerCampaignId].filter(Boolean));
   const analyticsItems = Array.isArray(campaignAnalytics) ? campaignAnalytics.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object") : instantlyItems(campaignAnalytics);
   const mappedAnalytics = analyticsItems.filter((item) => mappedCampaignIds.has(String(item.campaign_id || item.id || "")));
   const requiredErrors = results.slice(0, 5).flatMap((result, index) => result.status === "rejected" ? [`${["lead_lists", "campaigns", "accounts", "leads", "campaign_analytics"][index]}: ${result.reason instanceof Error ? result.reason.message : "request failed"}`] : []);
@@ -1107,6 +1148,7 @@ async function reconcileInstantlyPolling() {
     matchedCanonicalContacts: matched.length,
     previouslyContactedExcluded: priorContactExcluded,
     duplicatesPrevented: duplicateEmails,
+    adoptedCleanMemberships,
     campaignAnalytics: mappedAnalytics.map((item) => Object.fromEntries(["campaign_id", "campaign_name", "campaign_status", "leads_count", "contacted_count", "emails_sent_count", "reply_count", "reply_count_unique", "reply_count_automatic", "bounced_count", "unsubscribed_count", "completed_count", "total_opportunities"].flatMap((field) => typeof item[field] === "string" || typeof item[field] === "number" || typeof item[field] === "boolean" ? [[field, item[field]]] : []))),
     polledRecords,
     stalePreSendRecords,

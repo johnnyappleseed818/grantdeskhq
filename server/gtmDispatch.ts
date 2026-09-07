@@ -7,9 +7,9 @@ export type DispatchAction = "NOOP" | "RECONCILE" | "STAGE_CANARY" | "DISPATCH";
 export function decideControlledDispatch(input: {
   breakerClosed: boolean; flagsEnabled: boolean; campaignActive: boolean; withinWindow: boolean;
   pendingProviderActivity: boolean; canaryState: DispatchCanaryState; fingerprintMatches: boolean;
-  criticalFailure: boolean; dailyLimit: number; confirmedToday: number; outstanding: number; eligible: number;
+  criticalFailure: boolean; dailyLimit: number; confirmedToday: number; outstanding: number; eligible: number; globalRemaining?: number;
 }) {
-  const base = { remaining: Math.max(0, input.dailyLimit - input.confirmedToday - input.outstanding) };
+  const base = { remaining: Math.max(0, Math.min(input.dailyLimit - input.confirmedToday - input.outstanding, input.globalRemaining ?? Number.POSITIVE_INFINITY)) };
   if (!input.breakerClosed) return { action: "NOOP" as const, reason: "BREAKER_OPEN", count: 0, ...base };
   if (!input.flagsEnabled) return { action: "NOOP" as const, reason: "OUTBOUND_FLAGS_DISABLED", count: 0, ...base };
   if (!input.campaignActive) return { action: "NOOP" as const, reason: "CAMPAIGN_PAUSED", count: 0, ...base };
