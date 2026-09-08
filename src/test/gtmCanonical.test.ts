@@ -29,4 +29,15 @@ describe("canonical GTM model", () => {
    expect(record.sentAt).toBeNull();
    expect(record.blockers).toContain("PROVIDER_SEND_TIMESTAMP_MISSING");
  });
+  it("reconciles a unique same-segment provider send after organization identity normalization", () => {
+    const external = [{ canonicalOrganizationId: "org:legacy-oceanology", email: "lisa@oceanology.org", segment: "DIRECT" as const, instantlySyncStatus: "SENT", firstSentAt: "2026-09-07T13:25:00.000Z" }];
+    const record = buildCanonicalGtmModel({ candidates: [candidate], enrichments: [enrichment("VERIFIED", true)], outreach: [], instantly: external }).records[0];
+    expect(record).toMatchObject({ state: "AWAITING_REPLY", priorContact: true, sentAt: "2026-09-07T13:25:00.000Z" });
+  });
+  it("fails closed for cross-segment or ambiguous provider email matches", () => {
+    const crossSegment = [{ canonicalOrganizationId: "org:legacy-oceanology", email: "lisa@oceanology.org", segment: "PARTNER" as const, instantlySyncStatus: "SENT", firstSentAt: "2026-09-07T13:25:00.000Z" }];
+    const ambiguous = [{ canonicalOrganizationId: "org:legacy-oceanology", email: "lisa@oceanology.org", segment: "DIRECT" as const, instantlySyncStatus: "SENT", firstSentAt: "2026-09-07T13:25:00.000Z" }, { canonicalOrganizationId: "org:older-oceanology", email: "lisa@oceanology.org", segment: "DIRECT" as const, instantlySyncStatus: "SENT", firstSentAt: "2026-09-07T13:26:00.000Z" }];
+    expect(buildCanonicalGtmModel({ candidates: [candidate], enrichments: [enrichment("VERIFIED", true)], outreach: [], instantly: crossSegment }).records[0].state).toBe("READY_TO_SEND");
+    expect(buildCanonicalGtmModel({ candidates: [candidate], enrichments: [enrichment("VERIFIED", true)], outreach: [], instantly: ambiguous }).records[0].state).toBe("READY_TO_SEND");
+  });
 });

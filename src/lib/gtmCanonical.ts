@@ -90,6 +90,7 @@ export interface CanonicalExternalOutreachState {
   canonicalOrganizationId: string;
   email: string;
   instantlySyncStatus: string;
+  segment?: CanonicalSegment;
   firstSentAt?: string;
   replyReceivedAt?: string;
   bounceAt?: string;
@@ -161,11 +162,28 @@ export function buildCanonicalGtmModel(input: {
   }
 
   const externallyManaged = new Map((input.instantly || []).map((record) => [`${record.canonicalOrganizationId}:${record.email.toLowerCase()}`, record]));
+  // A provider record can retain an earlier organization identity after a
+  // source/domain normalization changes the canonical organization key. It is
+  // still the same recipient only when there is exactly one matching external
+  // record for the normalized email and segment. This fallback is deliberately
+  // fail-closed: ambiguous or cross-segment provider history cannot alter a
+  // canonical record or make it eligible for another first touch.
+  const externallyManagedBySegmentEmail = new Map<string, CanonicalExternalOutreachState[]>();
+  for (const external of input.instantly || []) {
+    const email = String(external.email || "").trim().toLowerCase();
+    const segment = external.segment;
+    if (!email || !segment) continue;
+    const key = `${segment}:${email}`;
+    externallyManagedBySegmentEmail.set(key, [...(externallyManagedBySegmentEmail.get(key) || []), external]);
+  }
   const records = [...candidateByIdentity.entries()].map(([organizationId, candidate]) => {
     const enrichment = enrichmentByIdentity.get(organizationId);
     const history = outreachByIdentity.get(organizationId);
     const canonical = toCanonicalRecord(organizationId, candidate, enrichment, history);
-    const external = externallyManaged.get(`${organizationId}:${String(canonical.email || "").toLowerCase()}`);
+    const externalKey = `${organizationId}:${String(canonical.email || "").toLowerCase()}`;
+    const exactExternal = externallyManaged.get(externalKey);
+    const emailMatches = externallyManagedBySegmentEmail.get(`${canonical.segment}:${String(canonical.email || "").toLowerCase()}`) || [];
+    const external = exactExternal || (emailMatches.length === 1 ? emailMatches[0] : undefined);
     return external ? applyExternalCommercialState(canonical, external) : canonical;
   }).sort((left, right) => stateOrder(left.state) - stateOrder(right.state) || (right.lastUpdated || "").localeCompare(left.lastUpdated || "") || left.organization.localeCompare(right.organization));
   const queues = Object.fromEntries(STATES.map((state) => [state, records.filter((record) => record.state === state).map((record) => record.id)])) as CanonicalGtmModel["queues"];
