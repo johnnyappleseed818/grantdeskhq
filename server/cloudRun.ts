@@ -43,7 +43,7 @@ import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type G
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
 import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, cleanInitialOnlyCampaignReady, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantSafeSummary, instantlyItems, instantlyLeadCampaignId, instantlyPreviewRecord, instantlyReconciliationRecordChanged, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "./instantly.ts";
-import { adoptMappedInstantlyLead, canReplaceInstantlyPreview, needsCanonicalInitialSendRecovery, rebindMappedInstantlyRecord } from "./instantly.ts";
+import { adoptMappedInstantlyLead, canReplaceInstantlyPreview, cleanMembershipRebindReason, needsCanonicalInitialSendRecovery, rebindMappedInstantlyRecord } from "./instantly.ts";
 import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from "./outboundIncidentClosure.ts";
 import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
@@ -1078,6 +1078,7 @@ async function reconcileInstantlyPolling() {
   const recordsByEmail = new Map(records.filter((record) => record.email).map((record) => [record.email.toLowerCase(), record]));
   const transitions: Record<string, number> = {};
   let outcomeRecorded = false;
+  const cleanMembershipRebindReasons: Record<string, number> = {};
   const cleanCampaignSegments = new Map<string, DispatchSegment>();
   if (health.directCampaignId) cleanCampaignSegments.set(health.directCampaignId, "DIRECT");
   if (health.partnerCampaignId) cleanCampaignSegments.set(health.partnerCampaignId, "PARTNER");
@@ -1115,6 +1116,8 @@ async function reconcileInstantlyPolling() {
     const transition = reconcileInstantlyLead(record, lead);
     const canonical = canonicalByEmail.get(String(lead.email || "").toLowerCase());
     const reconciledRecord = canonical ? rebindMappedInstantlyRecord({ record: transition.record, canonical, lead, config }) || transition.record : transition.record;
+    const rebindReason = canonical ? cleanMembershipRebindReason({ record: transition.record, canonical, lead, config }) : null;
+    if (rebindReason) cleanMembershipRebindReasons[rebindReason] = (cleanMembershipRebindReasons[rebindReason] || 0) + 1;
     const providerChanged = instantlyReconciliationRecordChanged(record, reconciledRecord);
     if (transition.event || providerChanged) {
       await saveInstantlyRecord(reconciledRecord);
@@ -1171,6 +1174,7 @@ async function reconcileInstantlyPolling() {
     previouslyContactedExcluded: priorContactExcluded,
     duplicatesPrevented: duplicateEmails,
     adoptedCleanMemberships,
+    cleanMembershipRebindReasons,
     campaignAnalytics: mappedAnalytics.map((item) => Object.fromEntries(["campaign_id", "campaign_name", "campaign_status", "leads_count", "contacted_count", "emails_sent_count", "reply_count", "reply_count_unique", "reply_count_automatic", "bounced_count", "unsubscribed_count", "completed_count", "total_opportunities"].flatMap((field) => typeof item[field] === "string" || typeof item[field] === "number" || typeof item[field] === "boolean" ? [[field, item[field]]] : []))),
     polledRecords,
     stalePreSendRecords,

@@ -335,18 +335,28 @@ export function adoptMappedInstantlyLead(input: { canonical: CanonicalGtmRecord;
   return reconcileInstantlyLead(preview, input.lead, now);
 }
 
+export type CleanMembershipRebindReason = "MATCH" | "MISSING_PROVIDER_CAMPAIGN_OR_IDENTITY" | "PROVIDER_EMAIL_MISMATCH" | "PROVIDER_LEAD_ID_MISMATCH" | "CAMPAIGN_MAPPING_MISMATCH" | "LEGACY_CAMPAIGN";
+
+export function cleanMembershipRebindReason(input: { record: InstantlyIntegrationRecord; canonical: CanonicalGtmRecord; lead: Record<string, unknown>; config: InstantlyConfig }): CleanMembershipRebindReason {
+  const campaignId = instantlyLeadCampaignId(input.lead);
+  const providerLeadId = String(input.lead.id || "").trim();
+  const providerEmail = normalizeOutboundEmail(String(input.lead.email || ""));
+  const canonicalEmail = normalizeOutboundEmail(String(input.canonical.email || ""));
+  if (!campaignId || !providerLeadId || !providerEmail || !canonicalEmail) return "MISSING_PROVIDER_CAMPAIGN_OR_IDENTITY";
+  if (providerEmail !== canonicalEmail) return "PROVIDER_EMAIL_MISMATCH";
+  if (input.record.instantlyLeadId !== providerLeadId) return "PROVIDER_LEAD_ID_MISMATCH";
+  if (campaignId !== activeInstantlyCampaignId(input.config, input.canonical.segment)) return "CAMPAIGN_MAPPING_MISMATCH";
+  if (legacyInstantlyCampaignIds(input.config).includes(campaignId)) return "LEGACY_CAMPAIGN";
+  return "MATCH";
+}
+
 /** Rebinds an existing record only when one provider lead is already in the
  * configured Clean campaign and its normalized email exactly identifies the
  * canonical recipient in that segment. This is read-side reconciliation. */
 export function rebindMappedInstantlyRecord(input: { record: InstantlyIntegrationRecord; canonical: CanonicalGtmRecord; lead: Record<string, unknown>; config: InstantlyConfig }) {
   const campaignId = instantlyLeadCampaignId(input.lead);
-  const providerLeadId = String(input.lead.id || "").trim();
-  const providerEmail = normalizeOutboundEmail(String(input.lead.email || ""));
   const canonicalEmail = normalizeOutboundEmail(String(input.canonical.email || ""));
-  if (!campaignId || !providerLeadId || !providerEmail || providerEmail !== canonicalEmail) return null;
-  if (input.record.instantlyLeadId !== providerLeadId) return null;
-  if (campaignId !== activeInstantlyCampaignId(input.config, input.canonical.segment)) return null;
-  if (legacyInstantlyCampaignIds(input.config).includes(campaignId)) return null;
+  if (cleanMembershipRebindReason(input) !== "MATCH") return null;
   return {
     ...input.record,
     canonicalOrganizationId: input.canonical.organizationId,
