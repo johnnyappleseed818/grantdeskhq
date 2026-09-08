@@ -43,7 +43,7 @@ import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type G
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
 import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
-import { adoptMappedInstantlyLead, canReplaceInstantlyPreview } from "./instantly.ts";
+import { adoptMappedInstantlyLead, canReplaceInstantlyPreview, needsCanonicalInitialSendRecovery } from "./instantly.ts";
 import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from "./outboundIncidentClosure.ts";
 import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
@@ -1120,8 +1120,15 @@ async function reconcileInstantlyPolling() {
     const suppressionReason = transition.suppressEmail || instantlyStopReason(transition.event);
     if (suppressionReason && transition.record.email) await recordGtmContactSuppression(transition.record.email, [suppressionReason], "instantly_polling");
   }
-  // The /emails feed is provider-confirmed delivery evidence. It is used only
+  // Repair a prior missed canonical outcome only from persisted provider evidence.
+  for (const record of records) {
+    const canonical = canonicalByEmail.get(record.email.toLowerCase());
+    if (!needsCanonicalInitialSendRecovery(record, canonical, config)) continue;
+    const recovered = await saveInstantlyOutcome(record, "EMAIL_SENT", `recovery:${record.instantlyLeadId}:${record.firstSentAt}`);
+    outcomeRecorded = recovered || outcomeRecorded;
+  }
   // when an event exactly matches a durable handoff record; enrollment alone
+  // The /emails feed is provider-confirmed delivery evidence. It is used only
   // is never treated as a send.
   for (const record of records) {
     const evidence = instantlyItems(recentEmails).find((item) => String(item.lead_id || "") === record.instantlyLeadId && String(item.campaign_id || "") === record.instantlyCampaignId);

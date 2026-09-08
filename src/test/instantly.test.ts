@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "../../server/instantly";
+import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, needsCanonicalInitialSendRecovery, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "../../server/instantly";
 import type { CanonicalGtmRecord } from "../lib/gtmCanonical";
 
 const record: CanonicalGtmRecord = {
@@ -123,6 +123,15 @@ describe("Instantly fail-closed integration", () => {
     expect(canReplaceInstantlyPreview(instantlyPreviewRecord(record))).toBe(true);
     expect(canReplaceInstantlyPreview({ ...instantlyPreviewRecord(record), instantlySyncStatus: "ERROR", instantlyLeadId: "", instantlyCampaignId: "" })).toBe(true);
     expect(canReplaceInstantlyPreview({ ...instantlyPreviewRecord(record), instantlySyncStatus: "IN_CAMPAIGN", instantlyLeadId: "provider_history", instantlyCampaignId: "legacy_direct" })).toBe(false);
+  });
+
+  it("recovers only a missed clean-campaign initial-send outcome from persisted provider evidence", () => {
+    const config = instantlyConfig({ INSTANTLY_DIRECT_CAMPAIGN_ID: "clean_direct", INSTANTLY_PARTNER_CAMPAIGN_ID: "clean_partner" });
+    const confirmed = { ...instantlyPreviewRecord(record), instantlyCampaignId: "clean_direct", instantlyLeadId: "lead_clean", instantlySyncStatus: "SENT" as const, firstSentAt: "2026-09-07T13:25:00.000Z" };
+    expect(needsCanonicalInitialSendRecovery(confirmed, record, config)).toBe(true);
+    expect(needsCanonicalInitialSendRecovery({ ...confirmed, instantlyCampaignId: "legacy_direct" }, record, config)).toBe(false);
+    expect(needsCanonicalInitialSendRecovery(confirmed, { ...record, state: "AWAITING_REPLY" }, config)).toBe(false);
+    expect(needsCanonicalInitialSendRecovery({ ...confirmed, firstSentAt: "" }, record, config)).toBe(false);
   });
 
   it("permits a campaign configuration write only for the exact enabled batch", async () => {

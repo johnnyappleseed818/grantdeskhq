@@ -316,6 +316,15 @@ export function canReplaceInstantlyPreview(record: InstantlyIntegrationRecord | 
   return !record || (!record.instantlyLeadId && !record.instantlyCampaignId && ["PREVIEW_ONLY", "ERROR"].includes(record.instantlySyncStatus));
 }
 
+/** Replays a missed canonical EMAIL_SENT event only from an already persisted,
+ * provider-confirmed first-step timestamp on the configured clean campaign. */
+export function needsCanonicalInitialSendRecovery(record: InstantlyIntegrationRecord, canonical: CanonicalGtmRecord | undefined, config: InstantlyConfig) {
+  return Boolean(
+    canonical && canonical.state === "READY_TO_SEND" && record.firstSentAt
+    && record.instantlyCampaignId === activeInstantlyCampaignId(config, record.segment)
+    && normalizeOutboundEmail(record.email) === normalizeOutboundEmail(canonical.email || "")
+  );
+}
 /** No request can be made until integration is deliberately enabled and keyed. */
 export class InstantlyClient {
   private readonly config: InstantlyConfig;
