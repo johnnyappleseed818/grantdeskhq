@@ -1088,7 +1088,7 @@ async function reconcileInstantlyPolling() {
     const providerEmail = String(lead.email || "").trim().toLowerCase();
     const campaignId = instantlyLeadCampaignId(lead);
     const segment = cleanCampaignSegments.get(campaignId);
-    if (!segment || !providerLeadId || !providerEmail || recordsByLead.has(providerLeadId)) continue;
+    if (!segment || !providerLeadId || !providerEmail) continue;
     const canonical = canonicalByEmail.get(providerEmail);
     if (!canonical || canonical.segment !== segment) continue;
     const existing = recordsByEmail.get(providerEmail);
