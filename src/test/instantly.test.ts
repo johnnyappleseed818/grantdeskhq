@@ -215,11 +215,12 @@ describe("Instantly fail-closed integration", () => {
   });
 
   it("rebinds an existing record only for an exact Clean membership in its canonical segment", () => {
-    const stale = { ...instantlyPreviewRecord(record), canonicalOrganizationId: "org:legacy.example.org", canonicalContactId: "org:legacy.example.org:casey@example.org", instantlyLeadId: "lead_1", instantlyCampaignId: "legacy_direct", instantlySyncStatus: "SENT" as const };
+    const stale = { ...instantlyPreviewRecord(record), canonicalOrganizationId: "org:legacy.example.org", canonicalContactId: "org:legacy.example.org:legacy@example.org", email: "legacy@example.org", instantlyLeadId: "lead_1", instantlyCampaignId: "legacy_direct", instantlySyncStatus: "SENT" as const };
     const config = instantlyConfig({ INSTANTLY_DIRECT_CAMPAIGN_ID: "clean_direct", INSTANTLY_LEGACY_DIRECT_CAMPAIGN_ID: "legacy_direct" });
     const rebound = rebindMappedInstantlyRecord({ record: stale, canonical: record, lead: { id: "lead_1", email: "casey@example.org", campaign: "clean_direct" }, config });
     expect(rebound?.canonicalOrganizationId).toBe(record.organizationId);
     expect(rebound?.instantlyCampaignId).toBe("clean_direct");
+    expect(rebound?.email).toBe("casey@example.org");
     expect(rebindMappedInstantlyRecord({ record: stale, canonical: record, lead: { id: "lead_1", email: "casey@example.org", campaign: "legacy_direct" }, config })).toBeNull();
   });
 
