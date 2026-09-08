@@ -212,8 +212,7 @@ export function instantlyLeadCampaignId(lead: Record<string, unknown>) {
  * existing Clean membership to its canonical recipient without guessing. */
 export function withInstantlyCampaignMembership(lead: Record<string, unknown>, campaignId: string) {
   const resolvedCampaignId = campaignId.trim();
-  if (!resolvedCampaignId || instantlyLeadCampaignId(lead)) return lead;
-  return { ...lead, campaign: resolvedCampaignId };
+  return resolvedCampaignId ? { ...lead, campaign: resolvedCampaignId } : lead;
 }
 
 /** Exposes operational controls needed for a founder-approved batch without

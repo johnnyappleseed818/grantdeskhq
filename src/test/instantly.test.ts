@@ -175,7 +175,7 @@ describe("Instantly fail-closed integration", () => {
 
   it("retains the authoritative campaign scope for campaign-scoped lead listings", () => {
     expect(instantlyLeadCampaignId(withInstantlyCampaignMembership({ id: "lead_1" }, "clean_direct"))).toBe("clean_direct");
-    expect(instantlyLeadCampaignId(withInstantlyCampaignMembership({ id: "lead_1", campaign: "provider_campaign" }, "clean_direct"))).toBe("provider_campaign");
+    expect(instantlyLeadCampaignId(withInstantlyCampaignMembership({ id: "lead_1", campaign: "provider_campaign" }, "clean_direct"))).toBe("clean_direct");
   });
 
   it("summarizes campaign controls without exposing raw provider configuration", () => {
