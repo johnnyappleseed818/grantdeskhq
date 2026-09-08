@@ -43,7 +43,7 @@ import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type G
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
 import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, cleanInitialOnlyCampaignReady, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantSafeSummary, instantlyItems, instantlyLeadCampaignId, instantlyPreviewRecord, instantlyReconciliationRecordChanged, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "./instantly.ts";
-import { adoptMappedInstantlyLead, canReplaceInstantlyPreview, needsCanonicalInitialSendRecovery } from "./instantly.ts";
+import { adoptMappedInstantlyLead, canReplaceInstantlyPreview, needsCanonicalInitialSendRecovery, rebindMappedInstantlyRecord } from "./instantly.ts";
 import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from "./outboundIncidentClosure.ts";
 import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
@@ -1113,20 +1113,22 @@ async function reconcileInstantlyPolling() {
     if (!record) continue;
     polledRecords++;
     const transition = reconcileInstantlyLead(record, lead);
-    const providerChanged = instantlyReconciliationRecordChanged(record, transition.record);
+    const canonical = canonicalByEmail.get(String(lead.email || "").toLowerCase());
+    const reconciledRecord = canonical ? rebindMappedInstantlyRecord({ record: transition.record, canonical, lead, config }) || transition.record : transition.record;
+    const providerChanged = instantlyReconciliationRecordChanged(record, reconciledRecord);
     if (transition.event || providerChanged) {
-      await saveInstantlyRecord(transition.record);
+      await saveInstantlyRecord(reconciledRecord);
       const recordIndex = records.indexOf(record);
-      if (recordIndex >= 0) records[recordIndex] = transition.record;
-      recordsByLead.set(transition.record.instantlyLeadId, transition.record);
-      recordsByEmail.set(transition.record.email.toLowerCase(), transition.record);
+      if (recordIndex >= 0) records[recordIndex] = reconciledRecord;
+      recordsByLead.set(reconciledRecord.instantlyLeadId, reconciledRecord);
+      recordsByEmail.set(reconciledRecord.email.toLowerCase(), reconciledRecord);
     }
     if (transition.event) {
       transitions[transition.event] = (transitions[transition.event] || 0) + 1;
-      outcomeRecorded = await saveInstantlyOutcome(transition.record, transition.event, `poll:${transition.record.instantlyLeadId || transition.record.email}:${transition.event}:${transition.record.lastProviderUpdatedAt || transition.record.updatedAt}`) || outcomeRecorded;
+      outcomeRecorded = await saveInstantlyOutcome(reconciledRecord, transition.event, `poll:${reconciledRecord.instantlyLeadId || reconciledRecord.email}:${transition.event}:${reconciledRecord.lastProviderUpdatedAt || reconciledRecord.updatedAt}`) || outcomeRecorded;
     }
     const suppressionReason = transition.suppressEmail || instantlyStopReason(transition.event);
-    if (suppressionReason && transition.record.email) await recordGtmContactSuppression(transition.record.email, [suppressionReason], "instantly_polling");
+    if (suppressionReason && reconciledRecord.email) await recordGtmContactSuppression(reconciledRecord.email, [suppressionReason], "instantly_polling");
   }
   // Repair a prior missed canonical outcome only from persisted provider evidence.
   for (const record of records) {

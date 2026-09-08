@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, cleanInitialOnlyCampaignReady, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, instantlyReconciliationRecordChanged, needsCanonicalInitialSendRecovery, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "../../server/instantly";
+import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, cleanInitialOnlyCampaignReady, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, instantlyReconciliationRecordChanged, needsCanonicalInitialSendRecovery, normalizeInstantlyWebhook, rebindMappedInstantlyRecord, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "../../server/instantly";
 import type { CanonicalGtmRecord } from "../lib/gtmCanonical";
 
 const record: CanonicalGtmRecord = {
@@ -212,6 +212,15 @@ describe("Instantly fail-closed integration", () => {
     expect(transition.event).toBeNull();
     expect(transition.record.instantlyCampaignId).toBe("clean_direct");
     expect(instantlyReconciliationRecordChanged(stale, transition.record)).toBe(true);
+  });
+
+  it("rebinds an existing record only for an exact Clean membership in its canonical segment", () => {
+    const stale = { ...instantlyPreviewRecord(record), canonicalOrganizationId: "org:legacy.example.org", canonicalContactId: "org:legacy.example.org:casey@example.org", instantlyLeadId: "lead_1", instantlyCampaignId: "legacy_direct", instantlySyncStatus: "SENT" as const };
+    const config = instantlyConfig({ INSTANTLY_DIRECT_CAMPAIGN_ID: "clean_direct", INSTANTLY_LEGACY_DIRECT_CAMPAIGN_ID: "legacy_direct" });
+    const rebound = rebindMappedInstantlyRecord({ record: stale, canonical: record, lead: { id: "lead_1", email: "casey@example.org", campaign: "clean_direct" }, config });
+    expect(rebound?.canonicalOrganizationId).toBe(record.organizationId);
+    expect(rebound?.instantlyCampaignId).toBe("clean_direct");
+    expect(rebindMappedInstantlyRecord({ record: stale, canonical: record, lead: { id: "lead_1", email: "casey@example.org", campaign: "legacy_direct" }, config })).toBeNull();
   });
 
   it("records an exact provider email event when lead-step metadata is unavailable", () => {

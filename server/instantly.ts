@@ -335,6 +335,30 @@ export function adoptMappedInstantlyLead(input: { canonical: CanonicalGtmRecord;
   return reconcileInstantlyLead(preview, input.lead, now);
 }
 
+/** Rebinds an existing record only when one provider lead is already in the
+ * configured Clean campaign and its normalized email exactly identifies the
+ * canonical recipient in that segment. This is read-side reconciliation. */
+export function rebindMappedInstantlyRecord(input: { record: InstantlyIntegrationRecord; canonical: CanonicalGtmRecord; lead: Record<string, unknown>; config: InstantlyConfig }) {
+  const campaignId = instantlyLeadCampaignId(input.lead);
+  const providerLeadId = String(input.lead.id || "").trim();
+  const providerEmail = normalizeOutboundEmail(String(input.lead.email || ""));
+  const canonicalEmail = normalizeOutboundEmail(String(input.canonical.email || ""));
+  if (!campaignId || !providerLeadId || !providerEmail || providerEmail !== canonicalEmail) return null;
+  if (input.record.instantlyLeadId !== providerLeadId || normalizeOutboundEmail(input.record.email) !== canonicalEmail) return null;
+  if (input.canonical.segment !== input.record.segment || campaignId !== activeInstantlyCampaignId(input.config, input.canonical.segment)) return null;
+  if (legacyInstantlyCampaignIds(input.config).includes(campaignId)) return null;
+  return {
+    ...input.record,
+    canonicalOrganizationId: input.canonical.organizationId,
+    canonicalContactId: `${input.canonical.organizationId}:${canonicalEmail}`,
+    organization: input.canonical.organization,
+    contact: input.canonical.contact || input.record.contact,
+    email: canonicalEmail,
+    segment: input.canonical.segment,
+    instantlyCampaignId: campaignId
+  };
+}
+
 /** A provider membership may replace only a local preview that never had a
  * provider identity. Historical or active records remain immutable evidence. */
 export function canReplaceInstantlyPreview(record: InstantlyIntegrationRecord | undefined) {
@@ -555,6 +579,10 @@ export function reconcileInstantlyLead(record: InstantlyIntegrationRecord, lead:
 export function instantlyReconciliationRecordChanged(previous: InstantlyIntegrationRecord, next: InstantlyIntegrationRecord) {
   return previous.instantlyLeadId !== next.instantlyLeadId
     || previous.instantlyCampaignId !== next.instantlyCampaignId
+    || previous.canonicalOrganizationId !== next.canonicalOrganizationId
+    || previous.canonicalContactId !== next.canonicalContactId
+    || previous.organization !== next.organization
+    || previous.segment !== next.segment
     || previous.instantlySyncStatus !== next.instantlySyncStatus
     || previous.firstSentAt !== next.firstSentAt
     || previous.lastSentAt !== next.lastSentAt
