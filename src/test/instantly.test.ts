@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, cleanInitialOnlyCampaignReady, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, needsCanonicalInitialSendRecovery, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "../../server/instantly";
+import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, cleanInitialOnlyCampaignReady, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, instantlyReconciliationRecordChanged, needsCanonicalInitialSendRecovery, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "../../server/instantly";
 import type { CanonicalGtmRecord } from "../lib/gtmCanonical";
 
 const record: CanonicalGtmRecord = {
@@ -189,8 +189,8 @@ describe("Instantly fail-closed integration", () => {
     expect(cleanInitialOnlyCampaignReady({ ...clean, sequences: [{ steps: [...clean.sequences[0].steps, { type: "email", variants: [{ subject: "Follow up", body: "x", v_disabled: false }] }] }] }, "eli.katz@grantdeskhq.com", 10)).toBe(false);
   });
 
-    const health = instantlyHealth(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true", INSTANTLY_API_KEY: "configured", INSTANTLY_EVENT_SYNC_MODE: "polling" }));
   it("treats polling as healthy when webhooks are unavailable on the plan", () => {
+    const health = instantlyHealth(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true", INSTANTLY_API_KEY: "configured", INSTANTLY_EVENT_SYNC_MODE: "polling" }));
     expect(health.eventSyncMode).toBe("POLLING");
     expect(health.webhookSubscription).toBe("NOT_AVAILABLE_ON_CURRENT_PLAN_OPTIONAL");
     expect(health.status).toBe("CONFIGURED");
@@ -204,6 +204,14 @@ describe("Instantly fail-closed integration", () => {
     expect(sent.record.firstSentAt).toBe("2026-08-23T09:59:00.000Z");
     expect(sent.record.sentAtSource).toBe("INSTANTLY_LEAD_LAST_STEP_TIMESTAMP");
     expect(reconcileInstantlyLead(sent.record, lead, "2026-08-23T10:02:00.000Z").event).toBeNull();
+  });
+
+  it("persists a provider-confirmed Clean campaign remap even when its timestamp is unchanged", () => {
+    const stale = { ...instantlyPreviewRecord(record), instantlyLeadId: "lead_1", instantlyCampaignId: "legacy_direct", instantlySyncStatus: "SENT" as const, firstSentAt: "2026-08-23T09:59:00.000Z", lastProviderUpdatedAt: "2026-08-23T10:00:00.000Z" };
+    const transition = reconcileInstantlyLead(stale, { id: "lead_1", campaign: "clean_direct", status: 3, email_reply_count: 0, timestamp_updated: "2026-08-23T10:00:00.000Z" }, "2026-08-23T10:02:00.000Z");
+    expect(transition.event).toBeNull();
+    expect(transition.record.instantlyCampaignId).toBe("clean_direct");
+    expect(instantlyReconciliationRecordChanged(stale, transition.record)).toBe(true);
   });
 
   it("records an exact provider email event when lead-step metadata is unavailable", () => {

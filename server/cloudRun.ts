@@ -42,7 +42,7 @@ import { boundedEnrichmentLimit, GTM_INVENTORY_POLICY, inventoryDecision, social
 import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type GtmOutcomeEvent, type GtmOutcomeType, type OpportunityClusterStatus } from "../src/lib/gtmOpportunityEngine.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
-import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, cleanInitialOnlyCampaignReady, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "./instantly.ts";
+import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, cleanInitialOnlyCampaignReady, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantSafeSummary, instantlyItems, instantlyLeadCampaignId, instantlyPreviewRecord, instantlyReconciliationRecordChanged, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "./instantly.ts";
 import { adoptMappedInstantlyLead, canReplaceInstantlyPreview, needsCanonicalInitialSendRecovery } from "./instantly.ts";
 import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from "./outboundIncidentClosure.ts";
@@ -1113,8 +1113,14 @@ async function reconcileInstantlyPolling() {
     if (!record) continue;
     polledRecords++;
     const transition = reconcileInstantlyLead(record, lead);
-    const providerChanged = transition.record.lastProviderUpdatedAt !== record.lastProviderUpdatedAt;
-    if (transition.event || providerChanged) await saveInstantlyRecord(transition.record);
+    const providerChanged = instantlyReconciliationRecordChanged(record, transition.record);
+    if (transition.event || providerChanged) {
+      await saveInstantlyRecord(transition.record);
+      const recordIndex = records.indexOf(record);
+      if (recordIndex >= 0) records[recordIndex] = transition.record;
+      recordsByLead.set(transition.record.instantlyLeadId, transition.record);
+      recordsByEmail.set(transition.record.email.toLowerCase(), transition.record);
+    }
     if (transition.event) {
       transitions[transition.event] = (transitions[transition.event] || 0) + 1;
       outcomeRecorded = await saveInstantlyOutcome(transition.record, transition.event, `poll:${transition.record.instantlyLeadId || transition.record.email}:${transition.event}:${transition.record.lastProviderUpdatedAt || transition.record.updatedAt}`) || outcomeRecorded;

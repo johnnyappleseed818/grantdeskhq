@@ -549,6 +549,23 @@ export function reconcileInstantlyLead(record: InstantlyIntegrationRecord, lead:
   return { record: base, event: null, suppressEmail: null };
 }
 
+/** Persist provider identity and outcome fields even when Instantly returns an
+ * unchanged timestamp. Campaign-scoped reconciliation can correct a stale
+ * local campaign mapping without manufacturing a provider event. */
+export function instantlyReconciliationRecordChanged(previous: InstantlyIntegrationRecord, next: InstantlyIntegrationRecord) {
+  return previous.instantlyLeadId !== next.instantlyLeadId
+    || previous.instantlyCampaignId !== next.instantlyCampaignId
+    || previous.instantlySyncStatus !== next.instantlySyncStatus
+    || previous.firstSentAt !== next.firstSentAt
+    || previous.lastSentAt !== next.lastSentAt
+    || previous.replyReceivedAt !== next.replyReceivedAt
+    || previous.bounceAt !== next.bounceAt
+    || previous.unsubscribeAt !== next.unsubscribeAt
+    || previous.lastProviderUpdatedAt !== next.lastProviderUpdatedAt
+    || previous.lastKnownLeadStatus !== next.lastKnownLeadStatus
+    || previous.lastCampaignStepAt !== next.lastCampaignStepAt;
+}
+
 export function instantlyItems(value: unknown): Array<Record<string, unknown>> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return [];
   const items = (value as Record<string, unknown>).items;
