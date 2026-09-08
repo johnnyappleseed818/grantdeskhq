@@ -577,7 +577,7 @@ export function reconcileInstantlyLead(record: InstantlyIntegrationRecord, lead:
     if (interest === 0) return { record: event("OUT_OF_OFFICE", providerUpdatedAt || now), event: "OUT_OF_OFFICE", suppressEmail: null };
   }
   if (replyCount > (record.lastKnownReplyCount || 0)) return { record: event("REPLY_RECEIVED", providerUpdatedAt || now), event: "REPLY_RECEIVED", suppressEmail: null };
-  if (!record.firstSentAt && campaignId && stepAt && stepFrom.toLowerCase() === "campaign") return { record: { ...event("EMAIL_SENT", stepAt), sentAtSource: "INSTANTLY_LEAD_LAST_STEP_TIMESTAMP" }, event: "EMAIL_SENT", suppressEmail: null };
+  if (!record.firstSentAt && campaignId && stepAt && stepFrom) return { record: { ...event("EMAIL_SENT", stepAt), sentAtSource: "INSTANTLY_LEAD_LAST_STEP_TIMESTAMP" }, event: "EMAIL_SENT", suppressEmail: null };
   if (providerStatus === 3 && replyCount === 0 && !record.replyReceivedAt && !record.firstSentAt) return { record: event("SEQUENCE_COMPLETED", providerUpdatedAt || now), event: "SEQUENCE_COMPLETED", suppressEmail: null };
   return { record: base, event: null, suppressEmail: null };
 }

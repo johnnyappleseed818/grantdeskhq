@@ -112,7 +112,7 @@ describe("Instantly fail-closed integration", () => {
 
   it("adopts only matching clean memberships and preserves first-step provider evidence", () => {
     const config = instantlyConfig({ INSTANTLY_DIRECT_CAMPAIGN_ID: "clean_direct", INSTANTLY_PARTNER_CAMPAIGN_ID: "clean_partner", INSTANTLY_LEGACY_DIRECT_CAMPAIGN_ID: "legacy_direct" });
-    const adopted = adoptMappedInstantlyLead({ canonical: record, config, now: "2026-09-07T13:30:00.000Z", lead: { id: "lead_clean", email: record.email, campaign: "clean_direct", status: 3, last_step_from: "campaign", last_step_timestamp_executed: "2026-09-07T13:25:00.000Z", timestamp_updated: "2026-09-07T13:25:01.000Z" } });
+    const adopted = adoptMappedInstantlyLead({ canonical: record, config, now: "2026-09-07T13:30:00.000Z", lead: { id: "lead_clean", email: record.email, campaign: "clean_direct", status: 3, last_step_from: "sender@example.com", last_step_timestamp_executed: "2026-09-07T13:25:00.000Z", timestamp_updated: "2026-09-07T13:25:01.000Z" } });
     expect(adopted).toMatchObject({ event: "EMAIL_SENT", record: { instantlyLeadId: "lead_clean", instantlyCampaignId: "clean_direct", instantlySyncStatus: "SENT", firstSentAt: "2026-09-07T13:25:00.000Z" } });
     expect(adoptMappedInstantlyLead({ canonical: record, config, lead: { id: "legacy", email: record.email, campaign: "legacy_direct" } })).toBeNull();
     expect(adoptMappedInstantlyLead({ canonical: { ...record, segment: "PARTNER" }, config, lead: { id: "wrong_segment", email: record.email, campaign: "clean_direct" } })).toBeNull();
