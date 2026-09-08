@@ -345,7 +345,7 @@ export function rebindMappedInstantlyRecord(input: { record: InstantlyIntegratio
   const canonicalEmail = normalizeOutboundEmail(String(input.canonical.email || ""));
   if (!campaignId || !providerLeadId || !providerEmail || providerEmail !== canonicalEmail) return null;
   if (input.record.instantlyLeadId !== providerLeadId) return null;
-  if (input.canonical.segment !== input.record.segment || campaignId !== activeInstantlyCampaignId(input.config, input.canonical.segment)) return null;
+  if (campaignId !== activeInstantlyCampaignId(input.config, input.canonical.segment)) return null;
   if (legacyInstantlyCampaignIds(input.config).includes(campaignId)) return null;
   return {
     ...input.record,
