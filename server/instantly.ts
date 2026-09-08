@@ -207,6 +207,15 @@ export function instantlyLeadCampaignId(lead: Record<string, unknown>) {
   return "";
 }
 
+/** Campaign-scoped lead listings do not consistently repeat the campaign id.
+ * Preserve the authoritative request scope so reconciliation can bind an
+ * existing Clean membership to its canonical recipient without guessing. */
+export function withInstantlyCampaignMembership(lead: Record<string, unknown>, campaignId: string) {
+  const resolvedCampaignId = campaignId.trim();
+  if (!resolvedCampaignId || instantlyLeadCampaignId(lead)) return lead;
+  return { ...lead, campaign: resolvedCampaignId };
+}
+
 /** Exposes operational controls needed for a founder-approved batch without
  * returning provider tokens, raw account data, or unrelated configuration. */
 export function controlledCampaignSafetySummary(campaign: Record<string, unknown>) {
@@ -223,6 +232,22 @@ export function controlledCampaignSafetySummary(campaign: Record<string, unknown
     dailyLimit: campaign.daily_limit ?? null, dailyMaxLeads: campaign.daily_max_leads ?? null,
     firstEmailVariants: variants.map((variant) => ({ subject: text(variant.subject), body: text(variant.body), disabled: variant.v_disabled === true }))
   };
+}
+
+/** Clean campaigns intentionally have a single enabled initial email. Their
+ * readiness is distinct from the retired three-step controlled cohort. */
+export function cleanInitialOnlyCampaignReady(campaign: Record<string, unknown>, sender: string, dailyMaxLeads: number, allowedStatuses = [1]) {
+  const summary = controlledCampaignSafetySummary(campaign);
+  const sequence = Array.isArray(campaign.sequences) ? campaign.sequences[0] : null;
+  const steps = sequence && typeof sequence === "object" && Array.isArray((sequence as Record<string, unknown>).steps) ? (sequence as Record<string, unknown>).steps as Array<Record<string, unknown>> : [];
+  const emailSteps = steps.filter((step) => step.type === "email");
+  const enabledEmailSteps = emailSteps.filter((step) => Array.isArray(step.variants) && (step.variants as Array<Record<string, unknown>>).some((variant) => variant.v_disabled !== true));
+  const first = summary.firstEmailVariants.find((variant) => !variant.disabled);
+  const validInitial = Boolean(first?.subject.trim() && first.body.trim() && first.body.includes("https://grantdeskhq.com/assessment") && first.body.toLowerCase().includes("free"));
+  return allowedStatuses.includes(Number(summary.status)) && campaignUsesOnlySender(campaign, sender)
+    && summary.stopOnReply && summary.stopOnAutoReply && summary.bounceProtectionEnabled
+    && !summary.openTracking && !summary.linkTracking && Number(summary.dailyMaxLeads) === dailyMaxLeads
+    && emailSteps.length === 1 && enabledEmailSteps.length === 1 && validInitial;
 }
 
 export function instantlyHealth(config = instantlyConfig()) {

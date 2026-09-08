@@ -42,7 +42,7 @@ import { boundedEnrichmentLimit, GTM_INVENTORY_POLICY, inventoryDecision, social
 import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type GtmOutcomeEvent, type GtmOutcomeType, type OpportunityClusterStatus } from "../src/lib/gtmOpportunityEngine.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
-import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "./instantly.ts";
+import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, cleanInitialOnlyCampaignReady, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyItems, instantSafeSummary, instantlyLeadCampaignId, instantlyPreviewRecord, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "./instantly.ts";
 import { adoptMappedInstantlyLead, canReplaceInstantlyPreview, needsCanonicalInitialSendRecovery } from "./instantly.ts";
 import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from "./outboundIncidentClosure.ts";
@@ -1015,7 +1015,7 @@ async function handleAutomaticInstantlyDispatch(request: IncomingMessage, respon
   const localEligible = model.records.filter((record) => record.segment === segment && record.state === "READY_TO_SEND" && Boolean(record.email && record.contact) && !record.priorContact && record.suppressionStatus === "CLEAR" && stagingEligibility(record, outreach, config).eligible);
   const suppression = await Promise.all(localEligible.map(async (record) => [record.id, await readGtmContactSuppression(record.email || "")] as const));
   const eligible = localEligible.filter((record) => new Map(suppression).get(record.id)?.status === "CLEAR" && !segmentRecords.some((existing) => existing.email.toLowerCase() === String(record.email).toLowerCase()));
-  const decision = decideControlledDispatch({ breakerClosed: Boolean(circuit && !circuit.tripped), flagsEnabled, campaignActive: Boolean(campaign && !campaignMappedToLegacy && Number(campaign.status) === 1 && controlledCampaignReady(campaign, "eli.katz@grantdeskhq.com", [1])), withinWindow, pendingProviderActivity: outstanding.length > 0, canaryState, fingerprintMatches: !activation || activation.configurationFingerprint === fingerprint, criticalFailure: segmentRecords.some((record) => ["BOUNCED", "UNSUBSCRIBED"].includes(record.instantlySyncStatus)), dailyLimit: segmentDailyLimit, confirmedToday: sentToday, outstanding: outstanding.length, eligible: eligible.length, globalRemaining });
+  const decision = decideControlledDispatch({ breakerClosed: Boolean(circuit && !circuit.tripped), flagsEnabled, campaignActive: Boolean(campaign && !campaignMappedToLegacy && cleanInitialOnlyCampaignReady(campaign, "eli.katz@grantdeskhq.com", segmentDailyLimit, [1])), withinWindow, pendingProviderActivity: outstanding.length > 0, canaryState, fingerprintMatches: !activation || activation.configurationFingerprint === fingerprint, criticalFailure: segmentRecords.some((record) => ["BOUNCED", "UNSUBSCRIBED"].includes(record.instantlySyncStatus)), dailyLimit: segmentDailyLimit, confirmedToday: sentToday, outstanding: outstanding.length, eligible: eligible.length, globalRemaining });
   const base = { mode: "AUTO", segment, decision, campaign: campaignSummary, eligible: eligible.length, outstanding: outstanding.length, sentToday, globalSentToday, globalOutstanding, globalRemaining, segmentDailyLimit };
   if (canary && !knownCanary) await saveGtmDispatchActivation(canary);
   if (!client || !campaign || decision.action === "NOOP" || decision.action === "RECONCILE") return json(response, 200, base);
@@ -1054,7 +1054,9 @@ async function reconcileInstantlyPolling() {
   const [lists, campaigns, accounts, leads, campaignAnalytics, recentEmails] = results.map((result) => result.status === "fulfilled" ? result.value : null);
   const model = await readCanonicalGtmModel();
   const cleanMemberships = await Promise.allSettled([health.directCampaignId ? client.listLeadsInCampaign(health.directCampaignId) : Promise.resolve({ items: [] }), health.partnerCampaignId ? client.listLeadsInCampaign(health.partnerCampaignId) : Promise.resolve({ items: [] })]);
-  const cleanProviderLeads = cleanMemberships.flatMap((result) => result.status === "fulfilled" ? instantlyItems(result.value) : []);
+  const cleanProviderLeads = cleanMemberships.flatMap((result, index) => result.status === "fulfilled"
+    ? instantlyItems(result.value).map((lead) => withInstantlyCampaignMembership(lead, index === 0 ? health.directCampaignId : health.partnerCampaignId))
+    : []);
   const leadItems = [...new Map([...instantlyItems(leads), ...cleanProviderLeads].map((lead) => [String(lead.id || ""), lead])).values()].filter((lead) => Boolean(String(lead.id || "")));
   // Only a complete provider lead read may invalidate a persisted pre-send
   // membership. This repairs interrupted/stale handoffs without ever clearing

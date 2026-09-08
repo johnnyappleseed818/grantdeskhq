@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, needsCanonicalInitialSendRecovery, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken } from "../../server/instantly";
+import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, cleanInitialOnlyCampaignReady, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, needsCanonicalInitialSendRecovery, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "../../server/instantly";
 import type { CanonicalGtmRecord } from "../lib/gtmCanonical";
 
 const record: CanonicalGtmRecord = {
@@ -173,12 +173,24 @@ describe("Instantly fail-closed integration", () => {
     expect(instantlyLeadCampaignId({ campaign: null })).toBe("");
   });
 
+  it("retains the authoritative campaign scope for campaign-scoped lead listings", () => {
+    expect(instantlyLeadCampaignId(withInstantlyCampaignMembership({ id: "lead_1" }, "clean_direct"))).toBe("clean_direct");
+    expect(instantlyLeadCampaignId(withInstantlyCampaignMembership({ id: "lead_1", campaign: "provider_campaign" }, "clean_direct"))).toBe("provider_campaign");
+  });
+
   it("summarizes campaign controls without exposing raw provider configuration", () => {
     expect(controlledCampaignSafetySummary({ id: "campaign_1", name: "Direct", status: 0, email_list: ["eli.katz@grantdeskhq.com"], stop_on_reply: true, disable_bounce_protect: false, open_tracking: false, link_tracking: false, sequences: [{ steps: [{ type: "email", variants: [{ subject: "Less manual work", body: "Hi {{firstName}}" }] }] }] })).toMatchObject({ senders: ["eli.katz@grantdeskhq.com"], stopOnReply: true, bounceProtectionEnabled: true, openTracking: false, linkTracking: false, firstEmailVariants: [{ subject: "Less manual work", body: "Hi {{firstName}}" }] });
   });
 
-  it("treats polling as healthy when webhooks are unavailable on the plan", () => {
+  it("accepts only the one-step Clean campaign safety shape at its segment capacity", () => {
+    const clean = { id: "clean_direct", status: 1, email_list: ["eli.katz@grantdeskhq.com"], stop_on_reply: true, stop_on_auto_reply: true, disable_bounce_protect: false, open_tracking: false, link_tracking: false, daily_max_leads: 10, sequences: [{ steps: [{ type: "email", variants: [{ subject: "Less manual work", body: "Try one award for free: https://grantdeskhq.com/assessment", v_disabled: false }] }] }] };
+    expect(cleanInitialOnlyCampaignReady(clean, "eli.katz@grantdeskhq.com", 10)).toBe(true);
+    expect(cleanInitialOnlyCampaignReady({ ...clean, daily_max_leads: 5 }, "eli.katz@grantdeskhq.com", 10)).toBe(false);
+    expect(cleanInitialOnlyCampaignReady({ ...clean, sequences: [{ steps: [...clean.sequences[0].steps, { type: "email", variants: [{ subject: "Follow up", body: "x", v_disabled: false }] }] }] }, "eli.katz@grantdeskhq.com", 10)).toBe(false);
+  });
+
     const health = instantlyHealth(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true", INSTANTLY_API_KEY: "configured", INSTANTLY_EVENT_SYNC_MODE: "polling" }));
+  it("treats polling as healthy when webhooks are unavailable on the plan", () => {
     expect(health.eventSyncMode).toBe("POLLING");
     expect(health.webhookSubscription).toBe("NOT_AVAILABLE_ON_CURRENT_PLAN_OPTIONAL");
     expect(health.status).toBe("CONFIGURED");
