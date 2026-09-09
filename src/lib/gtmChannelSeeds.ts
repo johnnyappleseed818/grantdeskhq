@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { GtmOpportunity } from "./gtm.ts";
+import type { DailySocialSignal, GtmOpportunity } from "./gtm.ts";
 import type { PartnerDiscoveryOpportunity } from "../../server/gtmPartnerDiscovery.ts";
 import type { CanonicalGtmCandidate, CanonicalSegment } from "./gtmCanonical.ts";
 
@@ -111,6 +111,52 @@ export interface ScannerLeadFeedRecord {
   source_confidence?: string | null;
   unresolved_fields?: string | null;
   [key: string]: unknown;
+}
+
+export interface ScannerSocialResearchRecord {
+  source_record_key: string;
+  platform?: string | null;
+  source_url?: string | null;
+  published_at?: string | null;
+  observed_at?: string | null;
+  evidence_excerpt?: string | null;
+  pain_category?: string | null;
+  fit_rationale?: string | null;
+  attribution_status?: string | null;
+  next_action?: string | null;
+  organization_name?: string | null;
+  organization_domain?: string | null;
+}
+
+/** Anonymous scanner research remains visible but cannot create an outbound seed. */
+export function scannerSocialResearchToSignals(input: { batchId: string; records: readonly ScannerSocialResearchRecord[]; observedAt?: string }) {
+  const observedAt = input.observedAt || new Date().toISOString();
+  const accepted: DailySocialSignal[] = [];
+  const rejected: Array<{ sourceRecordKey: string; reason: string }> = [];
+  const seen = new Set<string>();
+  for (const raw of input.records) {
+    const sourceRecordKey = typeof raw.source_record_key === "string" ? raw.source_record_key.trim() : "";
+    const url = typeof raw.source_url === "string" ? raw.source_url.trim() : "";
+    const platform = String(raw.platform || "").trim().toLowerCase();
+    if (!sourceRecordKey || !url || platform !== "reddit" || !isSafePublicSourceUrl(url) || !/^https:\/\/(?:www\.)?reddit\.com\/r\/[^/]+\/comments\//i.test(url)) {
+      rejected.push({ sourceRecordKey, reason: "MALFORMED_OR_UNSAFE_SOCIAL_RESEARCH" });
+      continue;
+    }
+    const id = `scanner-social-${createHash("sha256").update(`${input.batchId}:${sourceRecordKey}:${url}`).digest("hex").slice(0, 18)}`;
+    if (seen.has(id)) { rejected.push({ sourceRecordKey, reason: "DUPLICATE_SOCIAL_SOURCE_RECORD" }); continue; }
+    seen.add(id);
+    const pain = scannerText(raw.pain_category, "Post-award reporting research");
+    const evidence = scannerText(raw.evidence_excerpt, "Older anonymous public research evidence.");
+    accepted.push({
+      id, platform: "reddit", title: `Historical Reddit research: ${pain}`.slice(0, 180), url,
+      author: "anonymous", publishedAt: scannerText(raw.published_at, "unknown"), observedAt: scannerText(raw.observed_at, observedAt),
+      evidenceSummary: evidence, observedPain: pain, painThemes: [pain],
+      whyRelevant: scannerText(raw.fit_rationale, "Older anonymous research evidence only; no organization or buyer is identified."),
+      suggestedResponse: "RESEARCH_ONLY — preserve for content and product research; do not contact or engage this anonymous author.",
+      status: "SKIPPED"
+    });
+  }
+  return { accepted, rejected };
 }
 
 /** Scanner exports are untrusted discovery data. They never advance to enrichment or READY. */

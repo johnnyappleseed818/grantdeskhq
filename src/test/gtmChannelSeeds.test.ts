@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { channelSeedManifest, channelSeedToCanonicalCandidate, discoveredOpportunityToChannelSeed, scannerLeadFeedToChannelSeeds } from "../lib/gtmChannelSeeds.ts";
+import { channelSeedManifest, channelSeedToCanonicalCandidate, discoveredOpportunityToChannelSeed, scannerLeadFeedToChannelSeeds, scannerSocialResearchToSignals } from "../lib/gtmChannelSeeds.ts";
 
 describe("2026-08-28 channel seed import", () => {
   it("creates exactly 30 deterministic organization-only seeds", () => {
@@ -47,3 +47,12 @@ describe("2026-08-28 channel seed import", () => {
     expect(parsed.rejected).toEqual([{ sourceRecordKey: "bad", reason: "NO_SAFE_SOURCE_URL" }]);
   });
 
+
+it("keeps anonymous scanner Reddit evidence out of contact discovery", () => {
+  const result = scannerSocialResearchToSignals({ batchId: "grantdeskhq-social-research-2026-09-09", observedAt: "2026-09-09T08:08:20.000Z", records: [
+    { source_record_key: "reddit|one", platform: "Reddit", source_url: "https://www.reddit.com/r/nonprofit/comments/abc123/post", pain_category: "Grant tracking spreadsheets", evidence_excerpt: "Older discussion", organization_name: null }
+  ] });
+  expect(result.rejected).toEqual([]);
+  expect(result.accepted[0]).toMatchObject({ platform: "reddit", author: "anonymous", status: "SKIPPED", publishedAt: "unknown" });
+  expect(result.accepted[0]?.suggestedResponse).toContain("RESEARCH_ONLY");
+});

@@ -522,10 +522,13 @@ export async function saveGtmDailyScan(scan: DailySocialScan, options: { preserv
   const prior = await readGtmDailyScan();
   const priorStatus = new Map((prior?.items || []).map((item) => [item.id, item.status]));
   const preservePriorReviewState = options.preservePriorReviewState !== false;
+  const currentIds = new Set(scan.items.map((item) => item.id));
+  const retainedResearch = (prior?.items || []).filter((item) => item.id.startsWith("scanner-social-") && !currentIds.has(item.id));
+  const items = [...scan.items, ...retainedResearch];
   const merged: DailySocialScan = {
     ...scan,
-    items: scan.items.map((item) => ({ ...item, status: preservePriorReviewState ? (priorStatus.get(item.id) || item.status) : item.status })),
-    itemsRespondedSkipped: scan.items.filter((item) => ["RESPONDED", "SKIPPED"].includes((preservePriorReviewState ? priorStatus.get(item.id) : item.status) || "")).length
+    items: items.map((item) => ({ ...item, status: preservePriorReviewState ? (priorStatus.get(item.id) || item.status) : item.status })),
+    itemsRespondedSkipped: items.filter((item) => ["RESPONDED", "SKIPPED"].includes((preservePriorReviewState ? priorStatus.get(item.id) : item.status) || "")).length
   };
   const accessToken = await gcpToken();
   await writeDocument(accessToken, "gtm/daily-social", {
@@ -817,6 +820,7 @@ export interface GtmScannerImportReceipt {
   id: string;
   batchId: string;
   sourceFileId: string;
+  socialEvidenceAdded?: number;
   contentHash: string;
   processedAt: string;
   accepted: number;
