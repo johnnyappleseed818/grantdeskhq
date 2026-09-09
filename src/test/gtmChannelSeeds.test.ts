@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { safeDriveError } from "../../server/scannerDriveImport.ts";
 import { channelSeedManifest, channelSeedToCanonicalCandidate, discoveredOpportunityToChannelSeed, scannerLeadFeedToChannelSeeds, scannerSocialResearchToSignals } from "../lib/gtmChannelSeeds.ts";
 
 describe("2026-08-28 channel seed import", () => {
@@ -55,4 +56,9 @@ it("keeps anonymous scanner Reddit evidence out of contact discovery", () => {
   expect(result.rejected).toEqual([]);
   expect(result.accepted[0]).toMatchObject({ platform: "reddit", author: "anonymous", status: "SKIPPED", publishedAt: "unknown" });
   expect(result.accepted[0]?.suggestedResponse).toContain("RESEARCH_ONLY");
+});
+
+it("redacts Google Drive API errors to stable classification fields", () => {
+  expect(safeDriveError("metadata request", 403, { error: { status: "PERMISSION_DENIED", errors: [{ reason: "insufficientFilePermissions" }] } })).toBe("Google Drive metadata request failed (403; PERMISSION_DENIED; insufficientFilePermissions).");
+  expect(safeDriveError("metadata request", 403, { error: { message: "private detail" } })).not.toContain("private detail");
 });
