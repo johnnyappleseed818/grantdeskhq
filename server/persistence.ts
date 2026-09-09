@@ -813,6 +813,32 @@ export async function saveGtmInventoryAutopilot(snapshot: InventoryAutopilotSnap
   return snapshot;
 }
 
+export interface GtmScannerImportReceipt {
+  id: string;
+  batchId: string;
+  sourceFileId: string;
+  contentHash: string;
+  processedAt: string;
+  accepted: number;
+  duplicate: number;
+  rejected: number;
+  pending: number;
+  canonicalRecordIds: string[];
+  errors: Array<{ sourceRecordKey: string; reason: string }>;
+}
+
+export async function readGtmScannerImportReceipt(id: string): Promise<GtmScannerImportReceipt | null> {
+  const response = await authorizedFetch(`${firestoreBase}/gtm/scanner-imports/records/${safeDocumentId(id)}`, await gcpToken());
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`GTM scanner import receipt could not be loaded (${response.status}).`);
+  const value = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}).receiptJson;
+  try { return value ? JSON.parse(String(value)) as GtmScannerImportReceipt : null; } catch { return null; }
+}
+
+export async function saveGtmScannerImportReceipt(receipt: GtmScannerImportReceipt) {
+  await writeDocument(await gcpToken(), `gtm/scanner-imports/records/${safeDocumentId(receipt.id)}`, { batchId: receipt.batchId, sourceFileId: receipt.sourceFileId, contentHash: receipt.contentHash, processedAt: receipt.processedAt, accepted: receipt.accepted, duplicate: receipt.duplicate, rejected: receipt.rejected, pending: receipt.pending, receiptJson: JSON.stringify(receipt) });
+  return receipt;
+}
 export async function readGtmInventoryAutopilot(): Promise<InventoryAutopilotSnapshot | null> {
   const response = await authorizedFetch(`${firestoreBase}/gtm/inventory-autopilot`, await gcpToken());
   if (response.status === 404) return null;

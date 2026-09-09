@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, cleanInitialOnlyCampaignReady, cleanMembershipRebindReason, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, instantlyReconciliationRecordChanged, needsCanonicalInitialSendRecovery, normalizeInstantlyWebhook, rebindMappedInstantlyRecord, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "../../server/instantly";
+import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, cleanInitialOnlyCampaignReady, cleanMembershipEvidenceId, cleanMembershipRebindReason, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, instantlyReconciliationRecordChanged, needsCanonicalInitialSendRecovery, normalizeInstantlyWebhook, rebindMappedInstantlyRecord, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "../../server/instantly";
 import type { CanonicalGtmRecord } from "../lib/gtmCanonical";
 
 const record: CanonicalGtmRecord = {
@@ -123,6 +123,16 @@ describe("Instantly fail-closed integration", () => {
     expect(canReplaceInstantlyPreview(instantlyPreviewRecord(record))).toBe(true);
     expect(canReplaceInstantlyPreview({ ...instantlyPreviewRecord(record), instantlySyncStatus: "ERROR", instantlyLeadId: "", instantlyCampaignId: "" })).toBe(true);
     expect(canReplaceInstantlyPreview({ ...instantlyPreviewRecord(record), instantlySyncStatus: "IN_CAMPAIGN", instantlyLeadId: "provider_history", instantlyCampaignId: "legacy_direct" })).toBe(false);
+  });
+
+
+  it("creates deterministic Clean evidence without replacing a historical record", () => {
+    const config = instantlyConfig({ INSTANTLY_DIRECT_CAMPAIGN_ID: "clean_direct", INSTANTLY_PARTNER_CAMPAIGN_ID: "clean_partner", INSTANTLY_LEGACY_DIRECT_CAMPAIGN_ID: "legacy_direct" });
+    const lead = { id: "clean_provider_lead", email: record.email, campaign: "clean_direct", status: 3, last_step_from: "sender@example.com", last_step_timestamp_executed: "2026-09-07T13:25:00.000Z" };
+    const id = cleanMembershipEvidenceId({ canonical: record, lead, config });
+    expect(id).toMatch(/^instantly_clean_evidence_/);
+    expect(cleanMembershipEvidenceId({ canonical: record, lead: { ...lead, campaign: "legacy_direct" }, config })).toBe("");
+    expect(adoptMappedInstantlyLead({ canonical: record, lead, config, now: "2026-09-07T13:30:00.000Z" })?.record).toMatchObject({ instantlyCampaignId: "clean_direct", instantlyLeadId: "clean_provider_lead", instantlySyncStatus: "SENT" });
   });
 
   it("recovers only a missed clean-campaign initial-send outcome from persisted provider evidence", () => {

@@ -96,6 +96,10 @@ export interface CanonicalExternalOutreachState {
   bounceAt?: string;
   unsubscribeAt?: string;
   sequenceCompletedAt?: string;
+  /** Provider-scoped Clean reconciliation evidence wins over unrelated local
+   * history for the same email while leaving that history intact. */
+  messageVersion?: string;
+  updatedAt?: string;
 }
 
 const STATES: CanonicalGtmState[] = ["RESEARCH_BACKLOG", "NEEDS_VERIFICATION", "READY_TO_SEND", "ALREADY_CONTACTED", "AWAITING_REPLY", "FOLLOW_UP_DUE", "REPLIED", "POSITIVE", "TRIAL", "PAID"];
@@ -161,8 +165,19 @@ export function buildCanonicalGtmModel(input: {
     }
   }
 
-  const externallyManaged = new Map((input.instantly || []).map((record) => [`${record.canonicalOrganizationId}:${record.email.toLowerCase()}`, record]));
+  const preferExternal = (current: CanonicalExternalOutreachState | undefined, candidate: CanonicalExternalOutreachState) => {
+    if (!current) return candidate;
+    const clean = candidate.messageVersion === "provider-reconciled-clean-v1";
+    const currentClean = current.messageVersion === "provider-reconciled-clean-v1";
+    if (clean !== currentClean) return clean ? candidate : current;
+    return String(candidate.updatedAt || "") > String(current.updatedAt || "") ? candidate : current;
+  };
+  const externallyManaged = new Map<string, CanonicalExternalOutreachState>();
+  for (const record of input.instantly || []) {
+    const key = `${record.canonicalOrganizationId}:${record.email.toLowerCase()}`;
+    externallyManaged.set(key, preferExternal(externallyManaged.get(key), record));
   // A provider record can retain an earlier organization identity after a
+  }
   // source/domain normalization changes the canonical organization key. It is
   // still the same recipient only when there is exactly one matching external
   // record for the normalized email and segment. This fallback is deliberately
@@ -174,7 +189,11 @@ export function buildCanonicalGtmModel(input: {
     const segment = external.segment;
     if (!email || !segment) continue;
     const key = `${segment}:${email}`;
-    externallyManagedBySegmentEmail.set(key, [...(externallyManagedBySegmentEmail.get(key) || []), external]);
+    const current = externallyManagedBySegmentEmail.get(key) || [];
+    const replacement = current.findIndex((item) => item.canonicalOrganizationId === external.canonicalOrganizationId);
+    if (replacement >= 0) current[replacement] = preferExternal(current[replacement], external);
+    else current.push(external);
+    externallyManagedBySegmentEmail.set(key, current);
   }
   const records = [...candidateByIdentity.entries()].map(([organizationId, candidate]) => {
     const enrichment = enrichmentByIdentity.get(organizationId);

@@ -31,6 +31,12 @@ export interface ChannelSeedRecord {
   enrichmentLastProviderError?: string | null;
   enrichmentTerminalAt?: string | null;
   deduplicationKey: string;
+  scannerBatchId?: string;
+  scannerFileId?: string;
+  scannerSourceRecordKey?: string;
+  scannerContentHash?: string;
+  scannerClaimedDomain?: string | null;
+  scannerUnknownFields?: Record<string, unknown>;
 }
 
 export const CHANNEL_SCAN_SOURCE_URL = "https://chatgpt.com/share/6a913e29-1c68-83ed-acc3-8c6e00423acb?ogimg=plain";
@@ -94,6 +100,47 @@ function dynamicSeed(input: { organization: string; segment: CanonicalSegment; o
   const organization = input.organization.trim();
   return { id: recordId(input.segment, organization), organization, segment: input.segment, targetRoleGroup: input.targetRoleGroup, source: "gtm_public_discovery", sourceUrl: input.sourceUrl, observedAt: input.observedAt, importedAt: input.importedAt, lifecycle: "ENRICHMENT_PENDING", organizationDomain: input.organizationDomain || null, evidenceSummary: input.evidenceSummary, qualificationReasons: ["Evidence-backed organization signal was saved by the daily GrantDeskHQ discovery worker.", "Provider enrichment must produce a verified business email before readiness."], rejectionReason: null, enrichmentProvider: null, enrichmentResult: null, deduplicationKey: input.segment + ":" + organization.normalize("NFKC").trim().toLowerCase() };
 }
+
+export interface ScannerLeadFeedRecord {
+  source_record_key: string;
+  segment: CanonicalSegment;
+  organization_name: string;
+  organization_domain?: string | null;
+  signal_text?: string | null;
+  source_urls?: unknown;
+  source_confidence?: string | null;
+  unresolved_fields?: string | null;
+  [key: string]: unknown;
+}
+
+/** Scanner exports are untrusted discovery data. They never advance to enrichment or READY. */
+export function scannerLeadFeedToChannelSeeds(input: { batchId: string; sourceFileId: string; contentHash: string; records: readonly ScannerLeadFeedRecord[]; importedAt?: string }) {
+  const importedAt = input.importedAt || new Date().toISOString();
+  const accepted: ChannelSeedRecord[] = [];
+  const rejected: Array<{ sourceRecordKey: string; reason: string }> = [];
+  const seen = new Set<string>();
+  for (const raw of input.records) {
+    const sourceRecordKey = typeof raw.source_record_key === "string" ? raw.source_record_key.trim() : "";
+    const organization = typeof raw.organization_name === "string" ? raw.organization_name.normalize("NFKC").trim() : "";
+    const segment = raw.segment;
+    const urls = Array.isArray(raw.source_urls) ? raw.source_urls.filter((value): value is string => typeof value === "string") : [];
+    const sourceUrl = urls.find(isSafePublicSourceUrl) || "";
+    if (!sourceRecordKey || !organization || (segment !== "DIRECT" && segment !== "PARTNER")) { rejected.push({ sourceRecordKey, reason: "MALFORMED_REQUIRED_FIELDS" }); continue; }
+    if (!sourceUrl) { rejected.push({ sourceRecordKey, reason: "NO_SAFE_SOURCE_URL" }); continue; }
+    if (seen.has(sourceRecordKey)) { rejected.push({ sourceRecordKey, reason: "DUPLICATE_SOURCE_RECORD_KEY" }); continue; }
+    seen.add(sourceRecordKey);
+    const claimedDomain = typeof raw.organization_domain === "string" && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(raw.organization_domain.trim()) ? raw.organization_domain.trim().toLowerCase().replace(/^www\./, "") : null;
+    const id = `channel_seed_${createHash("sha256").update(`${input.batchId}:${sourceRecordKey}`).digest("hex").slice(0, 24)}`;
+    const unknown = Object.fromEntries(Object.entries(raw).filter(([key]) => !["source_record_key", "segment", "organization_name", "organization_domain", "signal_text", "source_urls", "source_confidence", "unresolved_fields", "state", "verification_status", "email", "email_verification"].includes(key)));
+    accepted.push({ id, organization, segment, targetRoleGroup: segment === "DIRECT" ? ["CFO", "Finance Director", "Controller", "Director of Grants", "Grants Manager", "Executive Director"] : ["Founder", "Managing Partner", "Nonprofit Practice Lead", "Fractional CFO", "Grant Consulting Lead"], source: "chatgpt_scanner_drive", sourceUrl, observedAt: scannerObservedAt(raw, importedAt), importedAt, lifecycle: "DISCOVERED", organizationDomain: null, evidenceSummary: scannerText(raw.signal_text, "Scanner research claim requires independent organization and evidence validation."), qualificationReasons: ["Imported scanner candidate is DISCOVERED only.", `Scanner confidence: ${scannerText(raw.source_confidence, "unknown")}.`, scannerText(raw.unresolved_fields, "Organization, ICP, role, evidence, and email require validation.")], rejectionReason: null, enrichmentProvider: null, enrichmentResult: null, deduplicationKey: `${segment}:${organization.toLowerCase()}`, scannerBatchId: input.batchId, scannerFileId: input.sourceFileId, scannerSourceRecordKey: sourceRecordKey, scannerContentHash: input.contentHash, scannerClaimedDomain: claimedDomain, scannerUnknownFields: unknown });
+  }
+  return { accepted, rejected };
+}
+
+function scannerText(value: unknown, fallback: string) { return typeof value === "string" && value.trim() ? value.trim().slice(0, 900) : fallback; }
+function scannerObservedAt(raw: ScannerLeadFeedRecord, fallback: string) { const value = typeof raw.signal_date === "string" ? raw.signal_date : typeof raw.observed_at === "string" ? raw.observed_at : ""; return Number.isFinite(Date.parse(value)) ? value : fallback; }
+function isSafePublicSourceUrl(value: string) { try { const url = new URL(value); const host = url.hostname.toLowerCase(); return (url.protocol === "https:" || url.protocol === "http:") && !url.username && !url.password && host !== "localhost" && host !== "metadata.google.internal" && !/^127\.|^10\.|^192\.168\.|^169\.254\.|^172\.(1[6-9]|2\d|3[01])\./.test(host); } catch { return false; } }
+
 
 function domainFromUrl(value: string) { try { return new URL(value).hostname.toLowerCase().replace(/^www\./, ""); } catch { return ""; } }
 

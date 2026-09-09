@@ -43,11 +43,12 @@ import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type G
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
 import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, cleanInitialOnlyCampaignReady, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantSafeSummary, instantlyItems, instantlyLeadCampaignId, instantlyPreviewRecord, instantlyReconciliationRecordChanged, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "./instantly.ts";
-import { adoptMappedInstantlyLead, canReplaceInstantlyPreview, cleanMembershipRebindReason, needsCanonicalInitialSendRecovery, rebindMappedInstantlyRecord } from "./instantly.ts";
+import { adoptMappedInstantlyLead, canReplaceInstantlyPreview, cleanMembershipEvidenceId, cleanMembershipRebindReason, isCleanMembershipEvidenceRecord, needsCanonicalInitialSendRecovery, rebindMappedInstantlyRecord } from "./instantly.ts";
 import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from "./outboundIncidentClosure.ts";
 import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
 import { enrichChannelSeedsWithInstantly, reconcileChannelSeedEnrichment } from "./gtmChannelSeedEnrichment.ts";
+import { importScannerDriveBatches } from "./scannerDriveImport.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
@@ -152,6 +153,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/award-signals") return await handleGtmAwardSignals(request, response);
     if (url.pathname === "/api/gtm/direct-discovery") return await handleGtmDirectDiscovery(request, response);
     if (url.pathname === "/api/gtm/channel-seeds/import") return await handleGtmChannelSeedImport(request, response);
+    if (url.pathname === "/api/gtm/scanner-drive/import") return await handleGtmScannerDriveImport(request, response);
     if (url.pathname === "/api/gtm/channel-seeds/enrich") return await handleGtmChannelSeedEnrich(request, response);
     if (url.pathname === "/api/gtm/channel-seeds/enrich/reconcile") return await handleGtmChannelSeedEnrichReconcile(request, response);
     if (url.pathname === "/api/gtm/direct-recipient-resolution") return await handleGtmDirectRecipientResolution(request, response);
@@ -456,6 +458,15 @@ async function handleGtmChannelSeedImport(request: IncomingMessage, response: Se
 
 async function handleGtmChannelSeedEnrich(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+/** Scheduler-only Drive transport consumer. Imported scanner rows remain DISCOVERED. */
+async function handleGtmScannerDriveImport(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const result = await importScannerDriveBatches();
+  console.info(JSON.stringify({ event: "GTM_SCANNER_DRIVE_IMPORT", receiptCount: result.receipts.length, accepted: result.receipts.reduce((sum, receipt) => sum + receipt.accepted, 0), timestamp: new Date().toISOString() }));
+  return json(response, 200, { lifecycle: "DISCOVERED", providerCalls: 0, sends: 0, ...result });
+}
+
   await requireGtmScheduler(request);
   const input = await readJson(request) as { segment?: unknown };
   if (input.segment !== "DIRECT" && input.segment !== "PARTNER") return json(response, 400, { error: "segment must be DIRECT or PARTNER." });
@@ -1074,8 +1085,17 @@ async function reconcileInstantlyPolling() {
   const matched = leadItems.flatMap((lead) => canonicalByEmail.has(String(lead.email || "").toLowerCase()) ? [canonicalByEmail.get(String(lead.email || "").toLowerCase())!] : []);
   const priorContactExcluded = matched.filter((record) => record.priorContact).length;
   const duplicateEmails = leadItems.length - new Set(leadItems.map((lead) => String(lead.email || "").toLowerCase()).filter(Boolean)).size;
+  const preferredInstantlyRecord = (current: typeof records[number] | undefined, candidate: typeof records[number]) => {
+    if (!current || isCleanMembershipEvidenceRecord(candidate) && !isCleanMembershipEvidenceRecord(current)) return candidate;
+    return current;
+  };
   const recordsByLead = new Map(records.filter((record) => record.instantlyLeadId).map((record) => [record.instantlyLeadId, record]));
-  const recordsByEmail = new Map(records.filter((record) => record.email).map((record) => [record.email.toLowerCase(), record]));
+  const recordsByEmail = new Map<string, typeof records[number]>();
+  for (const record of records) {
+    if (!record.email) continue;
+    const email = record.email.toLowerCase();
+    recordsByEmail.set(email, preferredInstantlyRecord(recordsByEmail.get(email), record));
+  }
   const transitions: Record<string, number> = {};
   let outcomeRecorded = false;
   const cleanMembershipRebindReasons: Record<string, number> = {};
@@ -1092,14 +1112,24 @@ async function reconcileInstantlyPolling() {
     const canonical = canonicalByEmail.get(providerEmail);
     if (!canonical || canonical.segment !== segment) continue;
     const existing = recordsByEmail.get(providerEmail);
-    if (!canReplaceInstantlyPreview(existing)) continue;
     const adoption = adoptMappedInstantlyLead({ canonical, lead, config });
     if (!adoption) continue;
-    const adopted = existing ? { ...adoption.record, id: existing.id, createdAt: existing.createdAt || adoption.record.createdAt } : adoption.record;
+    const evidenceId = cleanMembershipEvidenceId({ canonical, lead, config });
+    if (!evidenceId) continue;
+    const existingEvidence = records.find((record) => record.id === evidenceId);
+    // A non-preview record can be immutable historical evidence. Preserve it
+    // and persist provider-scoped Clean evidence separately instead of letting
+    // stale history make a confirmed membership invisible.
+    const adopted = existingEvidence
+      ? { ...adoption.record, id: existingEvidence.id, createdAt: existingEvidence.createdAt || adoption.record.createdAt }
+      : canReplaceInstantlyPreview(existing)
+        ? { ...adoption.record, id: existing?.id || adoption.record.id, createdAt: existing?.createdAt || adoption.record.createdAt }
+        : { ...adoption.record, id: evidenceId };
     await saveInstantlyRecord(adopted);
-    if (existing) records.splice(records.indexOf(existing), 1, adopted); else records.push(adopted);
+    if (existingEvidence) records.splice(records.indexOf(existingEvidence), 1, adopted);
+    else if (canReplaceInstantlyPreview(existing) && existing) records.splice(records.indexOf(existing), 1, adopted);
+    else records.push(adopted);
     recordsByLead.set(adopted.instantlyLeadId, adopted);
-    recordsByEmail.set(adopted.email.toLowerCase(), adopted);
     adoptedCleanMemberships++;
     if (adoption.event) {
       transitions[adoption.event] = (transitions[adoption.event] || 0) + 1;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { channelSeedManifest, channelSeedToCanonicalCandidate, discoveredOpportunityToChannelSeed } from "../lib/gtmChannelSeeds.ts";
+import { channelSeedManifest, channelSeedToCanonicalCandidate, discoveredOpportunityToChannelSeed, scannerLeadFeedToChannelSeeds } from "../lib/gtmChannelSeeds.ts";
 
 describe("2026-08-28 channel seed import", () => {
   it("creates exactly 30 deterministic organization-only seeds", () => {
@@ -37,3 +37,13 @@ describe("2026-08-28 channel seed import", () => {
     expect(partners.find((seed) => seed.organization === "Jitasa")?.organizationDomain).toBe("jitasagroup.com");
   });
 });
+  it("keeps Drive scanner rows discovered-only and rejects private-network source URLs", () => {
+    const parsed = scannerLeadFeedToChannelSeeds({ batchId: "daily-grantdeskhq-2026-09-09", sourceFileId: "drive-file", contentHash: "hash", importedAt: "2026-09-09T08:05:18.000Z", records: [
+      { source_record_key: "org-a", segment: "DIRECT", organization_name: "Example Nonprofit", organization_domain: "example.org", signal_text: "Grant reporting role", source_urls: ["https://example.org/jobs"] },
+      { source_record_key: "bad", segment: "DIRECT", organization_name: "Unsafe", source_urls: ["http://169.254.169.254/latest"] }
+    ] });
+    expect(parsed.accepted[0]).toMatchObject({ lifecycle: "DISCOVERED", organizationDomain: null, scannerClaimedDomain: "example.org", scannerBatchId: "daily-grantdeskhq-2026-09-09", scannerFileId: "drive-file" });
+    expect(channelSeedToCanonicalCandidate(parsed.accepted[0]!).qualified).toBe(false);
+    expect(parsed.rejected).toEqual([{ sourceRecordKey: "bad", reason: "NO_SAFE_SOURCE_URL" }]);
+  });
+

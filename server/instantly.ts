@@ -334,6 +334,24 @@ export function adoptMappedInstantlyLead(input: { canonical: CanonicalGtmRecord;
   return reconcileInstantlyLead(preview, input.lead, now);
 }
 
+/** A Clean-membership evidence record is separate from historical local
+ * outreach. Its identity is provider-owned and stable across polling runs,
+ * which lets reconciliation retain immutable legacy history without making it
+ * authoritative for the Clean campaign. */
+export function cleanMembershipEvidenceId(input: { canonical: CanonicalGtmRecord; lead: Record<string, unknown>; config: InstantlyConfig }) {
+  const campaignId = instantlyLeadCampaignId(input.lead);
+  const leadId = String(input.lead.id || "").trim();
+  const email = normalizeOutboundEmail(String(input.lead.email || ""));
+  if (!campaignId || !leadId || !email) return "";
+  const activeCampaign = activeInstantlyCampaignId(input.config, input.canonical.segment);
+  if (campaignId !== activeCampaign || legacyInstantlyCampaignIds(input.config).includes(campaignId)) return "";
+  return `instantly_clean_evidence_${createHash("sha256").update(`${campaignId}:${leadId}:${email}`).digest("hex").slice(0, 40)}`;
+}
+
+export function isCleanMembershipEvidenceRecord(record: Pick<InstantlyIntegrationRecord, "id" | "messageVersion"> | undefined) {
+  return Boolean(record && (record.messageVersion === "provider-reconciled-clean-v1" || record.id.startsWith("instantly_clean_evidence_")));
+}
+
 export type CleanMembershipRebindReason = "MATCH" | "MISSING_PROVIDER_CAMPAIGN_OR_IDENTITY" | "PROVIDER_EMAIL_MISMATCH" | "PROVIDER_LEAD_ID_MISMATCH" | "CAMPAIGN_MAPPING_MISMATCH" | "LEGACY_CAMPAIGN";
 
 export function cleanMembershipRebindReason(input: { record: InstantlyIntegrationRecord; canonical: CanonicalGtmRecord; lead: Record<string, unknown>; config: InstantlyConfig }): CleanMembershipRebindReason {
