@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scannerEvidenceBackedIdentity } from "../../server/scannerSourceValidation.ts";
+import { scannerEvidenceBackedIdentity, sourceProvesOrganizationDomain } from "../../server/scannerSourceValidation.ts";
 import type { ChannelSeedRecord } from "../lib/gtmChannelSeeds.ts";
 
 const seed = (hint: string, segment: "DIRECT" | "PARTNER" = "PARTNER"): ChannelSeedRecord => ({
@@ -18,5 +18,12 @@ describe("scanner source identity gate", () => {
   it("does not treat an untrusted scanner hint or unsupported role as verified identity evidence", () => {
     expect(scannerEvidenceBackedIdentity(seed("Avery Grant, Founder and CEO"), "# Leadership\nNo named leaders listed")).toBeNull();
     expect(scannerEvidenceBackedIdentity(seed("Avery Grant, Volunteer Coordinator"), "Avery Grant\nVolunteer Coordinator")).toBeNull();
+  });
+});
+describe("scanner source domain gate", () => {
+  it("requires a claimed organization domain matching the source before Hunter can use scanner identity", () => {
+    expect(sourceProvesOrganizationDomain({ sourceUrl: "https://example.org/team", scannerClaimedDomain: "example.org" })).toBe(true);
+    expect(sourceProvesOrganizationDomain({ sourceUrl: "https://industry-directory.example/listing", scannerClaimedDomain: "example.org" })).toBe(false);
+    expect(sourceProvesOrganizationDomain({ sourceUrl: "https://example.org/team", scannerClaimedDomain: null })).toBe(false);
   });
 });
