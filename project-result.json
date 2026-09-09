@@ -1,29 +1,19 @@
 {
-  "project": "gtm-production-live-smoke-and-remediation",
+  "project": "GrantDeskHQ GTM scanner and reconciliation repair",
   "status": "PARTIAL",
-  "completedAt": "2026-08-30T17:50:00Z",
-  "productionRevision": "grantdeskhq-prototype-00438-xiv",
+  "updatedAt": "2026-09-09T11:12:00Z",
+  "commit": "30252967c3dd21c1fbd6b2f1683c0c2c8abd6c42",
+  "productionRevision": "grantdeskhq-prototype-00478-zih",
   "traffic": "100%",
   "releaseSmoke": {
     "health": "PASS",
-    "customDomainAuthentication": "PASS",
-    "dashboardRoute": "PASS",
-    "approvedSeoArticle": "PASS",
-    "sitemapEntry": "PASS",
-    "gtmRoleBoundary": "PASS"
+    "schedulerAuthenticatedReconciliation": "PASS"
   },
-  "outbound": {
-    "OUTBOUND_EMAIL_ENABLED": false,
-    "INSTANTLY_OUTBOUND_ENABLED": false,
-    "INSTANTLY_AUTO_HANDOFF_ENABLED": false,
-    "DIRECT_INSTANTLY_ENABLED": false,
-    "PARTNER_INSTANTLY_ENABLED": false,
-    "providerCampaigns": "PAUSED",
-    "reason": "Outbound remains fail-closed pending a validated live handoff/canary."
-  },
-  "remaining": [
-    "Partner public discovery schema repair 9825ecc is tested and pushed but intentionally not deployed under the no-new-deployment constraint.",
-    "The VM service account cannot read canonical Firestore data directly (403), so protected GTM dashboard aggregates could not be independently read from this runtime.",
-    "The reliability scheduler still targets stale QA infrastructure; this was recorded as a separate non-blocking item."
+  "criticalBlockers": [
+    {
+      "operation": "runtime Google Drive scanner import",
+      "evidence": "Google Drive metadata request failed (403; PERMISSION_DENIED; accessNotConfigured). The deployment identity was denied serviceusage.services.enable while enabling drive.googleapis.com.",
+      "requiredAction": "An authorized project service-usage administrator must enable drive.googleapis.com for grantdeskhq-proto-ek-2026."
+    }
   ]
 }
