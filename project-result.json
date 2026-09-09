@@ -1,9 +1,9 @@
 {
   "project": "GrantDeskHQ GTM scanner and reconciliation repair",
   "status": "PARTIAL",
-  "updatedAt": "2026-09-09T11:12:00Z",
-  "commit": "30252967c3dd21c1fbd6b2f1683c0c2c8abd6c42",
-  "productionRevision": "grantdeskhq-prototype-00478-zih",
+  "updatedAt": "2026-09-09T17:20:00Z",
+  "commit": "7fcf4c1e881ddf81ad1422fb64f79762d3193d52",
+  "productionRevision": "grantdeskhq-prototype-00481-wim",
   "traffic": "100%",
   "releaseSmoke": {
     "health": "PASS",
@@ -11,9 +11,9 @@
   },
   "criticalBlockers": [
     {
-      "operation": "runtime Google Drive scanner import",
-      "evidence": "Google Drive metadata request failed (403; PERMISSION_DENIED; accessNotConfigured). The deployment identity was denied serviceusage.services.enable while enabling drive.googleapis.com.",
-      "requiredAction": "An authorized project service-usage administrator must enable drive.googleapis.com for grantdeskhq-proto-ek-2026."
+      "operation": "runtime ScrapeGraphAI source validation",
+      "evidence": "The scheduler-authenticated validator returned HTTP 200 with blocked=SCRAPEGRAPH_NOT_CONFIGURED. The promoted runtime binds HUNTER_API_KEY and INSTANTLY_API_KEY but no SCRAPEGRAPH_API_KEY or SGAI_API_KEY.",
+      "requiredAction": "Bind the already-approved ScrapeGraphAI secret to grantdeskhq-runtime as SCRAPEGRAPH_API_KEY or SGAI_API_KEY; no new key, IAM grant, or paid overage is required."
     }
   ]
 }
