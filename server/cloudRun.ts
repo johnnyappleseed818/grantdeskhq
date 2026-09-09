@@ -458,6 +458,13 @@ async function handleGtmChannelSeedImport(request: IncomingMessage, response: Se
 
 async function handleGtmChannelSeedEnrich(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const input = await readJson(request) as { segment?: unknown };
+  if (input.segment !== "DIRECT" && input.segment !== "PARTNER") return json(response, 400, { error: "segment must be DIRECT or PARTNER." });
+  const result = await enrichChannelSeedsWithInstantly(input.segment);
+  console.info(JSON.stringify({ event: "GTM_CHANNEL_SEED_SUPERSEARCH", segment: result.segment, selected: result.selected, previewCount: result.previewCount, submitted: result.submitted, resourceIdPresent: Boolean(result.resourceId), blocked: result.blocked, timestamp: new Date().toISOString() }));
+  return json(response, 200, result);
+}
 /** Scheduler-only Drive transport consumer. Imported scanner rows remain DISCOVERED. */
 async function handleGtmScannerDriveImport(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
@@ -465,14 +472,6 @@ async function handleGtmScannerDriveImport(request: IncomingMessage, response: S
   const result = await importScannerDriveBatches();
   console.info(JSON.stringify({ event: "GTM_SCANNER_DRIVE_IMPORT", receiptCount: result.receipts.length, accepted: result.receipts.reduce((sum, receipt) => sum + receipt.accepted, 0), timestamp: new Date().toISOString() }));
   return json(response, 200, { lifecycle: "DISCOVERED", providerCalls: 0, sends: 0, ...result });
-}
-
-  await requireGtmScheduler(request);
-  const input = await readJson(request) as { segment?: unknown };
-  if (input.segment !== "DIRECT" && input.segment !== "PARTNER") return json(response, 400, { error: "segment must be DIRECT or PARTNER." });
-  const result = await enrichChannelSeedsWithInstantly(input.segment);
-  console.info(JSON.stringify({ event: "GTM_CHANNEL_SEED_SUPERSEARCH", segment: result.segment, selected: result.selected, previewCount: result.previewCount, submitted: result.submitted, resourceIdPresent: Boolean(result.resourceId), blocked: result.blocked, timestamp: new Date().toISOString() }));
-  return json(response, 200, result);
 }
 
 async function handleGtmChannelSeedEnrichReconcile(request: IncomingMessage, response: ServerResponse) {
