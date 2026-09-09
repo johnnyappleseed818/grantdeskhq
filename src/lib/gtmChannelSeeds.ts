@@ -34,6 +34,9 @@ export interface ChannelSeedRecord {
   scannerBatchId?: string;
   scannerFileId?: string;
   scannerSourceRecordKey?: string;
+  /** Present only after an organisation-controlled public source independently
+   * confirms the named role. Scanner-provided hints alone never populate it. */
+  scannerValidatedContact?: { firstName: string; lastName: string; fullName: string; title: string; sourceUrl: string } | null;
   scannerContentHash?: string;
   scannerClaimedDomain?: string | null;
   scannerUnknownFields?: Record<string, unknown>;

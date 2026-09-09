@@ -49,6 +49,7 @@ import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from 
 import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
 import { enrichChannelSeedsWithInstantly, reconcileChannelSeedEnrichment } from "./gtmChannelSeedEnrichment.ts";
 import { importScannerDriveBatches } from "./scannerDriveImport.ts";
+import { validateScannerSourceSeeds } from "./scannerSourceValidation.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
@@ -154,6 +155,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/direct-discovery") return await handleGtmDirectDiscovery(request, response);
     if (url.pathname === "/api/gtm/channel-seeds/import") return await handleGtmChannelSeedImport(request, response);
     if (url.pathname === "/api/gtm/scanner-drive/import") return await handleGtmScannerDriveImport(request, response);
+    if (url.pathname === "/api/gtm/scanner-drive/validate") return await handleGtmScannerDriveValidation(request, response);
     if (url.pathname === "/api/gtm/channel-seeds/enrich") return await handleGtmChannelSeedEnrich(request, response);
     if (url.pathname === "/api/gtm/channel-seeds/enrich/reconcile") return await handleGtmChannelSeedEnrichReconcile(request, response);
     if (url.pathname === "/api/gtm/direct-recipient-resolution") return await handleGtmDirectRecipientResolution(request, response);
@@ -472,6 +474,15 @@ async function handleGtmScannerDriveImport(request: IncomingMessage, response: S
   const result = await importScannerDriveBatches();
   console.info(JSON.stringify({ event: "GTM_SCANNER_DRIVE_IMPORT", receiptCount: result.receipts.length, accepted: result.receipts.reduce((sum, receipt) => sum + receipt.accepted, 0), timestamp: new Date().toISOString() }));
   return json(response, 200, { lifecycle: "DISCOVERED", providerCalls: 0, sends: 0, ...result });
+}
+
+/** Scheduler-only public-source validation. It cannot enrich, stage, or send. */
+async function handleGtmScannerDriveValidation(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const result = await validateScannerSourceSeeds();
+  console.info(JSON.stringify({ event: "GTM_SCANNER_SOURCE_VALIDATE", selected: result.selected, validated: result.validated, roleUnresolved: result.roleUnresolved, blocked: result.blocked, timestamp: new Date().toISOString() }));
+  return json(response, 200, { lifecycle: "EVIDENCE_VALIDATION", providerCalls: result.validated, sends: 0, ...result });
 }
 
 async function handleGtmChannelSeedEnrichReconcile(request: IncomingMessage, response: ServerResponse) {

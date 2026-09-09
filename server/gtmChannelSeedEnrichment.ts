@@ -1,6 +1,6 @@
 import { InstantlyClient, instantlyConfig } from "./instantly.ts";
 import { listGtmChannelSeeds, saveGtmChannelSeed } from "./persistence.ts";
-import { recordInstantlyVerifiedGtmContact } from "./contactEnrichment.ts";
+import { enrichGtmContactWithHunter, recordInstantlyVerifiedGtmContact } from "./contactEnrichment.ts";
 
 export type ChannelSeedEnrichmentSegment = "DIRECT" | "PARTNER";
 const titles: Record<ChannelSeedEnrichmentSegment, string[]> = {
@@ -14,6 +14,8 @@ export interface ChannelSeedEnrichmentResult { segment: ChannelSeedEnrichmentSeg
 export async function enrichChannelSeedsWithInstantly(segment: ChannelSeedEnrichmentSegment, env: NodeJS.ProcessEnv = process.env): Promise<ChannelSeedEnrichmentResult> {
   const config = instantlyConfig(env);
   const seeds = (await listGtmChannelSeeds()).filter((seed) => seed.segment === segment && (seed.lifecycle === "ENRICHMENT_PENDING" || (seed.lifecycle === "ENRICHMENT_FAILED" && !seed.enrichmentTerminalAt && (seed.enrichmentAttemptCount || 0) < 3)) && Boolean(seed.organizationDomain));
+  const scannerSeeds = seeds.filter((seed) => seed.scannerValidatedContact);
+  if (scannerSeeds.length) return enrichValidatedScannerSeedsWithHunter(segment, scannerSeeds, env);
   if (!config.integrationEnabled || !config.apiKeyConfigured) return { segment, selected: seeds.length, previewCount: null, submitted: 0, resourceId: null, providerStatus: null, blocked: "INSTANTLY_NOT_CONFIGURED" };
   const listId = segment === "DIRECT" ? config.directListId : config.partnerListId;
   if (!listId) return { segment, selected: seeds.length, previewCount: null, submitted: 0, resourceId: null, providerStatus: null, blocked: "MISSING_SEGMENT_LIST" };
@@ -26,6 +28,22 @@ export async function enrichChannelSeedsWithInstantly(segment: ChannelSeedEnrich
   const now = new Date().toISOString();
   await Promise.all(seeds.map((seed) => saveGtmChannelSeed({ ...seed, lifecycle: "ENRICHMENT_SUBMITTED", enrichmentProvider: "instantly_supersearch", enrichmentResult: `Submitted to Instantly SuperSearch; preview matched ${Number(preview.number_of_leads || 0)} candidate contact(s). Provider verification and role reconciliation remain required before any handoff.`, enrichmentResourceId: resourceId, enrichmentJobId, enrichmentProviderStatus: "SUBMITTED", enrichmentSubmittedAt: now, enrichmentLastCheckedAt: now, enrichmentAttemptCount: (seed.enrichmentAttemptCount || 0) + 1, enrichmentLastProviderError: null, enrichmentTerminalAt: null, enrichmentUpdatedAt: now })));
   return { segment, selected: seeds.length, previewCount: Number(preview.number_of_leads || 0), submitted: seeds.length, resourceId, providerStatus: String(response.status || "") || null, blocked: null };
+}
+
+/** The scanner public evidence establishes identity; Hunter verifies only that work email. */
+async function enrichValidatedScannerSeedsWithHunter(segment: ChannelSeedEnrichmentSegment, seeds: Awaited<ReturnType<typeof listGtmChannelSeeds>>, env: NodeJS.ProcessEnv): Promise<ChannelSeedEnrichmentResult> {
+  let verified = 0;
+  for (const seed of seeds) {
+    const person = seed.scannerValidatedContact!;
+    try {
+      const record = await enrichGtmContactWithHunter({ prospectChannel: segment === "DIRECT" ? "DIRECT_NONPROFIT" : "PARTNER_ACCOUNTING", organization: seed.organization, organizationDomain: seed.organizationDomain!, domainSourceUrl: seed.sourceUrl, person: { firstName: person.firstName, lastName: person.lastName, fullName: person.fullName, currentTitle: person.title, titleSourceUrl: person.sourceUrl } }, env);
+      if (record.readyForHumanApproval && record.email) {
+        await saveGtmChannelSeed({ ...seed, lifecycle: "VERIFIED", enrichmentProvider: "hunter", enrichmentProviderStatus: "COMPLETED", enrichmentResult: "Hunter found and verified the independently identified individual work email; final canonical suppression and campaign gates remain required.", enrichmentLastCheckedAt: new Date().toISOString(), enrichmentUpdatedAt: new Date().toISOString(), enrichmentLastProviderError: null });
+        verified += 1;
+      } else await markTerminal(seed, record.verification.readyBlocker || "HUNTER_EMAIL_NOT_VERIFIED", "FAILED", new Date().toISOString());
+    } catch (error) { await markTerminal(seed, "HUNTER_ENRICHMENT_FAILED", "FAILED", new Date().toISOString(), safeError(error)); }
+  }
+  return { segment, selected: seeds.length, previewCount: null, submitted: verified, resourceId: null, providerStatus: "HUNTER_COMPLETED", blocked: null };
 }
 
 export async function reconcileChannelSeedEnrichment(segment: ChannelSeedEnrichmentSegment, env: NodeJS.ProcessEnv = process.env) {
