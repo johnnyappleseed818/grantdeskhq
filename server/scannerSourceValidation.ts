@@ -60,10 +60,10 @@ export function sourceProvesOrganizationDomain(seed: Pick<ChannelSeedRecord, "so
 }
 
 function publicSource(value: string) { try { const url = new URL(value); const host = url.hostname.toLowerCase().replace(/^www\./, ""); return url.protocol === "https:" && !url.username && !url.password && !/^(localhost|metadata\.google\.internal|127\.|10\.|192\.168\.|169\.254\.)/.test(host) ? url : null; } catch { return null; } }
+function configuredLimit(env: NodeJS.ProcessEnv) { const value = Number(env.GTM_SCANNER_VALIDATION_MAX_PER_RUN || 10); return Number.isInteger(value) && value > 0 ? Math.min(value, 30) : 10; }
 async function creditsRemaining(apiKey: string) { try { const response = await fetch("https://v2-api.scrapegraphai.com/api/credits", { headers: { "SGAI-APIKEY": apiKey }, signal: AbortSignal.timeout(12_000) }); if (!response.ok) return null; const body = await response.json() as Record<string, unknown>; const value = body.remaining ?? body.credits ?? (body.data as Record<string, unknown> | undefined)?.remaining; return typeof value === "number" && Number.isFinite(value) ? value : null; } catch { return null; } }
 async function scrapeMarkdown(apiKey: string, url: string) { try { const response = await fetch("https://v2-api.scrapegraphai.com/api/scrape", { method: "POST", headers: { "Content-Type": "application/json", "SGAI-APIKEY": apiKey }, body: JSON.stringify({ url, formats: [{ type: "markdown", mode: "reader" }], fetchConfig: { mode: "auto", timeout: 20_000 } }), signal: AbortSignal.timeout(30_000) }); if (!response.ok) return ""; const body = await response.json() as { results?: { markdown?: { data?: unknown } } }; const data = body.results?.markdown?.data; return Array.isArray(data) && typeof data[0] === "string" ? data[0].slice(0, 80_000) : ""; } catch { return ""; } }
 export function scannerEvidenceBackedIdentity(seed: ChannelSeedRecord, markdown: string) {
-function configuredLimit(env: NodeJS.ProcessEnv) { const value = Number(env.GTM_SCANNER_VALIDATION_MAX_PER_RUN || 10); return Number.isInteger(value) && value > 0 ? Math.min(value, 30) : 10; }
   const hint = seed.scannerUnknownFields?.role_or_public_identity_text;
   if (typeof hint !== "string" || !markdown) return null;
   const match = hint.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z.'-]+){1,3})\s*,?\s*([^;]{3,120})/);
