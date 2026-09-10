@@ -189,6 +189,7 @@ describe("provider adapters", () => {
     const auth = createHunterProvider({ enabled: true, apiKey: "test-key", lookupLimit: 1, lookupsUsed: 0, fetcher: vi.fn().mockResolvedValue(new Response("{}", { status: 401 })) });
     const rate = createHunterProvider({ enabled: true, apiKey: "test-key", lookupLimit: 1, lookupsUsed: 0, fetcher: vi.fn().mockResolvedValue(new Response("{}", { status: 429 })) });
     const malformed = createHunterProvider({ enabled: true, apiKey: "test-key", lookupLimit: 1, lookupsUsed: 0, fetcher: vi.fn().mockResolvedValue(new Response("not-json", { status: 200 })) });
+
     await expect(auth.discover(target)).resolves.toMatchObject({ status: "UNAVAILABLE", attempted: true, errorCategory: "authentication" });
     await expect(rate.discover(target)).resolves.toMatchObject({ status: "UNAVAILABLE", attempted: true, errorCategory: "rate_limited" });
     await expect(malformed.discover(target)).resolves.toMatchObject({ status: "UNAVAILABLE", attempted: true, errorCategory: "invalid_response" });

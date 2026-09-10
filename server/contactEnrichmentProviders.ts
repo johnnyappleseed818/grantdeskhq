@@ -17,7 +17,74 @@ export interface ApolloProviderConfiguration extends ProviderRuntimeLimits {
   apiKey?: string;
   fetcher?: Fetcher;
 }
+export interface HunterDomainResolution {
+  status: "FOUND" | "NOT_FOUND" | "UNAVAILABLE";
+  domain: string | null;
+  organization: string | null;
+  errorCategory?: "not_configured" | "limit_reached" | "authentication" | "rate_limited" | "provider_error" | "network" | "invalid_response";
+}
 
+/** Hunter documents Domain Finder as a free, canonical company-to-domain
+ * resolver. It is used only to resolve organization identity before any
+ * contact search; it never returns or persists personal contact data. */
+export async function resolveHunterOrganizationDomain(company: string, configuration: HunterProviderConfiguration): Promise<HunterDomainResolution> {
+  const unavailable = providerUnavailable("hunter", configuration, "not_configured");
+  if (unavailable) return { status: "UNAVAILABLE", domain: null, organization: null, errorCategory: unavailable.errorCategory };
+  try {
+    const url = new URL("https://api.hunter.io/v2/domain-finder");
+    url.searchParams.set("company", company.trim());
+    url.searchParams.set("limit", "1");
+    url.searchParams.set("perfect_match", "true");
+    url.searchParams.set("api_key", configuration.apiKey!.trim());
+    const response = await (configuration.fetcher || fetch)(url, { signal: AbortSignal.timeout(12_000) });
+    if (!response.ok) {
+      const failed = providerFailure("hunter", response.status);
+      return { status: "UNAVAILABLE", domain: null, organization: null, errorCategory: failed.errorCategory };
+    }
+    const body = await parseJson(response);
+    const candidate = arrayAt(body, ["data"])[0];
+    const domain = candidate && typeof candidate === "object" ? normalizeBusinessDomain(String((candidate as Record<string, unknown>).domain || "")) : "";
+    const organization = candidate && typeof candidate === "object" ? String((candidate as Record<string, unknown>).company_name || "").trim() : "";
+    return domain && organization ? { status: "FOUND", domain, organization } : { status: "NOT_FOUND", domain: null, organization: null };
+  } catch (error) {
+    return { status: "UNAVAILABLE", domain: null, organization: null, errorCategory: isAbort(error) ? "network" : isInvalidResponse(error) ? "invalid_response" : "provider_error" };
+  }
+}
+
+export interface HunterRoleFitContact {
+  status: "FOUND" | "NOT_FOUND" | "UNAVAILABLE";
+  person: { firstName: string; lastName: string; fullName: string; title: string } | null;
+  errorCategory?: HunterDomainResolution["errorCategory"];
+}
+
+/** Uses Hunter Domain Search only after official organization evidence exists. */
+export async function resolveHunterRoleFitContact(domain: string, rolePattern: RegExp, configuration: HunterProviderConfiguration): Promise<HunterRoleFitContact> {
+  const unavailable = providerUnavailable("hunter", configuration, "not_configured");
+  if (unavailable) return { status: "UNAVAILABLE", person: null, errorCategory: unavailable.errorCategory };
+  try {
+    const url = new URL("https://api.hunter.io/v2/domain-search");
+    url.searchParams.set("domain", normalizeBusinessDomain(domain));
+    url.searchParams.set("type", "personal");
+    url.searchParams.set("required_field", "full_name,position");
+    url.searchParams.set("verification_status", "valid");
+    url.searchParams.set("limit", "10");
+    url.searchParams.set("api_key", configuration.apiKey!.trim());
+    const response = await (configuration.fetcher || fetch)(url, { signal: AbortSignal.timeout(12_000) });
+    if (!response.ok) { const failed = providerFailure("hunter", response.status); return { status: "UNAVAILABLE", person: null, errorCategory: failed.errorCategory }; }
+    const body = await parseJson(response);
+    const emails = arrayAt(body, ["data", "emails"]);
+    const candidate = emails.find((item) => item && typeof item === "object" && rolePattern.test(String((item as Record<string, unknown>).position || ""))) as Record<string, unknown> | undefined;
+    if (!candidate) return { status: "NOT_FOUND", person: null };
+    const fullName = String(candidate.full_name || `${String(candidate.first_name || "")} ${String(candidate.last_name || "")}`).replace(/\s+/g, " ").trim();
+    const title = String(candidate.position || "").trim();
+    const [firstName, ...rest] = fullName.split(/\s+/); const lastName = rest.at(-1) || "";
+    if (!firstName || !lastName || !title) return { status: "NOT_FOUND", person: null };
+    return { status: "FOUND", person: { firstName, lastName, fullName, title } };
+
+  } catch (error) {
+    return { status: "UNAVAILABLE", person: null, errorCategory: isAbort(error) ? "network" : isInvalidResponse(error) ? "invalid_response" : "provider_error" };
+  }
+}
 export function createHunterProvider(configuration: HunterProviderConfiguration) {
   const fetcher = configuration.fetcher || fetch;
   const apiKey = configuration.apiKey?.trim() || "";

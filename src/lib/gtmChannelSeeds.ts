@@ -13,7 +13,7 @@ export interface ChannelSeedRecord {
   sourceUrl: string;
   observedAt: string;
   importedAt: string;
-  lifecycle: "DISCOVERED" | "DUPLICATE" | "REJECTED" | "ROLE_UNRESOLVED" | "ENRICHMENT_PENDING" | "ENRICHMENT_SUBMITTED" | "ENRICHMENT_FAILED" | "VERIFIED";
+  lifecycle: "DISCOVERED" | "EVIDENCE_QUALIFIED" | "DUPLICATE" | "REJECTED" | "ROLE_UNRESOLVED" | "ENRICHMENT_PENDING" | "ENRICHMENT_SUBMITTED" | "ENRICHMENT_FAILED" | "VERIFIED";
   organizationDomain: string | null;
   evidenceSummary: string;
   qualificationReasons: string[];
@@ -39,6 +39,13 @@ export interface ChannelSeedRecord {
   scannerValidatedContact?: { firstName: string; lastName: string; fullName: string; title: string; sourceUrl: string } | null;
   scannerContentHash?: string;
   scannerClaimedDomain?: string | null;
+  /** Independently verified organization URL, kept separate from the original
+   * discovery source so a funder, directory, or job board is never used as the
+   * prospect's organization domain. */
+  officialOrganizationUrl?: string | null;
+  officialOrganizationEvidenceUrl?: string | null;
+  qualificationProvider?: string | null;
+  qualificationUpdatedAt?: string | null;
   scannerUnknownFields?: Record<string, unknown>;
 }
 
@@ -197,7 +204,7 @@ function domainFromUrl(value: string) { try { return new URL(value).hostname.toL
  * role-fit, verified business contact. Their lifecycle is visible in the
  * canonical queue; it never implies an email has been sent. */
 export function channelSeedToCanonicalCandidate(seed: ChannelSeedRecord): CanonicalGtmCandidate {
-  const evidenceVerified = Boolean(seed.organizationDomain && ["ENRICHMENT_PENDING", "ENRICHMENT_SUBMITTED", "VERIFIED"].includes(seed.lifecycle));
+  const evidenceVerified = Boolean(seed.organizationDomain && ["EVIDENCE_QUALIFIED", "ENRICHMENT_PENDING", "ENRICHMENT_SUBMITTED", "VERIFIED"].includes(seed.lifecycle));
   const providerVerified = seed.lifecycle === "VERIFIED";
   const blockers = providerVerified ? [] : seed.lifecycle === "ENRICHMENT_SUBMITTED" ? ["INSTANTLY_ENRICHMENT_PENDING"] : seed.lifecycle === "ENRICHMENT_FAILED" ? ["ENRICHMENT_FAILED"] : ["SEED_REQUIRES_INDEPENDENT_PUBLIC_VERIFICATION", "NO_RESOLVED_DOMAIN", "NO_NAMED_CONTACT", "NO_VERIFIED_BUSINESS_EMAIL"];
   return {

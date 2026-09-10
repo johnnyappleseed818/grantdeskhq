@@ -1,6 +1,7 @@
 import { InstantlyClient, instantlyConfig } from "./instantly.ts";
 import { listGtmChannelSeeds, saveGtmChannelSeed } from "./persistence.ts";
 import { enrichGtmContactWithHunter, recordInstantlyVerifiedGtmContact } from "./contactEnrichment.ts";
+import { resolveHunterRoleFitContact } from "./contactEnrichmentProviders.ts";
 
 export type ChannelSeedEnrichmentSegment = "DIRECT" | "PARTNER";
 const titles: Record<ChannelSeedEnrichmentSegment, string[]> = {
@@ -9,12 +10,13 @@ const titles: Record<ChannelSeedEnrichmentSegment, string[]> = {
 };
 export interface ChannelSeedEnrichmentResult { segment: ChannelSeedEnrichmentSegment; selected: number; previewCount: number | null; submitted: number; resourceId: string | null; providerStatus: string | null; blocked: string | null; }
 
-/** Idempotent Instantly-first organization enrichment. No list membership is
- * considered email verification and this function cannot touch campaigns. */
+/** Idempotent organization enrichment. Scanner organizations use Hunter for
+ * person discovery and email verification; ordinary existing seeds retain the
+ * established Instantly SuperSearch path. Neither can touch campaigns. */
 export async function enrichChannelSeedsWithInstantly(segment: ChannelSeedEnrichmentSegment, env: NodeJS.ProcessEnv = process.env): Promise<ChannelSeedEnrichmentResult> {
   const config = instantlyConfig(env);
-  const seeds = (await listGtmChannelSeeds()).filter((seed) => seed.segment === segment && (seed.lifecycle === "ENRICHMENT_PENDING" || (seed.lifecycle === "ENRICHMENT_FAILED" && !seed.enrichmentTerminalAt && (seed.enrichmentAttemptCount || 0) < 3)) && Boolean(seed.organizationDomain));
-  const scannerSeeds = seeds.filter((seed) => seed.scannerValidatedContact);
+  const seeds = (await listGtmChannelSeeds()).filter((seed) => seed.segment === segment && (seed.lifecycle === "EVIDENCE_QUALIFIED" || seed.lifecycle === "ENRICHMENT_PENDING" || (seed.lifecycle === "ENRICHMENT_FAILED" && !seed.enrichmentTerminalAt && (seed.enrichmentAttemptCount || 0) < 3)) && Boolean(seed.organizationDomain));
+  const scannerSeeds = seeds.filter((seed) => seed.source === "chatgpt_scanner_drive").slice(0, scannerHunterBatchLimit(env));
   if (scannerSeeds.length) return enrichValidatedScannerSeedsWithHunter(segment, scannerSeeds, env);
   if (!config.integrationEnabled || !config.apiKeyConfigured) return { segment, selected: seeds.length, previewCount: null, submitted: 0, resourceId: null, providerStatus: null, blocked: "INSTANTLY_NOT_CONFIGURED" };
   const listId = segment === "DIRECT" ? config.directListId : config.partnerListId;
@@ -30,13 +32,26 @@ export async function enrichChannelSeedsWithInstantly(segment: ChannelSeedEnrich
   return { segment, selected: seeds.length, previewCount: Number(preview.number_of_leads || 0), submitted: seeds.length, resourceId, providerStatus: String(response.status || "") || null, blocked: null };
 }
 
-/** The scanner public evidence establishes identity; Hunter verifies only that work email. */
+/** The public scanner source qualifies only an organization. Hunter first finds
+ * a current role-fit person, then its existing finder/verifier confirms email. */
 async function enrichValidatedScannerSeedsWithHunter(segment: ChannelSeedEnrichmentSegment, seeds: Awaited<ReturnType<typeof listGtmChannelSeeds>>, env: NodeJS.ProcessEnv): Promise<ChannelSeedEnrichmentResult> {
   let verified = 0;
   for (const seed of seeds) {
-    const person = seed.scannerValidatedContact!;
+    let person = seed.scannerValidatedContact || null;
+    if (!person) {
+      const found = await resolveHunterRoleFitContact(seed.organizationDomain!, roleExpression(segment), { enabled: env.GTM_CONTACT_ENRICHMENT_ENABLED === "true", apiKey: env.HUNTER_API_KEY, lookupLimit: 1, lookupsUsed: 0 });
+      if (found.status === "UNAVAILABLE") {
+        const now = new Date().toISOString();
+        await saveGtmChannelSeed({ ...seed, lifecycle: "EVIDENCE_QUALIFIED", enrichmentProvider: "hunter", enrichmentProviderStatus: "PROCESSING", enrichmentAttemptCount: (seed.enrichmentAttemptCount || 0) + 1, enrichmentLastProviderError: `HUNTER_DOMAIN_SEARCH_${String(found.errorCategory || "UNAVAILABLE").toUpperCase()}`, enrichmentLastCheckedAt: now, enrichmentUpdatedAt: now });
+        continue;
+      }
+      if (!found.person) { await markTerminal(seed, "HUNTER_NO_ROLE_FIT_CURRENT_CONTACT", "FAILED", new Date().toISOString()); continue; }
+      person = { ...found.person, sourceUrl: seed.officialOrganizationEvidenceUrl || seed.officialOrganizationUrl || seed.sourceUrl };
+      await saveGtmChannelSeed({ ...seed, scannerValidatedContact: person, enrichmentProvider: "hunter_domain_search", enrichmentResult: "Hunter identified a current role-fit individual; email finder and verifier are running before readiness.", enrichmentAttemptCount: (seed.enrichmentAttemptCount || 0) + 1, enrichmentUpdatedAt: new Date().toISOString() });
+    }
     try {
-      const record = await enrichGtmContactWithHunter({ prospectChannel: segment === "DIRECT" ? "DIRECT_NONPROFIT" : "PARTNER_ACCOUNTING", organization: seed.organization, organizationDomain: seed.organizationDomain!, domainSourceUrl: seed.sourceUrl, person: { firstName: person.firstName, lastName: person.lastName, fullName: person.fullName, currentTitle: person.title, titleSourceUrl: person.sourceUrl } }, env);
+      const domainSourceUrl = seed.officialOrganizationEvidenceUrl || seed.officialOrganizationUrl || seed.sourceUrl;
+      const record = await enrichGtmContactWithHunter({ prospectChannel: segment === "DIRECT" ? "DIRECT_NONPROFIT" : "PARTNER_ACCOUNTING", organization: seed.organization, organizationDomain: seed.organizationDomain!, domainSourceUrl, person: { firstName: person.firstName, lastName: person.lastName, fullName: person.fullName, currentTitle: person.title, titleSourceUrl: person.sourceUrl } }, env);
       if (record.readyForHumanApproval && record.email) {
         await saveGtmChannelSeed({ ...seed, lifecycle: "VERIFIED", enrichmentProvider: "hunter", enrichmentProviderStatus: "COMPLETED", enrichmentResult: "Hunter found and verified the independently identified individual work email; final canonical suppression and campaign gates remain required.", enrichmentLastCheckedAt: new Date().toISOString(), enrichmentUpdatedAt: new Date().toISOString(), enrichmentLastProviderError: null });
         verified += 1;
@@ -99,6 +114,8 @@ async function markTerminal(seed: Awaited<ReturnType<typeof listGtmChannelSeeds>
 function text(value: unknown) { return typeof value === "string" ? value.trim() : ""; }
 export function providerLeadIsVerified(lead: Record<string, unknown>) { return Number(lead.verification_status) === 1; }
 function norm(value: string) { return value.normalize("NFKC").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
+function scannerHunterBatchLimit(env: NodeJS.ProcessEnv) { const configured = Number(env.HUNTER_MAX_LOOKUPS_PER_RUN || 0); return Number.isInteger(configured) && configured > 1 ? Math.min(5, Math.floor(configured / 2)) : 0; }
 function roleFits(segment: ChannelSeedEnrichmentSegment, title: string) { return segment === "DIRECT" ? /\b(cfo|finance director|controller|director of grants|grants manager|institutional giving)\b/i.test(title) : /\b(founder|ceo|managing partner|partner|principal)\b/i.test(title); }
+function roleExpression(segment: ChannelSeedEnrichmentSegment) { return segment === "DIRECT" ? /\b(cfo|finance director|controller|director of grants|grants manager|institutional giving)\b/i : /\b(founder|ceo|managing partner|partner|principal|fractional cfo|director)\b/i; }
 export function providerJobIsStale(seed: { enrichmentSubmittedAt?: string | null; enrichmentUpdatedAt?: string | null }, now: number, env: NodeJS.ProcessEnv = process.env) { const submitted = Date.parse(seed.enrichmentSubmittedAt || seed.enrichmentUpdatedAt || ""); const staleMs = Number(env.INSTANTLY_ENRICHMENT_STALE_MS || 3600000); return Number.isFinite(submitted) && now - submitted > (Number.isFinite(staleMs) && staleMs >= 60000 ? staleMs : 3600000); }
 function safeError(error: unknown) { return error instanceof Error ? error.message.slice(0, 240) : "provider_error"; }
