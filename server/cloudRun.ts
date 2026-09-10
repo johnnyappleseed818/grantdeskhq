@@ -464,7 +464,8 @@ async function handleGtmChannelSeedEnrich(request: IncomingMessage, response: Se
   const input = await readJson(request) as { segment?: unknown };
   if (input.segment !== "DIRECT" && input.segment !== "PARTNER") return json(response, 400, { error: "segment must be DIRECT or PARTNER." });
   const result = await enrichChannelSeedsWithInstantly(input.segment);
-  console.info(JSON.stringify({ event: "GTM_CHANNEL_SEED_SUPERSEARCH", segment: result.segment, selected: result.selected, previewCount: result.previewCount, submitted: result.submitted, resourceIdPresent: Boolean(result.resourceId), blocked: result.blocked, timestamp: new Date().toISOString() }));
+  const provider = result.providerStatus === "HUNTER_COMPLETED" ? "hunter" : "instantly_supersearch";
+  console.info(JSON.stringify({ event: "GTM_CHANNEL_SEED_ENRICHMENT", provider, segment: result.segment, selected: result.selected, previewCount: result.previewCount, verifiedContacts: provider === "hunter" ? result.submitted : null, submitted: result.submitted, resourceIdPresent: Boolean(result.resourceId), blocked: result.blocked, timestamp: new Date().toISOString() }));
   return json(response, 200, result);
 }
 /** Scheduler-only Drive transport consumer. Imported scanner rows remain DISCOVERED. */
