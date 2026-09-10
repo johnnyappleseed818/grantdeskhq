@@ -17,6 +17,11 @@ export interface DailySocialSignal {
   painThemes: string[];
   whyRelevant: string;
   suggestedResponse: string;
+  /** A public discussion may name an organization. It remains DISCOVERED until
+   * the normal organization, ICP, contact, and email gates independently
+   * validate it; anonymous authors never populate these fields. */
+  identifiedOrganization?: string | null;
+  identifiedSegment?: "DIRECT" | "PARTNER" | null;
   status: "ACTIONABLE" | "RESPONDED" | "SKIPPED";
 }
 

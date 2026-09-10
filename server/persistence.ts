@@ -829,6 +829,12 @@ export interface GtmScannerImportReceipt {
   pending: number;
   canonicalRecordIds: string[];
   errors: Array<{ sourceRecordKey: string; reason: string }>;
+  /** Present on new immutable receipts. Older receipts remain unmodified. */
+  rowsSeen?: number;
+  rejectionReasons?: Record<string, number>;
+  receiptKind?: "IMPORT" | "RECONCILIATION";
+  originalReceiptId?: string;
+  alreadyImported?: boolean;
 }
 
 export async function readGtmScannerImportReceipt(id: string): Promise<GtmScannerImportReceipt | null> {
@@ -854,7 +860,7 @@ export async function listGtmScannerImportReceipts(limit = 20): Promise<GtmScann
 }
 
 export async function saveGtmScannerImportReceipt(receipt: GtmScannerImportReceipt) {
-  await writeDocument(await gcpToken(), `gtm/scanner-imports/records/${safeDocumentId(receipt.id)}`, { batchId: receipt.batchId, sourceFileId: receipt.sourceFileId, contentHash: receipt.contentHash, processedAt: receipt.processedAt, accepted: receipt.accepted, duplicate: receipt.duplicate, rejected: receipt.rejected, pending: receipt.pending, receiptJson: JSON.stringify(receipt) });
+  await writeDocument(await gcpToken(), `gtm/scanner-imports/records/${safeDocumentId(receipt.id)}`, { batchId: receipt.batchId, sourceFileId: receipt.sourceFileId, contentHash: receipt.contentHash, processedAt: receipt.processedAt, rowsSeen: receipt.rowsSeen || 0, accepted: receipt.accepted, duplicate: receipt.duplicate, rejected: receipt.rejected, pending: receipt.pending, receiptKind: receipt.receiptKind || "IMPORT", alreadyImported: receipt.alreadyImported || false, receiptJson: JSON.stringify(receipt) });
   return receipt;
 }
 export async function readGtmInventoryAutopilot(): Promise<InventoryAutopilotSnapshot | null> {

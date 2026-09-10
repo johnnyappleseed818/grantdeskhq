@@ -106,6 +106,37 @@ export function discoveredPartnerToChannelSeed(opportunity: PartnerDiscoveryOppo
   return dynamicSeed({ organization: opportunity.organization, segment: "PARTNER", organizationDomain: opportunity.organizationDomain, sourceUrl: opportunity.sourceUrl, observedAt: opportunity.observedAt || importedAt, evidenceSummary: opportunity.whyFit, targetRoleGroup: ["Founder", "CEO", "Managing Partner", "Nonprofit Practice Lead", "Partner", "Principal"], importedAt });
 }
 
+/** A named organization in a public discussion may enter the same DISCOVERED
+ * organization queue as other sources. The discussion never identifies a
+ * contact or proves buying intent, and anonymous signals return null. */
+export function socialSignalToChannelSeed(signal: DailySocialSignal, importedAt = new Date().toISOString()): ChannelSeedRecord | null {
+  const organization = signal.identifiedOrganization?.normalize("NFKC").trim();
+  const segment = signal.identifiedSegment;
+  if (!organization || !segment || signal.author === "anonymous") return null;
+  const id = `channel_seed_${createHash("sha256").update(`social:${signal.id}:${segment}:${organization.toLowerCase()}`).digest("hex").slice(0, 24)}`;
+  return {
+    id,
+    organization,
+    segment,
+    targetRoleGroup: segment === "DIRECT"
+      ? ["CFO", "Finance Director", "Controller", "Director of Grants", "Grants Manager", "Executive Director"]
+      : ["Founder", "Managing Partner", "Nonprofit Practice Lead", "Fractional CFO", "Grant Consulting Lead"],
+    source: "social_public_identified",
+    sourceUrl: signal.url,
+    observedAt: signal.publishedAt === "unknown" ? signal.observedAt : signal.publishedAt,
+    importedAt,
+    lifecycle: "DISCOVERED",
+    organizationDomain: null,
+    evidenceSummary: signal.evidenceSummary,
+    qualificationReasons: ["A public community signal explicitly named this organization.", "Organization identity, ICP, current role, email, suppression, and campaign eligibility require independent validation before any outreach."],
+    rejectionReason: null,
+    enrichmentProvider: null,
+    enrichmentResult: null,
+    deduplicationKey: `${segment}:${organization.toLowerCase()}`,
+    scannerUnknownFields: { socialSignalId: signal.id, platform: signal.platform, painThemes: signal.painThemes, attribution: "public_identified_organization" }
+  };
+}
+
 function dynamicSeed(input: { organization: string; segment: CanonicalSegment; organizationDomain: string; sourceUrl: string; observedAt: string; evidenceSummary: string; targetRoleGroup: string[]; importedAt: string }): ChannelSeedRecord {
   const organization = input.organization.trim();
   return { id: recordId(input.segment, organization), organization, segment: input.segment, targetRoleGroup: input.targetRoleGroup, source: "gtm_public_discovery", sourceUrl: input.sourceUrl, observedAt: input.observedAt, importedAt: input.importedAt, lifecycle: "ENRICHMENT_PENDING", organizationDomain: input.organizationDomain || null, evidenceSummary: input.evidenceSummary, qualificationReasons: ["Evidence-backed organization signal was saved by the daily GrantDeskHQ discovery worker.", "Provider enrichment must produce a verified business email before readiness."], rejectionReason: null, enrichmentProvider: null, enrichmentResult: null, deduplicationKey: input.segment + ":" + organization.normalize("NFKC").trim().toLowerCase() };

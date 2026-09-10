@@ -35,7 +35,9 @@ export const dailySocialScanSchema = {
           observedPain: { type: "string" },
           painThemes: { type: "array", items: painTheme },
           whyRelevant: { type: "string" },
-          suggestedResponse: { type: "string" }
+          suggestedResponse: { type: "string" },
+          identifiedOrganization: { type: ["string", "null"] },
+          identifiedSegment: { type: ["string", "null"], enum: ["DIRECT", "PARTNER", null] }
         }
       }
     }

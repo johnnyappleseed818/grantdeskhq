@@ -46,7 +46,7 @@ import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, c
 import { adoptMappedInstantlyLead, canReplaceInstantlyPreview, cleanMembershipEvidenceId, cleanMembershipRebindReason, isCleanMembershipEvidenceRecord, needsCanonicalInitialSendRecovery, rebindMappedInstantlyRecord } from "./instantly.ts";
 import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from "./outboundIncidentClosure.ts";
-import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
+import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed, socialSignalToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
 import { enrichChannelSeedsWithInstantly, reconcileChannelSeedEnrichment } from "./gtmChannelSeedEnrichment.ts";
 import { importScannerDriveBatches } from "./scannerDriveImport.ts";
 import { validateScannerSourceSeeds } from "./scannerSourceValidation.ts";
@@ -475,7 +475,7 @@ async function handleGtmScannerDriveImport(request: IncomingMessage, response: S
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
   const result = await importScannerDriveBatches();
-  console.info(JSON.stringify({ event: "GTM_SCANNER_DRIVE_IMPORT", receiptCount: result.receipts.length, accepted: result.receipts.reduce((sum, receipt) => sum + receipt.accepted, 0), timestamp: new Date().toISOString() }));
+  console.info(JSON.stringify({ event: "GTM_SCANNER_DRIVE_IMPORT", receiptCount: result.receipts.length, importedNow: result.receipts.filter((item) => item.importedNow).length, acceptedNow: result.receipts.filter((item) => item.importedNow).reduce((sum, item) => sum + item.receipt.accepted, 0), reconciledExisting: result.receipts.filter((item) => !item.importedNow).length, receipts: result.receipts.map((item) => ({ id: item.receipt.id, batchId: item.receipt.batchId, rowsSeen: item.receipt.rowsSeen || null, accepted: item.receipt.accepted, duplicate: item.receipt.duplicate, rejected: item.receipt.rejected, receiptKind: item.receipt.receiptKind || "IMPORT", importedNow: item.importedNow })), timestamp: new Date().toISOString() }));
   return json(response, 200, { lifecycle: "DISCOVERED", providerCalls: 0, sends: 0, ...result });
 }
 
@@ -531,10 +531,13 @@ async function handleGtmSocialDiscoveryReconcile(request: IncomingMessage, respo
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
   const scan = await runDailySocialScan().then(saveGtmDailyScan);
+  const seeds = scan.items.map((item) => socialSignalToChannelSeed(item)).filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const imported = seeds.length ? await importGtmChannelSeeds(seeds) : { imported: 0, duplicate: 0, upgraded: 0, total: 0 };
   return json(response, 200, {
     status: scan.errors.length ? "partial" : "completed",
     scan,
-    actionable: scan.items.filter((item) => item.status === "ACTIONABLE")
+    actionable: scan.items.filter((item) => item.status === "ACTIONABLE"),
+    identifiedOrganizationCandidates: imported
   });
 }
 
@@ -1469,6 +1472,8 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
   const priorSocial = await readGtmDailyScan();
   try { social = await runDailySocialScan(new Date(), socialDiscoveryBreadth((priorSocial?.items || []).filter((item) => item.status === "ACTIONABLE").length)).then(saveGtmDailyScan); }
   catch (error) { errors.push(error instanceof Error ? error.message : "Social scan failed."); }
+  if (social) try { await importGtmChannelSeeds(social.items.map((item) => socialSignalToChannelSeed(item)).filter((item): item is NonNullable<typeof item> => Boolean(item))); }
+  catch (error) { errors.push(error instanceof Error ? error.message : "Social scan failed."); }
   // Reuse the established daily GTM runtime for bounded Direct replenishment.
   // The batch suppresses contacted organizations before a provider call and
   // never discovers a new cohort or sends a message.
@@ -1502,7 +1507,7 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
     status: errors.length ? "partial" : "completed",
     generatedAt: new Date().toISOString(),
     socialItemCount: social?.items.filter((item) => item.status === "ACTIONABLE").length || 0,
-    socialResearchMode: "HUMAN_REVIEW_ONLY",
+    socialResearchMode: "REVIEW_ONLY_FOR_ANONYMOUS; IDENTIFIED_ORGANIZATIONS_ENTER_DISCOVERED_VALIDATION",
     socialTelemetry: social ? { sourcesChecked: social.sourceCount, itemsExamined: social.itemsExamined, itemsQualified: social.itemsQualified, itemsSuppressed: social.itemsSuppressed, errors: social.errors } : null,
     awardCandidateCount: awardScan?.opportunities.length || null,
     directDiscovery: directDiscovery || null,

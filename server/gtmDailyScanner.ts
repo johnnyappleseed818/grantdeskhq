@@ -71,6 +71,9 @@ export async function runDailySocialScan(now = new Date(), breadth: "STANDARD" |
           content: [{
             type: "input_text",
             text: `Today is ${scanDate}. Run a bounded ${breadth === "EXPANDED" ? "expanded-breadth" : "standard"} high-recall search for public Reddit, public nonprofit-finance/grant forums, and legitimately public LinkedIn discussions published or visibly updated within the last ${WINDOW_DAYS} days. Run explicit Reddit coverage for r/nonprofit, r/grantwriters, and r/nonprofittech. Search combinations including grant reporting, managing grant reporting, grant management, post-award, grant compliance, grant closeout, grant reporting software, grant management software, QBO grants, QuickBooks grants, grant budget vs actual, budget vs actual grants, grant spreadsheet, grant tracker, grant finance, grant accountant, restricted funds reporting, funder reporting, supporting documentation, grant reporting workflow, collecting program data, grant deadlines, reporting workload, and grant reporting staff. Favor pain terms such as spreadsheet, manual, hours, time consuming, workflow, deadline, reporting burden, reconcile, documentation, compliance, ownership, tool, software, recommendation, and multiple grants. Return up to ${breadth === "EXPANDED" ? 60 : 36} candidate thread/post URLs for content/context qualification. Use canonical public URLs, never search-result URLs. If date or author is not visible return "unknown". Supply a brief, helpful human response that answers first and mentions GrantDeskHQ only when genuinely relevant.`
+          }, {
+            type: "input_text",
+            text: "Set identifiedOrganization and identifiedSegment only if the linked public discussion itself explicitly identifies the organization and supports a current post-award problem for that organization; otherwise set both to null. Never infer an organization from an anonymous author, username, or context."
           }]
         }
       ],
@@ -114,6 +117,8 @@ export function normalizeDailySocialScan(draft: SearchDraft, sourceUrls: string[
       painThemes: [...new Set((candidate.painThemes || []).filter((theme) => typeof theme === "string"))].slice(0, 6),
       whyRelevant: compact(candidate.whyRelevant || "Requires manual review before use.", 300),
       suggestedResponse: compact(candidate.suggestedResponse, 700),
+      identifiedOrganization: identifiedOrganization(candidate.identifiedOrganization),
+      identifiedSegment: identifiedSegment(candidate.identifiedSegment),
       status: "ACTIONABLE"
     });
     if (items.length === 12) break;
@@ -138,9 +143,18 @@ export function normalizeDailySocialScan(draft: SearchDraft, sourceUrls: string[
     limitations: [
       "Search indexes can omit, delay, or misdate public posts.",
       "A source-linked result describes market pain; it does not identify a contactable organization unless separately verified.",
-      "No platform page is scraped, and no post, comment, message, email, or CRM record is created automatically."
+      "No post, comment, message, or email is created automatically. Only an explicitly named organization may enter DISCOVERED validation; anonymous discussions remain research-only."
     ]
   };
+}
+
+function identifiedOrganization(value: unknown) {
+  const normalized = typeof value === "string" ? value.normalize("NFKC").trim().replace(/\s+/g, " ") : "";
+  return normalized && normalized.length <= 180 ? normalized : null;
+}
+
+function identifiedSegment(value: unknown): "DIRECT" | "PARTNER" | null {
+  return value === "DIRECT" || value === "PARTNER" ? value : null;
 }
 
 function collectSourceUrls(body: OpenAIWebSearchResponse) {
