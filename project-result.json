@@ -1,19 +1,26 @@
 {
-  "project": "GrantDeskHQ GTM scanner and reconciliation repair",
+  "project": "GrantDeskHQ commercial acquisition path repair",
   "status": "PARTIAL",
-  "updatedAt": "2026-09-09T17:20:00Z",
-  "commit": "7fcf4c1e881ddf81ad1422fb64f79762d3193d52",
-  "productionRevision": "grantdeskhq-prototype-00481-wim",
+  "updatedAt": "2026-09-10T05:10:00Z",
+  "commit": "9cbc418f60e9bc821afcc80f742ff768c3a558a4",
+  "productionRevision": "grantdeskhq-prototype-00487-vif",
   "traffic": "100%",
   "releaseSmoke": {
     "health": "PASS",
+    "scannerImport": "PASS — runtime re-read two immutable receipts idempotently",
+    "sourceValidation": "PASS — 10 selected, 6 evidence-qualified, 4 retained unresolved",
+    "hunterEnrichment": "PASS — 5 Direct organizations examined and 1 verified contact; 1 Partner organization examined with no verified contact",
     "schedulerAuthenticatedReconciliation": "PASS"
   },
-  "criticalBlockers": [
-    {
-      "operation": "runtime ScrapeGraphAI source validation",
-      "evidence": "The scheduler-authenticated validator returned HTTP 200 with blocked=SCRAPEGRAPH_NOT_CONFIGURED. The promoted runtime binds HUNTER_API_KEY and INSTANTLY_API_KEY but no SCRAPEGRAPH_API_KEY or SGAI_API_KEY.",
-      "requiredAction": "Bind the already-approved ScrapeGraphAI secret to grantdeskhq-runtime as SCRAPEGRAPH_API_KEY or SGAI_API_KEY; no new key, IAM grant, or paid overage is required."
-    }
-  ]
-}
+  "criticalBlockers": [],
+  "remainingVerification": {
+    "operation": "scheduled import-to-Hunter-to-enrollment cycle",
+    "nextExecutionUtc": "2026-09-10T12:15:00Z",
+    "timezone": "America/Detroit",
+    "reason": "The first autonomous sequence after the repaired schedules is in the next valid business-day window; manual runs were recorded separately and do not prove autonomous execution."
+  },
+  "nonBlockingDependency": {
+    "operation": "ScrapeGraphAI public-source extractor",
+    "evidence": "Runtime reports no SCRAPEGRAPH_API_KEY or SGAI_API_KEY binding. Hunter plus public-source validation is operating independently.",
+    "smallestAction": "Bind the already-approved existing ScrapeGraphAI secret to the runtime as SCRAPEGRAPH_API_KEY or SGAI_API_KEY; no new key, IAM grant, or paid overage is required."
+  }
