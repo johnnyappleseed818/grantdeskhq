@@ -50,6 +50,7 @@ import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPart
 import { enrichChannelSeedsWithInstantly, reconcileChannelSeedEnrichment } from "./gtmChannelSeedEnrichment.ts";
 import { importScannerDriveBatches } from "./scannerDriveImport.ts";
 import { validateScannerSourceSeeds } from "./scannerSourceValidation.ts";
+import { listGtmScannerImportReceipts } from "./persistence.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
@@ -156,6 +157,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/channel-seeds/import") return await handleGtmChannelSeedImport(request, response);
     if (url.pathname === "/api/gtm/scanner-drive/import") return await handleGtmScannerDriveImport(request, response);
     if (url.pathname === "/api/gtm/scanner-drive/validate") return await handleGtmScannerDriveValidation(request, response);
+    if (url.pathname === "/api/gtm/scanner-imports") return await handleGtmScannerImportReceipts(request, response);
     if (url.pathname === "/api/gtm/channel-seeds/enrich") return await handleGtmChannelSeedEnrich(request, response);
     if (url.pathname === "/api/gtm/channel-seeds/enrich/reconcile") return await handleGtmChannelSeedEnrichReconcile(request, response);
     if (url.pathname === "/api/gtm/direct-recipient-resolution") return await handleGtmDirectRecipientResolution(request, response);
@@ -484,6 +486,12 @@ async function handleGtmScannerDriveValidation(request: IncomingMessage, respons
   const result = await validateScannerSourceSeeds();
   console.info(JSON.stringify({ event: "GTM_SCANNER_SOURCE_VALIDATE", selected: result.selected, validated: result.validated, roleUnresolved: result.roleUnresolved, blocked: result.blocked, timestamp: new Date().toISOString() }));
   return json(response, 200, { lifecycle: "EVIDENCE_VALIDATION", providerCalls: result.validated, sends: 0, ...result });
+}
+
+async function handleGtmScannerImportReceipts(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  requireGtmAdmin(await requireUser(request));
+  return json(response, 200, { receipts: await listGtmScannerImportReceipts() });
 }
 
 async function handleGtmChannelSeedEnrichReconcile(request: IncomingMessage, response: ServerResponse) {

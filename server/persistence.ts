@@ -839,6 +839,20 @@ export async function readGtmScannerImportReceipt(id: string): Promise<GtmScanne
   try { return value ? JSON.parse(String(value)) as GtmScannerImportReceipt : null; } catch { return null; }
 }
 
+/** Authenticated reporting projection of immutable scanner receipts. It returns
+ * processing facts only; lead/contact records remain in their canonical store. */
+export async function listGtmScannerImportReceipts(limit = 20): Promise<GtmScannerImportReceipt[]> {
+  const response = await authorizedFetch(`${firestoreBase}/gtm/scanner-imports/records?pageSize=${Math.min(Math.max(limit, 1), 100)}`, await gcpToken());
+  if (response.status === 404) return [];
+  if (!response.ok) throw new Error(`GTM scanner import receipts could not be loaded (${response.status}).`);
+  const body = await response.json() as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> };
+  return (body.documents || []).flatMap((document) => {
+    const value = decodeFields(document.fields || {}).receiptJson;
+    try { return value ? [JSON.parse(String(value)) as GtmScannerImportReceipt] : []; }
+    catch { return []; }
+  }).sort((left, right) => right.processedAt.localeCompare(left.processedAt));
+}
+
 export async function saveGtmScannerImportReceipt(receipt: GtmScannerImportReceipt) {
   await writeDocument(await gcpToken(), `gtm/scanner-imports/records/${safeDocumentId(receipt.id)}`, { batchId: receipt.batchId, sourceFileId: receipt.sourceFileId, contentHash: receipt.contentHash, processedAt: receipt.processedAt, accepted: receipt.accepted, duplicate: receipt.duplicate, rejected: receipt.rejected, pending: receipt.pending, receiptJson: JSON.stringify(receipt) });
   return receipt;
