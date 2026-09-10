@@ -122,6 +122,13 @@ describe("important routes", () => {
     expect(document.body.textContent).not.toMatch(/mailto:|docs\.google\.com\/forms|eli@|Eli Katz/i);
   });
 
+
+  it("keeps the public fallback distinct from the synthetic sample demonstration", () => {
+    const fallback = fs.readFileSync(path.resolve("index.html"), "utf8");
+    expect(fallback).toMatch(/secure Free First Award with your real award materials/i);
+    expect(fallback).toMatch(/sample report uses synthetic data/i);
+    expect(fallback).not.toMatch(/interactive demo using synthetic data/i);
+  });
   it("shows the approved self-service monthly pricing and capacity", () => {
     renderRoute("/pricing");
     for (const plan of ["Starter Nonprofit", "Growth", "Fractional CFO Agency"]) {
