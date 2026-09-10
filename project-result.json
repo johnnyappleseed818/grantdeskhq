@@ -1,9 +1,9 @@
 {
   "project": "GrantDeskHQ commercial acquisition path repair",
   "status": "PARTIAL",
-  "updatedAt": "2026-09-10T05:10:00Z",
-  "commit": "9cbc418f60e9bc821afcc80f742ff768c3a558a4",
-  "productionRevision": "grantdeskhq-prototype-00487-vif",
+  "updatedAt": "2026-09-10T05:22:00Z",
+  "commit": "7fde30ecf20a55420eee1e8492545ca2842cb2b4",
+  "productionRevision": "grantdeskhq-prototype-00489-weg",
   "traffic": "100%",
   "releaseSmoke": {
     "health": "PASS",
