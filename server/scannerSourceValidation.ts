@@ -1,6 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { listGtmChannelSeeds, saveGtmChannelSeed } from "./persistence.ts";
-import { resolveHunterOrganizationDomain } from "./contactEnrichmentProviders.ts";
+import { readHunterUsage, resolveHunterOrganizationDomain } from "./contactEnrichmentProviders.ts";
 import type { ChannelSeedRecord } from "../src/lib/gtmChannelSeeds.ts";
 
 type ScannerValidationOutcome = {
@@ -21,9 +21,15 @@ export async function validateScannerSourceSeeds(env: NodeJS.ProcessEnv = proces
     provider: "hunter_domain_finder+public_source",
     scrapegraphConfigured: Boolean((env.SCRAPEGRAPH_API_KEY || env.SGAI_API_KEY || "").trim()),
     blocked: null as string | null,
+    hunterUsage: null as { resetDate: string | null; remainingDomainLookups: number | null; httpStatus: number | null; providerRequestId: string | null } | null,
     outcomes: [] as ScannerValidationOutcome[]
   };
   if (!env.HUNTER_API_KEY?.trim()) return { ...result, blocked: "HUNTER_NOT_CONFIGURED" };
+  const hunterConfiguration = { enabled: env.GTM_CONTACT_ENRICHMENT_ENABLED === "true", apiKey: env.HUNTER_API_KEY, lookupLimit: 1, lookupsUsed: 0 };
+  const usage = await readHunterUsage(hunterConfiguration);
+  result.hunterUsage = { resetDate: usage.resetDate, remainingDomainLookups: usage.remainingDomainLookups, httpStatus: usage.httpStatus || null, providerRequestId: usage.providerRequestId || null };
+  if (usage.status !== "AVAILABLE") return { ...result, blocked: `HUNTER_USAGE_${String(usage.errorCategory || "UNAVAILABLE").toUpperCase()}` };
+  if (usage.remainingDomainLookups === 0) return { ...result, blocked: "HUNTER_USAGE_EXHAUSTED" };
   for (const seed of candidates) {
     const source = publicSource(seed.sourceUrl);
     if (!source) {
@@ -32,15 +38,17 @@ export async function validateScannerSourceSeeds(env: NodeJS.ProcessEnv = proces
       result.outcomes.push({ canonicalRecordId: seed.id, segment: seed.segment, disposition: "REJECTED", reason: "UNSAFE_OR_MALFORMED_SOURCE_URL" });
       continue;
     }
-    const resolved = await resolveHunterOrganizationDomain(seed.organization, {
-      enabled: env.GTM_CONTACT_ENRICHMENT_ENABLED === "true", apiKey: env.HUNTER_API_KEY, lookupLimit: 1, lookupsUsed: 0
-    });
+    const resolved = await resolveHunterOrganizationDomain(seed.organization, hunterConfiguration);
     if (resolved.status !== "FOUND" || !resolved.domain) {
       const disposition = resolved.status === "NOT_FOUND" ? "REJECTED" : "DEFERRED";
       const reason = resolved.status === "NOT_FOUND" ? "OFFICIAL_DOMAIN_NOT_FOUND" : `HUNTER_DOMAIN_${String(resolved.errorCategory || "UNAVAILABLE").toUpperCase()}`;
       await recordValidationOutcome(seed, disposition, reason, "The official organization domain could not be independently resolved.", now, env);
       result[disposition === "REJECTED" ? "rejected" : "deferred"]++;
       result.outcomes.push({ canonicalRecordId: seed.id, segment: seed.segment, disposition, reason });
+      if (hunterFailureStopsValidation(resolved.errorCategory)) {
+        result.blocked = reason;
+        break;
+      }
       continue;
     }
     if (!await sourceSupportsOrganizationSignal(source, seed.organization, seed.segment)) {
@@ -102,6 +110,9 @@ export function scannerValidationDue(seed: ChannelSeedRecord, now: string, env: 
 
 function retryDelayMs(attempts: number) {
   return Math.min(24 * 60 * 60 * 1000, 15 * 60 * 1000 * 2 ** Math.max(0, attempts - 1));
+}
+export function hunterFailureStopsValidation(category: string | undefined) {
+  return category === "rate_limited" || category === "limit_reached" || category === "authentication";
 }
 
 async function sourceSupportsOrganizationSignal(source: URL, organization: string, segment: ChannelSeedRecord["segment"]) {

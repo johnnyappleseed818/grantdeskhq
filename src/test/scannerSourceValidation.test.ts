@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scannerEvidenceBackedIdentity, scannerValidationDue, sourceProvesOrganizationDomain } from "../../server/scannerSourceValidation.ts";
+import { hunterFailureStopsValidation, scannerEvidenceBackedIdentity, scannerValidationDue, sourceProvesOrganizationDomain } from "../../server/scannerSourceValidation.ts";
 import type { ChannelSeedRecord } from "../lib/gtmChannelSeeds.ts";
 
 const seed = (hint: string, segment: "DIRECT" | "PARTNER" = "PARTNER"): ChannelSeedRecord => ({
@@ -54,5 +54,10 @@ describe("scanner validation recovery", () => {
       validationAttemptCount: 3
     };
     expect(scannerValidationDue(exhausted, now, {})).toBe(false);
+  });
+  it("stops the batch after a provider throttle or exhausted allowance rather than repeating paid discovery calls", () => {
+    expect(hunterFailureStopsValidation("rate_limited")).toBe(true);
+    expect(hunterFailureStopsValidation("limit_reached")).toBe(true);
+    expect(hunterFailureStopsValidation("provider_error")).toBe(false);
   });
 });

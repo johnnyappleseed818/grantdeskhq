@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveHunterOrganizationDomain, resolveHunterRoleFitContact } from "../../server/contactEnrichmentProviders.ts";
+import { readHunterUsage, resolveHunterOrganizationDomain, resolveHunterRoleFitContact } from "../../server/contactEnrichmentProviders.ts";
 
 const base = { enabled: true, apiKey: "test", lookupLimit: 1, lookupsUsed: 0 };
 
@@ -28,5 +28,19 @@ describe("Hunter organization and role discovery", () => {
     const unavailable = await resolveHunterOrganizationDomain("Example Community Action", { ...base, enabled: false });
     expect(missing.status).toBe("NOT_FOUND");
     expect(unavailable.status).toBe("UNAVAILABLE");
+  });
+  it("reads the free account allowance without exposing identity data", async () => {
+    const usage = await readHunterUsage({
+      ...base,
+      fetcher: async () => new Response(JSON.stringify({ data: { reset_date: "2026-10-01", requests: { searches: { remaining: 7 }, verifications: { remaining: 12 } } } }), { status: 200 })
+    });
+    expect(usage).toEqual({ status: "AVAILABLE", resetDate: "2026-10-01", remainingDomainLookups: 7 });
+  });
+
+  it("classifies Hunter 403 as throttling and 429 as exhausted usage with sanitized request metadata", async () => {
+    const throttled = await resolveHunterOrganizationDomain("Example Community Action", { ...base, fetcher: async () => new Response("{}", { status: 403, headers: { "x-request-id": "hunter-403" } }) });
+    const exhausted = await readHunterUsage({ ...base, fetcher: async () => new Response("{}", { status: 429, headers: { "x-request-id": "hunter-429" } }) });
+    expect(throttled).toMatchObject({ status: "UNAVAILABLE", errorCategory: "rate_limited", httpStatus: 403, providerRequestId: "hunter-403" });
+    expect(exhausted).toMatchObject({ status: "UNAVAILABLE", errorCategory: "limit_reached", httpStatus: 429, providerRequestId: "hunter-429" });
   });
 });

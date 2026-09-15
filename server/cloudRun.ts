@@ -484,7 +484,7 @@ async function handleGtmScannerDriveValidation(request: IncomingMessage, respons
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
   const result = await validateScannerSourceSeeds();
-  console.info(JSON.stringify({ event: "GTM_SCANNER_SOURCE_VALIDATE", selected: result.selected, validated: result.validated, deferred: result.deferred, rejected: result.rejected, outcomes: result.outcomes, blocked: result.blocked, timestamp: new Date().toISOString() }));
+  console.info(JSON.stringify({ event: "GTM_SCANNER_SOURCE_VALIDATE", selected: result.selected, validated: result.validated, deferred: result.deferred, rejected: result.rejected, outcomes: result.outcomes, hunterUsage: result.hunterUsage, blocked: result.blocked, timestamp: new Date().toISOString() }));
   return json(response, 200, { lifecycle: "EVIDENCE_VALIDATION", providerCalls: result.validated, sends: 0, ...result });
 }
 

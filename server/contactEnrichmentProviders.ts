@@ -22,6 +22,37 @@ export interface HunterDomainResolution {
   domain: string | null;
   organization: string | null;
   errorCategory?: "not_configured" | "limit_reached" | "authentication" | "rate_limited" | "provider_error" | "network" | "invalid_response";
+  httpStatus?: number;
+  providerRequestId?: string | null;
+}
+export interface HunterUsageSnapshot {
+  status: "AVAILABLE" | "UNAVAILABLE";
+  resetDate: string | null;
+  remainingDomainLookups: number | null;
+  errorCategory?: HunterDomainResolution["errorCategory"];
+  httpStatus?: number;
+  providerRequestId?: string | null;
+}
+
+/** Free allowance preflight: no contact or identity data is returned. */
+export async function readHunterUsage(configuration: HunterProviderConfiguration): Promise<HunterUsageSnapshot> {
+  const unavailable = providerUnavailable("hunter", configuration, "not_configured");
+  if (unavailable) return { status: "UNAVAILABLE", resetDate: null, remainingDomainLookups: null, errorCategory: unavailable.errorCategory };
+  try {
+    const url = new URL("https://api.hunter.io/v2/usage");
+    url.searchParams.set("api_key", configuration.apiKey!.trim());
+    const response = await (configuration.fetcher || fetch)(url, { signal: AbortSignal.timeout(12_000) });
+    if (!response.ok) {
+      const failed = providerFailure("hunter", response.status);
+      return { status: "UNAVAILABLE", resetDate: null, remainingDomainLookups: null, errorCategory: failed.errorCategory, httpStatus: response.status, providerRequestId: providerRequestId(response) };
+    }
+    const body = await parseJson(response) as { data?: { reset_date?: unknown; requests?: Record<string, { remaining?: unknown }> } };
+    const requests = body.data?.requests || {};
+    const remaining = numericValue(requests.credits?.remaining) ?? numericValue(requests.searches?.remaining);
+    return { status: "AVAILABLE", resetDate: typeof body.data?.reset_date === "string" ? body.data.reset_date : null, remainingDomainLookups: remaining };
+  } catch (error) {
+    return { status: "UNAVAILABLE", resetDate: null, remainingDomainLookups: null, errorCategory: isAbort(error) ? "network" : isInvalidResponse(error) ? "invalid_response" : "provider_error" };
+  }
 }
 
 /** Hunter documents Domain Finder as a free, canonical company-to-domain
@@ -39,7 +70,7 @@ export async function resolveHunterOrganizationDomain(company: string, configura
     const response = await (configuration.fetcher || fetch)(url, { signal: AbortSignal.timeout(12_000) });
     if (!response.ok) {
       const failed = providerFailure("hunter", response.status);
-      return { status: "UNAVAILABLE", domain: null, organization: null, errorCategory: failed.errorCategory };
+      return { status: "UNAVAILABLE", domain: null, organization: null, errorCategory: failed.errorCategory, httpStatus: response.status, providerRequestId: providerRequestId(response) };
     }
     const body = await parseJson(response);
     const candidate = arrayAt(body, ["data"])[0];
@@ -179,8 +210,17 @@ function providerUnavailable(provider: ContactEnrichmentProviderName, configurat
 }
 
 function providerFailure(provider: ContactEnrichmentProviderName, statusCode: number, details: Partial<ProviderLookupResult> = {}) {
-  const errorCategory = statusCode === 401 ? "authentication" : statusCode === 403 || statusCode === 429 ? "rate_limited" : "provider_error";
+  const errorCategory = statusCode === 401 ? "authentication"
+    : provider === "hunter" && statusCode === 429 ? "limit_reached"
+    : statusCode === 403 || statusCode === 429 ? "rate_limited" : "provider_error";
   return providerResult(provider, "UNAVAILABLE", { ...details, attempted: true, errorCategory, providerMetadata: { ...(details.providerMetadata || {}), httpStatus: statusCode } });
+}
+function providerRequestId(response: Response) {
+  return response.headers.get("x-request-id") || response.headers.get("request-id");
+}
+function numericValue(value: unknown) {
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
 }
 
 function providerResult(provider: ContactEnrichmentProviderName, status: EmailVerificationStatus, details: Partial<ProviderLookupResult>): ProviderLookupResult {
