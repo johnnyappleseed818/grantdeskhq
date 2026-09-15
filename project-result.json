@@ -28,7 +28,7 @@
   },
   "nonBlockingDependency": {
     "operation": "ScrapeGraphAI public-source extractor",
-    "evidence": "Runtime reports no SCRAPEGRAPH_API_KEY or SGAI_API_KEY binding.",
-    "smallestAction": "Bind the already-approved existing ScrapeGraphAI secret to the runtime as SCRAPEGRAPH_API_KEY or SGAI_API_KEY; no new key, IAM grant, or paid overage is required."
+    "evidence": "Runtime reports no SCRAPEGRAPH_API_KEY or SGAI_API_KEY binding, and the repository has no server-side ScrapeGraphAI adapter beyond a configuration boolean.",
+    "smallestAction": "Implement the bounded server-side adapter, then bind the already-approved existing ScrapeGraphAI secret to the runtime as SCRAPEGRAPH_API_KEY or SGAI_API_KEY; no new key, IAM grant, or paid overage is required."
   }
 }
