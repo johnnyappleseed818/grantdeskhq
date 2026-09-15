@@ -1,26 +1,34 @@
 {
   "project": "GrantDeskHQ commercial acquisition path repair",
   "status": "PARTIAL",
-  "updatedAt": "2026-09-10T05:22:00Z",
-  "commit": "7fde30ecf20a55420eee1e8492545ca2842cb2b4",
-  "productionRevision": "grantdeskhq-prototype-00489-weg",
+  "updatedAt": "2026-09-15T11:05:50Z",
+  "commit": "2f6201ab5b421b5fbd63a47347b52a2debaf08de",
+  "productionRevision": "grantdeskhq-prototype-00497-kuf",
   "traffic": "100%",
   "releaseSmoke": {
-    "health": "PASS",
-    "scannerImport": "PASS — runtime re-read two immutable receipts idempotently",
-    "sourceValidation": "PASS — 10 selected, 6 evidence-qualified, 4 retained unresolved",
-    "hunterEnrichment": "PASS — 5 Direct organizations examined and 1 verified contact; 1 Partner organization examined with no verified contact",
-    "schedulerAuthenticatedReconciliation": "PASS"
+    "health": "PASS — current production custom domain returned HTTP 200.",
+    "scannerImport": "PASS — known Drive batch has immutable canonical import receipts: 28 accepted, 2 duplicates, 0 malformed rows.",
+    "sourceValidation": "PARTIAL — scheduler selected deferred scanner records but stopped safely before further Domain Finder calls.",
+    "hunterEnrichment": "BLOCKED — Hunter usage reports 0.5 remaining Domain Finder credits; one full search credit is required.",
+    "schedulerAuthenticatedReconciliation": "PASS — Google Cloud Scheduler invoked the serving revision and logged the durable provider preflight."
   },
-  "criticalBlockers": [],
+  "criticalBlockers": [{
+    "operation": "Hunter GET /v2/domain-finder",
+    "timestamp": "2026-09-15T10:59:29.137Z",
+    "httpStatus": 429,
+    "providerErrorId": null,
+    "evidence": "Runtime account preflight returned 0.5 remaining search credits and reset date 2026-10-03; the configured lookup limit was not exhausted locally.",
+    "smallestAction": "Wait for the configured Hunter allowance reset on 2026-10-03 or add approved Hunter search credits without enabling overage."
+  }],
   "remainingVerification": {
-    "operation": "scheduled import-to-Hunter-to-enrollment cycle",
-    "nextExecutionUtc": "2026-09-10T12:15:00Z",
+    "operation": "scheduled scanner validation, Hunter contact discovery, eligibility, clean-campaign enrollment, and provider reconciliation",
+    "nextExecutionUtc": "2026-09-15T12:30:00Z",
     "timezone": "America/Detroit",
-    "reason": "The first autonomous sequence after the repaired schedules is in the next valid business-day window; manual runs were recorded separately and do not prove autonomous execution."
+    "reason": "Hunter allowance blocks contact discovery. No imported scanner recipient is READY, enrolled, or provider-confirmed sent."
   },
   "nonBlockingDependency": {
     "operation": "ScrapeGraphAI public-source extractor",
-    "evidence": "Runtime reports no SCRAPEGRAPH_API_KEY or SGAI_API_KEY binding. Hunter plus public-source validation is operating independently.",
+    "evidence": "Runtime reports no SCRAPEGRAPH_API_KEY or SGAI_API_KEY binding.",
     "smallestAction": "Bind the already-approved existing ScrapeGraphAI secret to the runtime as SCRAPEGRAPH_API_KEY or SGAI_API_KEY; no new key, IAM grant, or paid overage is required."
   }
+}
