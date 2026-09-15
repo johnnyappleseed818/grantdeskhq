@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scannerEvidenceBackedIdentity, sourceProvesOrganizationDomain } from "../../server/scannerSourceValidation.ts";
+import { scannerEvidenceBackedIdentity, scannerValidationDue, sourceProvesOrganizationDomain } from "../../server/scannerSourceValidation.ts";
 import type { ChannelSeedRecord } from "../lib/gtmChannelSeeds.ts";
 
 const seed = (hint: string, segment: "DIRECT" | "PARTNER" = "PARTNER"): ChannelSeedRecord => ({
@@ -25,5 +25,34 @@ describe("scanner source domain gate", () => {
     expect(sourceProvesOrganizationDomain({ sourceUrl: "https://example.org/team", scannerClaimedDomain: "example.org" })).toBe(true);
     expect(sourceProvesOrganizationDomain({ sourceUrl: "https://industry-directory.example/listing", scannerClaimedDomain: "example.org" })).toBe(false);
     expect(sourceProvesOrganizationDomain({ sourceUrl: "https://example.org/team", scannerClaimedDomain: null })).toBe(false);
+  });
+});
+
+describe("scanner validation recovery", () => {
+  const now = "2026-09-15T14:00:00.000Z";
+
+  it("retries a legacy deferred scanner record once, then records a durable disposition", () => {
+    const legacy = { ...seed(""), lifecycle: "ROLE_UNRESOLVED" as const, rejectionReason: "SOURCE_CLAIM_NOT_INDEPENDENTLY_VERIFIED" };
+    expect(scannerValidationDue(legacy, now, {})).toBe(true);
+    const deferred = {
+      ...legacy,
+      validationDisposition: "DEFERRED" as const,
+      validationAttemptCount: 1,
+      validationNextAttemptAt: "2026-09-15T14:30:00.000Z"
+    };
+    expect(scannerValidationDue(deferred, now, {})).toBe(false);
+    expect(scannerValidationDue(deferred, "2026-09-15T14:30:00.000Z", {})).toBe(true);
+  });
+
+  it("does not retry terminal validation rejections or exceed the bounded retry count", () => {
+    const rejected = { ...seed(""), lifecycle: "REJECTED" as const, validationDisposition: "REJECTED" as const };
+    expect(scannerValidationDue(rejected, now, {})).toBe(false);
+    const exhausted = {
+      ...seed(""),
+      lifecycle: "ROLE_UNRESOLVED" as const,
+      validationDisposition: "DEFERRED" as const,
+      validationAttemptCount: 3
+    };
+    expect(scannerValidationDue(exhausted, now, {})).toBe(false);
   });
 });

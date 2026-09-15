@@ -3,37 +3,50 @@ import { listGtmChannelSeeds, saveGtmChannelSeed } from "./persistence.ts";
 import { resolveHunterOrganizationDomain } from "./contactEnrichmentProviders.ts";
 import type { ChannelSeedRecord } from "../src/lib/gtmChannelSeeds.ts";
 
+type ScannerValidationOutcome = {
+  canonicalRecordId: string;
+  segment: ChannelSeedRecord["segment"];
+  disposition: "QUALIFIED" | "DEFERRED" | "REJECTED";
+  reason: string;
+};
+
 /** A public discovery page need not be the organization\x27s own site. */
 export async function validateScannerSourceSeeds(env: NodeJS.ProcessEnv = process.env) {
-  const candidates = (await listGtmChannelSeeds())
-    .filter((seed) => seed.source === "chatgpt_scanner_drive" && seed.lifecycle === "DISCOVERED")
-    .slice(0, configuredLimit(env));
   const now = new Date().toISOString();
+  const candidates = (await listGtmChannelSeeds())
+    .filter((seed) => seed.source === "chatgpt_scanner_drive" && scannerValidationDue(seed, now, env))
+    .slice(0, configuredLimit(env));
   const result = {
-    selected: candidates.length, validated: 0, roleUnresolved: 0, rejected: 0, remediated: 0,
+    selected: candidates.length, validated: 0, deferred: 0, rejected: 0, remediated: 0,
     provider: "hunter_domain_finder+public_source",
     scrapegraphConfigured: Boolean((env.SCRAPEGRAPH_API_KEY || env.SGAI_API_KEY || "").trim()),
-    blocked: null as string | null
+    blocked: null as string | null,
+    outcomes: [] as ScannerValidationOutcome[]
   };
   if (!env.HUNTER_API_KEY?.trim()) return { ...result, blocked: "HUNTER_NOT_CONFIGURED" };
   for (const seed of candidates) {
     const source = publicSource(seed.sourceUrl);
     if (!source) {
-      await unresolved(seed, "UNSAFE_OR_MALFORMED_SOURCE_URL", "The scanner source is not a permitted public HTTPS URL.", now);
-      result.roleUnresolved++;
+      await recordValidationOutcome(seed, "REJECTED", "UNSAFE_OR_MALFORMED_SOURCE_URL", "The scanner source is not a permitted public HTTPS URL.", now, env);
+      result.rejected++;
+      result.outcomes.push({ canonicalRecordId: seed.id, segment: seed.segment, disposition: "REJECTED", reason: "UNSAFE_OR_MALFORMED_SOURCE_URL" });
       continue;
     }
     const resolved = await resolveHunterOrganizationDomain(seed.organization, {
       enabled: env.GTM_CONTACT_ENRICHMENT_ENABLED === "true", apiKey: env.HUNTER_API_KEY, lookupLimit: 1, lookupsUsed: 0
     });
     if (resolved.status !== "FOUND" || !resolved.domain) {
-      await unresolved(seed, resolved.status === "NOT_FOUND" ? "OFFICIAL_DOMAIN_NOT_FOUND" : `HUNTER_DOMAIN_${String(resolved.errorCategory || "UNAVAILABLE").toUpperCase()}`, "The official organization domain could not be independently resolved; the record remains pending research.", now);
-      result.roleUnresolved++;
+      const disposition = resolved.status === "NOT_FOUND" ? "REJECTED" : "DEFERRED";
+      const reason = resolved.status === "NOT_FOUND" ? "OFFICIAL_DOMAIN_NOT_FOUND" : `HUNTER_DOMAIN_${String(resolved.errorCategory || "UNAVAILABLE").toUpperCase()}`;
+      await recordValidationOutcome(seed, disposition, reason, "The official organization domain could not be independently resolved.", now, env);
+      result[disposition === "REJECTED" ? "rejected" : "deferred"]++;
+      result.outcomes.push({ canonicalRecordId: seed.id, segment: seed.segment, disposition, reason });
       continue;
     }
     if (!await sourceSupportsOrganizationSignal(source, seed.organization, seed.segment)) {
-      await unresolved(seed, "SOURCE_CLAIM_NOT_INDEPENDENTLY_VERIFIED", "The public source did not support the organization identity and the required segment-specific signal.", now);
-      result.roleUnresolved++;
+      await recordValidationOutcome(seed, "REJECTED", "SOURCE_CLAIM_NOT_INDEPENDENTLY_VERIFIED", "The public source did not support the organization identity and the required segment-specific signal.", now, env);
+      result.rejected++;
+      result.outcomes.push({ canonicalRecordId: seed.id, segment: seed.segment, disposition: "REJECTED", reason: "SOURCE_CLAIM_NOT_INDEPENDENTLY_VERIFIED" });
       continue;
     }
     const officialUrl = `https://${resolved.domain}`;
@@ -42,18 +55,53 @@ export async function validateScannerSourceSeeds(env: NodeJS.ProcessEnv = proces
       officialOrganizationUrl: officialUrl, officialOrganizationEvidenceUrl: officialUrl,
       qualificationProvider: "hunter_domain_finder+public_source", qualificationUpdatedAt: now,
       rejectionReason: null, enrichmentProvider: "hunter_domain_finder",
+      validationDisposition: "QUALIFIED", validationAttemptCount: (seed.validationAttemptCount || 0) + 1,
+      validationLastAttemptAt: now, validationNextAttemptAt: null,
       enrichmentResult: "Organization identity and public signal are qualified. Hunter contact discovery and email verification are now required; no contact is inferred from the source page.",
       evidenceSummary: `${seed.evidenceSummary} Official domain independently resolved for the organization; public source supports the segment signal.`,
       qualificationReasons: [...seed.qualificationReasons, "Official domain independently resolved by Hunter Domain Finder.", "Public source independently supports the organization and segment-specific signal."],
       enrichmentUpdatedAt: now
     });
     result.validated++;
+    result.outcomes.push({ canonicalRecordId: seed.id, segment: seed.segment, disposition: "QUALIFIED", reason: "EVIDENCE_QUALIFIED" });
   }
   return result;
 }
 
-async function unresolved(seed: ChannelSeedRecord, reason: string, detail: string, now: string) {
-  await saveGtmChannelSeed({ ...seed, lifecycle: "ROLE_UNRESOLVED", rejectionReason: reason, enrichmentResult: detail, qualificationProvider: "hunter_domain_finder+public_source", qualificationUpdatedAt: now, enrichmentUpdatedAt: now });
+async function recordValidationOutcome(seed: ChannelSeedRecord, disposition: "DEFERRED" | "REJECTED", reason: string, detail: string, now: string, env: NodeJS.ProcessEnv) {
+  const attempts = (seed.validationAttemptCount || 0) + 1;
+  const exhausted = disposition === "DEFERRED" && attempts >= configuredMaxAttempts(env);
+  const finalDisposition = exhausted ? "REJECTED" : disposition;
+  const nextAttempt = finalDisposition === "DEFERRED" ? new Date(Date.parse(now) + retryDelayMs(attempts)).toISOString() : null;
+  await saveGtmChannelSeed({
+    ...seed,
+    lifecycle: finalDisposition === "REJECTED" ? "REJECTED" : "ROLE_UNRESOLVED",
+    rejectionReason: exhausted ? `${reason}_RETRY_EXHAUSTED` : reason,
+    enrichmentResult: detail,
+    qualificationProvider: "hunter_domain_finder+public_source",
+    qualificationUpdatedAt: now,
+    validationDisposition: finalDisposition,
+    validationAttemptCount: attempts,
+    validationLastAttemptAt: now,
+    validationNextAttemptAt: nextAttempt,
+    enrichmentUpdatedAt: now
+  });
+}
+
+/** Legacy ROLE_UNRESOLVED scanner records lacked retry metadata. They get one
+ * bounded re-evaluation, then persist an explicit terminal or deferred state. */
+export function scannerValidationDue(seed: ChannelSeedRecord, now: string, env: NodeJS.ProcessEnv = process.env) {
+  if (seed.lifecycle === "DISCOVERED") return true;
+  if (seed.lifecycle !== "ROLE_UNRESOLVED") return false;
+  const attempts = seed.validationAttemptCount || 0;
+  if (attempts >= configuredMaxAttempts(env)) return false;
+  if (seed.validationDisposition && seed.validationDisposition !== "DEFERRED") return false;
+  const next = Date.parse(seed.validationNextAttemptAt || "");
+  return !Number.isFinite(next) || next <= Date.parse(now);
+}
+
+function retryDelayMs(attempts: number) {
+  return Math.min(24 * 60 * 60 * 1000, 15 * 60 * 1000 * 2 ** Math.max(0, attempts - 1));
 }
 
 async function sourceSupportsOrganizationSignal(source: URL, organization: string, segment: ChannelSeedRecord["segment"]) {
@@ -102,6 +150,10 @@ function publicSource(value: string) {
 function configuredLimit(env: NodeJS.ProcessEnv) {
   const value = Number(env.GTM_SCANNER_VALIDATION_MAX_PER_RUN || 10);
   return Number.isInteger(value) && value > 0 ? Math.min(value, 30) : 10;
+}
+function configuredMaxAttempts(env: NodeJS.ProcessEnv) {
+  const value = Number(env.GTM_SCANNER_VALIDATION_MAX_ATTEMPTS || 3);
+  return Number.isInteger(value) && value >= 1 ? Math.min(value, 5) : 3;
 }
 
 /** Legacy helper retained for regression coverage. It is intentionally not a qualification gate. */

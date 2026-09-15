@@ -46,6 +46,11 @@ export interface ChannelSeedRecord {
   officialOrganizationEvidenceUrl?: string | null;
   qualificationProvider?: string | null;
   qualificationUpdatedAt?: string | null;
+  /** Scanner validation disposition is separate from the contact/email gates. */
+  validationDisposition?: "QUALIFIED" | "DEFERRED" | "REJECTED" | "ERROR" | null;
+  validationAttemptCount?: number;
+  validationLastAttemptAt?: string | null;
+  validationNextAttemptAt?: string | null;
   scannerUnknownFields?: Record<string, unknown>;
 }
 
