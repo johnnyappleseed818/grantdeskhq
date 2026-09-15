@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hunterFailureStopsValidation, scannerEvidenceBackedIdentity, scannerValidationDue, sourceProvesOrganizationDomain } from "../../server/scannerSourceValidation.ts";
+import { hunterFailureStopsValidation, hunterUsageAllowsDomainLookup, scannerEvidenceBackedIdentity, scannerValidationDue, sourceProvesOrganizationDomain } from "../../server/scannerSourceValidation.ts";
 import type { ChannelSeedRecord } from "../lib/gtmChannelSeeds.ts";
 
 const seed = (hint: string, segment: "DIRECT" | "PARTNER" = "PARTNER"): ChannelSeedRecord => ({
@@ -59,5 +59,10 @@ describe("scanner validation recovery", () => {
     expect(hunterFailureStopsValidation("rate_limited")).toBe(true);
     expect(hunterFailureStopsValidation("limit_reached")).toBe(true);
     expect(hunterFailureStopsValidation("provider_error")).toBe(false);
+  });
+
+  it("requires one whole Hunter search credit before calling Domain Finder", () => {
+    expect(hunterUsageAllowsDomainLookup(0.5)).toBe(false);
+    expect(hunterUsageAllowsDomainLookup(1)).toBe(true);
   });
 });

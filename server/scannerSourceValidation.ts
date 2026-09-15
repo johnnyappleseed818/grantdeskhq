@@ -8,6 +8,8 @@ type ScannerValidationOutcome = {
   segment: ChannelSeedRecord["segment"];
   disposition: "QUALIFIED" | "DEFERRED" | "REJECTED";
   reason: string;
+  providerHttpStatus?: number | null;
+  providerRequestId?: string | null;
 };
 
 /** A public discovery page need not be the organization\x27s own site. */
@@ -29,7 +31,7 @@ export async function validateScannerSourceSeeds(env: NodeJS.ProcessEnv = proces
   const usage = await readHunterUsage(hunterConfiguration);
   result.hunterUsage = { resetDate: usage.resetDate, remainingDomainLookups: usage.remainingDomainLookups, httpStatus: usage.httpStatus || null, providerRequestId: usage.providerRequestId || null };
   if (usage.status !== "AVAILABLE") return { ...result, blocked: `HUNTER_USAGE_${String(usage.errorCategory || "UNAVAILABLE").toUpperCase()}` };
-  if (usage.remainingDomainLookups === 0) return { ...result, blocked: "HUNTER_USAGE_EXHAUSTED" };
+  if (!hunterUsageAllowsDomainLookup(usage.remainingDomainLookups)) return { ...result, blocked: "HUNTER_USAGE_EXHAUSTED" };
   for (const seed of candidates) {
     const source = publicSource(seed.sourceUrl);
     if (!source) {
@@ -44,7 +46,7 @@ export async function validateScannerSourceSeeds(env: NodeJS.ProcessEnv = proces
       const reason = resolved.status === "NOT_FOUND" ? "OFFICIAL_DOMAIN_NOT_FOUND" : `HUNTER_DOMAIN_${String(resolved.errorCategory || "UNAVAILABLE").toUpperCase()}`;
       await recordValidationOutcome(seed, disposition, reason, "The official organization domain could not be independently resolved.", now, env);
       result[disposition === "REJECTED" ? "rejected" : "deferred"]++;
-      result.outcomes.push({ canonicalRecordId: seed.id, segment: seed.segment, disposition, reason });
+      result.outcomes.push({ canonicalRecordId: seed.id, segment: seed.segment, disposition, reason, providerHttpStatus: resolved.httpStatus || null, providerRequestId: resolved.providerRequestId || null });
       if (hunterFailureStopsValidation(resolved.errorCategory)) {
         result.blocked = reason;
         break;
@@ -113,6 +115,9 @@ function retryDelayMs(attempts: number) {
 }
 export function hunterFailureStopsValidation(category: string | undefined) {
   return category === "rate_limited" || category === "limit_reached" || category === "authentication";
+}
+export function hunterUsageAllowsDomainLookup(remaining: number | null) {
+  return remaining === null || remaining >= 1;
 }
 
 async function sourceSupportsOrganizationSignal(source: URL, organization: string, segment: ChannelSeedRecord["segment"]) {
