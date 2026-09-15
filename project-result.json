@@ -1,34 +1,34 @@
 {
   "project": "GrantDeskHQ commercial acquisition path repair",
   "status": "PARTIAL",
-  "updatedAt": "2026-09-15T12:02:02Z",
-  "commit": "493b599ba93beb7acd852fa7cbcf6cddca3bb2ef",
-  "productionRevision": "grantdeskhq-prototype-00497-kuf",
+  "updatedAt": "2026-09-15T17:54:51Z",
+  "commit": "12b732141a21075371a04b5834fabd5d43c0c65d",
+  "productionRevision": "grantdeskhq-prototype-00503-ciw",
   "traffic": "100%",
   "releaseSmoke": {
-    "health": "PASS — current production custom domain returned HTTP 200.",
+    "health": "PASS — current production custom domain returned HTTP 200 after promotion.",
     "scannerImport": "PASS — known Drive batch has immutable canonical import receipts: 28 accepted, 2 duplicates, 0 malformed rows.",
-    "sourceValidation": "IMPLEMENTED — active scanner validation now uses ScrapeGraphAI public extraction plus independent public-source checks; candidate execution is blocked at secret startup.",
-    "instantlyVerification": "IMPLEMENTED — public contacts are submitted only to Instantly standalone verification; pending jobs cannot become READY.",
-    "schedulerAuthenticatedReconciliation": "PASS — Google Cloud Scheduler invoked the serving revision and logged the durable provider preflight."
+    "sourceValidation": "PASS — production Scheduler executed ScrapeGraphAI public-source validation. Five scanner records qualified; source-claim and official-domain failures were persisted as rejected or deferred.",
+    "instantlyVerification": "AVAILABLE — Instantly reconciliation succeeded under the scheduler identity. No standalone verification request was made because no source-qualified page exposed an eligible individual work email.",
+    "schedulerAuthenticatedReconciliation": "PASS — Google Cloud Scheduler invoked the serving revision and completed Instantly reconciliation with HTTP 200."
   },
   "criticalBlockers": [{
-    "operation": "Cloud Run candidate startup requiring a verified ScrapeGraphAI credential",
-    "timestamp": "2026-09-15T12:02:02.621821Z",
+    "operation": "Source-proven individual work-email discovery for qualified scanner organizations",
+    "timestamp": "2026-09-15T17:52:44.036Z",
     "httpStatus": null,
     "providerErrorId": null,
-    "evidence": "Revision grantdeskhq-prototype-00499-kid is bound to grantdeskhq-scrapegraph-api-key:latest and failed readiness with SecretsAccessCheckFailed. The VM cannot distinguish a missing secret from access denial because secretmanager.secrets.get is denied; the configured credential resource has not been independently verified.",
-    "smallestAction": "Locate the existing ScrapeGraphAI key in its approved credential store, create or select one verified Secret Manager resource, then bind roles/secretmanager.secretAccessor on that resource only to grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com before candidate validation."
+    "evidence": "Production ScrapeGraphAI validation authenticated and returned 200 with 430 remaining credits before the final bounded extraction run. Direct enrichment selected two qualified records and Partner enrichment selected five; neither produced an explicitly published role-fit individual work email, so zero verification, READY, enrollment, or send records were created.",
+    "smallestAction": "No external permission action is required. The enabled durable scanner validation and enrichment jobs will process future eligible source records while retaining current unresolved records without email inference."
   }],
   "remainingVerification": {
-    "operation": "scheduled scanner validation, ScrapeGraphAI public extraction, Instantly verification, eligibility, clean-campaign enrollment, and provider reconciliation",
-    "nextExecutionUtc": null,
+    "operation": "scheduled scanner import, validation, ScrapeGraphAI public extraction, Instantly verification, eligibility, clean-campaign enrollment, and provider reconciliation",
+    "nextExecutionUtc": "2026-09-16T12:15:00Z",
     "timezone": "America/Detroit",
-    "reason": "The provider replacement is tested and its build succeeded, but the zero-traffic candidate cannot start until its existing secret is readable by the runtime. No imported scanner recipient is READY, enrolled, or provider-confirmed sent."
+    "reason": "The replacement path is deployed and manually exercised through the existing Scheduler. The next autonomous weekday cycle begins with Drive import at 08:15 America/Detroit; no imported scanner recipient is READY, enrolled, or provider-confirmed sent."
   },
   "nonBlockingDependency": {
     "operation": "ScrapeGraphAI public-source extractor",
-    "evidence": "Commit 493b599 implements the bounded v2 adapter, 400-credit cumulative maximum, 100-credit headroom, public-source evidence checks, and Instantly standalone-verification handoff.",
-    "smallestAction": "None independent of the secret-specific runtime access blocker."
+    "evidence": "Commit 12b7321 enforces the documented ScrapeGraphAI remaining-credit response and fails closed if the balance is unparseable. The provider reported 430 remaining credits before the final bounded validation run; the durable record budget is capped at 400 consumed credits with 100 credits reserved as headroom.",
+    "smallestAction": "None independent of future source records with explicit public role-fit individual work emails."
   }
 }
