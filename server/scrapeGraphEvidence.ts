@@ -51,7 +51,10 @@ export async function readScrapeGraphCreditBalance(configuration: ScrapeGraphRun
     const requestId = providerRequestId(response);
     if (!response.ok) return { status: "UNAVAILABLE", remaining: null, httpStatus: response.status, providerRequestId: requestId, errorCategory: errorCategory(response.status) };
     const data = await response.json() as unknown;
-    return { status: "AVAILABLE", remaining: creditValue(data), httpStatus: response.status, providerRequestId: requestId };
+    const remaining = creditValue(data);
+    return remaining === null
+      ? { status: "UNAVAILABLE", remaining: null, httpStatus: response.status, providerRequestId: requestId, errorCategory: "invalid_response" }
+      : { status: "AVAILABLE", remaining, httpStatus: response.status, providerRequestId: requestId };
   } catch {
     return { status: "UNAVAILABLE", remaining: null, httpStatus: null, providerRequestId: null, errorCategory: "network" };
   }
@@ -131,7 +134,7 @@ function safeHttpsUrl(value: string) { try { const url = new URL(value); return 
 function stableRequestId(sourceUrl: string) { return `extract_${createHash("sha256").update(sourceUrl).digest("hex").slice(0, 24)}`; }
 function creditValue(value: unknown): number | null {
   const body = object(value);
-  const candidates = [body.remaining_credits, body.remainingCredits, body.credits, object(body.data).remaining_credits, object(body.data).remainingCredits, object(body.data).credits];
+  const candidates = [body.remaining, body.remaining_credits, body.remainingCredits, body.credits, object(body.data).remaining, object(body.data).remaining_credits, object(body.data).remainingCredits, object(body.data).credits];
   for (const candidate of candidates) { const numeric = Number(candidate); if (Number.isFinite(numeric) && numeric >= 0) return numeric; }
   return null;
 }

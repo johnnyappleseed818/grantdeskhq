@@ -10,6 +10,15 @@ describe("ScrapeGraphAI scanner acquisition safeguards", () => {
     expect(request).not.toHaveBeenCalled();
   });
 
+  it("reads the provider's documented remaining balance and fails closed on an unparseable credit response", async () => {
+    const request = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ remaining: 425, used: 75 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ plan: "unknown" }), { status: 200 }));
+    const configuration = { ...scrapeGraphRuntimeConfiguration({ GTM_SCRAPEGRAPH_ENABLED: "true", SCRAPEGRAPH_API_KEY: "secret" }), fetcher: request };
+    await expect(readScrapeGraphCreditBalance(configuration)).resolves.toMatchObject({ status: "AVAILABLE", remaining: 425, httpStatus: 200 });
+    await expect(readScrapeGraphCreditBalance(configuration)).resolves.toMatchObject({ status: "UNAVAILABLE", remaining: null, httpStatus: 200, errorCategory: "invalid_response" });
+  });
+
   it("uses the documented v2 endpoint and server-only SGAI header for bounded extraction", async () => {
     const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "req_1", json: { official_website_url: "https://example.org", official_organization_name: "Example Nonprofit", evidence_summary: "Published grant reporting context.", contact_name: "Casey Finance", contact_title: "Director of Finance", contact_email: "casey@example.org" } }), { status: 200, headers: { "x-request-id": "req_1" } }));
     const result = await extractPublicOrganizationEvidence({ sourceUrl: "https://source.example/grant", organization: "Example Nonprofit", segment: "DIRECT", configuration: { ...scrapeGraphRuntimeConfiguration({ GTM_SCRAPEGRAPH_ENABLED: "true", SCRAPEGRAPH_API_KEY: "secret" }), fetcher: request } });
