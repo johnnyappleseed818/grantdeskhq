@@ -223,10 +223,10 @@ export function evaluateContactReadiness(
   if (state.priorContactStatus === "ALREADY_CONTACTED") blockers.push("Previously contacted organizations are not eligible for first-touch outreach.");
   if (state.priorContactStatus === "UNKNOWN") blockers.push("Prior-contact status is not available.");
   if (state.contactEvidence !== "PASS") blockers.push("The current finance or grants contact needs an authoritative role source.");
-  if (state.verifierStatus === "ACCEPT_ALL") blockers.push("Hunter returned ACCEPT_ALL; a direct verified result is required.");
-  else if (state.verifierStatus === "RISKY") blockers.push("Hunter returned RISKY; a direct verified result is required.");
-  else if (state.verifierStatus === "INVALID") blockers.push("Hunter returned INVALID.");
-  else if (state.verifierStatus === "ERROR") blockers.push("Hunter verification ended in a provider error.");
+  if (state.verifierStatus === "ACCEPT_ALL") blockers.push("The email verifier returned ACCEPT_ALL; a direct verified result is required.");
+  else if (state.verifierStatus === "RISKY") blockers.push("The email verifier returned RISKY; a direct verified result is required.");
+  else if (state.verifierStatus === "INVALID") blockers.push("The email verifier returned INVALID.");
+  else if (state.verifierStatus === "ERROR") blockers.push("Email verification ended in a provider error.");
   else if (state.verifierStatus === "VERIFICATION_RESULT_MISSING") blockers.push("VERIFICATION_RESULT_MISSING: Finder result exists but no durable verifier result was recorded.");
   else if (state.verifierStatus !== "VERIFIED") blockers.push("A verified direct business email has not been established.");
   if (state.suppressionStatus === "UNKNOWN") blockers.push("Suppression and contact-history status is not available.");

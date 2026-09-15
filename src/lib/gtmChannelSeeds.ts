@@ -35,8 +35,9 @@ export interface ChannelSeedRecord {
   scannerFileId?: string;
   scannerSourceRecordKey?: string;
   /** Present only after an organisation-controlled public source independently
-   * confirms the named role. Scanner-provided hints alone never populate it. */
-  scannerValidatedContact?: { firstName: string; lastName: string; fullName: string; title: string; sourceUrl: string } | null;
+   * confirms the named role and explicitly published individual email.
+   * Scanner-provided hints and generated email patterns never populate it. */
+  scannerValidatedContact?: { firstName: string; lastName: string; fullName: string; title: string; email?: string; sourceUrl: string; observedAt?: string } | null;
   scannerContentHash?: string;
   scannerClaimedDomain?: string | null;
   /** Independently verified organization URL, kept separate from the original
@@ -51,6 +52,23 @@ export interface ChannelSeedRecord {
   validationAttemptCount?: number;
   validationLastAttemptAt?: string | null;
   validationNextAttemptAt?: string | null;
+  /** Provider-native public-web extraction evidence. This never makes a
+   * candidate READY; an independent source check plus Instantly verification
+   * are still required. */
+  scrapeGraphEvidence?: {
+    requestId: string;
+    sourceUrl: string;
+    officialOrganizationUrl: string | null;
+    officialOrganizationName: string | null;
+    evidenceSummary: string | null;
+    contactSourceUrl: string | null;
+    creditsReserved: number;
+    extractedAt: string;
+  } | null;
+  scrapeGraphVerificationJobId?: string | null;
+  scrapeGraphVerificationStatus?: string | null;
+  scrapeGraphVerificationSubmittedAt?: string | null;
+  scrapeGraphVerificationLastCheckedAt?: string | null;
   scannerUnknownFields?: Record<string, unknown>;
 }
 

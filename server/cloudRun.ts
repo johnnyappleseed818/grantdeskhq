@@ -49,7 +49,7 @@ import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from 
 import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed, socialSignalToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
 import { enrichChannelSeedsWithInstantly, reconcileChannelSeedEnrichment } from "./gtmChannelSeedEnrichment.ts";
 import { importScannerDriveBatches } from "./scannerDriveImport.ts";
-import { validateScannerSourceSeeds } from "./scannerSourceValidation.ts";
+import { validateScannerSourceSeedsWithScrapeGraph } from "./scannerScrapeGraphValidation.ts";
 import { listGtmScannerImportReceipts } from "./persistence.ts";
 
 const port = Number(process.env.PORT || 8080);
@@ -483,8 +483,8 @@ async function handleGtmScannerDriveImport(request: IncomingMessage, response: S
 async function handleGtmScannerDriveValidation(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
-  const result = await validateScannerSourceSeeds();
-  console.info(JSON.stringify({ event: "GTM_SCANNER_SOURCE_VALIDATE", selected: result.selected, validated: result.validated, deferred: result.deferred, rejected: result.rejected, outcomes: result.outcomes, hunterUsage: result.hunterUsage, blocked: result.blocked, timestamp: new Date().toISOString() }));
+  const result = await validateScannerSourceSeedsWithScrapeGraph();
+  console.info(JSON.stringify({ event: "GTM_SCANNER_SOURCE_VALIDATE", provider: result.provider, selected: result.selected, validated: result.validated, deferred: result.deferred, rejected: result.rejected, outcomes: result.outcomes, scrapeGraph: result.scrapeGraph, blocked: result.blocked, timestamp: new Date().toISOString() }));
   return json(response, 200, { lifecycle: "EVIDENCE_VALIDATION", providerCalls: result.validated, sends: 0, ...result });
 }
 
