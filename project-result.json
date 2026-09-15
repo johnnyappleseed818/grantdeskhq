@@ -13,12 +13,12 @@
     "schedulerAuthenticatedReconciliation": "PASS — Google Cloud Scheduler invoked the serving revision and logged the durable provider preflight."
   },
   "criticalBlockers": [{
-    "operation": "Cloud Run candidate startup with the existing ScrapeGraphAI credential",
+    "operation": "Cloud Run candidate startup requiring a verified ScrapeGraphAI credential",
     "timestamp": "2026-09-15T12:02:02.621821Z",
     "httpStatus": null,
     "providerErrorId": null,
-    "evidence": "Revision grantdeskhq-prototype-00499-kid failed readiness: runtime identity grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com lacks Secret Manager Secret Accessor on projects/510123300703/secrets/grantdeskhq-scrapegraph-api-key/versions/latest.",
-    "smallestAction": "Grant roles/secretmanager.secretAccessor only on secret grantdeskhq-scrapegraph-api-key to grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com, then rerun the existing candidate validation."
+    "evidence": "Revision grantdeskhq-prototype-00499-kid is bound to grantdeskhq-scrapegraph-api-key:latest and failed readiness with SecretsAccessCheckFailed. The VM cannot distinguish a missing secret from access denial because secretmanager.secrets.get is denied; the configured credential resource has not been independently verified.",
+    "smallestAction": "Locate the existing ScrapeGraphAI key in its approved credential store, create or select one verified Secret Manager resource, then bind roles/secretmanager.secretAccessor on that resource only to grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com before candidate validation."
   }],
   "remainingVerification": {
     "operation": "scheduled scanner validation, ScrapeGraphAI public extraction, Instantly verification, eligibility, clean-campaign enrollment, and provider reconciliation",
