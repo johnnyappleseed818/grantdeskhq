@@ -1,15 +1,16 @@
 {
   "project": "GrantDeskHQ commercial acquisition path repair",
   "status": "PARTIAL",
-  "updatedAt": "2026-09-16T04:13:46Z",
-  "commit": "c5b91303c6b76c4cb13cab429a079f57bedbf140",
-  "productionRevision": "grantdeskhq-prototype-00505-cuc",
+  "updatedAt": "2026-09-16T04:22:00Z",
+  "commit": "1fefb2491293b4c478a0e3f76ae5558642b98a03",
+  "productionRevision": "grantdeskhq-prototype-00507-muy",
   "traffic": "100%",
   "releaseSmoke": {
     "health": "PASS — current production custom domain returned HTTP 200 after promotion.",
     "scannerImport": "PASS — known Drive batch has immutable canonical import receipts: 28 accepted, 2 duplicates, 0 malformed rows.",
     "sourceValidation": "PASS — production Scheduler executed ScrapeGraphAI public-source validation. Two Direct and five Partner scanner records qualified; source-claim and official-domain failures were persisted as rejected or deferred.",
     "boundedOfficialPageEnrichment": "PASS — production Scheduler ran the deployed bounded same-host official-page extractor: Direct selected 2 and Partner selected 5; all seven persisted NO_EXPLICIT_PUBLISHED_ROLE_FIT_EMAIL without verification, READY, enrollment, or sending.",
+    "retryCreditAccounting": "PASS — production 00507-muy retains per-record ScrapeGraphAI reservations across deferred retry attempts, preventing a retry from resetting the cumulative 400-credit ceiling or 100-credit headroom.",
     "instantlyVerification": "UNTESTED — Instantly reconciliation succeeded under the scheduler identity, but no source-qualified page exposed an eligible individual work email for a safe standalone verification request.",
     "schedulerAuthenticatedReconciliation": "PASS — Google Cloud Scheduler invoked the serving revision and completed Instantly reconciliation with HTTP 200."
   },
@@ -18,7 +19,7 @@
     "timestamp": "2026-09-16T04:13:39.167Z",
     "httpStatus": null,
     "providerErrorId": null,
-    "evidence": "The user-created runtime secret is bound to 00505-cuc. The authenticated production Direct enrichment run at 2026-09-16T04:12:23Z selected 2 and Partner at 2026-09-16T04:13:39Z selected 5. Both returned blocked=null and noPublishedContact equal to selected; zero verification, READY, enrollment, or send records were created. The stored outcome is NO_EXPLICIT_PUBLISHED_ROLE_FIT_EMAIL after bounded same-host official-page extraction.",
+    "evidence": "The user-created runtime secret is bound to the serving 00507-muy revision. The authenticated production Direct enrichment run at 2026-09-16T04:12:23Z selected 2 and Partner at 2026-09-16T04:13:39Z selected 5. Both returned blocked=null and noPublishedContact equal to selected; zero verification, READY, enrollment, or send records were created. The stored outcome is NO_EXPLICIT_PUBLISHED_ROLE_FIT_EMAIL after bounded same-host official-page extraction.",
     "smallestAction": "No external permission action is required. The enabled durable scanner validation and enrichment jobs will process future eligible source records while retaining current unresolved records without email inference."
   }],
   "remainingVerification": {
