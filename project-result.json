@@ -1,34 +1,35 @@
 {
   "project": "GrantDeskHQ commercial acquisition path repair",
   "status": "PARTIAL",
-  "updatedAt": "2026-09-15T17:54:51Z",
-  "commit": "12b732141a21075371a04b5834fabd5d43c0c65d",
-  "productionRevision": "grantdeskhq-prototype-00503-ciw",
+  "updatedAt": "2026-09-16T04:13:46Z",
+  "commit": "c5b91303c6b76c4cb13cab429a079f57bedbf140",
+  "productionRevision": "grantdeskhq-prototype-00505-cuc",
   "traffic": "100%",
   "releaseSmoke": {
     "health": "PASS — current production custom domain returned HTTP 200 after promotion.",
     "scannerImport": "PASS — known Drive batch has immutable canonical import receipts: 28 accepted, 2 duplicates, 0 malformed rows.",
-    "sourceValidation": "PASS — production Scheduler executed ScrapeGraphAI public-source validation. Five scanner records qualified; source-claim and official-domain failures were persisted as rejected or deferred.",
-    "instantlyVerification": "AVAILABLE — Instantly reconciliation succeeded under the scheduler identity. No standalone verification request was made because no source-qualified page exposed an eligible individual work email.",
+    "sourceValidation": "PASS — production Scheduler executed ScrapeGraphAI public-source validation. Two Direct and five Partner scanner records qualified; source-claim and official-domain failures were persisted as rejected or deferred.",
+    "boundedOfficialPageEnrichment": "PASS — production Scheduler ran the deployed bounded same-host official-page extractor: Direct selected 2 and Partner selected 5; all seven persisted NO_EXPLICIT_PUBLISHED_ROLE_FIT_EMAIL without verification, READY, enrollment, or sending.",
+    "instantlyVerification": "UNTESTED — Instantly reconciliation succeeded under the scheduler identity, but no source-qualified page exposed an eligible individual work email for a safe standalone verification request.",
     "schedulerAuthenticatedReconciliation": "PASS — Google Cloud Scheduler invoked the serving revision and completed Instantly reconciliation with HTTP 200."
   },
   "criticalBlockers": [{
     "operation": "Source-proven individual work-email discovery for qualified scanner organizations",
-    "timestamp": "2026-09-15T17:52:44.036Z",
+    "timestamp": "2026-09-16T04:13:39.167Z",
     "httpStatus": null,
     "providerErrorId": null,
-    "evidence": "Production ScrapeGraphAI validation authenticated and returned 200 with 430 remaining credits before the final bounded extraction run. Direct enrichment selected two qualified records and Partner enrichment selected five; neither produced an explicitly published role-fit individual work email, so zero verification, READY, enrollment, or send records were created.",
+    "evidence": "The user-created runtime secret is bound to 00505-cuc. The authenticated production Direct enrichment run at 2026-09-16T04:12:23Z selected 2 and Partner at 2026-09-16T04:13:39Z selected 5. Both returned blocked=null and noPublishedContact equal to selected; zero verification, READY, enrollment, or send records were created. The stored outcome is NO_EXPLICIT_PUBLISHED_ROLE_FIT_EMAIL after bounded same-host official-page extraction.",
     "smallestAction": "No external permission action is required. The enabled durable scanner validation and enrichment jobs will process future eligible source records while retaining current unresolved records without email inference."
   }],
   "remainingVerification": {
     "operation": "scheduled scanner import, validation, ScrapeGraphAI public extraction, Instantly verification, eligibility, clean-campaign enrollment, and provider reconciliation",
     "nextExecutionUtc": "2026-09-16T12:15:00Z",
     "timezone": "America/Detroit",
-    "reason": "The replacement path is deployed and manually exercised through the existing Scheduler. The next autonomous weekday cycle begins with Drive import at 08:15 America/Detroit; no imported scanner recipient is READY, enrolled, or provider-confirmed sent."
+    "reason": "The replacement path is deployed and its safe enrichment action was manually exercised through the existing Scheduler. The next autonomous weekday cycle begins with Drive import at 08:15 America/Detroit; no imported scanner recipient is READY, enrolled, or provider-confirmed sent."
   },
   "nonBlockingDependency": {
     "operation": "ScrapeGraphAI public-source extractor",
-    "evidence": "Commit 12b7321 enforces the documented ScrapeGraphAI remaining-credit response and fails closed if the balance is unparseable. The provider reported 430 remaining credits before the final bounded validation run; the durable record budget is capped at 400 consumed credits with 100 credits reserved as headroom.",
+    "evidence": "Commit 12b7321 enforces the documented ScrapeGraphAI remaining-credit response and fails closed if the balance is unparseable. The provider reported 430 remaining credits before the prior bounded validation run; 00505-cuc authenticated each subsequent scheduler call but does not log provider balances. The durable record budget is capped at 400 consumed credits with 100 credits reserved as headroom.",
     "smallestAction": "None independent of future source records with explicit public role-fit individual work emails."
   }
 }
