@@ -7,6 +7,7 @@ import { extractPublicOrganizationEvidence, readScrapeGraphCreditBalance, scrape
 import type { ChannelSeedRecord } from "../src/lib/gtmChannelSeeds.ts";
 
 export type ScannerScrapeGraphEnrichmentResult = { segment: "DIRECT" | "PARTNER"; selected: number; previewCount: null; submitted: number; resourceId: null; providerStatus: string; blocked: string | null; pendingVerification: number; noPublishedContact: number; };
+const officialContactPath = /\/(?:staff|team|leadership|people|about|contact|finance|grants|who-we-are|our-team)(?:\/|$)/i;
 
 /** Scanner identities are read only from the organization-controlled public
  * page. Instantly's standalone verifier owns email verification; this path
@@ -29,13 +30,30 @@ export async function enrichValidatedScannerSeedsWithScrapeGraph(segment: "DIREC
     if (!contact) {
       const official = publicUrl(seed.officialOrganizationEvidenceUrl || seed.officialOrganizationUrl || "");
       if (!official) { await defer(seed, "OFFICIAL_DOMAIN_NOT_INDEPENDENTLY_VERIFIED", now); continue; }
-      if (!scrapeGraphBudgetAllowsCall({ creditsAlreadyReserved: creditsReserved, providerRemaining: credit.remaining, configuration: scrapeGraph })) { result.blocked = "SCRAPEGRAPH_CREDIT_HEADROOM_REACHED"; break; }
-      const extracted = await extractPublicOrganizationEvidence({ sourceUrl: official.toString(), organization: seed.organization, segment, configuration: scrapeGraph });
-      creditsReserved += scrapeGraph.extractCreditCost;
-      if (extracted.status === "UNAVAILABLE") { await defer(seed, `SCRAPEGRAPH_${String(extracted.errorCategory || "UNAVAILABLE").toUpperCase()}`, now, extracted.httpStatus, extracted.requestId); if (["authentication", "insufficient_credits", "rate_limited"].includes(String(extracted.errorCategory))) { result.blocked = `SCRAPEGRAPH_${String(extracted.errorCategory).toUpperCase()}`; break; } continue; }
-      const candidate = extracted.contact && roleFits(segment, extracted.contact.title) && extracted.contact.email.endsWith(`@${seed.organizationDomain}`) && await supportsPublishedContact(official, seed.organization, extracted.contact) ? { ...extracted.contact, sourceUrl: official.toString(), observedAt: now } : null;
-      if (!candidate) { await saveGtmChannelSeed({ ...seed, lifecycle: "EVIDENCE_QUALIFIED", scannerValidatedContact: null, scrapeGraphEvidence: { requestId: extracted.requestId || stableId(seed.id), sourceUrl: official.toString(), officialOrganizationUrl: seed.officialOrganizationUrl || official.toString(), officialOrganizationName: extracted.officialOrganizationName, evidenceSummary: extracted.evidenceSummary, contactSourceUrl: null, creditsReserved: (seed.scrapeGraphEvidence?.creditsReserved || 0) + scrapeGraph.extractCreditCost, extractedAt: now }, enrichmentProvider: "scrapegraphai", enrichmentProviderStatus: "COMPLETED", enrichmentResult: "ScrapeGraphAI found no explicitly published current role-fit individual work email on the verified official page. The candidate remains unresolved and was not verified or enrolled.", enrichmentLastProviderError: "NO_EXPLICIT_PUBLISHED_ROLE_FIT_EMAIL", enrichmentLastCheckedAt: now, enrichmentUpdatedAt: now, enrichmentTerminalAt: now }); result.noPublishedContact++; continue; }
-      seed = await saveGtmChannelSeed({ ...seed, scannerValidatedContact: candidate, scrapeGraphEvidence: { requestId: extracted.requestId || stableId(seed.id), sourceUrl: official.toString(), officialOrganizationUrl: seed.officialOrganizationUrl || official.toString(), officialOrganizationName: extracted.officialOrganizationName, evidenceSummary: extracted.evidenceSummary, contactSourceUrl: official.toString(), creditsReserved: (seed.scrapeGraphEvidence?.creditsReserved || 0) + scrapeGraph.extractCreditCost, extractedAt: now }, enrichmentProvider: "scrapegraphai", enrichmentProviderStatus: "PROCESSING", enrichmentResult: "ScrapeGraphAI found a current role-fit public email. Instantly standalone verification is in progress; the candidate is not READY yet.", enrichmentLastCheckedAt: now, enrichmentUpdatedAt: now });
+      const priorEvidence = seed.scrapeGraphEvidence;
+      const inferredPriorPages = priorEvidence?.pagesExamined || (priorEvidence?.sourceUrl === official.toString() ? [official.toString()] : []);
+      const pages = (await officialContactPages(official, scannerScrapeGraphPageLimit(env))).filter((page) => !inferredPriorPages.includes(page));
+      const attemptedPages: string[] = [];
+      const requestIds: string[] = [];
+      let extracted: Awaited<ReturnType<typeof extractPublicOrganizationEvidence>> | null = null;
+      let candidate: { firstName: string; lastName: string; fullName: string; title: string; email: string; sourceUrl: string; observedAt: string } | null = null;
+      for (const page of pages) {
+        if (!scrapeGraphBudgetAllowsCall({ creditsAlreadyReserved: creditsReserved, providerRemaining: credit.remaining, configuration: scrapeGraph })) { result.blocked = "SCRAPEGRAPH_CREDIT_HEADROOM_REACHED"; break; }
+        extracted = await extractPublicOrganizationEvidence({ sourceUrl: page, organization: seed.organization, segment, configuration: scrapeGraph });
+        creditsReserved += scrapeGraph.extractCreditCost;
+        attemptedPages.push(page);
+        if (extracted.requestId) requestIds.push(extracted.requestId);
+        if (extracted.status === "UNAVAILABLE") {
+          await defer(seed, `SCRAPEGRAPH_${String(extracted.errorCategory || "UNAVAILABLE").toUpperCase()}`, now, extracted.httpStatus, extracted.requestId);
+          if (["authentication", "insufficient_credits", "rate_limited"].includes(String(extracted.errorCategory))) result.blocked = `SCRAPEGRAPH_${String(extracted.errorCategory).toUpperCase()}`;
+          break;
+        }
+        if (extracted.contact && roleFits(segment, extracted.contact.title) && extracted.contact.email.endsWith(`@${seed.organizationDomain}`) && await supportsPublishedContact(new URL(page), seed.organization, extracted.contact)) { candidate = { ...extracted.contact, sourceUrl: page, observedAt: now }; break; }
+      }
+      if (result.blocked) break;
+      const evidence = { requestId: requestIds.at(-1) || priorEvidence?.requestId || stableId(seed.id), requestIds: [...new Set([...(priorEvidence?.requestIds || (priorEvidence?.requestId ? [priorEvidence.requestId] : [])), ...requestIds])], sourceUrl: official.toString(), officialOrganizationUrl: seed.officialOrganizationUrl || official.toString(), officialOrganizationName: extracted?.officialOrganizationName || priorEvidence?.officialOrganizationName || null, evidenceSummary: extracted?.evidenceSummary || priorEvidence?.evidenceSummary || null, contactSourceUrl: candidate?.sourceUrl || null, pagesExamined: [...new Set([...inferredPriorPages, ...attemptedPages])], creditsReserved: (priorEvidence?.creditsReserved || 0) + attemptedPages.length * scrapeGraph.extractCreditCost, extractedAt: now };
+      if (!candidate) { await saveGtmChannelSeed({ ...seed, lifecycle: "EVIDENCE_QUALIFIED", scannerValidatedContact: null, scrapeGraphEvidence: evidence, enrichmentProvider: "scrapegraphai", enrichmentProviderStatus: "COMPLETED", enrichmentResult: "ScrapeGraphAI examined only bounded, same-host official contact pages and found no explicitly published current role-fit individual work email. The candidate remains unresolved and was not verified or enrolled.", enrichmentLastProviderError: "NO_EXPLICIT_PUBLISHED_ROLE_FIT_EMAIL", enrichmentLastCheckedAt: now, enrichmentUpdatedAt: now, enrichmentTerminalAt: now }); result.noPublishedContact++; continue; }
+      seed = await saveGtmChannelSeed({ ...seed, scannerValidatedContact: candidate, scrapeGraphEvidence: evidence, enrichmentProvider: "scrapegraphai", enrichmentProviderStatus: "PROCESSING", enrichmentResult: "ScrapeGraphAI found a current role-fit public email on a verified official organization page. Instantly standalone verification is in progress; the candidate is not READY yet.", enrichmentLastCheckedAt: now, enrichmentUpdatedAt: now });
       contact = candidate;
     }
     const email = String(contact.email || "").trim().toLowerCase();
@@ -61,6 +79,33 @@ function stableVerificationId(email: string) { return `instantly_verification_${
 function stableId(seedId: string) { return `scrapegraph_${createHash("sha256").update(seedId).digest("hex").slice(0, 24)}`; }
 function roleFits(segment: "DIRECT" | "PARTNER", title: string) { return segment === "DIRECT" ? /\b(cfo|finance|controller|grants|executive director|chief operating)\b/i.test(title) : /\b(founder|ceo|partner|principal|fractional cfo|director)\b/i.test(title); }
 function publicUrl(value: string) { try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password ? url : null; } catch { return null; } }
+export function scannerScrapeGraphPageLimit(env: NodeJS.ProcessEnv = process.env) { const configured = Number(env.GTM_SCRAPEGRAPH_PAGES_PER_ORG || 3); return Number.isInteger(configured) && configured > 0 ? Math.min(3, configured) : 3; }
+/** Returns the verified homepage plus a tiny, deterministic set of safe same-host staff/contact pages. */
+export async function officialContactPages(official: URL, maximum: number): Promise<string[]> {
+  const root = canonicalPage(official);
+  if (!root || maximum < 1 || !await isPublicHostname(official.hostname)) return [];
+  const pages = [root];
+  if (maximum === 1) return pages;
+  try {
+    const response = await fetch(official, { redirect: "error", headers: { Accept: "text/html" }, signal: AbortSignal.timeout(15_000) });
+    if (!response.ok || !String(response.headers.get("content-type") || "").toLowerCase().includes("text/html") || Number(response.headers.get("content-length") || 0) > 512_000) return pages;
+    const html = await boundedText(response, 512_000);
+    for (const page of selectOfficialContactPages(official, html, maximum)) { if (!pages.includes(page)) pages.push(page); if (pages.length >= maximum) break; }
+  } catch { /* A homepage is still safe to examine; link discovery is optional. */ }
+  return pages;
+}
+export function selectOfficialContactPages(official: URL, html: string, maximum = 3): string[] {
+  if (maximum < 2) return [];
+  const pages = new Set<string>();
+  const matches = html.matchAll(/<a\b[^>]*\bhref\s*=\s*["']([^"'#?]+)["'][^>]*>/gi);
+  for (const match of matches) {
+    try { const url = new URL(match[1]!, official); const page = canonicalPage(url); if (page && url.hostname === official.hostname && officialContactPath.test(url.pathname)) pages.add(page); } catch { /* untrusted anchor */ }
+  }
+  return [...pages].sort((left, right) => pagePriority(left) - pagePriority(right) || left.localeCompare(right)).slice(0, Math.max(0, maximum - 1));
+}
+function canonicalPage(url: URL) { return url.protocol === "https:" && !url.username && !url.password ? `${url.origin}${url.pathname.replace(/\/+$/, "") || "/"}` : null; }
+function pagePriority(page: string) { const value = new URL(page).pathname.toLowerCase(); const priority = ["leadership", "staff", "team", "people", "our-team", "finance", "grants", "contact", "about", "who-we-are"].findIndex((part) => value.includes(part)); return priority < 0 ? Number.MAX_SAFE_INTEGER : priority; }
+async function isPublicHostname(hostname: string) { try { const addresses = await lookup(hostname, { all: true, verbatim: true }); return Boolean(addresses.length) && !addresses.some((entry) => privateAddress(entry.address)); } catch { return false; } }
 async function supportsPublishedContact(url: URL, organization: string, contact: { fullName: string; title: string; email: string }) { try { const addresses = await lookup(url.hostname, { all: true, verbatim: true }); if (!addresses.length || addresses.some((entry) => privateAddress(entry.address))) return false; const response = await fetch(url, { redirect: "error", headers: { Accept: "text/html,application/pdf;q=0.9" }, signal: AbortSignal.timeout(15_000) }); if (!response.ok || Number(response.headers.get("content-length") || 0) > 512_000) return false; const text = (await boundedText(response, 512_000)).toLowerCase(); const pieces = organization.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter((part) => part.length > 2); return pieces.every((part) => text.includes(part)) && text.includes(contact.fullName.toLowerCase()) && text.includes(contact.title.toLowerCase()) && text.includes(contact.email.toLowerCase()); } catch { return false; } }
 async function boundedText(response: Response, maximum: number) { const reader = response.body?.getReader(); if (!reader) return ""; const chunks: Uint8Array[] = []; let size = 0; try { while (true) { const { done, value } = await reader.read(); if (done) break; size += value.byteLength; if (size > maximum) { await reader.cancel(); return ""; } chunks.push(value); } } finally { reader.releaseLock(); } const bytes = new Uint8Array(size); let offset = 0; for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; } return new TextDecoder().decode(bytes); }
 function privateAddress(address: string) { const value = address.toLowerCase(); return value === "::1" || value.startsWith("fe80:") || value.startsWith("fc") || value.startsWith("fd") || /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(value); }

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { extractPublicOrganizationEvidence, readScrapeGraphCreditBalance, scrapeGraphBudgetAllowsCall, scrapeGraphRuntimeConfiguration } from "../../server/scrapeGraphEvidence.ts";
-import { verificationDisposition } from "../../server/gtmScrapeGraphEnrichment.ts";
+import { selectOfficialContactPages, verificationDisposition } from "../../server/gtmScrapeGraphEnrichment.ts";
 
 describe("ScrapeGraphAI scanner acquisition safeguards", () => {
   it("does not attempt a provider call without both an explicit enable flag and server key", async () => {
@@ -37,5 +37,10 @@ describe("ScrapeGraphAI scanner acquisition safeguards", () => {
     expect(verificationDisposition({ verification_status: "verified", catch_all: true })).toBe("ACCEPT_ALL");
     expect(verificationDisposition({ verification_status: "processing", catch_all: false })).toBe("PENDING");
     expect(verificationDisposition({ verification_status: "verified", catch_all: false })).toBe("VERIFIED");
+  });
+
+  it("keeps public-contact traversal on the official HTTPS host and within its bounded page budget", () => {
+    const pages = selectOfficialContactPages(new URL("https://example.org/"), `<a href="/team">Team</a><a href="https://example.org/leadership/">Leadership</a><a href="https://evil.example/staff">Unsafe</a><a href="http://example.org/contact">Insecure</a><a href="/news">Irrelevant</a>`, 3);
+    expect(pages).toEqual(["https://example.org/leadership", "https://example.org/team"]);
   });
 });

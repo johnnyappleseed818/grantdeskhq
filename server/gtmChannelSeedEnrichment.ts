@@ -1,7 +1,7 @@
 import { InstantlyClient, instantlyConfig } from "./instantly.ts";
 import { listGtmChannelSeeds, saveGtmChannelSeed } from "./persistence.ts";
 import { recordInstantlyVerifiedGtmContact } from "./contactEnrichment.ts";
-import { enrichValidatedScannerSeedsWithScrapeGraph } from "./gtmScrapeGraphEnrichment.ts";
+import { enrichValidatedScannerSeedsWithScrapeGraph, scannerScrapeGraphPageLimit } from "./gtmScrapeGraphEnrichment.ts";
 
 export type ChannelSeedEnrichmentSegment = "DIRECT" | "PARTNER";
 const titles: Record<ChannelSeedEnrichmentSegment, string[]> = {
@@ -15,9 +15,10 @@ export interface ChannelSeedEnrichmentResult { segment: ChannelSeedEnrichmentSeg
  * established Instantly SuperSearch path. Neither can touch campaigns. */
 export async function enrichChannelSeedsWithInstantly(segment: ChannelSeedEnrichmentSegment, env: NodeJS.ProcessEnv = process.env): Promise<ChannelSeedEnrichmentResult> {
   const config = instantlyConfig(env);
-  const seeds = (await listGtmChannelSeeds()).filter((seed) => seed.segment === segment && (seed.lifecycle === "EVIDENCE_QUALIFIED" || seed.lifecycle === "ENRICHMENT_PENDING" || (seed.lifecycle === "ENRICHMENT_FAILED" && !seed.enrichmentTerminalAt && (seed.enrichmentAttemptCount || 0) < 3)) && Boolean(seed.organizationDomain));
-  const scannerSeeds = seeds.filter((seed) => seed.source === "chatgpt_scanner_drive" && !seed.enrichmentTerminalAt).slice(0, scannerScrapeGraphBatchLimit(env));
+  const allSeeds = await listGtmChannelSeeds();
+  const scannerSeeds = allSeeds.filter((seed) => seed.segment === segment && seed.source === "chatgpt_scanner_drive" && seed.lifecycle === "EVIDENCE_QUALIFIED" && Boolean(seed.organizationDomain) && scannerSeedNeedsPublicContactScan(seed, env)).slice(0, scannerScrapeGraphBatchLimit(env));
   if (scannerSeeds.length) return enrichValidatedScannerSeedsWithScrapeGraph(segment, scannerSeeds, env);
+  const seeds = allSeeds.filter((seed) => seed.segment === segment && seed.source !== "chatgpt_scanner_drive" && (seed.lifecycle === "EVIDENCE_QUALIFIED" || seed.lifecycle === "ENRICHMENT_PENDING" || (seed.lifecycle === "ENRICHMENT_FAILED" && !seed.enrichmentTerminalAt && (seed.enrichmentAttemptCount || 0) < 3)) && Boolean(seed.organizationDomain));
   if (!config.integrationEnabled || !config.apiKeyConfigured) return { segment, selected: seeds.length, previewCount: null, submitted: 0, resourceId: null, providerStatus: null, blocked: "INSTANTLY_NOT_CONFIGURED" };
   const listId = segment === "DIRECT" ? config.directListId : config.partnerListId;
   if (!listId) return { segment, selected: seeds.length, previewCount: null, submitted: 0, resourceId: null, providerStatus: null, blocked: "MISSING_SEGMENT_LIST" };
@@ -87,6 +88,7 @@ function text(value: unknown) { return typeof value === "string" ? value.trim() 
 export function providerLeadIsVerified(lead: Record<string, unknown>) { return Number(lead.verification_status) === 1; }
 function norm(value: string) { return value.normalize("NFKC").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
 function scannerScrapeGraphBatchLimit(env: NodeJS.ProcessEnv) { const configured = Number(env.GTM_SCRAPEGRAPH_MAX_PER_RUN || 5); return Number.isInteger(configured) && configured > 0 ? Math.min(10, configured) : 5; }
+export function scannerSeedNeedsPublicContactScan(seed: { enrichmentTerminalAt?: string | null; enrichmentLastProviderError?: string | null; scrapeGraphEvidence?: { pagesExamined?: string[] | null } | null }, env: NodeJS.ProcessEnv = process.env) { const examined = seed.scrapeGraphEvidence?.pagesExamined || []; return (!seed.enrichmentTerminalAt || seed.enrichmentLastProviderError === "NO_EXPLICIT_PUBLISHED_ROLE_FIT_EMAIL") && examined.length < scannerScrapeGraphPageLimit(env); }
 function roleFits(segment: ChannelSeedEnrichmentSegment, title: string) { return segment === "DIRECT" ? /\b(cfo|finance director|controller|director of grants|grants manager|institutional giving)\b/i.test(title) : /\b(founder|ceo|managing partner|partner|principal)\b/i.test(title); }
 export function providerJobIsStale(seed: { enrichmentSubmittedAt?: string | null; enrichmentUpdatedAt?: string | null }, now: number, env: NodeJS.ProcessEnv = process.env) { const submitted = Date.parse(seed.enrichmentSubmittedAt || seed.enrichmentUpdatedAt || ""); const staleMs = Number(env.INSTANTLY_ENRICHMENT_STALE_MS || 3600000); return Number.isFinite(submitted) && now - submitted > (Number.isFinite(staleMs) && staleMs >= 60000 ? staleMs : 3600000); }
 function safeError(error: unknown) { return error instanceof Error ? error.message.slice(0, 240) : "provider_error"; }

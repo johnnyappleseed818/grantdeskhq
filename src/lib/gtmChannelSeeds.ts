@@ -57,11 +57,15 @@ export interface ChannelSeedRecord {
    * are still required. */
   scrapeGraphEvidence?: {
     requestId: string;
+    /** All provider requests used to derive this read-only public-web evidence. */
+    requestIds?: string[];
     sourceUrl: string;
     officialOrganizationUrl: string | null;
     officialOrganizationName: string | null;
     evidenceSummary: string | null;
     contactSourceUrl: string | null;
+    /** Only safe, official-host pages actually examined. This provides bounded retry evidence. */
+    pagesExamined?: string[];
     creditsReserved: number;
     extractedAt: string;
   } | null;
