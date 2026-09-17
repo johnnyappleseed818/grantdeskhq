@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateInstantlyProviderCapacity, configuredDailyInitialSendTarget } from "../../server/gtmCapacity.ts";
+import { calculateInstantlyProviderCapacity, configuredDailyInitialSendTarget, resolveMappedCampaign } from "../../server/gtmCapacity.ts";
 
 const direct = { id: "direct", status: 1, email_list: ["sender@example.org"], daily_max_leads: 300 };
 const partner = { id: "partner", status: 1, email_list: ["sender@example.org"], daily_max_leads: 180 };
@@ -24,5 +24,11 @@ describe("provider-backed acquisition capacity", () => {
   it("never permits an environment value to raise the 300/day commercial target", () => {
     expect(configuredDailyInitialSendTarget({ GTM_INITIAL_SEND_DAILY_TARGET: "999" })).toBe(300);
     expect(configuredDailyInitialSendTarget({ GTM_INITIAL_SEND_DAILY_TARGET: "250" })).toBe(250);
+  });
+
+  it("keeps the explicitly configured Clean campaign when a workspace list omits it", () => {
+    expect(resolveMappedCampaign(direct, { items: [{ id: "legacy" }] }, "direct")).toBe(direct);
+    expect(resolveMappedCampaign(null, { items: [partner] }, "partner")).toBe(partner);
+    expect(resolveMappedCampaign(null, { items: [partner] }, "missing")).toBeNull();
   });
 });

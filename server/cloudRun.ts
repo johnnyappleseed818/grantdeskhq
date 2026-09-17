@@ -55,7 +55,7 @@ import { listGtmScannerImportReceipts } from "./persistence.ts";
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
 import { decideControlledDispatch, type DispatchSegment } from "./gtmDispatch.ts";
-import { calculateInstantlyProviderCapacity } from "./gtmCapacity.ts";
+import { calculateInstantlyProviderCapacity, resolveMappedCampaign } from "./gtmCapacity.ts";
 const maxBodyBytes = configuredPositiveInteger("MAX_REQUEST_BODY_BYTES", 24_000_000);
 
 function domainFromUrl(value: string) {
@@ -1094,10 +1094,21 @@ async function reconcileInstantlyPolling() {
   const results = await Promise.allSettled([client.listLeadLists(), client.listCampaigns(), client.listAccounts(), client.listRecentLeads(200), client.listCampaignAnalytics(), client.listRecentEmailEvidence(100)]);
   const [lists, campaigns, accounts, leads, campaignAnalytics, recentEmails] = results.map((result) => result.status === "fulfilled" ? result.value : null);
   const campaignItems = instantlyItems(campaigns).filter((value): value is Record<string, unknown> => Boolean(value) && typeof value === "object");
+  // Workspace campaign listings can be paginated or filtered by provider
+  // permissions. Capacity must use the two configured Clean campaigns rather
+  // than inferring that an omitted list item has no sender or daily limit.
+  const explicitCleanCampaigns = await Promise.allSettled([
+    health.directCampaignId ? client.getCampaign(health.directCampaignId) : Promise.resolve(null),
+    health.partnerCampaignId ? client.getCampaign(health.partnerCampaignId) : Promise.resolve(null)
+  ]);
+  const mappedCampaign = (index: number, campaignId: string) => {
+    const resolved = explicitCleanCampaigns[index];
+    return resolveMappedCampaign(resolved?.status === "fulfilled" ? resolved.value : null, campaignItems, campaignId);
+  };
   const providerCapacity = calculateInstantlyProviderCapacity({
     accounts,
-    directCampaign: campaignItems.find((campaign) => String(campaign.id || "") === health.directCampaignId) || null,
-    partnerCampaign: campaignItems.find((campaign) => String(campaign.id || "") === health.partnerCampaignId) || null
+    directCampaign: mappedCampaign(0, health.directCampaignId),
+    partnerCampaign: mappedCampaign(1, health.partnerCampaignId)
   });
   const model = await readCanonicalGtmModel();
   const cleanMemberships = await Promise.allSettled([health.directCampaignId ? client.listLeadsInCampaign(health.directCampaignId) : Promise.resolve({ items: [] }), health.partnerCampaignId ? client.listLeadsInCampaign(health.partnerCampaignId) : Promise.resolve({ items: [] })]);
@@ -1248,6 +1259,7 @@ async function reconcileInstantlyPolling() {
     transitions,
     replyContent: recentEmails ? "AVAILABLE" : "OPTIONAL_EMAILS_READ_REQUIRED",
     replyContentError: emailReadError || undefined,
+    capacityCampaignLookupErrors: explicitCleanCampaigns.flatMap((result, index) => result.status === "rejected" ? [index === 0 ? "direct" : "partner"] : []),
     errors: requiredErrors
   };
   await saveInstantlyStatus(snapshot);

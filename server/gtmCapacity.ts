@@ -45,6 +45,14 @@ export function providerAccountIsReady(account: Record<string, unknown>) {
     && !String(account.e_message || "").trim();
 }
 
+/** The configured Clean mapping is authoritative. A paginated workspace list
+ * is a fallback for telemetry only and must never erase a successfully read
+ * mapped campaign. */
+export function resolveMappedCampaign(explicit: Record<string, unknown> | null, listed: unknown, campaignId: string) {
+  if (explicit && String(explicit.id || "") === campaignId) return explicit;
+  return instantlyItems(listed).find((campaign): campaign is Record<string, unknown> => Boolean(campaign) && typeof campaign === "object" && String(campaign.id || "") === campaignId) || null;
+}
+
 function normalizedEmail(value: unknown) { return typeof value === "string" ? value.trim().toLowerCase() : ""; }
 
 function accountDailyCapacity(account: Record<string, unknown>) {
