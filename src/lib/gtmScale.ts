@@ -6,8 +6,8 @@ import type { CanonicalGtmModel, CanonicalGtmRecord, CanonicalSegment } from "./
  * contact verification.
  */
 export const GTM_INVENTORY_TARGETS = {
-  DIRECT: { evidenceQualified: { floor: 300, target: 500 }, ready: { floor: 75, target: 150 } },
-  PARTNER: { evidenceQualified: { floor: 75, target: 150 }, ready: { floor: 25, target: 50 } }
+  DIRECT: { evidenceQualified: { floor: 1800, target: 3000 }, ready: { floor: 600, target: 1000 } },
+  PARTNER: { evidenceQualified: { floor: 900, target: 1500 }, ready: { floor: 300, target: 500 } }
 } as const;
 
 export const GTM_LIFECYCLE_STAGES = ["SIGNAL", "ACCOUNT", "EVIDENCE_VERIFIED", "CONTACT_FOUND", "EMAIL_VERIFIED", "READY", "STAGED", "SCHEDULED", "SENT", "REPLIED"] as const;
@@ -62,7 +62,7 @@ function buildSegment(records: readonly CanonicalGtmRecord[], segment: Canonical
   const ready = stages.READY;
   const target = GTM_INVENTORY_TARGETS[segment];
   const capacity = typeof safeDailyCapacity === "number" && safeDailyCapacity > 0 ? safeDailyCapacity : null;
-  const readinessFloor = capacity ? Math.max(target.ready.floor, capacity * 10) : target.ready.floor;
+  const readinessFloor = capacity ? Math.max(target.ready.floor, capacity * 5) : target.ready.floor;
   const expectedDaysToTarget = dailyInflow && dailyInflow > 0 ? Math.ceil(Math.max(0, target.ready.target - ready) / dailyInflow) : null;
   return { segment, stages, evidenceQualified, verifiedContacts, ready, target, safeDailyCapacity: capacity, readyCoverageBusinessDays: capacity ? Math.floor(ready / capacity) : null, readinessFloor, expectedDaysToTarget };
 }

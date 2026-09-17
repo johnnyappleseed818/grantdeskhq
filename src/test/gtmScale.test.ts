@@ -14,7 +14,7 @@ describe("GTM scale model", () => {
     expect(scale.direct.target).toEqual(GTM_INVENTORY_TARGETS.DIRECT);
     expect(scale.direct.stages.SCHEDULED).toBe(1);
     expect(scale.direct.evidenceQualified).toBe(1);
-    expect(scale.direct.readinessFloor).toBe(75);
+    expect(scale.direct.readinessFloor).toBe(600);
   });
 
   it("does not treat provider enrollment as an actual send", () => {
@@ -23,9 +23,9 @@ describe("GTM scale model", () => {
     expect(lifecycleStageFor(record({ instantlyStatus: "SENT", state: "AWAITING_REPLY", priorContact: true, sentAt: "2026-08-28T12:00:00.000Z" }))).toBe("SENT");
   });
 
-  it("uses ten business days of capacity when that exceeds the target floor", () => {
-    const scale = buildGtmScaleModel(model([record()]), { directSafeDailyCapacity: 12 });
-    expect(scale.direct.readinessFloor).toBe(120);
+  it("uses five business days of actual provider capacity when that exceeds the target floor", () => {
+    const scale = buildGtmScaleModel(model([record()]), { directSafeDailyCapacity: 150 });
+    expect(scale.direct.readinessFloor).toBe(750);
     expect(scale.direct.readyCoverageBusinessDays).toBe(0);
   });
 });

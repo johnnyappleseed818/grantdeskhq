@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { providerJobIsStale, providerLeadIsVerified, scannerSeedNeedsPublicContactScan } from "../../server/gtmChannelSeedEnrichment.ts";
+import { providerJobIsStale, providerLeadIsVerified, scannerSeedNeedsPublicContactScan, superSearchBatchLimit, superSearchEligibleSeed } from "../../server/gtmChannelSeedEnrichment.ts";
 
 describe("Instantly channel-seed enrichment reconciliation", () => {
   it("accepts Instantly's documented lead verification enum without creating a second verification job", () => {
@@ -17,5 +17,13 @@ describe("Instantly channel-seed enrichment reconciliation", () => {
     const seed = { enrichmentTerminalAt: "2026-09-15T00:00:00.000Z", enrichmentLastProviderError: "NO_EXPLICIT_PUBLISHED_ROLE_FIT_EMAIL", scrapeGraphEvidence: { pagesExamined: ["https://example.org/"] } };
     expect(scannerSeedNeedsPublicContactScan(seed, { GTM_SCRAPEGRAPH_PAGES_PER_ORG: "3" })).toBe(true);
     expect(scannerSeedNeedsPublicContactScan({ ...seed, scrapeGraphEvidence: { pagesExamined: ["https://example.org/", "https://example.org/team", "https://example.org/contact"] } }, { GTM_SCRAPEGRAPH_PAGES_PER_ORG: "3" })).toBe(false);
+  });
+
+  it("lets independently evidence-qualified scanner organizations use the provider-backed work-email route without waiting for a public email", () => {
+    expect(superSearchEligibleSeed({ organizationDomain: "example.org", source: "chatgpt_scanner_drive", lifecycle: "EVIDENCE_QUALIFIED" })).toBe(true);
+    expect(superSearchEligibleSeed({ organizationDomain: "example.org", source: "chatgpt_scanner_drive", lifecycle: "ENRICHMENT_FAILED", rejectionReason: "NO_EXPLICIT_PUBLISHED_ROLE_FIT_EMAIL", enrichmentTerminalAt: "2026-09-16T00:00:00.000Z" })).toBe(true);
+    expect(superSearchEligibleSeed({ organizationDomain: "", source: "chatgpt_scanner_drive", lifecycle: "EVIDENCE_QUALIFIED" })).toBe(false);
+    expect(superSearchBatchLimit({})).toBe(50);
+    expect(superSearchBatchLimit({ GTM_SUPERSEARCH_MAX_PER_RUN: "999" })).toBe(100);
   });
 });

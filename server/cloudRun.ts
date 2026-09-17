@@ -55,6 +55,7 @@ import { listGtmScannerImportReceipts } from "./persistence.ts";
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
 import { decideControlledDispatch, type DispatchSegment } from "./gtmDispatch.ts";
+import { calculateInstantlyProviderCapacity } from "./gtmCapacity.ts";
 const maxBodyBytes = configuredPositiveInteger("MAX_REQUEST_BODY_BYTES", 24_000_000);
 
 function domainFromUrl(value: string) {
@@ -601,11 +602,13 @@ async function handleGtmInstantlyStage(request: IncomingMessage, response: Serve
   /* c8 ignore stop */
 }
 
-/** Founder-authorized, exact-cohort route. It is scheduler-authenticated, capped
- * at five contacts per segment, and does not share ordinary auto-handoff paths. */
+/** Retired incident-era exact-cohort path. Autonomous capacity and campaign
+ * safety are now derived only by the server-authoritative dispatch controller. */
 async function handleControlledInstantlyBatch(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
+  return json(response, 410, { error: "The legacy controlled-batch endpoint is retired. Use /api/gtm/instantly/dispatch with mode:auto." });
+  /* c8 ignore start -- historical incident recovery path, intentionally retired */
   const input = await readJson(request) as { batchId?: string; execute?: boolean; segment?: unknown; limit?: unknown; repairOpeningLines?: boolean; repairPartnerFirstTouches?: boolean };
   const batchId = String(input.batchId || "");
   if (!/^gdh-controlled-batch-\d{8}-\d{2}$/.test(batchId)) return json(response, 400, { error: "A valid controlled batch ID is required." });
@@ -782,6 +785,7 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
   }
   await Promise.all([...new Set(created.map((record) => record.instantlyCampaignId))].map((campaignId) => client.activateControlledCampaign(campaignId, batchId)));
   return json(response, 200, { mode: "HANDOFF_COMPLETE_AWAITING_PROVIDER_SEND", batchId, created: created.map((record) => ({ organization: record.organization, email: record.email, segment: record.segment, campaign: record.instantlyCampaignId, state: record.instantlySyncStatus })) });
+  /* c8 ignore stop */
 }
 
 async function schedulerJobPaused(name: string) {
@@ -1015,8 +1019,13 @@ async function handleAutomaticInstantlyDispatch(request: IncomingMessage, respon
   const config = instantlyConfig();
   const campaignId = segment === "DIRECT" ? config.directCampaignId : config.partnerCampaignId;
   const client = config.apiKeyConfigured && config.integrationEnabled ? new InstantlyClient(config) : null;
-  const [circuit, model, outreach, records, activation] = await Promise.all([readOutboundCircuitBreaker(), readCanonicalGtmModel(), reconcileGtmOutreachLedger(confirmedHumanOutreach), readInstantlyRecords(), readGtmDispatchActivation(segment)]);
+  const [circuit, model, outreach, records, activation, accounts] = await Promise.all([readOutboundCircuitBreaker(), readCanonicalGtmModel(), reconcileGtmOutreachLedger(confirmedHumanOutreach), readInstantlyRecords(), readGtmDispatchActivation(segment), client ? client.listAccounts().catch(() => null) : Promise.resolve(null)]);
   const campaign = client && campaignId ? await client.getCampaign(campaignId) : null;
+  const [directCampaign, partnerCampaign] = client ? await Promise.all([
+    config.directCampaignId === campaignId ? Promise.resolve(campaign) : client.getCampaign(config.directCampaignId),
+    config.partnerCampaignId === campaignId ? Promise.resolve(campaign) : client.getCampaign(config.partnerCampaignId)
+  ]) : [null, null];
+  const providerCapacity = calculateInstantlyProviderCapacity({ accounts, directCampaign, partnerCampaign });
   const campaignSummary = campaign ? controlledCampaignSafetySummary(campaign) : null;
   const fingerprint = campaign ? createHash("sha256").update(JSON.stringify(campaignSummary)).digest("hex") : "";
   const now = new Date();
@@ -1030,15 +1039,13 @@ async function handleAutomaticInstantlyDispatch(request: IncomingMessage, respon
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Detroit" }).format(now);
   const sentToday = segmentRecords.filter((record) => record.firstSentAt && new Intl.DateTimeFormat("en-CA", { timeZone: "America/Detroit" }).format(new Date(record.firstSentAt)) === today).length;
   const knownCanary = activation && activation.campaignId === campaignId && activation.configurationFingerprint === fingerprint ? activation : null;
-  const segmentCeiling = segment === "DIRECT" ? 10 : 5;
-  const providerLimit = Number(campaignSummary?.dailyMaxLeads ?? campaignSummary?.dailyLimit ?? segmentCeiling);
-  const segmentDailyLimit = Math.max(1, Math.min(segmentCeiling, Number.isFinite(providerLimit) && providerLimit > 0 ? providerLimit : segmentCeiling));
+  const segmentDailyLimit = providerCapacity.segments[segment].safeDailyCapacity;
   const relevantCampaignIds = new Set([config.directCampaignId, config.partnerCampaignId, config.legacyDirectCampaignId, config.legacyPartnerCampaignId].filter(Boolean));
   const relevantRecords = records.filter((record) => relevantCampaignIds.has(record.instantlyCampaignId));
   const wasSentToday = (record: import("./instantly.ts").InstantlyIntegrationRecord) => Boolean(record.firstSentAt) && new Intl.DateTimeFormat("en-CA", { timeZone: "America/Detroit" }).format(new Date(record.firstSentAt)) === today;
   const globalSentToday = relevantRecords.filter(wasSentToday).length;
   const globalOutstanding = relevantRecords.filter((record) => ["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus)).length;
-  const globalRemaining = Math.max(0, 15 - globalSentToday - globalOutstanding);
+  const globalRemaining = Math.max(0, providerCapacity.providerDailyCapacity - globalSentToday - globalOutstanding);
   const campaignMappedToLegacy = [config.legacyDirectCampaignId, config.legacyPartnerCampaignId].filter(Boolean).includes(campaignId);
   const sentCanary = segmentRecords.filter((record) => record.firstSentAt).sort((a, b) => a.firstSentAt.localeCompare(b.firstSentAt))[0];
   const acceptedCanary = outstanding.sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
@@ -1048,8 +1055,9 @@ async function handleAutomaticInstantlyDispatch(request: IncomingMessage, respon
   const localEligible = model.records.filter((record) => record.segment === segment && record.state === "READY_TO_SEND" && Boolean(record.email && record.contact) && !record.priorContact && record.suppressionStatus === "CLEAR" && stagingEligibility(record, outreach, config).eligible);
   const suppression = await Promise.all(localEligible.map(async (record) => [record.id, await readGtmContactSuppression(record.email || "")] as const));
   const eligible = localEligible.filter((record) => new Map(suppression).get(record.id)?.status === "CLEAR" && !segmentRecords.some((existing) => existing.email.toLowerCase() === String(record.email).toLowerCase()));
-  const decision = decideControlledDispatch({ breakerClosed: Boolean(circuit && !circuit.tripped), flagsEnabled, campaignActive: Boolean(campaign && !campaignMappedToLegacy && cleanInitialOnlyCampaignReady(campaign, "eli.katz@grantdeskhq.com", segmentDailyLimit, [1])), withinWindow, pendingProviderActivity: outstanding.length > 0, canaryState, fingerprintMatches: !activation || activation.configurationFingerprint === fingerprint, criticalFailure: segmentRecords.some((record) => ["BOUNCED", "UNSUBSCRIBED"].includes(record.instantlySyncStatus)), dailyLimit: segmentDailyLimit, confirmedToday: sentToday, outstanding: outstanding.length, eligible: eligible.length, globalRemaining });
-  const base = { mode: "AUTO", segment, decision, campaign: campaignSummary, eligible: eligible.length, outstanding: outstanding.length, sentToday, globalSentToday, globalOutstanding, globalRemaining, segmentDailyLimit };
+  const expectedSender = campaign ? campaignSenderAddresses(campaign)[0] || "" : "";
+  const decision = decideControlledDispatch({ breakerClosed: Boolean(circuit && !circuit.tripped), flagsEnabled, campaignActive: Boolean(campaign && !campaignMappedToLegacy && providerCapacity.segments[segment].senderReady && expectedSender && cleanInitialOnlyCampaignReady(campaign, expectedSender, segmentDailyLimit, [1])), withinWindow, pendingProviderActivity: outstanding.length > 0, canaryState, fingerprintMatches: !activation || activation.configurationFingerprint === fingerprint, criticalFailure: segmentRecords.some((record) => ["BOUNCED", "UNSUBSCRIBED"].includes(record.instantlySyncStatus)), dailyLimit: segmentDailyLimit, confirmedToday: sentToday, outstanding: outstanding.length, eligible: eligible.length, globalRemaining });
+  const base = { mode: "AUTO", segment, decision, campaign: campaignSummary, capacity: providerCapacity, eligible: eligible.length, outstanding: outstanding.length, sentToday, globalSentToday, globalOutstanding, globalRemaining, segmentDailyLimit };
   if (canary && !knownCanary) await saveGtmDispatchActivation(canary);
   if (!client || !campaign || decision.action === "NOOP" || decision.action === "RECONCILE") return json(response, 200, base);
   const selected = eligible.slice(0, decision.count);
@@ -1085,6 +1093,12 @@ async function reconcileInstantlyPolling() {
   const [records, priorStatus] = await Promise.all([readInstantlyRecords(), readInstantlyStatus()]);
   const results = await Promise.allSettled([client.listLeadLists(), client.listCampaigns(), client.listAccounts(), client.listRecentLeads(200), client.listCampaignAnalytics(), client.listRecentEmailEvidence(100)]);
   const [lists, campaigns, accounts, leads, campaignAnalytics, recentEmails] = results.map((result) => result.status === "fulfilled" ? result.value : null);
+  const campaignItems = instantlyItems(campaigns).filter((value): value is Record<string, unknown> => Boolean(value) && typeof value === "object");
+  const providerCapacity = calculateInstantlyProviderCapacity({
+    accounts,
+    directCampaign: campaignItems.find((campaign) => String(campaign.id || "") === health.directCampaignId) || null,
+    partnerCampaign: campaignItems.find((campaign) => String(campaign.id || "") === health.partnerCampaignId) || null
+  });
   const model = await readCanonicalGtmModel();
   const cleanMemberships = await Promise.allSettled([health.directCampaignId ? client.listLeadsInCampaign(health.directCampaignId) : Promise.resolve({ items: [] }), health.partnerCampaignId ? client.listLeadsInCampaign(health.partnerCampaignId) : Promise.resolve({ items: [] })]);
   const cleanProviderLeads = cleanMemberships.flatMap((result, index) => result.status === "fulfilled"
@@ -1219,6 +1233,7 @@ async function reconcileInstantlyPolling() {
     lists: instantSafeSummary(lists, ["id", "name", "timestamp_created"]),
     campaigns: instantSafeSummary(campaigns, ["id", "name", "status", "daily_limit", "daily_max_leads", "stop_on_reply", "stop_on_auto_reply", "timestamp_created"]),
     accounts: instantSafeSummary(accounts, ["email", "status", "warmup_status", "warmup_limit", "daily_limit", "setup_pending", "timestamp_created"]),
+    providerCapacity,
     leads: instantSafeSummary(leads, ["id", "email", "first_name", "last_name", "company_name", "campaign", "list_id", "status", "email_reply_count", "timestamp_updated", "last_step_timestamp_executed", "lt_interest_status"]),
     leadCount: leadItems.length,
     leadReadTruncated: Boolean(leads && typeof leads === "object" && (leads as { truncated?: boolean }).truncated),
@@ -1236,6 +1251,7 @@ async function reconcileInstantlyPolling() {
     errors: requiredErrors
   };
   await saveInstantlyStatus(snapshot);
+  console.info(JSON.stringify({ event: "GTM_INSTANTLY_CAPACITY", checkedAt: snapshot.checkedAt, reconciliation: snapshot.reconciliation, providerCapacity }));
   if (outcomeRecorded) await reconcileGtmOpportunityEngine();
   return { mode: "READ_ONLY", status: snapshot };
 }

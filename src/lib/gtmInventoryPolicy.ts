@@ -1,12 +1,13 @@
 /**
  * The only acquisition-inventory thresholds used by GrantDeskHQ runtime jobs.
- * These are deliberately modest operating buffers, not quotas or send limits.
+ * These are inventory buffers only, never quotas or send limits. They support
+ * five business days of the 300/day commercial target at the planned 2:1
+ * Direct/Partner allocation while allowing either segment to use spare sending
+ * capacity when the other has less qualified supply.
  */
 export const GTM_INVENTORY_POLICY = {
-  // These are inventory buffers only. They are intentionally separate from
-  // the provider's small, health-gated daily send limits.
-  direct: { floor: 20, target: 30, ceiling: 45 },
-  partner: { floor: 10, target: 15, ceiling: 25 },
+  direct: { floor: 600, target: 1000, ceiling: 1200 },
+  partner: { floor: 300, target: 500, ceiling: 600 },
   content: { floor: 2, target: 4, ceiling: 6 },
   social: { preferredFloor: 3, targetMin: 3, targetMax: 10 }
 } as const;
