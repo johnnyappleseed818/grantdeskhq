@@ -55,7 +55,7 @@ import { listGtmScannerImportReceipts } from "./persistence.ts";
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
 import { decideControlledDispatch, type DispatchSegment } from "./gtmDispatch.ts";
-import { calculateInstantlyProviderCapacity, resolveMappedCampaign } from "./gtmCapacity.ts";
+import { calculateInstantlyProviderCapacity, describeCampaignResponse, resolveMappedCampaign } from "./gtmCapacity.ts";
 const maxBodyBytes = configuredPositiveInteger("MAX_REQUEST_BODY_BYTES", 24_000_000);
 
 function domainFromUrl(value: string) {
@@ -1105,6 +1105,19 @@ async function reconcileInstantlyPolling() {
     const resolved = explicitCleanCampaigns[index];
     return resolveMappedCampaign(resolved?.status === "fulfilled" ? resolved.value : null, campaignItems, campaignId);
   };
+  const safeCampaignReadError = (reason: unknown) => {
+    const message = reason instanceof Error ? reason.message : "provider_read_failed";
+    const status = message.match(/\((\d{3})\)/)?.[1];
+    if (status) return `HTTP_${status}`;
+    if (/timed out|timeout/i.test(message)) return "TIMEOUT";
+    return "PROVIDER_READ_FAILED";
+  };
+  const capacityCampaignReads = explicitCleanCampaigns.map((result, index) => {
+    const segment = index === 0 ? "DIRECT" : "PARTNER";
+    if (result.status === "rejected") return { segment, outcome: "ERROR" as const, error: safeCampaignReadError(result.reason) };
+    const expectedCampaignId = index === 0 ? health.directCampaignId : health.partnerCampaignId;
+    return { segment, outcome: "READ" as const, ...describeCampaignResponse(result.value, expectedCampaignId) };
+  });
   const providerCapacity = calculateInstantlyProviderCapacity({
     accounts,
     directCampaign: mappedCampaign(0, health.directCampaignId),
@@ -1263,7 +1276,7 @@ async function reconcileInstantlyPolling() {
     errors: requiredErrors
   };
   await saveInstantlyStatus(snapshot);
-  console.info(JSON.stringify({ event: "GTM_INSTANTLY_CAPACITY", checkedAt: snapshot.checkedAt, reconciliation: snapshot.reconciliation, providerCapacity }));
+  console.info(JSON.stringify({ event: "GTM_INSTANTLY_CAPACITY", checkedAt: snapshot.checkedAt, reconciliation: snapshot.reconciliation, providerCapacity, capacityCampaignReads }));
   if (outcomeRecorded) await reconcileGtmOpportunityEngine();
   return { mode: "READ_ONLY", status: snapshot };
 }

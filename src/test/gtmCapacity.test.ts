@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateInstantlyProviderCapacity, configuredDailyInitialSendTarget, resolveMappedCampaign } from "../../server/gtmCapacity.ts";
+import { calculateInstantlyProviderCapacity, configuredDailyInitialSendTarget, describeCampaignResponse, resolveMappedCampaign } from "../../server/gtmCapacity.ts";
 
 const direct = { id: "direct", status: 1, email_list: ["sender@example.org"], daily_max_leads: 300 };
 const partner = { id: "partner", status: 1, email_list: ["sender@example.org"], daily_max_leads: 180 };
@@ -30,5 +30,12 @@ describe("provider-backed acquisition capacity", () => {
     expect(resolveMappedCampaign(direct, { items: [{ id: "legacy" }] }, "direct")).toBe(direct);
     expect(resolveMappedCampaign(null, { items: [partner] }, "partner")).toBe(partner);
     expect(resolveMappedCampaign(null, { items: [partner] }, "missing")).toBeNull();
+  });
+
+  it("normalizes documented campaign wrappers and emits only safe mapping telemetry", () => {
+    const wrapped = { data: direct };
+    expect(resolveMappedCampaign(wrapped, { items: [] }, "direct")).toBe(direct);
+    expect(describeCampaignResponse(wrapped, "direct")).toEqual({ shape: "DATA_WRAPPER", returnedCampaignId: "direct", idMatchesExpected: true });
+    expect(describeCampaignResponse({ id: "other" }, "direct")).toEqual({ shape: "ROOT", returnedCampaignId: "other", idMatchesExpected: false });
   });
 });

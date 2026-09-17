@@ -28,6 +28,41 @@ export interface InstantlyProviderCapacity {
   segments: Record<CapacitySegment, SegmentProviderCapacity>;
 }
 
+export type CampaignResponseShape = "ROOT" | "CAMPAIGN_WRAPPER" | "DATA_WRAPPER" | "ITEMS_WRAPPER" | "UNRECOGNIZED";
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+/** Some Instantly v2 reads wrap a campaign in `campaign` or `data`, while
+ * others return the campaign directly. Normalize only those documented object
+ * envelopes; never infer a campaign from unrelated response data. */
+export function campaignResponseCandidates(value: unknown): Array<{ shape: CampaignResponseShape; campaign: Record<string, unknown> }> {
+  const root = recordValue(value);
+  if (!root) return [];
+  const candidates: Array<{ shape: CampaignResponseShape; campaign: Record<string, unknown> }> = [{ shape: "ROOT", campaign: root }];
+  const wrappedCampaign = recordValue(root.campaign);
+  if (wrappedCampaign) candidates.push({ shape: "CAMPAIGN_WRAPPER", campaign: wrappedCampaign });
+  const wrappedData = recordValue(root.data);
+  if (wrappedData) candidates.push({ shape: "DATA_WRAPPER", campaign: wrappedData });
+  for (const item of instantlyItems(value)) candidates.push({ shape: "ITEMS_WRAPPER", campaign: item });
+  return candidates;
+}
+
+/** Safe diagnostic only: response envelope and returned campaign id are
+ * sufficient to distinguish stale mappings from provider response changes.
+ * It intentionally excludes senders, lead data, messages, and credentials. */
+export function describeCampaignResponse(value: unknown, expectedCampaignId: string) {
+  const candidates = campaignResponseCandidates(value);
+  const matching = candidates.find(({ campaign }) => String(campaign.id || "") === expectedCampaignId);
+  const first = candidates[0];
+  return {
+    shape: matching?.shape || first?.shape || "UNRECOGNIZED" as CampaignResponseShape,
+    returnedCampaignId: String((matching || first)?.campaign.id || "").slice(0, 96) || null,
+    idMatchesExpected: Boolean(matching)
+  };
+}
+
 function positiveInteger(value: unknown): number | null {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
@@ -49,7 +84,8 @@ export function providerAccountIsReady(account: Record<string, unknown>) {
  * is a fallback for telemetry only and must never erase a successfully read
  * mapped campaign. */
 export function resolveMappedCampaign(explicit: Record<string, unknown> | null, listed: unknown, campaignId: string) {
-  if (explicit && String(explicit.id || "") === campaignId) return explicit;
+  const explicitCampaign = campaignResponseCandidates(explicit).find(({ campaign }) => String(campaign.id || "") === campaignId)?.campaign;
+  if (explicitCampaign) return explicitCampaign;
   return instantlyItems(listed).find((campaign): campaign is Record<string, unknown> => Boolean(campaign) && typeof campaign === "object" && String(campaign.id || "") === campaignId) || null;
 }
 
