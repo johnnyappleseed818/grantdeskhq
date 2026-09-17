@@ -35,7 +35,9 @@ describe("provider-backed acquisition capacity", () => {
   it("normalizes documented campaign wrappers and emits only safe mapping telemetry", () => {
     const wrapped = { data: direct };
     expect(resolveMappedCampaign(wrapped, { items: [] }, "direct")).toBe(direct);
-    expect(describeCampaignResponse(wrapped, "direct")).toEqual({ shape: "DATA_WRAPPER", returnedCampaignId: "direct", idMatchesExpected: true });
-    expect(describeCampaignResponse({ id: "other" }, "direct")).toEqual({ shape: "ROOT", returnedCampaignId: "other", idMatchesExpected: false });
+    expect(describeCampaignResponse(wrapped, "direct")).toEqual({ shape: "DATA_WRAPPER", returnedCampaignId: "direct", idMatchesExpected: true, valueKind: "OBJECT", topLevelKeys: ["data"] });
+    expect(describeCampaignResponse({ id: "other" }, "direct")).toEqual({ shape: "ROOT", returnedCampaignId: "other", idMatchesExpected: false, valueKind: "OBJECT", topLevelKeys: ["id"] });
+    expect(resolveMappedCampaign({ data: [direct] }, { items: [] }, "direct")).toBe(direct);
+    expect(resolveMappedCampaign([direct], { items: [] }, "direct")).toBe(direct);
   });
 });

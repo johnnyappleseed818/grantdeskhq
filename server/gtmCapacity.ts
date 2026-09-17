@@ -34,10 +34,15 @@ function recordValue(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
 
+function recordArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter((entry): entry is Record<string, unknown> => Boolean(recordValue(entry))) : [];
+}
+
 /** Some Instantly v2 reads wrap a campaign in `campaign` or `data`, while
  * others return the campaign directly. Normalize only those documented object
  * envelopes; never infer a campaign from unrelated response data. */
 export function campaignResponseCandidates(value: unknown): Array<{ shape: CampaignResponseShape; campaign: Record<string, unknown> }> {
+  if (Array.isArray(value)) return recordArray(value).map((campaign) => ({ shape: "ITEMS_WRAPPER" as const, campaign }));
   const root = recordValue(value);
   if (!root) return [];
   const candidates: Array<{ shape: CampaignResponseShape; campaign: Record<string, unknown> }> = [{ shape: "ROOT", campaign: root }];
@@ -45,7 +50,7 @@ export function campaignResponseCandidates(value: unknown): Array<{ shape: Campa
   if (wrappedCampaign) candidates.push({ shape: "CAMPAIGN_WRAPPER", campaign: wrappedCampaign });
   const wrappedData = recordValue(root.data);
   if (wrappedData) candidates.push({ shape: "DATA_WRAPPER", campaign: wrappedData });
-  for (const item of instantlyItems(value)) candidates.push({ shape: "ITEMS_WRAPPER", campaign: item });
+  for (const item of [...instantlyItems(value), ...recordArray(root.data), ...recordArray(root.campaigns)]) candidates.push({ shape: "ITEMS_WRAPPER", campaign: item });
   return candidates;
 }
 
@@ -56,10 +61,13 @@ export function describeCampaignResponse(value: unknown, expectedCampaignId: str
   const candidates = campaignResponseCandidates(value);
   const matching = candidates.find(({ campaign }) => String(campaign.id || "") === expectedCampaignId);
   const first = candidates[0];
+  const root = recordValue(value);
   return {
     shape: matching?.shape || first?.shape || "UNRECOGNIZED" as CampaignResponseShape,
     returnedCampaignId: String((matching || first)?.campaign.id || "").slice(0, 96) || null,
-    idMatchesExpected: Boolean(matching)
+    idMatchesExpected: Boolean(matching),
+    valueKind: Array.isArray(value) ? "ARRAY" : root ? "OBJECT" : value === null ? "NULL" : typeof value === "string" ? "STRING" : typeof value === "undefined" ? "UNDEFINED" : "OTHER",
+    topLevelKeys: root ? Object.keys(root).sort().slice(0, 12) : []
   };
 }
 
@@ -83,7 +91,7 @@ export function providerAccountIsReady(account: Record<string, unknown>) {
 /** The configured Clean mapping is authoritative. A paginated workspace list
  * is a fallback for telemetry only and must never erase a successfully read
  * mapped campaign. */
-export function resolveMappedCampaign(explicit: Record<string, unknown> | null, listed: unknown, campaignId: string) {
+export function resolveMappedCampaign(explicit: unknown, listed: unknown, campaignId: string) {
   const explicitCampaign = campaignResponseCandidates(explicit).find(({ campaign }) => String(campaign.id || "") === campaignId)?.campaign;
   if (explicitCampaign) return explicitCampaign;
   return instantlyItems(listed).find((campaign): campaign is Record<string, unknown> => Boolean(campaign) && typeof campaign === "object" && String(campaign.id || "") === campaignId) || null;
