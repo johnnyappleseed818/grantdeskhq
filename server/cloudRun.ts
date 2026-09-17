@@ -55,7 +55,7 @@ import { listGtmScannerImportReceipts } from "./persistence.ts";
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
 import { decideControlledDispatch, type DispatchSegment } from "./gtmDispatch.ts";
-import { calculateInstantlyProviderCapacity, describeCampaignResponse, resolveMappedCampaign } from "./gtmCapacity.ts";
+import { calculateInstantlyProviderCapacity, configuredCleanCampaignIds, describeCampaignResponse, resolveMappedCampaign } from "./gtmCapacity.ts";
 const maxBodyBytes = configuredPositiveInteger("MAX_REQUEST_BODY_BYTES", 24_000_000);
 
 function domainFromUrl(value: string) {
@@ -1085,6 +1085,7 @@ async function handleAutomaticInstantlyDispatch(request: IncomingMessage, respon
 async function reconcileInstantlyPolling() {
   const config = instantlyConfig();
   const health = instantlyHealth(config);
+  const cleanCampaignIds = configuredCleanCampaignIds(config);
   if (!health.apiKeyConfigured || !health.integrationEnabled) {
     await saveInstantlyStatus({ ...health, checkedAt: new Date().toISOString(), reconciliation: "API_KEY_NOT_CONFIGURED" });
     return { mode: "PREVIEW_ONLY", health };
@@ -1098,8 +1099,8 @@ async function reconcileInstantlyPolling() {
   // permissions. Capacity must use the two configured Clean campaigns rather
   // than inferring that an omitted list item has no sender or daily limit.
   const explicitCleanCampaigns = await Promise.allSettled([
-    health.directCampaignId ? client.getCampaign(health.directCampaignId) : Promise.resolve(null),
-    health.partnerCampaignId ? client.getCampaign(health.partnerCampaignId) : Promise.resolve(null)
+    cleanCampaignIds.DIRECT ? client.getCampaign(cleanCampaignIds.DIRECT) : Promise.resolve(null),
+    cleanCampaignIds.PARTNER ? client.getCampaign(cleanCampaignIds.PARTNER) : Promise.resolve(null)
   ]);
   const mappedCampaign = (index: number, campaignId: string) => {
     const resolved = explicitCleanCampaigns[index];
@@ -1115,18 +1116,18 @@ async function reconcileInstantlyPolling() {
   const capacityCampaignReads = explicitCleanCampaigns.map((result, index) => {
     const segment = index === 0 ? "DIRECT" : "PARTNER";
     if (result.status === "rejected") return { segment, outcome: "ERROR" as const, error: safeCampaignReadError(result.reason) };
-    const expectedCampaignId = index === 0 ? health.directCampaignId : health.partnerCampaignId;
+    const expectedCampaignId = index === 0 ? cleanCampaignIds.DIRECT : cleanCampaignIds.PARTNER;
     return { segment, outcome: "READ" as const, ...describeCampaignResponse(result.value, expectedCampaignId) };
   });
   const providerCapacity = calculateInstantlyProviderCapacity({
     accounts,
-    directCampaign: mappedCampaign(0, health.directCampaignId),
-    partnerCampaign: mappedCampaign(1, health.partnerCampaignId)
+    directCampaign: mappedCampaign(0, cleanCampaignIds.DIRECT),
+    partnerCampaign: mappedCampaign(1, cleanCampaignIds.PARTNER)
   });
   const model = await readCanonicalGtmModel();
-  const cleanMemberships = await Promise.allSettled([health.directCampaignId ? client.listLeadsInCampaign(health.directCampaignId) : Promise.resolve({ items: [] }), health.partnerCampaignId ? client.listLeadsInCampaign(health.partnerCampaignId) : Promise.resolve({ items: [] })]);
+  const cleanMemberships = await Promise.allSettled([cleanCampaignIds.DIRECT ? client.listLeadsInCampaign(cleanCampaignIds.DIRECT) : Promise.resolve({ items: [] }), cleanCampaignIds.PARTNER ? client.listLeadsInCampaign(cleanCampaignIds.PARTNER) : Promise.resolve({ items: [] })]);
   const cleanProviderLeads = cleanMemberships.flatMap((result, index) => result.status === "fulfilled"
-    ? instantlyItems(result.value).map((lead) => withInstantlyCampaignMembership(lead, index === 0 ? health.directCampaignId : health.partnerCampaignId))
+    ? instantlyItems(result.value).map((lead) => withInstantlyCampaignMembership(lead, index === 0 ? cleanCampaignIds.DIRECT : cleanCampaignIds.PARTNER))
     : []);
   const leadItems = [...new Map([...instantlyItems(leads), ...cleanProviderLeads].map((lead) => [String(lead.id || ""), lead])).values()].filter((lead) => Boolean(String(lead.id || "")));
   // Only a complete provider lead read may invalidate a persisted pre-send
@@ -1160,8 +1161,8 @@ async function reconcileInstantlyPolling() {
   let outcomeRecorded = false;
   const cleanMembershipRebindReasons: Record<string, number> = {};
   const cleanCampaignSegments = new Map<string, DispatchSegment>();
-  if (health.directCampaignId) cleanCampaignSegments.set(health.directCampaignId, "DIRECT");
-  if (health.partnerCampaignId) cleanCampaignSegments.set(health.partnerCampaignId, "PARTNER");
+  if (cleanCampaignIds.DIRECT) cleanCampaignSegments.set(cleanCampaignIds.DIRECT, "DIRECT");
+  if (cleanCampaignIds.PARTNER) cleanCampaignSegments.set(cleanCampaignIds.PARTNER, "PARTNER");
   let adoptedCleanMemberships = 0;
   for (const lead of leadItems) {
     const providerLeadId = String(lead.id || "");
@@ -1241,7 +1242,7 @@ async function reconcileInstantlyPolling() {
     transitions[transition.event] = (transitions[transition.event] || 0) + 1;
     outcomeRecorded = await saveInstantlyOutcome(transition.record, transition.event, transition.sourceEventId) || outcomeRecorded;
   }
-  const mappedCampaignIds = new Set([health.directCampaignId, health.partnerCampaignId, config.legacyDirectCampaignId, config.legacyPartnerCampaignId].filter(Boolean));
+  const mappedCampaignIds = new Set([cleanCampaignIds.DIRECT, cleanCampaignIds.PARTNER, config.legacyDirectCampaignId, config.legacyPartnerCampaignId].filter(Boolean));
   const analyticsItems = Array.isArray(campaignAnalytics) ? campaignAnalytics.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object") : instantlyItems(campaignAnalytics);
   const mappedAnalytics = analyticsItems.filter((item) => mappedCampaignIds.has(String(item.campaign_id || item.id || "")));
   const requiredErrors = results.slice(0, 5).flatMap((result, index) => result.status === "rejected" ? [`${["lead_lists", "campaigns", "accounts", "leads", "campaign_analytics"][index]}: ${result.reason instanceof Error ? result.reason.message : "request failed"}`] : []);

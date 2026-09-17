@@ -1,4 +1,5 @@
 import { campaignSenderAddresses, controlledCampaignSafetySummary, instantlyItems } from "./instantly.ts";
+import type { InstantlyConfig } from "./instantly.ts";
 
 /** The commercial ceiling is a target, never a permission to exceed a healthy
  * provider campaign or connected mailbox. Segment allocations guide sourcing
@@ -8,6 +9,13 @@ export const GTM_DIRECT_ALLOCATION_TARGET = 200;
 export const GTM_PARTNER_ALLOCATION_TARGET = 100;
 
 export type CapacitySegment = "DIRECT" | "PARTNER";
+
+/** Reconciliation must use this authoritative configuration mapping. The
+ * dashboard health summary intentionally exposes only mapping booleans and is
+ * not a safe source for provider campaign identifiers. */
+export function configuredCleanCampaignIds(config: Pick<InstantlyConfig, "directCampaignId" | "partnerCampaignId">): Record<CapacitySegment, string> {
+  return { DIRECT: config.directCampaignId.trim(), PARTNER: config.partnerCampaignId.trim() };
+}
 
 export interface SegmentProviderCapacity {
   configuredCampaignLimit: number | null;
