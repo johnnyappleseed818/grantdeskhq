@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateInstantlyProviderCapacity, configuredCleanCampaignIds, configuredDailyInitialSendTarget, describeCampaignResponse, resolveMappedCampaign } from "../../server/gtmCapacity.ts";
+import { calculateInstantlyProviderCapacity, configuredCleanCampaignIds, configuredDailyInitialSendTarget, describeCampaignResponse, providerBackedCampaignLimit, resolveMappedCampaign } from "../../server/gtmCapacity.ts";
 
 const direct = { id: "direct", status: 1, email_list: ["sender@example.org"], daily_max_leads: 300 };
 const partner = { id: "partner", status: 1, email_list: ["sender@example.org"], daily_max_leads: 180 };
@@ -11,6 +11,12 @@ describe("provider-backed acquisition capacity", () => {
     expect(capacity).toMatchObject({ targetDailyCapacity: 300, providerDailyCapacity: 300, readyMailboxCount: 1, sharedMailboxCount: 1 });
     expect(capacity.segments.DIRECT).toMatchObject({ safeDailyCapacity: 300, senderReady: true });
     expect(capacity.segments.PARTNER).toMatchObject({ safeDailyCapacity: 180, senderReady: true });
+  });
+
+  it("uses the measured shared provider capacity as a campaign limit without making segment allocation a hard ceiling", () => {
+    expect(providerBackedCampaignLimit({ providerDailyCapacity: 30 })).toBe(30);
+    expect(providerBackedCampaignLimit({ providerDailyCapacity: 999 })).toBe(300);
+    expect(providerBackedCampaignLimit({ providerDailyCapacity: 0 })).toBe(0);
   });
 
   it("fails closed for an unready sender or an absent provider cap", () => {

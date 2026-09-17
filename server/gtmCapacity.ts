@@ -89,6 +89,14 @@ export function configuredDailyInitialSendTarget(env: NodeJS.ProcessEnv = proces
   return configured ? Math.min(GTM_DAILY_INITIAL_SEND_TARGET, configured) : GTM_DAILY_INITIAL_SEND_TARGET;
 }
 
+/** The same healthy mailbox may back both segments. Each campaign can therefore
+ * receive the aggregate safe cap, while the dispatch controller's shared global
+ * reservation remains the hard total. This avoids turning the 2:1 sourcing
+ * allocation into a permanent per-segment sending ceiling. */
+export function providerBackedCampaignLimit(capacity: Pick<InstantlyProviderCapacity, "providerDailyCapacity">) {
+  return Math.max(0, Math.min(GTM_DAILY_INITIAL_SEND_TARGET, capacity.providerDailyCapacity));
+}
+
 export function providerAccountIsReady(account: Record<string, unknown>) {
   return Number(account.status) === 1
     && Number(account.warmup_status) === 1

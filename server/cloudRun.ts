@@ -55,7 +55,7 @@ import { listGtmScannerImportReceipts } from "./persistence.ts";
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
 import { decideControlledDispatch, type DispatchSegment } from "./gtmDispatch.ts";
-import { calculateInstantlyProviderCapacity, configuredCleanCampaignIds, describeCampaignResponse, resolveMappedCampaign } from "./gtmCapacity.ts";
+import { calculateInstantlyProviderCapacity, configuredCleanCampaignIds, describeCampaignResponse, providerBackedCampaignLimit, resolveMappedCampaign } from "./gtmCapacity.ts";
 const maxBodyBytes = configuredPositiveInteger("MAX_REQUEST_BODY_BYTES", 24_000_000);
 
 function domainFromUrl(value: string) {
@@ -168,6 +168,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/canonical") return await handleGtmCanonical(request, response);
     if (url.pathname === "/api/gtm/instantly") return await handleGtmInstantly(request, response);
     if (url.pathname === "/api/gtm/instantly/dispatch") return await handleAutomaticInstantlyDispatch(request, response);
+    if (url.pathname === "/api/gtm/instantly/capacity-configure") return await handleInstantlyCapacityConfigure(request, response);
     if (url.pathname === "/api/gtm/instantly/stage") return await handleGtmInstantlyStage(request, response);
     if (url.pathname === "/api/gtm/instantly/controlled-batch") return await handleControlledInstantlyBatch(request, response);
     if (url.pathname === "/api/gtm/instantly/incident-remediate") return await handleInstantlyIncidentRemediate(request, response);
@@ -1078,6 +1079,47 @@ async function handleAutomaticInstantlyDispatch(request: IncomingMessage, respon
   const nextActivation = canaryRecord ? { segment, campaignId, configurationFingerprint: fingerprint, canaryRecordId: canary ? canary.canaryRecordId : canaryRecord.id, providerLeadId: canary ? canary.providerLeadId : canaryRecord.instantlyLeadId, acceptedAt: canary ? canary.acceptedAt : now.toISOString(), providerSentAt: canary ? canary.providerSentAt : "", outcome: canary ? canary.outcome : "ACCEPTED" as const, dailyCapacity: segmentDailyLimit, lastSuccessfulDispatchAt: now.toISOString(), failureReason: "", stateVersion: (activation?.stateVersion || 0) + 1, updatedAt: now.toISOString() } : null;
   if (nextActivation) await saveGtmDispatchActivation(nextActivation);
   return json(response, 200, { ...base, handoffs, activation: nextActivation ? { outcome: nextActivation.outcome, stateVersion: nextActivation.stateVersion } : null });
+}
+
+/** Scheduler-authenticated, provider-backed campaign capacity alignment. It
+ * accepts no caller-supplied capacity, never changes copy/schedules/senders,
+ * and leaves campaigns paused. Activation remains the dispatch controller's
+ * separately gated responsibility. */
+async function handleInstantlyCapacityConfigure(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const input = await readJson(request) as { mode?: unknown };
+  if (input.mode !== "preflight" && input.mode !== "apply") return json(response, 400, { error: "Capacity configuration requires mode:preflight or mode:apply." });
+  const config = instantlyConfig();
+  const ids = configuredCleanCampaignIds(config);
+  const circuit = await readOutboundCircuitBreaker();
+  if (!circuit || circuit.tripped) return json(response, 409, { error: "Outbound circuit must be closed before capacity configuration." });
+  if (!config.integrationEnabled || !config.apiKeyConfigured || !config.outboundEmailEnabled || !config.outboundEnabled || !config.autoHandoffEnabled || !config.directEnabled || !config.partnerEnabled) return json(response, 409, { error: "Required outbound configuration flags are not all enabled." });
+  if (!ids.DIRECT || !ids.PARTNER || ids.DIRECT === ids.PARTNER || [config.legacyDirectCampaignId, config.legacyPartnerCampaignId].includes(ids.DIRECT) || [config.legacyDirectCampaignId, config.legacyPartnerCampaignId].includes(ids.PARTNER)) return json(response, 409, { error: "Configured Clean campaign mapping is invalid." });
+  const client = new InstantlyClient(config);
+  const [accounts, directCampaign, partnerCampaign] = await Promise.all([client.listAccounts(), client.getCampaign(ids.DIRECT), client.getCampaign(ids.PARTNER)]);
+  const capacity = calculateInstantlyProviderCapacity({ accounts, directCampaign, partnerCampaign });
+  const limit = providerBackedCampaignLimit(capacity);
+  const directSummary = controlledCampaignSafetySummary(directCampaign);
+  const partnerSummary = controlledCampaignSafetySummary(partnerCampaign);
+  const pausedAndSafe = ([directCampaign, partnerCampaign] as Record<string, unknown>[]).every((campaign) => {
+    const summary = controlledCampaignSafetySummary(campaign);
+    const sender = campaignSenderAddresses(campaign)[0] || "";
+    return Number(summary.status) === 2 && Boolean(sender) && cleanInitialOnlyCampaignReady(campaign, sender, Number(summary.dailyMaxLeads), [2]);
+  });
+  if (!limit || !pausedAndSafe || !capacity.segments.DIRECT.senderReady || !capacity.segments.PARTNER.senderReady) return json(response, 409, { error: "Paused Clean campaigns and a healthy configured sender are required before capacity configuration.", capacity, campaigns: { direct: directSummary, partner: partnerSummary } });
+  const preflight = { mode: "PREFLIGHT", providerDailyCapacity: capacity.providerDailyCapacity, requestedCampaignLimit: limit, sharedMailboxCount: capacity.sharedMailboxCount, readyMailboxCount: capacity.readyMailboxCount, campaignIds: ids, currentLimits: { direct: directSummary.dailyMaxLeads, partner: partnerSummary.dailyMaxLeads }, campaignsPaused: true };
+  if (input.mode === "preflight") return json(response, 200, preflight);
+  if (!config.controlledBatchEnabled || !config.controlledBatchId) return json(response, 409, { error: "The existing guarded provider-write authorization is not enabled." });
+  await Promise.all([
+    client.configureControlledCampaign(ids.DIRECT, { daily_limit: limit, daily_max_leads: limit }, config.controlledBatchId),
+    client.configureControlledCampaign(ids.PARTNER, { daily_limit: limit, daily_max_leads: limit }, config.controlledBatchId)
+  ]);
+  const [configuredDirect, configuredPartner] = await Promise.all([client.getCampaign(ids.DIRECT), client.getCampaign(ids.PARTNER)]);
+  const readBack = { direct: controlledCampaignSafetySummary(configuredDirect), partner: controlledCampaignSafetySummary(configuredPartner) };
+  if (Number(readBack.direct.status) !== 2 || Number(readBack.partner.status) !== 2 || Number(readBack.direct.dailyMaxLeads) !== limit || Number(readBack.partner.dailyMaxLeads) !== limit) throw new HttpError(409, "Instantly campaign capacity read-back did not match the provider-backed limit.");
+  console.info(JSON.stringify({ event: "GTM_INSTANTLY_CAPACITY_CONFIGURED", providerDailyCapacity: capacity.providerDailyCapacity, requestedCampaignLimit: limit, sharedMailboxCount: capacity.sharedMailboxCount, campaignIds: ids, timestamp: new Date().toISOString() }));
+  return json(response, 200, { ...preflight, mode: "APPLIED", configuredLimits: { direct: readBack.direct.dailyMaxLeads, partner: readBack.partner.dailyMaxLeads } });
 }
 
 /** Scheduler-protected reconciliation uses read-only API polling. Webhooks are
