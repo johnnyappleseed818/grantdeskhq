@@ -236,17 +236,30 @@ export function controlledCampaignSafetySummary(campaign: Record<string, unknown
 /** Clean campaigns intentionally have a single enabled initial email. Their
  * readiness is distinct from the retired three-step controlled cohort. */
 export function cleanInitialOnlyCampaignReady(campaign: Record<string, unknown>, sender: string, dailyMaxLeads: number, allowedStatuses = [1]) {
+  return Object.values(cleanInitialOnlyCampaignChecks(campaign, sender, dailyMaxLeads, allowedStatuses)).every(Boolean);
+}
+
+/** Predicate-level safety details for scheduler-authenticated operational
+ * checks. It contains no email body, subject, recipient, or credentials. */
+export function cleanInitialOnlyCampaignChecks(campaign: Record<string, unknown>, sender: string, dailyMaxLeads: number, allowedStatuses = [1]) {
   const summary = controlledCampaignSafetySummary(campaign);
   const sequence = Array.isArray(campaign.sequences) ? campaign.sequences[0] : null;
   const steps = sequence && typeof sequence === "object" && Array.isArray((sequence as Record<string, unknown>).steps) ? (sequence as Record<string, unknown>).steps as Array<Record<string, unknown>> : [];
   const emailSteps = steps.filter((step) => step.type === "email");
   const enabledEmailSteps = emailSteps.filter((step) => Array.isArray(step.variants) && (step.variants as Array<Record<string, unknown>>).some((variant) => variant.v_disabled !== true));
   const first = summary.firstEmailVariants.find((variant) => !variant.disabled);
-  const validInitial = Boolean(first?.subject.trim() && first.body.trim() && first.body.includes("https://grantdeskhq.com/assessment") && first.body.toLowerCase().includes("free"));
-  return allowedStatuses.includes(Number(summary.status)) && campaignUsesOnlySender(campaign, sender)
-    && summary.stopOnReply && summary.stopOnAutoReply && summary.bounceProtectionEnabled
-    && !summary.openTracking && !summary.linkTracking && Number(summary.dailyMaxLeads) === dailyMaxLeads
-    && emailSteps.length === 1 && enabledEmailSteps.length === 1 && validInitial;
+  return {
+    allowedStatus: allowedStatuses.includes(Number(summary.status)),
+    onlyConfiguredSender: campaignUsesOnlySender(campaign, sender),
+    stopOnReply: summary.stopOnReply,
+    stopOnAutoReply: summary.stopOnAutoReply,
+    bounceProtectionEnabled: summary.bounceProtectionEnabled,
+    trackingDisabled: !summary.openTracking && !summary.linkTracking,
+    dailyMaxLeadsMatches: Number(summary.dailyMaxLeads) === dailyMaxLeads,
+    exactlyOneEmailStep: emailSteps.length === 1,
+    exactlyOneEnabledEmailStep: enabledEmailSteps.length === 1,
+    approvedInitialCopy: Boolean(first?.subject.trim() && first.body.trim() && first.body.includes("https://grantdeskhq.com/assessment") && first.body.toLowerCase().includes("free"))
+  };
 }
 
 export function instantlyHealth(config = instantlyConfig()) {

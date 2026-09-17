@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, cleanInitialOnlyCampaignReady, cleanMembershipEvidenceId, cleanMembershipRebindReason, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, instantlyReconciliationRecordChanged, needsCanonicalInitialSendRecovery, normalizeInstantlyWebhook, rebindMappedInstantlyRecord, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "../../server/instantly";
+import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, cleanInitialOnlyCampaignChecks, cleanInitialOnlyCampaignReady, cleanMembershipEvidenceId, cleanMembershipRebindReason, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, instantlyReconciliationRecordChanged, needsCanonicalInitialSendRecovery, normalizeInstantlyWebhook, rebindMappedInstantlyRecord, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "../../server/instantly";
 import type { CanonicalGtmRecord } from "../lib/gtmCanonical";
 
 const record: CanonicalGtmRecord = {
@@ -195,6 +195,7 @@ describe("Instantly fail-closed integration", () => {
   it("accepts only the one-step Clean campaign safety shape at its segment capacity", () => {
     const clean = { id: "clean_direct", status: 1, email_list: ["eli.katz@grantdeskhq.com"], stop_on_reply: true, stop_on_auto_reply: true, disable_bounce_protect: false, open_tracking: false, link_tracking: false, daily_max_leads: 10, sequences: [{ steps: [{ type: "email", variants: [{ subject: "Less manual work", body: "Try one award for free: https://grantdeskhq.com/assessment", v_disabled: false }] }] }] };
     expect(cleanInitialOnlyCampaignReady(clean, "eli.katz@grantdeskhq.com", 10)).toBe(true);
+    expect(cleanInitialOnlyCampaignChecks(clean, "eli.katz@grantdeskhq.com", 10)).toMatchObject({ allowedStatus: true, exactlyOneEmailStep: true, exactlyOneEnabledEmailStep: true, approvedInitialCopy: true });
     expect(cleanInitialOnlyCampaignReady({ ...clean, daily_max_leads: 5 }, "eli.katz@grantdeskhq.com", 10)).toBe(false);
     expect(cleanInitialOnlyCampaignReady({ ...clean, sequences: [{ steps: [...clean.sequences[0].steps, { type: "email", variants: [{ subject: "Follow up", body: "x", v_disabled: false }] }] }] }, "eli.katz@grantdeskhq.com", 10)).toBe(false);
   });

@@ -42,7 +42,7 @@ import { boundedEnrichmentLimit, GTM_INVENTORY_POLICY, inventoryDecision, social
 import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type GtmOutcomeEvent, type GtmOutcomeType, type OpportunityClusterStatus } from "../src/lib/gtmOpportunityEngine.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
-import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, cleanInitialOnlyCampaignReady, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantSafeSummary, instantlyItems, instantlyLeadCampaignId, instantlyPreviewRecord, instantlyReconciliationRecordChanged, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "./instantly.ts";
+import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, cleanInitialOnlyCampaignChecks, cleanInitialOnlyCampaignReady, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantSafeSummary, instantlyItems, instantlyLeadCampaignId, instantlyPreviewRecord, instantlyReconciliationRecordChanged, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "./instantly.ts";
 import { adoptMappedInstantlyLead, canReplaceInstantlyPreview, cleanMembershipEvidenceId, cleanMembershipRebindReason, isCleanMembershipEvidenceRecord, needsCanonicalInitialSendRecovery, rebindMappedInstantlyRecord } from "./instantly.ts";
 import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from "./outboundIncidentClosure.ts";
@@ -1102,13 +1102,19 @@ async function handleInstantlyCapacityConfigure(request: IncomingMessage, respon
   const limit = providerBackedCampaignLimit(capacity);
   const directSummary = controlledCampaignSafetySummary(directCampaign);
   const partnerSummary = controlledCampaignSafetySummary(partnerCampaign);
-  const pausedAndSafe = ([directCampaign, partnerCampaign] as Record<string, unknown>[]).every((campaign) => {
+  const campaignChecks = ([directCampaign, partnerCampaign] as Record<string, unknown>[]).map((campaign) => {
     const summary = controlledCampaignSafetySummary(campaign);
     const sender = campaignSenderAddresses(campaign)[0] || "";
-    return Number(summary.status) === 2 && Boolean(sender) && cleanInitialOnlyCampaignReady(campaign, sender, Number(summary.dailyMaxLeads), [2]);
+    return { status: Number(summary.status), senderConfigured: Boolean(sender), checks: cleanInitialOnlyCampaignChecks(campaign, sender, Number(summary.dailyMaxLeads), [2]) };
   });
-  if (!limit || !pausedAndSafe || !capacity.segments.DIRECT.senderReady || !capacity.segments.PARTNER.senderReady) return json(response, 409, { error: "Paused Clean campaigns and a healthy configured sender are required before capacity configuration.", capacity, campaigns: { direct: directSummary, partner: partnerSummary } });
+  const pausedAndSafe = campaignChecks.every((entry) => entry.status === 2 && entry.senderConfigured && Object.values(entry.checks).every(Boolean));
+  const prerequisites = { circuitClosed: Boolean(circuit && !circuit.tripped), requiredFlags: true, validMapping: true, providerCapacityAvailable: Boolean(limit), directSenderReady: capacity.segments.DIRECT.senderReady, partnerSenderReady: capacity.segments.PARTNER.senderReady, pausedAndSafe };
+  if (!limit || !pausedAndSafe || !capacity.segments.DIRECT.senderReady || !capacity.segments.PARTNER.senderReady) {
+    console.info(JSON.stringify({ event: "GTM_INSTANTLY_CAPACITY_PREFLIGHT", outcome: "BLOCKED", prerequisites, campaignChecks, providerDailyCapacity: capacity.providerDailyCapacity, timestamp: new Date().toISOString() }));
+    return json(response, 409, { error: "Paused Clean campaigns and a healthy configured sender are required before capacity configuration.", prerequisites, campaignChecks, providerDailyCapacity: capacity.providerDailyCapacity });
+  }
   const preflight = { mode: "PREFLIGHT", providerDailyCapacity: capacity.providerDailyCapacity, requestedCampaignLimit: limit, sharedMailboxCount: capacity.sharedMailboxCount, readyMailboxCount: capacity.readyMailboxCount, campaignIds: ids, currentLimits: { direct: directSummary.dailyMaxLeads, partner: partnerSummary.dailyMaxLeads }, campaignsPaused: true };
+  console.info(JSON.stringify({ event: "GTM_INSTANTLY_CAPACITY_PREFLIGHT", outcome: "PASS", prerequisites, campaignChecks, providerDailyCapacity: capacity.providerDailyCapacity, requestedCampaignLimit: limit, timestamp: new Date().toISOString() }));
   if (input.mode === "preflight") return json(response, 200, preflight);
   if (!config.controlledBatchEnabled || !config.controlledBatchId) return json(response, 409, { error: "The existing guarded provider-write authorization is not enabled." });
   await Promise.all([
