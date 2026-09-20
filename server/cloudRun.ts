@@ -1093,9 +1093,25 @@ async function handleInstantlyCapacityConfigure(request: IncomingMessage, respon
   const config = instantlyConfig();
   const ids = configuredCleanCampaignIds(config);
   const circuit = await readOutboundCircuitBreaker();
-  if (!circuit || circuit.tripped) return json(response, 409, { error: "Outbound circuit must be closed before capacity configuration." });
-  if (!config.integrationEnabled || !config.apiKeyConfigured || !config.outboundEmailEnabled || !config.outboundEnabled || !config.autoHandoffEnabled || !config.directEnabled || !config.partnerEnabled) return json(response, 409, { error: "Required outbound configuration flags are not all enabled." });
-  if (!ids.DIRECT || !ids.PARTNER || ids.DIRECT === ids.PARTNER || [config.legacyDirectCampaignId, config.legacyPartnerCampaignId].includes(ids.DIRECT) || [config.legacyDirectCampaignId, config.legacyPartnerCampaignId].includes(ids.PARTNER)) return json(response, 409, { error: "Configured Clean campaign mapping is invalid." });
+  const earlyPrerequisites = {
+    circuitRecordPresent: Boolean(circuit),
+    circuitClosed: Boolean(circuit && !circuit.tripped),
+    integrationEnabled: config.integrationEnabled,
+    apiKeyConfigured: config.apiKeyConfigured,
+    outboundEmailEnabled: config.outboundEmailEnabled,
+    outboundEnabled: config.outboundEnabled,
+    autoHandoffEnabled: config.autoHandoffEnabled,
+    directEnabled: config.directEnabled,
+    partnerEnabled: config.partnerEnabled,
+    directMappingPresent: Boolean(ids.DIRECT),
+    partnerMappingPresent: Boolean(ids.PARTNER),
+    mappingsDistinct: Boolean(ids.DIRECT && ids.PARTNER && ids.DIRECT !== ids.PARTNER),
+    cleanMappingsNotLegacy: ![config.legacyDirectCampaignId, config.legacyPartnerCampaignId].includes(ids.DIRECT) && ![config.legacyDirectCampaignId, config.legacyPartnerCampaignId].includes(ids.PARTNER)
+  };
+  if (!earlyPrerequisites.circuitClosed || !earlyPrerequisites.integrationEnabled || !earlyPrerequisites.apiKeyConfigured || !earlyPrerequisites.outboundEmailEnabled || !earlyPrerequisites.outboundEnabled || !earlyPrerequisites.autoHandoffEnabled || !earlyPrerequisites.directEnabled || !earlyPrerequisites.partnerEnabled || !earlyPrerequisites.directMappingPresent || !earlyPrerequisites.partnerMappingPresent || !earlyPrerequisites.mappingsDistinct || !earlyPrerequisites.cleanMappingsNotLegacy) {
+    console.info(JSON.stringify({ event: "GTM_INSTANTLY_CAPACITY_PREFLIGHT", outcome: "BLOCKED_EARLY", earlyPrerequisites, timestamp: new Date().toISOString() }));
+    return json(response, 409, { error: "Outbound configuration prerequisites are not all satisfied.", earlyPrerequisites });
+  }
   const client = new InstantlyClient(config);
   const [accounts, directCampaign, partnerCampaign] = await Promise.all([client.listAccounts(), client.getCampaign(ids.DIRECT), client.getCampaign(ids.PARTNER)]);
   const capacity = calculateInstantlyProviderCapacity({ accounts, directCampaign, partnerCampaign });
