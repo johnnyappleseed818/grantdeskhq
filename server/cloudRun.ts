@@ -898,7 +898,14 @@ async function handleAmbiguousProviderOutcomeResolution(request: IncomingMessage
   const persisted = reservation
     ? records.find((record) => String(record.email || "").trim().toLowerCase() === reservation.normalizedEmail && Boolean(record.canonicalOrganizationId)) || null
     : null;
-  const providerLead = reservation ? await client.findLeadByEmail(reservation.normalizedEmail, "") : null;
+  const workspaceProviderLead = reservation ? await client.findLeadByEmail(reservation.normalizedEmail, "") : null;
+  // A compact workspace lookup can omit campaign metadata. Querying an exact
+  // email inside each configured campaign supplies positive membership proof;
+  // zero scoped matches remain unresolved and cannot clear the incident.
+  const scopedProviderMemberships = workspaceProviderLead && !instantlyLeadCampaignId(workspaceProviderLead) && reservation
+    ? await client.findLeadMembershipsByEmail(reservation.normalizedEmail, [config.directCampaignId, config.partnerCampaignId, config.legacyDirectCampaignId, config.legacyPartnerCampaignId])
+    : [];
+  const providerLead = scopedProviderMemberships.length === 1 ? scopedProviderMemberships[0] : workspaceProviderLead;
   const providerCampaignId = providerLead ? instantlyLeadCampaignId(providerLead) : "";
   const providerSameCampaign = Boolean(providerLead && reservation && providerCampaignId === reservation.campaignId);
   const providerCampaignIsLegacy = [config.legacyDirectCampaignId, config.legacyPartnerCampaignId].includes(providerCampaignId);
@@ -908,7 +915,7 @@ async function handleAmbiguousProviderOutcomeResolution(request: IncomingMessage
     persistedCampaignMatches: Boolean(persisted && persisted.instantlyCampaignId === providerCampaignId),
     persistedInitialSendAt: String(persisted?.firstSentAt || "")
   });
-  const providerCrossCampaignConflict = Boolean(providerLead && reservation && !providerSameCampaign && !legacyProviderHistorySufficient);
+  const providerCrossCampaignConflict = scopedProviderMemberships.length > 1 || Boolean(providerLead && reservation && !providerSameCampaign && !legacyProviderHistorySufficient);
   // Capacity alignment later requires an explicit provider-paused state. For
   // incident closure, an explicit terminal provider state is equally safe: no
   // delivery can start while status is 0, 2, or 3. Unknown/missing state is
@@ -922,7 +929,7 @@ async function handleAmbiguousProviderOutcomeResolution(request: IncomingMessage
     campaignsPaused,
     noActiveReservation: !hasActiveInstantlyHandoffReservation(reservations),
     exactlyOneUnresolvedReservation: selection.resolvable,
-    canonicalOrTombstoneIdentityPresent: Boolean((canonical && reservation && canonical.email && canonical.organizationId) || legacyProviderHistorySufficient),
+    canonicalOrTombstoneIdentityPresent: Boolean((canonical && reservation && canonical.email && canonical.organizationId) || providerSameCampaign || legacyProviderHistorySufficient),
     providerLookupCompleted: Boolean(reservation),
     providerCrossCampaignConflict
   });
@@ -931,10 +938,10 @@ async function handleAmbiguousProviderOutcomeResolution(request: IncomingMessage
   const providerCampaignScope = providerCampaignId === config.directCampaignId ? "DIRECT_CLEAN" : providerCampaignId === config.partnerCampaignId ? "PARTNER_CLEAN" : providerCampaignId === config.legacyDirectCampaignId ? "LEGACY_DIRECT" : providerCampaignId === config.legacyPartnerCampaignId ? "LEGACY_PARTNER" : providerCampaignId ? "OTHER" : "NONE";
   const providerResult = providerCrossCampaignConflict ? "CROSS_CAMPAIGN_CONFLICT" : legacyProviderHistorySufficient ? "LEGACY_HISTORY_CONFIRMED" : providerSameCampaign ? "ADOPT_EXISTING_MEMBERSHIP" : reservation ? "NO_PROVIDER_MEMBERSHIP" : "NOT_EVALUATED";
   try {
-    console.info(JSON.stringify({ event: "OUTBOUND_AMBIGUOUS_PROVIDER_RESOLUTION", mode, eventId: outboundCircuitEventId(circuit), version: circuit.version, prerequisites: { ...prerequisites, allRequiredFlags }, campaignStates: { direct: Number(directCampaign.status), partner: Number(partnerCampaign.status) }, providerCampaignScope, persistedInitialSendEvidence: Boolean(persisted?.firstSentAt), unresolvedReservationCount: selection.unresolved.length, selection: selection.reason, providerResult, resolutionRef, timestamp: new Date().toISOString() }));
+    console.info(JSON.stringify({ event: "OUTBOUND_AMBIGUOUS_PROVIDER_RESOLUTION", mode, eventId: outboundCircuitEventId(circuit), version: circuit.version, prerequisites: { ...prerequisites, allRequiredFlags }, campaignStates: { direct: Number(directCampaign.status), partner: Number(partnerCampaign.status) }, providerCampaignScope, providerScopedMembershipCount: scopedProviderMemberships.length, persistedInitialSendEvidence: Boolean(persisted?.firstSentAt), unresolvedReservationCount: selection.unresolved.length, selection: selection.reason, providerResult, resolutionRef, timestamp: new Date().toISOString() }));
   } catch { /* Protected observability must not alter fail-closed behavior. */ }
   if (!safe) return json(response, 409, { error: "Ambiguous-provider resolution prerequisites are not satisfied.", prerequisites: { ...prerequisites, allRequiredFlags }, unresolvedReservationCount: selection.unresolved.length, selection: selection.reason, providerResult });
-  if (!reservation || !canonical) return json(response, 409, { error: "Ambiguous-provider resolution identity could not be established." });
+  if (!reservation || (!canonical && !providerSameCampaign)) return json(response, 409, { error: "Ambiguous-provider resolution identity could not be established." });
   if (!apply) return json(response, 200, {
     mode,
     eventId: outboundCircuitEventId(circuit),

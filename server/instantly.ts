@@ -581,10 +581,22 @@ export class InstantlyClient {
       // unresolved workspace identity. Callers without a campaign scope must
       // retain it as a provider conflict; only a campaign-scoped lookup may
       // reject it because it cannot prove membership in that exact campaign.
-      return campaignId ? null : resolved;
+      return campaignId ? withInstantlyCampaignMembership(resolved, campaignId) : resolved;
     } catch {
       return null;
     }
+  }
+
+  /** A campaign-scoped provider list is positive membership evidence even when
+   * its compact lead object omits campaign metadata. This helper never treats
+   * a zero result as proof that the workspace lead is safe or absent. */
+  async findLeadMembershipsByEmail(email: string, campaignIds: readonly string[]) {
+    const memberships: Record<string, unknown>[] = [];
+    for (const campaignId of [...new Set(campaignIds.map((id) => id.trim()).filter(Boolean))]) {
+      const lead = await this.findLeadByEmail(email, campaignId);
+      if (lead) memberships.push(withInstantlyCampaignMembership(lead, campaignId));
+    }
+    return memberships;
   }
   async activateControlledCampaign(campaignId: string, batchId: string) {
     if (!this.config.controlledBatchEnabled || !this.config.controlledBatchId || this.config.controlledBatchId !== batchId) throw new Error("Controlled outbound batch is not enabled for this exact batch ID.");

@@ -69,7 +69,16 @@ describe("Instantly fail-closed integration", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: "lead_1", email: "casey@example.org" }] }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: "lead_1", email: "casey@example.org" }), { status: 200 }));
     const scopedClient = new InstantlyClient(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true" }), "key", scopedRequest);
-    await expect(scopedClient.findLeadByEmail("casey@example.org", "campaign_clean")).resolves.toBeNull();
+    await expect(scopedClient.findLeadByEmail("casey@example.org", "campaign_clean")).resolves.toMatchObject({ id: "lead_1", campaign: "campaign_clean" });
+  });
+
+  it("collects only positive scoped memberships for an exact provider identity", async () => {
+    const request = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: "lead_direct", email: "casey@example.org" }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "lead_direct", email: "casey@example.org" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [] }), { status: 200 }));
+    const client = new InstantlyClient(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true" }), "key", request);
+    await expect(client.findLeadMembershipsByEmail("casey@example.org", ["direct_clean", "partner_clean"])).resolves.toEqual([expect.objectContaining({ id: "lead_direct", campaign: "direct_clean" })]);
   });
 
   it("allows only qualified, ready, clear, previously-uncontacted records to stage", () => {
