@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { verifyLegacyProviderExclusions, type InstantlyIntegrationRecord } from "../../server/instantly.ts";
-import { closeOutboundCircuitIncident, hasActiveInstantlyHandoffReservation, outboundCircuitEventId, resetOutboundCircuitBreaker } from "../../server/persistence.ts";
+import { closeAmbiguousProviderOutcomeIncident, closeOutboundCircuitIncident, hasActiveInstantlyHandoffReservation, outboundCircuitEventId, resetOutboundCircuitBreaker } from "../../server/persistence.ts";
 import type { CanonicalGtmRecord } from "../lib/gtmCanonical.ts";
 
 const legacy = (overrides: Partial<CanonicalGtmRecord> = {}): CanonicalGtmRecord => ({
@@ -95,5 +95,21 @@ describe("audited legacy provider exclusion", () => {
     const closureUrls = writeFetch.mock.calls.map(([url]) => String(url)).filter((url) => url.includes("gtm/instantly/safety/incidents") || url.includes("gtm/instantly/safety/incident-closures"));
     expect(closureUrls).toEqual(expect.arrayContaining([expect.stringContaining("/incidents/records/"), expect.stringContaining("/incident-closures/records/")]));
     for (const url of closureUrls) expect(url.split("/documents/")[1].split("?")[0].split("/").length % 2).toBe(0);
+  });
+  it("preserves and closes an audited ambiguous-provider incident only with an exact resolution record", async () => {
+    const ambiguous = { ...breaker, reason: "AMBIGUOUS_PROVIDER_OUTCOME", detail: "prior reservation has no reconcilable provider lead" };
+    const eventId = outboundCircuitEventId(ambiguous);
+    const prerequisites = { ambiguousProviderOutcome: true, expectedEventMatches: true, campaignsPaused: true, noActiveReservation: true, exactlyOneUnresolvedReservation: true, canonicalIdentityPresent: true, providerLookupCompleted: true, providerCrossCampaignConflictClear: true, allRequiredFlags: true };
+    const writeFetch = vi.fn(async (url: string) => {
+      const target = String(url);
+      if (target.includes("metadata.google.internal")) return Response.json({ access_token: "test-token", expires_in: 3600 });
+      if (target.includes("circuit-breaker") && !target.includes("currentDocument.exists")) return firestore(ambiguous);
+      return Response.json({});
+    });
+    vi.stubGlobal("fetch", writeFetch);
+    await expect(closeAmbiguousProviderOutcomeIncident({ expectedEventId: eventId, expectedVersion: 1, reason: "quarantined unresolved provider outcome", executionIdentity: "scheduler@example.org", resolutionRecordIds: ["instantly_ambiguous_123"], prerequisites, dryRun: false })).resolves.toMatchObject({ cleared: true, eventId });
+    const urls = writeFetch.mock.calls.map(([url]) => String(url));
+    expect(urls.some((url) => url.includes("/incidents/records/"))).toBe(true);
+    expect(urls.some((url) => url.includes("/ambiguous-handoff-closures/records/"))).toBe(true);
   });
 });

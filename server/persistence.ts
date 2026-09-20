@@ -1151,7 +1151,7 @@ export async function recordGtmContactSuppression(email: string, reasons: string
   const existing = existingResponse.status === 404
     ? []
     : parseSuppressionReasons(decodeFields(((await existingResponse.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}).reasonsJson);
-  const allowed = new Set(["unsubscribe", "opt_out", "do_not_contact", "complaint", "hard_bounce", "prior_outreach", "existing_signup", "existing_customer", "duplicate_contact"]);
+  const allowed = new Set(["unsubscribe", "opt_out", "do_not_contact", "complaint", "hard_bounce", "prior_outreach", "existing_signup", "existing_customer", "duplicate_contact", "provider_outcome_unresolved"]);
   const merged = [...new Set([...existing, ...reasons.map((reason) => reason.trim().toLowerCase()).filter((reason) => allowed.has(reason))])];
   await writeDocument(accessToken, `gtm/contact-suppressions/records/${documentId}`, {
     emailHash: documentId,
@@ -1445,7 +1445,7 @@ export async function readOutboundCircuitBreaker() {
   if (!response.ok) throw new Error(`Outbound circuit breaker could not be read (${response.status}).`);
   const fields = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
   const base = { tripped: fields.tripped === true || String(fields.tripped) === "true", reason: String(fields.reason || ""), detail: String(fields.detail || ""), trippedAt: String(fields.trippedAt || "") };
-  return { ...base, incidentId: String(fields.incidentId || "") || outboundCircuitEventId(base), version: Math.max(1, Number(fields.version || 1)), generation: Math.max(1, Number(fields.generation || 1)), resetEventId: String(fields.resetEventId || ""), resetReason: String(fields.resetReason || "") };
+  return { ...base, incidentId: String(fields.incidentId || "") || outboundCircuitEventId(base), version: Math.max(1, Number(fields.version || 1)), generation: Math.max(1, Number(fields.generation || 1)), resetEventId: String(fields.resetEventId || ""), resetReason: String(fields.resetReason || ""), resolvedIncidentId: String(fields.resolvedIncidentId || ""), resolutionAuditId: String(fields.resolutionAuditId || "") };
 }
 
 export async function tripOutboundCircuitBreaker(reason: string, detail: string) {
@@ -1496,6 +1496,48 @@ export async function closeOutboundCircuitIncident(input: { expectedEventId: str
   if (!created) {
     const after = await readOutboundCircuitBreaker();
     if (after?.resetEventId === eventId && after.resetReason === audit.reason) return { eventId, auditId, cleared: true, idempotent: true, nextGeneration: after.generation };
+  }
+  const next = { ...current, tripped: false, version: current.version + 1, generation: current.generation + 1, resetEventId: eventId, resetReason: audit.reason, resetExecutionIdentity: input.executionIdentity, resetAt: audit.timestamp, resolvedIncidentId: eventId, resolutionAuditId: auditId, codeRuleVersion: audit.codeRuleVersion };
+  await writeDocument(accessToken, outboundCircuitPath, next);
+  return { eventId, auditId, cleared: true, idempotent: false, nextGeneration: next.generation };
+}
+
+/**
+ * Resolves a post-write ambiguity only after the associated recipient has been
+ * either adopted from Instantly or permanently quarantined by the caller. This
+ * is intentionally separate from the historical-contact closure: a missing
+ * provider lead is not evidence that the recipient was contacted.
+ */
+export async function closeAmbiguousProviderOutcomeIncident(input: { expectedEventId: string; expectedVersion: number; reason: string; executionIdentity: string; resolutionRecordIds: string[]; prerequisites: Record<string, boolean>; dryRun: boolean }) {
+  const current = await readOutboundCircuitBreaker();
+  if (!current) throw new Error("No outbound circuit-breaker event exists.");
+  const eventId = outboundCircuitEventId(current);
+  if (!current.tripped) {
+    if (current.resetEventId === input.expectedEventId) return { eventId: input.expectedEventId, auditId: current.resolutionAuditId || "", cleared: true, idempotent: true, nextGeneration: current.generation };
+    throw new Error("No active outbound circuit-breaker incident exists.");
+  }
+  if (eventId !== input.expectedEventId || current.version !== input.expectedVersion || current.reason !== "AMBIGUOUS_PROVIDER_OUTCOME") throw new Error("Outbound ambiguous-provider incident is stale or mismatched.");
+  if (!input.reason.trim() || !input.resolutionRecordIds.length || !Object.values(input.prerequisites).every(Boolean)) throw new Error("Outbound ambiguous-provider resolution prerequisites are not satisfied.");
+  const auditId = safeDocumentId(`ambiguous-closure:${eventId}:${input.resolutionRecordIds.slice().sort().join(":")}:${input.reason.trim().toLowerCase()}`);
+  const audit = {
+    auditId,
+    eventId,
+    expectedVersion: input.expectedVersion,
+    prior: current,
+    reason: input.reason.trim().slice(0, 300),
+    executionIdentity: input.executionIdentity,
+    resolutionRecordIds: [...new Set(input.resolutionRecordIds)].sort(),
+    prerequisites: input.prerequisites,
+    codeRuleVersion: "ambiguous-provider-outcome-closure-v1",
+    timestamp: new Date().toISOString()
+  };
+  if (input.dryRun) return { eventId, auditId, cleared: false, idempotent: false, nextGeneration: current.generation + 1, audit };
+  const accessToken = await gcpToken();
+  await writeDocumentIfAbsent(accessToken, `gtm/instantly/safety/incidents/records/${safeDocumentId(eventId)}`, { incidentId: eventId, stateJson: JSON.stringify(current), preservedAt: audit.timestamp, codeRuleVersion: audit.codeRuleVersion });
+  const created = await writeDocumentIfAbsent(accessToken, `gtm/instantly/safety/ambiguous-handoff-closures/records/${auditId}`, audit);
+  if (!created) {
+    const after = await readOutboundCircuitBreaker();
+    if (after?.resetEventId === eventId && after.resolutionAuditId === auditId) return { eventId, auditId, cleared: true, idempotent: true, nextGeneration: after.generation };
   }
   const next = { ...current, tripped: false, version: current.version + 1, generation: current.generation + 1, resetEventId: eventId, resetReason: audit.reason, resetExecutionIdentity: input.executionIdentity, resetAt: audit.timestamp, resolvedIncidentId: eventId, resolutionAuditId: auditId, codeRuleVersion: audit.codeRuleVersion };
   await writeDocument(accessToken, outboundCircuitPath, next);

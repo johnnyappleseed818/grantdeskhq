@@ -5,7 +5,7 @@ import { initialOutreachEligibility, type OutreachRecord } from "../src/lib/gtmO
 const apiBase = "https://api.instantly.ai/api/v2";
 
 export type InstantlySegment = "DIRECT" | "PARTNER";
-export type InstantlySyncStatus = "PREVIEW_ONLY" | "STAGED" | "APPROVED_FOR_CAMPAIGN" | "IN_CAMPAIGN" | "SENT" | "REPLIED" | "POSITIVE" | "NOT_INTERESTED" | "BOUNCED" | "UNSUBSCRIBED" | "SEQUENCE_COMPLETE" | "ERROR";
+export type InstantlySyncStatus = "PREVIEW_ONLY" | "STAGED" | "APPROVED_FOR_CAMPAIGN" | "IN_CAMPAIGN" | "SENT" | "REPLIED" | "POSITIVE" | "NOT_INTERESTED" | "BOUNCED" | "UNSUBSCRIBED" | "SEQUENCE_COMPLETE" | "ERROR" | "QUARANTINED";
 export type InstantlyEventType = "EMAIL_SENT" | "REPLY_RECEIVED" | "INTERESTED" | "NOT_INTERESTED" | "BOUNCE" | "UNSUBSCRIBE" | "SEQUENCE_COMPLETED" | "WRONG_PERSON" | "OUT_OF_OFFICE";
 export type InstantlyEventSyncMode = "POLLING" | "WEBHOOKS";
 

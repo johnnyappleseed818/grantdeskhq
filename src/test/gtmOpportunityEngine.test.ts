@@ -6,7 +6,7 @@ import type { CanonicalGtmModel } from "../lib/gtmCanonical";
 const canonical: CanonicalGtmModel = {
   generatedAt: "2026-08-25T12:00:00.000Z",
   records: [{ id: "ready-1", organizationId: "org:example.org", organization: "Example Community Fund", organizationDomain: "example.org", segment: "DIRECT", state: "READY_TO_SEND", qualified: true, contact: "Pat Finance", title: "Finance Director", email: "pat@example.org", verificationStatus: "VERIFIED", suppressionStatus: "CLEAR", priorContact: false, blockers: [], nextAction: "FOUNDER_REVIEW", whyNow: "Recent award", sourceUrl: "https://example.gov/award", partnerType: null, subject: null, draft: null, lastUpdated: "2026-08-25T12:00:00.000Z" }],
-  queues: { RESEARCH_BACKLOG: [], NEEDS_VERIFICATION: [], READY_TO_SEND: ["ready-1"], ALREADY_CONTACTED: [], AWAITING_REPLY: [], FOLLOW_UP_DUE: [], REPLIED: [], POSITIVE: [], TRIAL: [], PAID: [] },
+  queues: { RESEARCH_BACKLOG: [], NEEDS_VERIFICATION: [], OUTBOUND_QUARANTINED: [], READY_TO_SEND: ["ready-1"], ALREADY_CONTACTED: [], AWAITING_REPLY: [], FOLLOW_UP_DUE: [], REPLIED: [], POSITIVE: [], TRIAL: [], PAID: [] },
   metrics: { directReady: 1, partnerReady: 0, directNeedsVerification: 0, partnerNeedsVerification: 0, followUpsDue: 0, awaitingReply: 0, replies: 0, positiveReplies: 0, trials: 0, paid: 0, mrr: 0 }
 };
 

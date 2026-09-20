@@ -17,6 +17,7 @@ import { reconcileGtmOutreachLedger, updateFeedbackReview } from "./persistence.
 import { hasActiveInstantlyHandoffReservation, listInstantlyHandoffReservations } from "./persistence.ts";
 import { assertOutboundCircuitClosed, completeInstantlyHandoff, failInstantlyHandoff, gcpToken, outboundCircuitEventId, readOutboundCircuitBreaker, reserveInstantlyHandoff, tripOutboundCircuitBreaker } from "./persistence.ts";
 import { closeOutboundCircuitIncident, createGtmOutboundTombstone, readGtmOutboundTombstone } from "./persistence.ts";
+import { closeAmbiguousProviderOutcomeIncident } from "./persistence.ts";
 import { readGtmDispatchActivation, saveGtmDispatchActivation } from "./persistence.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { runDailySocialScan } from "./gtmDailyScanner.ts";
@@ -46,6 +47,7 @@ import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, c
 import { adoptMappedInstantlyLead, canReplaceInstantlyPreview, cleanMembershipEvidenceId, cleanMembershipRebindReason, isCleanMembershipEvidenceRecord, needsCanonicalInitialSendRecovery, rebindMappedInstantlyRecord } from "./instantly.ts";
 import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from "./outboundIncidentClosure.ts";
+import { ambiguousProviderOutcomePrerequisites, selectAmbiguousProviderOutcomeReservations } from "./ambiguousHandoffResolution.ts";
 import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed, socialSignalToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
 import { enrichChannelSeedsWithInstantly, reconcileChannelSeedEnrichment } from "./gtmChannelSeedEnrichment.ts";
 import { importScannerDriveBatches } from "./scannerDriveImport.ts";
@@ -173,6 +175,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/instantly/controlled-batch") return await handleControlledInstantlyBatch(request, response);
     if (url.pathname === "/api/gtm/instantly/incident-remediate") return await handleInstantlyIncidentRemediate(request, response);
     if (url.pathname === "/api/gtm/instantly/circuit-breaker/reset") return await handleOutboundCircuitReset(request, response);
+    if (url.pathname === "/api/gtm/instantly/ambiguous-handoff-resolve") return await handleAmbiguousProviderOutcomeResolution(request, response);
     if (url.pathname === "/api/gtm/instantly/reconcile") return await handleInstantlyReconcile(request, response);
     if (url.pathname === "/api/gtm/instantly/ensure-lists") return await handleInstantlyEnsureLists(request, response);
     if (url.pathname === "/api/gtm/instantly/webhook") return await handleInstantlyWebhook(request, response);
@@ -847,6 +850,113 @@ async function handleOutboundCircuitReset(request: IncomingMessage, response: Se
   const result = await closeOutboundCircuitIncident({ expectedEventId, expectedVersion, reason: apply ? reason : "dry-run", executionIdentity: identity.email, tombstoneId: tombstone.tombstoneId, prerequisites, dryRun: mode !== "APPLY_CLOSURE" });
   console.info(JSON.stringify({ event: "OUTBOUND_INCIDENT_CLOSURE", mode, eventId: result.eventId, auditId: result.auditId, prerequisites, timestamp: new Date().toISOString() }));
   return json(response, 200, { ...result, currentEventId, prerequisites });
+}
+
+/**
+ * A provider timeout may leave one reservation in an unknowable state. This
+ * operation never retries it. It first adopts an actually-present membership;
+ * otherwise it permanently quarantines the affected canonical identity, then
+ * closes this *specific* incident with a durable audit record.
+ */
+async function handleAmbiguousProviderOutcomeResolution(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  const identity = await requireGtmScheduler(request);
+  const input = await readJson(request) as { expectedEventId?: unknown; expectedVersion?: unknown; reason?: unknown; mode?: unknown };
+  const expectedEventId = String(input.expectedEventId || "").trim();
+  const expectedVersion = Number(input.expectedVersion);
+  const mode = String(input.mode || "DRY_RUN");
+  const apply = mode === "APPLY";
+  const reason = String(input.reason || (apply ? "" : "dry-run")).trim();
+  if (mode !== "DRY_RUN" && mode !== "APPLY") return json(response, 400, { error: "A valid ambiguous-provider resolution mode is required." });
+  if (apply && reason.length < 12) return json(response, 400, { error: "An explicit ambiguous-provider resolution reason is required." });
+
+  const circuit = await readOutboundCircuitBreaker();
+  if (!circuit) return json(response, 409, { error: "No outbound circuit-breaker event exists." });
+  if (!circuit.tripped) {
+    if (circuit.resetEventId === expectedEventId) return json(response, 200, { mode, idempotent: true, cleared: true, eventId: expectedEventId, auditId: circuit.resolutionAuditId || "" });
+    return json(response, 409, { error: "No active outbound circuit-breaker event exists." });
+  }
+  const eventMatches = expectedEventId === outboundCircuitEventId(circuit) && Number.isInteger(expectedVersion) && expectedVersion === circuit.version;
+  if (!eventMatches) return json(response, 409, { error: "Outbound ambiguous-provider incident is stale." });
+  const config = instantlyConfig();
+  if (!config.apiKeyConfigured || !config.integrationEnabled) return json(response, 409, { error: "Instantly configuration is unavailable." });
+
+  const client = new InstantlyClient(config);
+  const [reservations, model, directCampaign, partnerCampaign] = await Promise.all([
+    listInstantlyHandoffReservations(),
+    readCanonicalGtmModel(),
+    client.getCampaign(config.directCampaignId),
+    client.getCampaign(config.partnerCampaignId)
+  ]);
+  const selection = selectAmbiguousProviderOutcomeReservations(reservations);
+  const reservation = selection.resolvable ? selection.unresolved[0] : null;
+  const canonical = reservation
+    ? model.records.find((record) => String(record.email || "").trim().toLowerCase() === reservation.normalizedEmail && Boolean(record.organizationId)) || null
+    : null;
+  const providerLead = reservation ? await client.findLeadByEmail(reservation.normalizedEmail, "") : null;
+  const providerCampaignId = providerLead ? instantlyLeadCampaignId(providerLead) : "";
+  const providerSameCampaign = Boolean(providerLead && reservation && providerCampaignId === reservation.campaignId);
+  const providerCrossCampaignConflict = Boolean(providerLead && reservation && !providerSameCampaign);
+  const campaignsPaused = [directCampaign, partnerCampaign].every((campaign) => Number(campaign.status) === 2);
+  const allRequiredFlags = Boolean(config.outboundEmailEnabled && config.outboundEnabled && config.autoHandoffEnabled && config.directEnabled && config.partnerEnabled);
+  const prerequisites = ambiguousProviderOutcomePrerequisites({
+    circuitReason: circuit.reason,
+    expectedEventMatches: eventMatches,
+    campaignsPaused,
+    noActiveReservation: !hasActiveInstantlyHandoffReservation(reservations),
+    exactlyOneUnresolvedReservation: selection.resolvable,
+    canonicalIdentityPresent: Boolean(canonical && reservation && canonical.email && canonical.organizationId),
+    providerLookupCompleted: Boolean(reservation),
+    providerCrossCampaignConflict
+  });
+  const safe = allRequiredFlags && Object.values(prerequisites).every(Boolean);
+  const resolutionRef = reservation ? `handoff_${createHash("sha256").update(reservation.idempotencyKey).digest("hex").slice(0, 24)}` : "";
+  const providerResult = providerCrossCampaignConflict ? "CROSS_CAMPAIGN_CONFLICT" : providerSameCampaign ? "ADOPT_EXISTING_MEMBERSHIP" : reservation ? "NO_PROVIDER_MEMBERSHIP" : "NOT_EVALUATED";
+  try {
+    console.info(JSON.stringify({ event: "OUTBOUND_AMBIGUOUS_PROVIDER_RESOLUTION", mode, eventId: outboundCircuitEventId(circuit), version: circuit.version, prerequisites: { ...prerequisites, allRequiredFlags }, unresolvedReservationCount: selection.unresolved.length, selection: selection.reason, providerResult, resolutionRef, timestamp: new Date().toISOString() }));
+  } catch { /* Protected observability must not alter fail-closed behavior. */ }
+  if (!safe) return json(response, 409, { error: "Ambiguous-provider resolution prerequisites are not satisfied.", prerequisites: { ...prerequisites, allRequiredFlags }, unresolvedReservationCount: selection.unresolved.length, selection: selection.reason, providerResult });
+  if (!reservation || !canonical) return json(response, 409, { error: "Ambiguous-provider resolution identity could not be established." });
+  if (!apply) return json(response, 200, {
+    mode,
+    eventId: outboundCircuitEventId(circuit),
+    version: circuit.version,
+    prerequisites: { ...prerequisites, allRequiredFlags },
+    providerResult,
+    plannedAction: providerSameCampaign ? "ADOPT_EXISTING_MEMBERSHIP_AND_CLOSE" : "QUARANTINE_UNRESOLVED_IDENTITY_AND_CLOSE",
+    resolutionRef
+  });
+
+  let resolutionRecordId = resolutionRef;
+  if (providerSameCampaign) {
+    await completeInstantlyHandoff(reservation.idempotencyKey, reservation.normalizedEmail, String(providerLead?.id || providerLead?.lead_id || ""));
+    await reconcileInstantlyPolling();
+  } else {
+    const now = new Date().toISOString();
+    const quarantined = {
+      ...instantlyPreviewRecord(canonical, now),
+      id: `instantly_ambiguous_${createHash("sha256").update(reservation.idempotencyKey).digest("hex").slice(0, 40)}`,
+      instantlyCampaignId: reservation.campaignId,
+      instantlySyncStatus: "QUARANTINED" as const,
+      messageVersion: "ambiguous-provider-outcome-quarantine-v1",
+      failureReason: "AMBIGUOUS_PROVIDER_OUTCOME_QUARANTINED",
+      lastInstantlySyncAt: now,
+      updatedAt: now
+    };
+    await saveInstantlyRecord(quarantined);
+    await recordGtmContactSuppression(reservation.normalizedEmail, ["provider_outcome_unresolved"], "ambiguous_provider_outcome_resolution");
+    resolutionRecordId = quarantined.id;
+  }
+  const result = await closeAmbiguousProviderOutcomeIncident({
+    expectedEventId,
+    expectedVersion,
+    reason,
+    executionIdentity: identity.email,
+    resolutionRecordIds: [resolutionRecordId],
+    prerequisites: { ...prerequisites, allRequiredFlags },
+    dryRun: false
+  });
+  return json(response, 200, { mode, ...result, providerResult, resolutionRef });
 }
 
 /** One-time incident containment: duplicate recipients in the bounded provider

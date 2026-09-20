@@ -11,6 +11,7 @@ export type CanonicalSegment = "DIRECT" | "PARTNER";
 export type CanonicalGtmState =
   | "RESEARCH_BACKLOG"
   | "NEEDS_VERIFICATION"
+  | "OUTBOUND_QUARANTINED"
   | "READY_TO_SEND"
   | "ALREADY_CONTACTED"
   | "AWAITING_REPLY"
@@ -99,10 +100,12 @@ export interface CanonicalExternalOutreachState {
   /** Provider-scoped Clean reconciliation evidence wins over unrelated local
    * history for the same email while leaving that history intact. */
   messageVersion?: string;
+  /** A post-write provider ambiguity is neither a send nor a retry permit. */
+  failureReason?: string;
   updatedAt?: string;
 }
 
-const STATES: CanonicalGtmState[] = ["RESEARCH_BACKLOG", "NEEDS_VERIFICATION", "READY_TO_SEND", "ALREADY_CONTACTED", "AWAITING_REPLY", "FOLLOW_UP_DUE", "REPLIED", "POSITIVE", "TRIAL", "PAID"];
+const STATES: CanonicalGtmState[] = ["RESEARCH_BACKLOG", "NEEDS_VERIFICATION", "OUTBOUND_QUARANTINED", "READY_TO_SEND", "ALREADY_CONTACTED", "AWAITING_REPLY", "FOLLOW_UP_DUE", "REPLIED", "POSITIVE", "TRIAL", "PAID"];
 
 /** A small explicit alias registry supplements normalized names and domains. */
 const ORGANIZATION_ALIASES: Record<string, string> = {
@@ -167,6 +170,9 @@ export function buildCanonicalGtmModel(input: {
 
   const preferExternal = (current: CanonicalExternalOutreachState | undefined, candidate: CanonicalExternalOutreachState) => {
     if (!current) return candidate;
+    const quarantined = candidate.instantlySyncStatus === "QUARANTINED";
+    const currentQuarantined = current.instantlySyncStatus === "QUARANTINED";
+    if (quarantined !== currentQuarantined) return quarantined ? candidate : current;
     const clean = candidate.messageVersion === "provider-reconciled-clean-v1";
     const currentClean = current.messageVersion === "provider-reconciled-clean-v1";
     if (clean !== currentClean) return clean ? candidate : current;
@@ -184,7 +190,11 @@ export function buildCanonicalGtmModel(input: {
   // fail-closed: ambiguous or cross-segment provider history cannot alter a
   // canonical record or make it eligible for another first touch.
   const externallyManagedBySegmentEmail = new Map<string, CanonicalExternalOutreachState[]>();
+  const quarantinedByOrganization = new Map<string, CanonicalExternalOutreachState>();
   for (const external of input.instantly || []) {
+    if (external.instantlySyncStatus === "QUARANTINED" && external.canonicalOrganizationId) {
+      quarantinedByOrganization.set(external.canonicalOrganizationId, preferExternal(quarantinedByOrganization.get(external.canonicalOrganizationId), external));
+    }
     const email = String(external.email || "").trim().toLowerCase();
     const segment = external.segment;
     if (!email || !segment) continue;
@@ -202,7 +212,7 @@ export function buildCanonicalGtmModel(input: {
     const externalKey = `${organizationId}:${String(canonical.email || "").toLowerCase()}`;
     const exactExternal = externallyManaged.get(externalKey);
     const emailMatches = externallyManagedBySegmentEmail.get(`${canonical.segment}:${String(canonical.email || "").toLowerCase()}`) || [];
-    const external = exactExternal || (emailMatches.length === 1 ? emailMatches[0] : undefined);
+    const external = exactExternal || (emailMatches.length === 1 ? emailMatches[0] : undefined) || quarantinedByOrganization.get(organizationId);
     return external ? applyExternalCommercialState(canonical, external) : canonical;
   }).sort((left, right) => stateOrder(left.state) - stateOrder(right.state) || (right.lastUpdated || "").localeCompare(left.lastUpdated || "") || left.organization.localeCompare(right.organization));
   const queues = Object.fromEntries(STATES.map((state) => [state, records.filter((record) => record.state === state).map((record) => record.id)])) as CanonicalGtmModel["queues"];
@@ -222,6 +232,14 @@ function applyExternalCommercialState(record: CanonicalGtmRecord, external: Cano
   const provider = { instantlyStatus: external.instantlySyncStatus, instantlyLeadId: (external as CanonicalExternalOutreachState & { instantlyLeadId?: string }).instantlyLeadId || null, instantlyCampaignId: (external as CanonicalExternalOutreachState & { instantlyCampaignId?: string }).instantlyCampaignId || null };
   if (record.priorContact && record.sentAt) return { ...record, ...provider };
   const status = external.instantlySyncStatus;
+  if (status === "QUARANTINED") return {
+    ...record,
+    ...provider,
+    state: "OUTBOUND_QUARANTINED",
+    suppressionStatus: "BLOCKED",
+    blockers: [external.failureReason || "PROVIDER_OUTCOME_UNRESOLVED"],
+    nextAction: "Provider outcome is unresolved; this organization and recipient are permanently excluded from new initial outreach."
+  };
   if (status === "SENT" && external.firstSentAt) return { ...record, ...provider, state: "AWAITING_REPLY", priorContact: true, blockers: [], sentAt: external.firstSentAt, nextAction: "Await a provider-recorded response; no new first touch is eligible." };
   if (status === "SENT") return { ...record, ...provider, blockers: ["PROVIDER_SEND_TIMESTAMP_MISSING"], nextAction: "Provider status is not counted as SENT until a provider-confirmed send timestamp is persisted." };
   if (status === "REPLIED") return { ...record, ...provider, state: "REPLIED", priorContact: true, blockers: [], sentAt: external.firstSentAt || record.sentAt || null, nextAction: "Human response is required in Instantly." };
@@ -273,6 +291,7 @@ function nextAction(state: CanonicalGtmState, blockers: string[]) {
   if (state === "FOLLOW_UP_DUE") return "REVIEW FOLLOW-UP; SEPARATE HUMAN AUTHORIZATION IS REQUIRED.";
   if (state === "AWAITING_REPLY") return "AWAIT RESPONSE; NO DELIVERY OR OUTCOME IS INFERRED.";
   if (state === "ALREADY_CONTACTED") return "PRESERVE HISTORY; DO NOT CREATE A NEW FIRST-TOUCH ACTION.";
+  if (state === "OUTBOUND_QUARANTINED") return "PRESERVE AMBIGUOUS PROVIDER OUTCOME; DO NOT CREATE A NEW FIRST-TOUCH ACTION.";
   if (state === "NEEDS_VERIFICATION" || state === "RESEARCH_BACKLOG") return blockers[0] || "RESOLVE THE EXPLICIT VERIFICATION BLOCKER.";
   return "RESEARCH ONLY; DO NOT PLACE IN AN INITIAL-ACTION QUEUE.";
 }
