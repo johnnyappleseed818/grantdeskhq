@@ -29,7 +29,7 @@ export function ambiguousProviderOutcomePrerequisites(input: {
   campaignsPaused: boolean;
   noActiveReservation: boolean;
   exactlyOneUnresolvedReservation: boolean;
-  canonicalIdentityPresent: boolean;
+  canonicalOrTombstoneIdentityPresent: boolean;
   providerLookupCompleted: boolean;
   providerCrossCampaignConflict: boolean;
 }) {
@@ -39,7 +39,7 @@ export function ambiguousProviderOutcomePrerequisites(input: {
     campaignsPaused: input.campaignsPaused,
     noActiveReservation: input.noActiveReservation,
     exactlyOneUnresolvedReservation: input.exactlyOneUnresolvedReservation,
-    canonicalIdentityPresent: input.canonicalIdentityPresent,
+    canonicalOrTombstoneIdentityPresent: input.canonicalOrTombstoneIdentityPresent,
     providerLookupCompleted: input.providerLookupCompleted,
     providerCrossCampaignConflictClear: !input.providerCrossCampaignConflict
   };

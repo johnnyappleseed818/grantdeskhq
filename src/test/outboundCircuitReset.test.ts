@@ -99,7 +99,7 @@ describe("audited legacy provider exclusion", () => {
   it("preserves and closes an audited ambiguous-provider incident only with an exact resolution record", async () => {
     const ambiguous = { ...breaker, reason: "AMBIGUOUS_PROVIDER_OUTCOME", detail: "prior reservation has no reconcilable provider lead" };
     const eventId = outboundCircuitEventId(ambiguous);
-    const prerequisites = { ambiguousProviderOutcome: true, expectedEventMatches: true, campaignsPaused: true, noActiveReservation: true, exactlyOneUnresolvedReservation: true, canonicalIdentityPresent: true, providerLookupCompleted: true, providerCrossCampaignConflictClear: true, allRequiredFlags: true };
+    const prerequisites = { ambiguousProviderOutcome: true, expectedEventMatches: true, campaignsPaused: true, noActiveReservation: true, exactlyOneUnresolvedReservation: true, canonicalOrTombstoneIdentityPresent: true, providerLookupCompleted: true, providerCrossCampaignConflictClear: true, allRequiredFlags: true };
     const writeFetch = vi.fn(async (url: string) => {
       const target = String(url);
       if (target.includes("metadata.google.internal")) return Response.json({ access_token: "test-token", expires_in: 3600 });

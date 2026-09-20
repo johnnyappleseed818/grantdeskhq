@@ -27,8 +27,8 @@ describe("ambiguous provider outcome resolution", () => {
   });
 
   it("requires a paused, safe, exact-incident resolution and rejects cross-campaign provider state", () => {
-    const safe = ambiguousProviderOutcomePrerequisites({ circuitReason: "AMBIGUOUS_PROVIDER_OUTCOME", expectedEventMatches: true, campaignsPaused: true, noActiveReservation: true, exactlyOneUnresolvedReservation: true, canonicalIdentityPresent: true, providerLookupCompleted: true, providerCrossCampaignConflict: false });
+    const safe = ambiguousProviderOutcomePrerequisites({ circuitReason: "AMBIGUOUS_PROVIDER_OUTCOME", expectedEventMatches: true, campaignsPaused: true, noActiveReservation: true, exactlyOneUnresolvedReservation: true, canonicalOrTombstoneIdentityPresent: true, providerLookupCompleted: true, providerCrossCampaignConflict: false });
     expect(Object.values(safe).every(Boolean)).toBe(true);
-    expect(ambiguousProviderOutcomePrerequisites({ circuitReason: "AMBIGUOUS_PROVIDER_OUTCOME", expectedEventMatches: true, campaignsPaused: true, noActiveReservation: true, exactlyOneUnresolvedReservation: true, canonicalIdentityPresent: true, providerLookupCompleted: true, providerCrossCampaignConflict: true }).providerCrossCampaignConflictClear).toBe(false);
+    expect(ambiguousProviderOutcomePrerequisites({ circuitReason: "AMBIGUOUS_PROVIDER_OUTCOME", expectedEventMatches: true, campaignsPaused: true, noActiveReservation: true, exactlyOneUnresolvedReservation: true, canonicalOrTombstoneIdentityPresent: true, providerLookupCompleted: true, providerCrossCampaignConflict: true }).providerCrossCampaignConflictClear).toBe(false);
   });
 });
