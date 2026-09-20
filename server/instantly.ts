@@ -555,7 +555,26 @@ export class InstantlyClient {
       body: JSON.stringify({ contacts: [normalized], search: normalized, limit: 10, ...(campaignId ? { campaign: campaignId } : {}) })
     });
     const items = Array.isArray(page.items) ? page.items.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object") : [];
-    return items.find((item) => normalizeOutboundEmail(String(item.email || "")) === normalized && (!campaignId || instantlyLeadCampaignId(item) === campaignId)) || null;
+    const matched = items.find((item) => normalizeOutboundEmail(String(item.email || "")) === normalized) || null;
+    if (!matched) return null;
+    const listedCampaignId = instantlyLeadCampaignId(matched);
+    if (listedCampaignId) return !campaignId || listedCampaignId === campaignId ? matched : null;
+
+    // The exact-email /leads/list result can omit campaign membership even
+    // though /leads/{id} contains it. Resolve only this already-matched lead;
+    // a failed or malformed detail response remains non-authoritative rather
+    // than turning an unknown membership into a safe match.
+    const leadId = text(matched.id) || text(matched.lead_id);
+    if (!leadId) return null;
+    try {
+      const detail = await this.getLead(leadId);
+      const resolved = { ...matched, ...detail };
+      if (normalizeOutboundEmail(String(resolved.email || "")) !== normalized) return null;
+      const resolvedCampaignId = instantlyLeadCampaignId(resolved);
+      return resolvedCampaignId && (!campaignId || resolvedCampaignId === campaignId) ? resolved : null;
+    } catch {
+      return null;
+    }
   }
   async activateControlledCampaign(campaignId: string, batchId: string) {
     if (!this.config.controlledBatchEnabled || !this.config.controlledBatchId || this.config.controlledBatchId !== batchId) throw new Error("Controlled outbound batch is not enabled for this exact batch ID.");

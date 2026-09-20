@@ -50,6 +50,23 @@ describe("Instantly fail-closed integration", () => {
     expect(request).toHaveBeenCalledWith("https://api.instantly.ai/api/v2/leads/list", expect.objectContaining({ method: "POST", body: JSON.stringify({ contacts: ["legacy@example.org"], search: "legacy@example.org", limit: 10 }) }));
   });
 
+  it("reads the exact lead detail when an email lookup omits its campaign membership", async () => {
+    const request = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: "lead_1", email: "casey@example.org" }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "lead_1", email: "casey@example.org", campaign_id: "campaign_clean" }), { status: 200 }));
+    const client = new InstantlyClient(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true" }), "key", request);
+    await expect(client.findLeadByEmail("casey@example.org", "campaign_clean")).resolves.toMatchObject({ id: "lead_1", campaign_id: "campaign_clean" });
+    expect(request).toHaveBeenLastCalledWith("https://api.instantly.ai/api/v2/leads/lead_1", expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer key" }) }));
+  });
+
+  it("fails closed when an omitted campaign cannot be established by the lead detail", async () => {
+    const request = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: "lead_1", email: "casey@example.org" }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "lead_1", email: "casey@example.org" }), { status: 200 }));
+    const client = new InstantlyClient(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true" }), "key", request);
+    await expect(client.findLeadByEmail("casey@example.org")).resolves.toBeNull();
+  });
+
   it("allows only qualified, ready, clear, previously-uncontacted records to stage", () => {
     expect(stagingEligibility(record, [], instantlyConfig(enabledEnv))).toEqual({ eligible: true, reason: "ELIGIBLE" });
     expect(stagingEligibility({ ...record, priorContact: true }, [], instantlyConfig(enabledEnv))).toEqual({ eligible: false, reason: "SUPPRESSED_OR_PRIOR_CONTACT" });
