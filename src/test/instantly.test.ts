@@ -53,18 +53,23 @@ describe("Instantly fail-closed integration", () => {
   it("reads the exact lead detail when an email lookup omits its campaign membership", async () => {
     const request = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: "lead_1", email: "casey@example.org" }] }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "lead_1", email: "casey@example.org", campaign_id: "campaign_clean" }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: "lead_1", email: "casey@example.org", campaign_id: "campaign_clean" } }), { status: 200 }));
     const client = new InstantlyClient(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true" }), "key", request);
-    await expect(client.findLeadByEmail("casey@example.org", "campaign_clean")).resolves.toMatchObject({ id: "lead_1", campaign_id: "campaign_clean" });
+    await expect(client.findLeadByEmail("casey@example.org", "campaign_clean")).resolves.toMatchObject({ id: "lead_1", data: { campaign_id: "campaign_clean" } });
     expect(request).toHaveBeenLastCalledWith("https://api.instantly.ai/api/v2/leads/lead_1", expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer key" }) }));
   });
 
-  it("fails closed when an omitted campaign cannot be established by the lead detail", async () => {
+  it("retains an exact provider match with no campaign identity as unresolved workspace state", async () => {
     const request = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: "lead_1", email: "casey@example.org" }] }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: "lead_1", email: "casey@example.org" }), { status: 200 }));
     const client = new InstantlyClient(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true" }), "key", request);
-    await expect(client.findLeadByEmail("casey@example.org")).resolves.toBeNull();
+    await expect(client.findLeadByEmail("casey@example.org")).resolves.toMatchObject({ id: "lead_1", email: "casey@example.org" });
+    const scopedRequest = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: "lead_1", email: "casey@example.org" }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "lead_1", email: "casey@example.org" }), { status: 200 }));
+    const scopedClient = new InstantlyClient(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true" }), "key", scopedRequest);
+    await expect(scopedClient.findLeadByEmail("casey@example.org", "campaign_clean")).resolves.toBeNull();
   });
 
   it("allows only qualified, ready, clear, previously-uncontacted records to stage", () => {

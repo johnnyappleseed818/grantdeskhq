@@ -205,13 +205,18 @@ export function instantlyLeadCampaignId(lead: Record<string, unknown>) {
   // versions. A missing parser here turns an otherwise exact membership match
   // into a false cross-campaign conflict, so accept only explicit IDs rather
   // than inferring one from campaign names or any unrelated lead field.
-  const direct = text(lead.campaign_id) || text(lead.campaignId);
-  if (direct) return direct;
-  const campaign = lead.campaign;
-  if (typeof campaign === "string") return campaign.trim();
-  if (campaign && typeof campaign === "object" && !Array.isArray(campaign)) {
-    const value = campaign as Record<string, unknown>;
-    return text(value.id) || text(value.campaign_id) || text(value.campaignId);
+  const nested = [lead, lead.data, lead.lead, lead.item, lead.data && typeof lead.data === "object" && !Array.isArray(lead.data) ? (lead.data as Record<string, unknown>).lead : null]
+    .filter((value): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value));
+  for (const candidate of nested) {
+    const direct = text(candidate.campaign_id) || text(candidate.campaignId);
+    if (direct) return direct;
+    const campaign = candidate.campaign;
+    if (typeof campaign === "string") return campaign.trim();
+    if (campaign && typeof campaign === "object" && !Array.isArray(campaign)) {
+      const value = campaign as Record<string, unknown>;
+      const resolved = text(value.id) || text(value.campaign_id) || text(value.campaignId);
+      if (resolved) return resolved;
+    }
   }
   return "";
 }
@@ -571,7 +576,12 @@ export class InstantlyClient {
       const resolved = { ...matched, ...detail };
       if (normalizeOutboundEmail(String(resolved.email || "")) !== normalized) return null;
       const resolvedCampaignId = instantlyLeadCampaignId(resolved);
-      return resolvedCampaignId && (!campaignId || resolvedCampaignId === campaignId) ? resolved : null;
+      if (resolvedCampaignId) return !campaignId || resolvedCampaignId === campaignId ? resolved : null;
+      // An exact provider email match with no campaign field is still an
+      // unresolved workspace identity. Callers without a campaign scope must
+      // retain it as a provider conflict; only a campaign-scoped lookup may
+      // reject it because it cannot prove membership in that exact campaign.
+      return campaignId ? null : resolved;
     } catch {
       return null;
     }
