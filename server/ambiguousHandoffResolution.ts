@@ -44,3 +44,18 @@ export function ambiguousProviderOutcomePrerequisites(input: {
     providerCrossCampaignConflictClear: !input.providerCrossCampaignConflict
   };
 }
+
+/** A legacy membership is closure evidence only when it is already permanently
+ * tombstoned, or a matching persisted provider record contains an actual
+ * initial-send timestamp. Membership or a status value alone is insufficient. */
+export function hasSufficientLegacyProviderHistory(input: {
+  providerCampaignIsLegacy: boolean;
+  permanentTombstonePresent: boolean;
+  persistedCampaignMatches: boolean;
+  persistedInitialSendAt: string;
+}) {
+  return input.providerCampaignIsLegacy && (
+    input.permanentTombstonePresent
+    || (input.persistedCampaignMatches && Boolean(input.persistedInitialSendAt.trim()))
+  );
+}

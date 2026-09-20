@@ -47,7 +47,7 @@ import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, c
 import { adoptMappedInstantlyLead, canReplaceInstantlyPreview, cleanMembershipEvidenceId, cleanMembershipRebindReason, isCleanMembershipEvidenceRecord, needsCanonicalInitialSendRecovery, rebindMappedInstantlyRecord } from "./instantly.ts";
 import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from "./outboundIncidentClosure.ts";
-import { ambiguousProviderOutcomePrerequisites, selectAmbiguousProviderOutcomeReservations } from "./ambiguousHandoffResolution.ts";
+import { ambiguousProviderOutcomePrerequisites, hasSufficientLegacyProviderHistory, selectAmbiguousProviderOutcomeReservations } from "./ambiguousHandoffResolution.ts";
 import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed, socialSignalToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
 import { enrichChannelSeedsWithInstantly, reconcileChannelSeedEnrichment } from "./gtmChannelSeedEnrichment.ts";
 import { importScannerDriveBatches } from "./scannerDriveImport.ts";
@@ -882,9 +882,10 @@ async function handleAmbiguousProviderOutcomeResolution(request: IncomingMessage
   if (!config.apiKeyConfigured || !config.integrationEnabled) return json(response, 409, { error: "Instantly configuration is unavailable." });
 
   const client = new InstantlyClient(config);
-  const [reservations, model, directCampaign, partnerCampaign] = await Promise.all([
+  const [reservations, model, records, directCampaign, partnerCampaign] = await Promise.all([
     listInstantlyHandoffReservations(),
     readCanonicalGtmModel(),
+    readInstantlyRecords(),
     client.getCampaign(config.directCampaignId),
     client.getCampaign(config.partnerCampaignId)
   ]);
@@ -894,17 +895,20 @@ async function handleAmbiguousProviderOutcomeResolution(request: IncomingMessage
     ? model.records.find((record) => String(record.email || "").trim().toLowerCase() === reservation.normalizedEmail && Boolean(record.organizationId)) || null
     : null;
   const tombstone = reservation ? await readGtmOutboundTombstone(reservation.normalizedEmail) : null;
+  const persisted = reservation
+    ? records.find((record) => String(record.email || "").trim().toLowerCase() === reservation.normalizedEmail && Boolean(record.canonicalOrganizationId)) || null
+    : null;
   const providerLead = reservation ? await client.findLeadByEmail(reservation.normalizedEmail, "") : null;
   const providerCampaignId = providerLead ? instantlyLeadCampaignId(providerLead) : "";
   const providerSameCampaign = Boolean(providerLead && reservation && providerCampaignId === reservation.campaignId);
-  const legacyTombstonedMembership = Boolean(
-    providerLead
-    && reservation
-    && !providerSameCampaign
-    && [config.legacyDirectCampaignId, config.legacyPartnerCampaignId].includes(providerCampaignId)
-    && tombstone
-  );
-  const providerCrossCampaignConflict = Boolean(providerLead && reservation && !providerSameCampaign && !legacyTombstonedMembership);
+  const providerCampaignIsLegacy = [config.legacyDirectCampaignId, config.legacyPartnerCampaignId].includes(providerCampaignId);
+  const legacyProviderHistorySufficient = hasSufficientLegacyProviderHistory({
+    providerCampaignIsLegacy,
+    permanentTombstonePresent: Boolean(tombstone),
+    persistedCampaignMatches: Boolean(persisted && persisted.instantlyCampaignId === providerCampaignId),
+    persistedInitialSendAt: String(persisted?.firstSentAt || "")
+  });
+  const providerCrossCampaignConflict = Boolean(providerLead && reservation && !providerSameCampaign && !legacyProviderHistorySufficient);
   // Capacity alignment later requires an explicit provider-paused state. For
   // incident closure, an explicit terminal provider state is equally safe: no
   // delivery can start while status is 0, 2, or 3. Unknown/missing state is
@@ -918,15 +922,16 @@ async function handleAmbiguousProviderOutcomeResolution(request: IncomingMessage
     campaignsPaused,
     noActiveReservation: !hasActiveInstantlyHandoffReservation(reservations),
     exactlyOneUnresolvedReservation: selection.resolvable,
-    canonicalOrTombstoneIdentityPresent: Boolean((canonical && reservation && canonical.email && canonical.organizationId) || legacyTombstonedMembership),
+    canonicalOrTombstoneIdentityPresent: Boolean((canonical && reservation && canonical.email && canonical.organizationId) || legacyProviderHistorySufficient),
     providerLookupCompleted: Boolean(reservation),
     providerCrossCampaignConflict
   });
   const safe = allRequiredFlags && Object.values(prerequisites).every(Boolean);
   const resolutionRef = reservation ? `handoff_${createHash("sha256").update(reservation.idempotencyKey).digest("hex").slice(0, 24)}` : "";
-  const providerResult = providerCrossCampaignConflict ? "CROSS_CAMPAIGN_CONFLICT" : legacyTombstonedMembership ? "LEGACY_TOMBSTONED_MEMBERSHIP" : providerSameCampaign ? "ADOPT_EXISTING_MEMBERSHIP" : reservation ? "NO_PROVIDER_MEMBERSHIP" : "NOT_EVALUATED";
+  const providerCampaignScope = providerCampaignId === config.directCampaignId ? "DIRECT_CLEAN" : providerCampaignId === config.partnerCampaignId ? "PARTNER_CLEAN" : providerCampaignId === config.legacyDirectCampaignId ? "LEGACY_DIRECT" : providerCampaignId === config.legacyPartnerCampaignId ? "LEGACY_PARTNER" : providerCampaignId ? "OTHER" : "NONE";
+  const providerResult = providerCrossCampaignConflict ? "CROSS_CAMPAIGN_CONFLICT" : legacyProviderHistorySufficient ? "LEGACY_HISTORY_CONFIRMED" : providerSameCampaign ? "ADOPT_EXISTING_MEMBERSHIP" : reservation ? "NO_PROVIDER_MEMBERSHIP" : "NOT_EVALUATED";
   try {
-    console.info(JSON.stringify({ event: "OUTBOUND_AMBIGUOUS_PROVIDER_RESOLUTION", mode, eventId: outboundCircuitEventId(circuit), version: circuit.version, prerequisites: { ...prerequisites, allRequiredFlags }, campaignStates: { direct: Number(directCampaign.status), partner: Number(partnerCampaign.status) }, unresolvedReservationCount: selection.unresolved.length, selection: selection.reason, providerResult, resolutionRef, timestamp: new Date().toISOString() }));
+    console.info(JSON.stringify({ event: "OUTBOUND_AMBIGUOUS_PROVIDER_RESOLUTION", mode, eventId: outboundCircuitEventId(circuit), version: circuit.version, prerequisites: { ...prerequisites, allRequiredFlags }, campaignStates: { direct: Number(directCampaign.status), partner: Number(partnerCampaign.status) }, providerCampaignScope, persistedInitialSendEvidence: Boolean(persisted?.firstSentAt), unresolvedReservationCount: selection.unresolved.length, selection: selection.reason, providerResult, resolutionRef, timestamp: new Date().toISOString() }));
   } catch { /* Protected observability must not alter fail-closed behavior. */ }
   if (!safe) return json(response, 409, { error: "Ambiguous-provider resolution prerequisites are not satisfied.", prerequisites: { ...prerequisites, allRequiredFlags }, unresolvedReservationCount: selection.unresolved.length, selection: selection.reason, providerResult });
   if (!reservation || !canonical) return json(response, 409, { error: "Ambiguous-provider resolution identity could not be established." });
@@ -936,7 +941,7 @@ async function handleAmbiguousProviderOutcomeResolution(request: IncomingMessage
     version: circuit.version,
     prerequisites: { ...prerequisites, allRequiredFlags },
     providerResult,
-    plannedAction: providerSameCampaign ? "ADOPT_EXISTING_MEMBERSHIP_AND_CLOSE" : legacyTombstonedMembership ? "RETAIN_LEGACY_TOMBSTONE_AND_CLOSE" : "QUARANTINE_UNRESOLVED_IDENTITY_AND_CLOSE",
+    plannedAction: providerSameCampaign ? "ADOPT_EXISTING_MEMBERSHIP_AND_CLOSE" : legacyProviderHistorySufficient ? "RETAIN_OR_CREATE_LEGACY_TOMBSTONE_AND_CLOSE" : "QUARANTINE_UNRESOLVED_IDENTITY_AND_CLOSE",
     resolutionRef
   });
 
@@ -944,11 +949,24 @@ async function handleAmbiguousProviderOutcomeResolution(request: IncomingMessage
   if (providerSameCampaign) {
     await completeInstantlyHandoff(reservation.idempotencyKey, reservation.normalizedEmail, String(providerLead?.id || providerLead?.lead_id || ""));
     await reconcileInstantlyPolling();
-  } else if (legacyTombstonedMembership && tombstone) {
-    // The legacy provider membership and immutable tombstone already prove the
-    // contact is permanently excluded.  Never "repair" it by changing either
-    // provider membership or historical canonical evidence.
-    resolutionRecordId = tombstone.tombstoneId;
+  } else if (legacyProviderHistorySufficient) {
+    // The legacy provider membership and either an immutable tombstone or a
+    // persisted provider-confirmed initial-send record prove this contact is
+    // permanently excluded. Never "repair" it by changing provider history.
+    const retained = tombstone || await createGtmOutboundTombstone({
+      email: reservation.normalizedEmail,
+      organizationId: persisted!.canonicalOrganizationId,
+      canonicalRecordId: persisted!.canonicalContactId || persisted!.id,
+      reason: "ALREADY_CONTACTED",
+      priorContactReference: persisted!.id,
+      priorContactAt: persisted!.firstSentAt,
+      historicalCampaignId: providerCampaignId,
+      historicalProviderLeadId: String(providerLead?.id || providerLead?.lead_id || ""),
+      incidentId: expectedEventId,
+      creationSource: "ambiguous_provider_outcome_resolution",
+      creationOperator: identity.email
+    });
+    resolutionRecordId = retained.tombstone.tombstoneId;
   } else {
     const now = new Date().toISOString();
     const quarantined = {

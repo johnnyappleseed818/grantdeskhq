@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ambiguousProviderOutcomePrerequisites, selectAmbiguousProviderOutcomeReservations } from "../../server/ambiguousHandoffResolution.ts";
+import { ambiguousProviderOutcomePrerequisites, hasSufficientLegacyProviderHistory, selectAmbiguousProviderOutcomeReservations } from "../../server/ambiguousHandoffResolution.ts";
 
 const failed = {
   idempotencyKey: "direct:recipient:initial-v1",
@@ -30,5 +30,12 @@ describe("ambiguous provider outcome resolution", () => {
     const safe = ambiguousProviderOutcomePrerequisites({ circuitReason: "AMBIGUOUS_PROVIDER_OUTCOME", expectedEventMatches: true, campaignsPaused: true, noActiveReservation: true, exactlyOneUnresolvedReservation: true, canonicalOrTombstoneIdentityPresent: true, providerLookupCompleted: true, providerCrossCampaignConflict: false });
     expect(Object.values(safe).every(Boolean)).toBe(true);
     expect(ambiguousProviderOutcomePrerequisites({ circuitReason: "AMBIGUOUS_PROVIDER_OUTCOME", expectedEventMatches: true, campaignsPaused: true, noActiveReservation: true, exactlyOneUnresolvedReservation: true, canonicalOrTombstoneIdentityPresent: true, providerLookupCompleted: true, providerCrossCampaignConflict: true }).providerCrossCampaignConflictClear).toBe(false);
+  });
+
+  it("accepts legacy cross-campaign evidence only with a tombstone or matching persisted first send", () => {
+    expect(hasSufficientLegacyProviderHistory({ providerCampaignIsLegacy: true, permanentTombstonePresent: true, persistedCampaignMatches: false, persistedInitialSendAt: "" })).toBe(true);
+    expect(hasSufficientLegacyProviderHistory({ providerCampaignIsLegacy: true, permanentTombstonePresent: false, persistedCampaignMatches: true, persistedInitialSendAt: "2026-09-01T16:15:46Z" })).toBe(true);
+    expect(hasSufficientLegacyProviderHistory({ providerCampaignIsLegacy: true, permanentTombstonePresent: false, persistedCampaignMatches: true, persistedInitialSendAt: "" })).toBe(false);
+    expect(hasSufficientLegacyProviderHistory({ providerCampaignIsLegacy: false, permanentTombstonePresent: true, persistedCampaignMatches: true, persistedInitialSendAt: "2026-09-01T16:15:46Z" })).toBe(false);
   });
 });
