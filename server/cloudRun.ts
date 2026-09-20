@@ -1109,7 +1109,21 @@ async function handleInstantlyCapacityConfigure(request: IncomingMessage, respon
     cleanMappingsNotLegacy: ![config.legacyDirectCampaignId, config.legacyPartnerCampaignId].includes(ids.DIRECT) && ![config.legacyDirectCampaignId, config.legacyPartnerCampaignId].includes(ids.PARTNER)
   };
   if (!earlyPrerequisites.circuitClosed || !earlyPrerequisites.integrationEnabled || !earlyPrerequisites.apiKeyConfigured || !earlyPrerequisites.outboundEmailEnabled || !earlyPrerequisites.outboundEnabled || !earlyPrerequisites.autoHandoffEnabled || !earlyPrerequisites.directEnabled || !earlyPrerequisites.partnerEnabled || !earlyPrerequisites.directMappingPresent || !earlyPrerequisites.partnerMappingPresent || !earlyPrerequisites.mappingsDistinct || !earlyPrerequisites.cleanMappingsNotLegacy) {
-    console.info(JSON.stringify({ event: "GTM_INSTANTLY_CAPACITY_PREFLIGHT", outcome: "BLOCKED_EARLY", earlyPrerequisites, timestamp: new Date().toISOString() }));
+    // Scheduler callers need a safe way to correlate a fail-closed circuit
+    // with its audited incident.  Keep this deliberately metadata-only: the
+    // human-readable detail may contain provider response text and must never
+    // be emitted from a production scheduler route.
+    const circuitIncident = circuit ? {
+      tripped: circuit.tripped,
+      incidentId: circuit.incidentId,
+      version: circuit.version,
+      generation: circuit.generation,
+      reasonCode: circuit.reason,
+      trippedAt: circuit.trippedAt,
+      resolvedIncidentId: circuit.resolvedIncidentId || "",
+      resolutionAuditPresent: Boolean(circuit.resolutionAuditId)
+    } : { present: false };
+    console.info(JSON.stringify({ event: "GTM_INSTANTLY_CAPACITY_PREFLIGHT", outcome: "BLOCKED_EARLY", earlyPrerequisites, circuitIncident, timestamp: new Date().toISOString() }));
     return json(response, 409, { error: "Outbound configuration prerequisites are not all satisfied.", earlyPrerequisites });
   }
   const client = new InstantlyClient(config);
