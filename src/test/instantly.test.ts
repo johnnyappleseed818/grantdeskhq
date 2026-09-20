@@ -10,6 +10,14 @@ const record: CanonicalGtmRecord = {
 const enabledEnv = { INSTANTLY_INTEGRATION_ENABLED: "true", DIRECT_INSTANTLY_ENABLED: "true", PARTNER_INSTANTLY_ENABLED: "true" } as NodeJS.ProcessEnv;
 
 describe("Instantly fail-closed integration", () => {
+  it("reads explicit campaign IDs from every supported lead response shape", () => {
+    expect(instantlyLeadCampaignId({ campaign_id: "campaign_1" })).toBe("campaign_1");
+    expect(instantlyLeadCampaignId({ campaignId: "campaign_2" })).toBe("campaign_2");
+    expect(instantlyLeadCampaignId({ campaign: { id: "campaign_3" } })).toBe("campaign_3");
+    expect(instantlyLeadCampaignId({ campaign: { campaign_id: "campaign_4" } })).toBe("campaign_4");
+    expect(instantlyLeadCampaignId({ campaign_name: "Not an ID" })).toBe("");
+  });
+
   it("does not make an API request without a configured key", async () => {
     const request = vi.fn();
     const client = new InstantlyClient(instantlyConfig(enabledEnv), "", request);

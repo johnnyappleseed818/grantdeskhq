@@ -201,9 +201,18 @@ export function campaignUsesOnlySender(campaign: Record<string, unknown>, email:
 }
 
 export function instantlyLeadCampaignId(lead: Record<string, unknown>) {
+  // /leads/list responses use both campaign_id and campaign across provider
+  // versions. A missing parser here turns an otherwise exact membership match
+  // into a false cross-campaign conflict, so accept only explicit IDs rather
+  // than inferring one from campaign names or any unrelated lead field.
+  const direct = text(lead.campaign_id) || text(lead.campaignId);
+  if (direct) return direct;
   const campaign = lead.campaign;
   if (typeof campaign === "string") return campaign.trim();
-  if (campaign && typeof campaign === "object" && !Array.isArray(campaign)) return text((campaign as Record<string, unknown>).id);
+  if (campaign && typeof campaign === "object" && !Array.isArray(campaign)) {
+    const value = campaign as Record<string, unknown>;
+    return text(value.id) || text(value.campaign_id) || text(value.campaignId);
+  }
   return "";
 }
 
