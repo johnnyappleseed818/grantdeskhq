@@ -479,6 +479,18 @@ export class InstantlyClient {
   listWorkspaces() { return this.api<unknown>("/workspaces?limit=100"); }
   listCampaigns() { return this.api<unknown>("/campaigns?limit=100"); }
   getCampaign(id: string) { return this.api<Record<string, unknown>>(`/campaigns/${encodeURIComponent(id)}`); }
+  /**
+   * Instantly's dedicated campaign-by-contact read is the authoritative
+   * membership source for an exact workspace identity. A compact
+   * /leads/list response may omit `campaign`, even when the lead is in a
+   * campaign, so callers must not infer membership from a caller-supplied
+   * campaign filter.
+   */
+  async searchCampaignsByLeadEmail(email: string) {
+    const normalized = normalizeOutboundEmail(email);
+    const response = await this.api<unknown>(`/campaigns/search-by-contact?search=${encodeURIComponent(normalized)}`);
+    return instantlyItems(response).filter((campaign) => Boolean(text(campaign.id)));
+  }
   getLead(id: string) { return this.api<Record<string, unknown>>(`/leads/${encodeURIComponent(id)}`); }
   listAccounts() { return this.api<unknown>("/accounts?limit=100"); }
   getAccount(email: string) { return this.api<Record<string, unknown>>(`/accounts/${encodeURIComponent(email)}`); }
@@ -577,26 +589,29 @@ export class InstantlyClient {
       if (normalizeOutboundEmail(String(resolved.email || "")) !== normalized) return null;
       const resolvedCampaignId = instantlyLeadCampaignId(resolved);
       if (resolvedCampaignId) return !campaignId || resolvedCampaignId === campaignId ? resolved : null;
-      // An exact provider email match with no campaign field is still an
-      // unresolved workspace identity. Callers without a campaign scope must
-      // retain it as a provider conflict; only a campaign-scoped lookup may
-      // reject it because it cannot prove membership in that exact campaign.
-      return campaignId ? withInstantlyCampaignMembership(resolved, campaignId) : resolved;
+      // An exact provider email match with no campaign field is an unresolved
+      // workspace identity. Do not manufacture a membership from the
+      // caller's campaign filter: that would turn an ambiguous provider state
+      // into a false-positive enrollment recovery.
+      return campaignId ? null : resolved;
     } catch {
       return null;
     }
   }
 
-  /** A campaign-scoped provider list is positive membership evidence even when
-   * its compact lead object omits campaign metadata. This helper never treats
-   * a zero result as proof that the workspace lead is safe or absent. */
+  /**
+   * Resolves only positive campaign membership evidence for one exact provider
+   * identity. A zero result remains unknown to callers; it is never proof
+   * that a workspace lead is absent, safe, or eligible for another enrollment.
+   */
   async findLeadMembershipsByEmail(email: string, campaignIds: readonly string[]) {
-    const memberships: Record<string, unknown>[] = [];
-    for (const campaignId of [...new Set(campaignIds.map((id) => id.trim()).filter(Boolean))]) {
-      const lead = await this.findLeadByEmail(email, campaignId);
-      if (lead) memberships.push(withInstantlyCampaignMembership(lead, campaignId));
-    }
-    return memberships;
+    const scopedIds = [...new Set(campaignIds.map((id) => id.trim()).filter(Boolean))];
+    if (!scopedIds.length) return [];
+    const workspaceLead = await this.findLeadByEmail(email);
+    if (!workspaceLead) return [];
+    const campaigns = await this.searchCampaignsByLeadEmail(email);
+    const matchingCampaigns = new Set(campaigns.map((campaign) => text(campaign.id)).filter((id) => scopedIds.includes(id)));
+    return scopedIds.filter((campaignId) => matchingCampaigns.has(campaignId)).map((campaignId) => withInstantlyCampaignMembership(workspaceLead, campaignId));
   }
   async activateControlledCampaign(campaignId: string, batchId: string) {
     if (!this.config.controlledBatchEnabled || !this.config.controlledBatchId || this.config.controlledBatchId !== batchId) throw new Error("Controlled outbound batch is not enabled for this exact batch ID.");

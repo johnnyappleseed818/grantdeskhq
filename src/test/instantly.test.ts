@@ -69,16 +69,26 @@ describe("Instantly fail-closed integration", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: "lead_1", email: "casey@example.org" }] }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: "lead_1", email: "casey@example.org" }), { status: 200 }));
     const scopedClient = new InstantlyClient(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true" }), "key", scopedRequest);
-    await expect(scopedClient.findLeadByEmail("casey@example.org", "campaign_clean")).resolves.toMatchObject({ id: "lead_1", campaign: "campaign_clean" });
+    await expect(scopedClient.findLeadByEmail("casey@example.org", "campaign_clean")).resolves.toBeNull();
   });
 
-  it("collects only positive scoped memberships for an exact provider identity", async () => {
+  it("uses Instantly's campaign-by-contact read to collect only positive memberships", async () => {
     const request = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: "lead_direct", email: "casey@example.org" }] }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: "lead_direct", email: "casey@example.org" }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [] }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: "direct_clean" }, { id: "unrelated_campaign" }] }), { status: 200 }));
     const client = new InstantlyClient(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true" }), "key", request);
     await expect(client.findLeadMembershipsByEmail("casey@example.org", ["direct_clean", "partner_clean"])).resolves.toEqual([expect.objectContaining({ id: "lead_direct", campaign: "direct_clean" })]);
+    expect(request).toHaveBeenLastCalledWith("https://api.instantly.ai/api/v2/campaigns/search-by-contact?search=casey%40example.org", expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer key" }) }));
+  });
+
+  it("does not turn a filtered lead read into campaign membership proof", async () => {
+    const request = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: "lead_1", email: "casey@example.org" }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "lead_1", email: "casey@example.org" }), { status: 200 }));
+    const client = new InstantlyClient(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true" }), "key", request);
+    await expect(client.findLeadByEmail("casey@example.org", "direct_clean")).resolves.toBeNull();
+    expect(request).toHaveBeenCalledWith("https://api.instantly.ai/api/v2/leads/list", expect.objectContaining({ method: "POST", body: JSON.stringify({ contacts: ["casey@example.org"], search: "casey@example.org", limit: 10, campaign: "direct_clean" }) }));
   });
 
   it("allows only qualified, ready, clear, previously-uncontacted records to stage", () => {
