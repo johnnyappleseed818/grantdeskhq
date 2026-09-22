@@ -2,6 +2,14 @@ export type DispatchSegment = "DIRECT" | "PARTNER";
 export type DispatchCanaryState = "NONE" | "ACCEPTED" | "SENT" | "FAILED";
 export type DispatchAction = "NOOP" | "RECONCILE" | "STAGE_CANARY" | "DISPATCH";
 
+/** A historical provider send is not a reusable canary unless the durable
+ * activation record proves the same campaign configuration. */
+export function dispatchActivationMatchesCampaign(activation: { campaignId: string; configurationFingerprint: string } | null | undefined, campaignId: string, configurationFingerprint: string) {
+  return Boolean(activation
+    && activation.campaignId === campaignId
+    && activation.configurationFingerprint === configurationFingerprint);
+}
+
 /** Pure, fail-closed policy for the only autonomous prospect-dispatch boundary.
  * Callers cannot override this decision with scheduler request fields. */
 export function decideControlledDispatch(input: {

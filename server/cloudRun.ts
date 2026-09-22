@@ -43,7 +43,7 @@ import { boundedEnrichmentLimit, GTM_INVENTORY_POLICY, inventoryDecision, social
 import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type GtmOutcomeEvent, type GtmOutcomeType, type OpportunityClusterStatus } from "../src/lib/gtmOpportunityEngine.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
-import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, cleanInitialOnlyCampaignChecks, cleanInitialOnlyCampaignReady, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantSafeSummary, instantlyItems, instantlyLeadCampaignId, instantlyPreviewRecord, instantlyReconciliationRecordChanged, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "./instantly.ts";
+import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, cleanCampaignStatusAllowsAutomaticDispatch, cleanCampaignStatusAllowsCapacityAlignment, cleanInitialOnlyCampaignChecks, cleanInitialOnlyCampaignReady, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantSafeSummary, instantlyItems, instantlyLeadCampaignId, instantlyPreviewRecord, instantlyReconciliationRecordChanged, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "./instantly.ts";
 import { adoptMappedInstantlyLead, canReplaceInstantlyPreview, cleanMembershipEvidenceId, cleanMembershipRebindReason, isCleanMembershipEvidenceRecord, needsCanonicalInitialSendRecovery, rebindMappedInstantlyRecord } from "./instantly.ts";
 import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from "./outboundIncidentClosure.ts";
@@ -56,7 +56,7 @@ import { listGtmScannerImportReceipts } from "./persistence.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
-import { decideControlledDispatch, type DispatchSegment } from "./gtmDispatch.ts";
+import { decideControlledDispatch, dispatchActivationMatchesCampaign, type DispatchSegment } from "./gtmDispatch.ts";
 import { calculateInstantlyProviderCapacity, configuredCleanCampaignIds, describeCampaignResponse, providerBackedCampaignLimit, resolveMappedCampaign } from "./gtmCapacity.ts";
 const maxBodyBytes = configuredPositiveInteger("MAX_REQUEST_BODY_BYTES", 24_000_000);
 
@@ -1210,7 +1210,12 @@ async function handleAutomaticInstantlyDispatch(request: IncomingMessage, respon
   ]) : [null, null];
   const providerCapacity = calculateInstantlyProviderCapacity({ accounts, directCampaign, partnerCampaign });
   const campaignSummary = campaign ? controlledCampaignSafetySummary(campaign) : null;
-  const fingerprint = campaign ? createHash("sha256").update(JSON.stringify(campaignSummary)).digest("hex") : "";
+  // Provider lifecycle status is deliberately excluded: a completed campaign
+  // can be reactivated without changing its safety configuration. Legacy
+  // activation fingerprints included status, so they require a new canary
+  // rather than being silently treated as equivalent evidence.
+  const fingerprintPayload = campaignSummary ? { ...campaignSummary, status: "CONFIGURATION_ONLY" } : null;
+  const fingerprint = fingerprintPayload ? createHash("sha256").update(JSON.stringify(fingerprintPayload)).digest("hex") : "";
   const now = new Date();
   const clock = new Intl.DateTimeFormat("en-US", { timeZone: "America/Detroit", weekday: "short", hour: "2-digit", hourCycle: "h23" }).formatToParts(now);
   const weekday = clock.find((part) => part.type === "weekday")?.value || "";
@@ -1221,7 +1226,7 @@ async function handleAutomaticInstantlyDispatch(request: IncomingMessage, respon
   const outstanding = segmentRecords.filter((record) => ["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus));
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Detroit" }).format(now);
   const sentToday = segmentRecords.filter((record) => record.firstSentAt && new Intl.DateTimeFormat("en-CA", { timeZone: "America/Detroit" }).format(new Date(record.firstSentAt)) === today).length;
-  const knownCanary = activation && activation.campaignId === campaignId && activation.configurationFingerprint === fingerprint ? activation : null;
+  const knownCanary = dispatchActivationMatchesCampaign(activation, campaignId, fingerprint) ? activation : null;
   const segmentDailyLimit = providerCapacity.segments[segment].safeDailyCapacity;
   const relevantCampaignIds = new Set([config.directCampaignId, config.partnerCampaignId, config.legacyDirectCampaignId, config.legacyPartnerCampaignId].filter(Boolean));
   const relevantRecords = records.filter((record) => relevantCampaignIds.has(record.instantlyCampaignId));
@@ -1230,19 +1235,23 @@ async function handleAutomaticInstantlyDispatch(request: IncomingMessage, respon
   const globalOutstanding = relevantRecords.filter((record) => ["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus)).length;
   const globalRemaining = Math.max(0, providerCapacity.providerDailyCapacity - globalSentToday - globalOutstanding);
   const campaignMappedToLegacy = [config.legacyDirectCampaignId, config.legacyPartnerCampaignId].filter(Boolean).includes(campaignId);
-  const sentCanary = segmentRecords.filter((record) => record.firstSentAt).sort((a, b) => a.firstSentAt.localeCompare(b.firstSentAt))[0];
-  const acceptedCanary = outstanding.sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
-  const inferredCanary = knownCanary || (sentCanary ? { segment, campaignId, configurationFingerprint: fingerprint, canaryRecordId: sentCanary.id, providerLeadId: sentCanary.instantlyLeadId, acceptedAt: sentCanary.createdAt, providerSentAt: sentCanary.firstSentAt, outcome: "SENT" as const, dailyCapacity: segmentDailyLimit, lastSuccessfulDispatchAt: sentCanary.firstSentAt, failureReason: "", stateVersion: 1, updatedAt: now.toISOString() } : acceptedCanary ? { segment, campaignId, configurationFingerprint: fingerprint, canaryRecordId: acceptedCanary.id, providerLeadId: acceptedCanary.instantlyLeadId, acceptedAt: acceptedCanary.updatedAt || acceptedCanary.createdAt, providerSentAt: "", outcome: "ACCEPTED" as const, dailyCapacity: segmentDailyLimit, lastSuccessfulDispatchAt: "", failureReason: "", stateVersion: 1, updatedAt: now.toISOString() } : null);
-  const canary = inferredCanary || null;
+  const canary = knownCanary || null;
   const canaryState = canary?.outcome === "SENT" ? "SENT" : canary?.outcome === "ACCEPTED" ? "ACCEPTED" : canary?.outcome === "FAILED" ? "FAILED" : "NONE";
   const localEligible = model.records.filter((record) => record.segment === segment && record.state === "READY_TO_SEND" && Boolean(record.email && record.contact) && !record.priorContact && record.suppressionStatus === "CLEAR" && stagingEligibility(record, outreach, config).eligible);
   const suppression = await Promise.all(localEligible.map(async (record) => [record.id, await readGtmContactSuppression(record.email || "")] as const));
   const eligible = localEligible.filter((record) => new Map(suppression).get(record.id)?.status === "CLEAR" && !segmentRecords.some((existing) => existing.email.toLowerCase() === String(record.email).toLowerCase()));
   const expectedSender = campaign ? campaignSenderAddresses(campaign)[0] || "" : "";
-  const decision = decideControlledDispatch({ breakerClosed: Boolean(circuit && !circuit.tripped), flagsEnabled, campaignActive: Boolean(campaign && !campaignMappedToLegacy && providerCapacity.segments[segment].senderReady && expectedSender && cleanInitialOnlyCampaignReady(campaign, expectedSender, segmentDailyLimit, [1])), withinWindow, pendingProviderActivity: outstanding.length > 0, canaryState, fingerprintMatches: !activation || activation.configurationFingerprint === fingerprint, criticalFailure: segmentRecords.some((record) => ["BOUNCED", "UNSUBSCRIBED"].includes(record.instantlySyncStatus)), dailyLimit: segmentDailyLimit, confirmedToday: sentToday, outstanding: outstanding.length, eligible: eligible.length, globalRemaining });
+  const campaignStatus = Number(campaignSummary?.status);
+  const campaignReadyForEvaluation = Boolean(campaign && !campaignMappedToLegacy && providerCapacity.segments[segment].senderReady && expectedSender && cleanCampaignStatusAllowsAutomaticDispatch(campaignStatus) && cleanInitialOnlyCampaignReady(campaign, expectedSender, segmentDailyLimit, [1, 3]));
+  const campaignNeedsActivation = campaignStatus === 3 && campaignReadyForEvaluation;
+  const decision = decideControlledDispatch({ breakerClosed: Boolean(circuit && !circuit.tripped), flagsEnabled, campaignActive: campaignReadyForEvaluation, withinWindow, pendingProviderActivity: outstanding.length > 0, canaryState, fingerprintMatches: !activation || Boolean(knownCanary), criticalFailure: segmentRecords.some((record) => ["BOUNCED", "UNSUBSCRIBED"].includes(record.instantlySyncStatus)), dailyLimit: segmentDailyLimit, confirmedToday: sentToday, outstanding: outstanding.length, eligible: eligible.length, globalRemaining });
   const base = { mode: "AUTO", segment, decision, campaign: campaignSummary, capacity: providerCapacity, eligible: eligible.length, outstanding: outstanding.length, sentToday, globalSentToday, globalOutstanding, globalRemaining, segmentDailyLimit };
-  if (canary && !knownCanary) await saveGtmDispatchActivation(canary);
   if (!client || !campaign || decision.action === "NOOP" || decision.action === "RECONCILE") return json(response, 200, base);
+  if (campaignNeedsActivation) {
+    await client.activateControlledCampaign(campaignId, config.controlledBatchId);
+    const activated = await client.getCampaign(campaignId);
+    if (Number(activated.status) !== 1 || !cleanInitialOnlyCampaignReady(activated, expectedSender, segmentDailyLimit, [1])) throw new HttpError(409, "Completed Clean campaign could not be safely reactivated.");
+  }
   const selected = eligible.slice(0, decision.count);
   const created: import("./instantly.ts").InstantlyIntegrationRecord[] = [];
   const handoffs: Array<{ canonicalRecordId: string; state: string; created: boolean }> = [];
@@ -1317,9 +1326,9 @@ async function handleInstantlyCapacityConfigure(request: IncomingMessage, respon
   const campaignChecks = ([directCampaign, partnerCampaign] as Record<string, unknown>[]).map((campaign) => {
     const summary = controlledCampaignSafetySummary(campaign);
     const sender = campaignSenderAddresses(campaign)[0] || "";
-    return { status: Number(summary.status), senderConfigured: Boolean(sender), checks: cleanInitialOnlyCampaignChecks(campaign, sender, Number(summary.dailyMaxLeads), [2]) };
+    return { status: Number(summary.status), senderConfigured: Boolean(sender), checks: cleanInitialOnlyCampaignChecks(campaign, sender, Number(summary.dailyMaxLeads), [2, 3]) };
   });
-  const pausedAndSafe = campaignChecks.every((entry) => entry.status === 2 && entry.senderConfigured && Object.values(entry.checks).every(Boolean));
+  const pausedAndSafe = campaignChecks.every((entry) => cleanCampaignStatusAllowsCapacityAlignment(entry.status) && entry.senderConfigured && Object.values(entry.checks).every(Boolean));
   const prerequisites = { circuitClosed: Boolean(circuit && !circuit.tripped), requiredFlags: true, validMapping: true, providerCapacityAvailable: Boolean(limit), directSenderReady: capacity.segments.DIRECT.senderReady, partnerSenderReady: capacity.segments.PARTNER.senderReady, pausedAndSafe };
   if (!limit || !pausedAndSafe || !capacity.segments.DIRECT.senderReady || !capacity.segments.PARTNER.senderReady) {
     console.info(JSON.stringify({ event: "GTM_INSTANTLY_CAPACITY_PREFLIGHT", outcome: "BLOCKED", prerequisites, campaignChecks, providerDailyCapacity: capacity.providerDailyCapacity, timestamp: new Date().toISOString() }));
@@ -1335,7 +1344,7 @@ async function handleInstantlyCapacityConfigure(request: IncomingMessage, respon
   ]);
   const [configuredDirect, configuredPartner] = await Promise.all([client.getCampaign(ids.DIRECT), client.getCampaign(ids.PARTNER)]);
   const readBack = { direct: controlledCampaignSafetySummary(configuredDirect), partner: controlledCampaignSafetySummary(configuredPartner) };
-  if (Number(readBack.direct.status) !== 2 || Number(readBack.partner.status) !== 2 || Number(readBack.direct.dailyMaxLeads) !== limit || Number(readBack.partner.dailyMaxLeads) !== limit) throw new HttpError(409, "Instantly campaign capacity read-back did not match the provider-backed limit.");
+  if (!cleanCampaignStatusAllowsCapacityAlignment(Number(readBack.direct.status)) || !cleanCampaignStatusAllowsCapacityAlignment(Number(readBack.partner.status)) || Number(readBack.direct.dailyMaxLeads) !== limit || Number(readBack.partner.dailyMaxLeads) !== limit) throw new HttpError(409, "Instantly campaign capacity read-back did not match the provider-backed limit.");
   console.info(JSON.stringify({ event: "GTM_INSTANTLY_CAPACITY_CONFIGURED", providerDailyCapacity: capacity.providerDailyCapacity, requestedCampaignLimit: limit, sharedMailboxCount: capacity.sharedMailboxCount, campaignIds: ids, timestamp: new Date().toISOString() }));
   return json(response, 200, { ...preflight, mode: "APPLIED", configuredLimits: { direct: readBack.direct.dailyMaxLeads, partner: readBack.partner.dailyMaxLeads } });
 }

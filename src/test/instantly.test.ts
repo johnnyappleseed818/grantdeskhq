@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, cleanInitialOnlyCampaignChecks, cleanInitialOnlyCampaignReady, cleanMembershipEvidenceId, cleanMembershipRebindReason, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, instantlyReconciliationRecordChanged, needsCanonicalInitialSendRecovery, normalizeInstantlyWebhook, rebindMappedInstantlyRecord, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "../../server/instantly";
+import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, cleanCampaignStatusAllowsAutomaticDispatch, cleanCampaignStatusAllowsCapacityAlignment, cleanInitialOnlyCampaignChecks, cleanInitialOnlyCampaignReady, cleanMembershipEvidenceId, cleanMembershipRebindReason, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, instantlyReconciliationRecordChanged, needsCanonicalInitialSendRecovery, normalizeInstantlyWebhook, rebindMappedInstantlyRecord, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "../../server/instantly";
 import type { CanonicalGtmRecord } from "../lib/gtmCanonical";
 
 const record: CanonicalGtmRecord = {
@@ -10,6 +10,14 @@ const record: CanonicalGtmRecord = {
 const enabledEnv = { INSTANTLY_INTEGRATION_ENABLED: "true", DIRECT_INSTANTLY_ENABLED: "true", PARTNER_INSTANTLY_ENABLED: "true" } as NodeJS.ProcessEnv;
 
 describe("Instantly fail-closed integration", () => {
+  it("treats completed Clean campaigns as inactive-but-reusable while preserving an explicit pause", () => {
+    expect(cleanCampaignStatusAllowsCapacityAlignment(2)).toBe(true);
+    expect(cleanCampaignStatusAllowsCapacityAlignment(3)).toBe(true);
+    expect(cleanCampaignStatusAllowsAutomaticDispatch(1)).toBe(true);
+    expect(cleanCampaignStatusAllowsAutomaticDispatch(3)).toBe(true);
+    expect(cleanCampaignStatusAllowsAutomaticDispatch(2)).toBe(false);
+  });
+
   it("reads explicit campaign IDs from every supported lead response shape", () => {
     expect(instantlyLeadCampaignId({ campaign_id: "campaign_1" })).toBe("campaign_1");
     expect(instantlyLeadCampaignId({ campaignId: "campaign_2" })).toBe("campaign_2");

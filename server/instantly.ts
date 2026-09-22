@@ -253,6 +253,19 @@ export function cleanInitialOnlyCampaignReady(campaign: Record<string, unknown>,
   return Object.values(cleanInitialOnlyCampaignChecks(campaign, sender, dailyMaxLeads, allowedStatuses)).every(Boolean);
 }
 
+/** A completed one-step Clean campaign is inactive but may be reconfigured
+ * safely. A manually paused campaign remains an explicit operator stop. */
+export function cleanCampaignStatusAllowsCapacityAlignment(status: number) {
+  return status === 2 || status === 3;
+}
+
+/** Only an active or completed Clean campaign can enter the scheduler's
+ * automatic evaluation. Status 3 is reactivated only when a safe dispatch is
+ * actually selected; status 2 remains fail-closed as an operator pause. */
+export function cleanCampaignStatusAllowsAutomaticDispatch(status: number) {
+  return status === 1 || status === 3;
+}
+
 /** Predicate-level safety details for scheduler-authenticated operational
  * checks. It contains no email body, subject, recipient, or credentials. */
 export function cleanInitialOnlyCampaignChecks(campaign: Record<string, unknown>, sender: string, dailyMaxLeads: number, allowedStatuses = [1]) {

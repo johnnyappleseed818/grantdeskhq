@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { decideControlledDispatch } from "../../server/gtmDispatch.ts";
+import { decideControlledDispatch, dispatchActivationMatchesCampaign } from "../../server/gtmDispatch.ts";
 
 const safe = { breakerClosed: true, flagsEnabled: true, campaignActive: true, withinWindow: true, pendingProviderActivity: false, canaryState: "NONE" as const, fingerprintMatches: true, criticalFailure: false, dailyLimit: 5, confirmedToday: 0, outstanding: 0, eligible: 5 };
 describe("server-authoritative controlled dispatch", () => {
+  it("requires an exact persisted campaign fingerprint before reusing canary proof", () => {
+    const activation = { campaignId: "clean-direct", configurationFingerprint: "fingerprint-a" };
+    expect(dispatchActivationMatchesCampaign(activation, "clean-direct", "fingerprint-a")).toBe(true);
+    expect(dispatchActivationMatchesCampaign(activation, "clean-direct", "fingerprint-b")).toBe(false);
+    expect(dispatchActivationMatchesCampaign(activation, "clean-partner", "fingerprint-a")).toBe(false);
+    expect(dispatchActivationMatchesCampaign(null, "clean-direct", "fingerprint-a")).toBe(false);
+  });
+
   it.each([
     [{ ...safe, breakerClosed: false }, "BREAKER_OPEN"], [{ ...safe, flagsEnabled: false }, "OUTBOUND_FLAGS_DISABLED"], [{ ...safe, campaignActive: false }, "CAMPAIGN_PAUSED"], [{ ...safe, withinWindow: false }, "OUTSIDE_SENDING_WINDOW"], [{ ...safe, criticalFailure: true }, "CRITICAL_SAFETY_FAILURE"], [{ ...safe, pendingProviderActivity: true }, "AWAITING_PROVIDER_TERMINAL_STATE"], [{ ...safe, canaryState: "FAILED" as const }, "CANARY_FAILED"], [{ ...safe, canaryState: "SENT" as const, fingerprintMatches: false }, "CANARY_FINGERPRINT_CHANGED"], [{ ...safe, eligible: 0 }, "NO_ELIGIBLE_RECIPIENT"], [{ ...safe, canaryState: "SENT" as const, confirmedToday: 5 }, "DAILY_CAPACITY_REACHED"]
   ])("fails closed for %s", (input, reason) => expect(decideControlledDispatch(input).reason).toBe(reason));
