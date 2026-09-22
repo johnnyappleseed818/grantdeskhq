@@ -27,6 +27,22 @@ describe("provider-backed acquisition capacity", () => {
     expect(noCap.segments.DIRECT.safeDailyCapacity).toBe(0);
   });
 
+  it("keeps a completed Clean campaign dispatchable while an explicit pause remains fail-closed", () => {
+    const completed = calculateInstantlyProviderCapacity({
+      accounts: { items: [readySender] },
+      directCampaign: { ...direct, status: 3 },
+      partnerCampaign: { ...partner, status: 3 }
+    });
+    expect(completed.segments.DIRECT).toMatchObject({ active: false, senderReady: true, safeDailyCapacity: 300 });
+    expect(completed.segments.PARTNER).toMatchObject({ active: false, senderReady: true, safeDailyCapacity: 180 });
+    const paused = calculateInstantlyProviderCapacity({
+      accounts: { items: [readySender] },
+      directCampaign: { ...direct, status: 2 },
+      partnerCampaign: partner
+    });
+    expect(paused.segments.DIRECT).toMatchObject({ active: false, senderReady: true, safeDailyCapacity: 0 });
+  });
+
   it("never permits an environment value to raise the 300/day commercial target", () => {
     expect(configuredDailyInitialSendTarget({ GTM_INITIAL_SEND_DAILY_TARGET: "999" })).toBe(300);
     expect(configuredDailyInitialSendTarget({ GTM_INITIAL_SEND_DAILY_TARGET: "250" })).toBe(250);

@@ -1,4 +1,4 @@
-import { campaignSenderAddresses, controlledCampaignSafetySummary, instantlyItems } from "./instantly.ts";
+import { campaignSenderAddresses, cleanCampaignStatusAllowsAutomaticDispatch, controlledCampaignSafetySummary, instantlyItems } from "./instantly.ts";
 import type { InstantlyConfig } from "./instantly.ts";
 
 /** The commercial ceiling is a target, never a permission to exceed a healthy
@@ -159,7 +159,14 @@ export function calculateInstantlyProviderCapacity(input: {
     const mailboxCapacity = senderReady ? accountsForCampaign.reduce((total, account) => total + accountDailyCapacity(account), 0) : 0;
     const configuredCampaignLimit = campaignDailyCapacity(campaign);
     const active = Number(campaign?.status) === 1;
-    const safeDailyCapacity = active && senderReady && configuredCampaignLimit ? Math.min(configuredCampaignLimit, mailboxCapacity, configuredDailyInitialSendTarget(input.env)) : 0;
+    // A completed Clean campaign is intentionally inactive until the
+    // server-authoritative dispatch controller has an eligible decision inside
+    // the sending window.  It is nevertheless a reusable, safely activatable
+    // campaign.  Treating it as zero capacity makes that controller unable to
+    // reach the guarded activation step at all.  An explicitly paused campaign
+    // remains zero-capacity and therefore fail-closed.
+    const dispatchable = cleanCampaignStatusAllowsAutomaticDispatch(Number(campaign?.status));
+    const safeDailyCapacity = dispatchable && senderReady && configuredCampaignLimit ? Math.min(configuredCampaignLimit, mailboxCapacity, configuredDailyInitialSendTarget(input.env)) : 0;
     return [segment, { configuredCampaignLimit, readyMailboxCapacity: mailboxCapacity, safeDailyCapacity, active, senderReady } satisfies SegmentProviderCapacity];
   })) as Record<CapacitySegment, SegmentProviderCapacity>;
   const accountTypes = accounts.reduce<Record<string, number>>((summary, account) => {
