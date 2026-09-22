@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ambiguousProviderOutcomePrerequisites, hasPersistedQuarantineIdentity, hasProviderMembershipConflict, hasSufficientLegacyProviderHistory, selectAmbiguousProviderOutcomeReservations } from "../../server/ambiguousHandoffResolution.ts";
+import { ambiguousProviderOutcomePrerequisites, hasPersistedQuarantineIdentity, hasProviderMembershipConflict, hasSufficientLegacyProviderHistory, hasUnattributedReservationQuarantineIdentity, selectAmbiguousProviderOutcomeReservations } from "../../server/ambiguousHandoffResolution.ts";
 
 const failed = {
   idempotencyKey: "direct:recipient:initial-v1",
@@ -49,5 +49,12 @@ describe("ambiguous provider outcome resolution", () => {
     expect(hasPersistedQuarantineIdentity({ canonicalOrganizationId: "org:example.org", canonicalContactId: "org:example.org:casey@example.org", email: "casey@example.org" })).toBe(true);
     expect(hasPersistedQuarantineIdentity({ canonicalOrganizationId: "org:example.org", canonicalContactId: "", email: "casey@example.org" })).toBe(false);
     expect(hasPersistedQuarantineIdentity(null)).toBe(false);
+  });
+
+  it("permits a permanent email-scoped quarantine only for complete opaque reservation provenance", () => {
+    expect(hasUnattributedReservationQuarantineIdentity(failed)).toBe(true);
+    expect(hasUnattributedReservationQuarantineIdentity({ ...failed, source: "" })).toBe(false);
+    expect(hasUnattributedReservationQuarantineIdentity({ ...failed, normalizedEmail: "not-an-email" })).toBe(false);
+    expect(hasUnattributedReservationQuarantineIdentity(null)).toBe(false);
   });
 });

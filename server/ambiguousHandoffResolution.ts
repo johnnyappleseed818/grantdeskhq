@@ -80,3 +80,17 @@ export function hasProviderMembershipConflict(input: {
 export function hasPersistedQuarantineIdentity(value: { canonicalOrganizationId?: string | null; canonicalContactId?: string | null; email?: string | null } | null) {
   return Boolean(String(value?.canonicalOrganizationId || "").trim() && String(value?.canonicalContactId || "").trim() && String(value?.email || "").trim());
 }
+
+/**
+ * Some early handoff reservations predate canonical identity storage. They are
+ * still a real email-scoped safety boundary, but must never be promoted into a
+ * fabricated organization/contact record. A complete reservation lets the
+ * resolver create an immutable unattributed quarantine keyed by opaque hashes.
+ */
+export function hasUnattributedReservationQuarantineIdentity(value: Pick<InstantlyHandoffRecord, "normalizedEmail" | "idempotencyKey" | "campaignId" | "source"> | null) {
+  const email = String(value?.normalizedEmail || "").trim().toLowerCase();
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)
+    && Boolean(String(value?.idempotencyKey || "").trim())
+    && Boolean(String(value?.campaignId || "").trim())
+    && Boolean(String(value?.source || "").trim());
+}

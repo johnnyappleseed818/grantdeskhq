@@ -1117,6 +1117,68 @@ export async function createGtmOutboundTombstone(input: Omit<GtmOutboundTombston
   return { tombstone, created: true };
 }
 
+/**
+ * Older ambiguous provider operations occasionally retained only an
+ * email-scoped reservation. This immutable record preserves its opaque
+ * provenance without inventing a canonical organization or contact. The
+ * canonical contact suppression is the enforcement point used at every
+ * discovery, READY, reservation, handoff, and reconciliation boundary.
+ */
+export interface UnattributedProviderOutcomeQuarantine {
+  quarantineId: string;
+  emailHash: string;
+  reservationReference: string;
+  sourceHash: string;
+  campaignId: string;
+  incidentId: string;
+  creationSource: string;
+  creationOperator: string;
+  permanent: true;
+  createdAt: string;
+}
+
+function unattributedProviderOutcomeQuarantinePath(quarantineId: string) {
+  return "gtm/instantly/safety/ambiguous-handoff-quarantines/records/" + safeDocumentId(quarantineId);
+}
+
+export async function createUnattributedProviderOutcomeQuarantine(input: {
+  email: string;
+  idempotencyKey: string;
+  source: string;
+  campaignId: string;
+  incidentId: string;
+  creationSource: string;
+  creationOperator: string;
+}) {
+  const normalized = input.email.trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized)
+    || !input.idempotencyKey.trim()
+    || !input.source.trim()
+    || !input.campaignId.trim()
+    || !input.incidentId.trim()) {
+    throw new Error("Unattributed provider outcome requires complete opaque reservation provenance.");
+  }
+  const emailHash = outboundTombstoneEmailHash(normalized);
+  const reservationReference = createHash("sha256").update(input.idempotencyKey).digest("hex").slice(0, 40);
+  const sourceHash = createHash("sha256").update(input.source).digest("hex").slice(0, 40);
+  const quarantineId = "unattributed_" + createHash("sha256").update(`${emailHash}:${reservationReference}:${input.incidentId}`).digest("hex").slice(0, 40);
+  const record: UnattributedProviderOutcomeQuarantine = {
+    quarantineId,
+    emailHash,
+    reservationReference,
+    sourceHash,
+    campaignId: input.campaignId,
+    incidentId: input.incidentId,
+    creationSource: input.creationSource,
+    creationOperator: input.creationOperator,
+    permanent: true,
+    createdAt: new Date().toISOString()
+  };
+  const token = await gcpToken();
+  const created = await writeDocumentIfAbsent(token, unattributedProviderOutcomeQuarantinePath(quarantineId), record as unknown as Record<string, unknown>);
+  return { quarantine: record, created };
+}
+
 export async function readGtmContactSuppression(email: string): Promise<SuppressionCheck> {
   const normalizedEmail = email.trim().toLowerCase();
   const checkedAt = new Date().toISOString();
