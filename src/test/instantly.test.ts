@@ -43,6 +43,15 @@ describe("Instantly fail-closed integration", () => {
     expect(request).toHaveBeenCalledWith("https://api.instantly.ai/api/v2/leads/list", expect.objectContaining({ method: "POST", body: JSON.stringify({ limit: 100, campaign: "campaign_1" }) }));
   });
 
+  it("cursor-paginates a provider list so a verified contact past the first page is not missed", async () => {
+    const request = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: "lead_1" }], next_starting_after: "lead_1" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: "lead_2" }] }), { status: 200 }));
+    const client = new InstantlyClient(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true" }), "key", request);
+    await expect(client.listAllLeadsInList("list_1", 200)).resolves.toEqual({ items: [{ id: "lead_1" }, { id: "lead_2" }], truncated: false });
+    expect((request.mock.calls[1]?.[1] as RequestInit).body).toBe(JSON.stringify({ limit: 100, list_id: "list_1", starting_after: "lead_1" }));
+  });
+
   it("uses Instantly's exact email contacts filter for legacy enrollment lookup", async () => {
     const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [{ id: "legacy_lead", email: "legacy@example.org", campaign: "campaign_legacy" }] }), { status: 200 }));
     const client = new InstantlyClient(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true" }), "key", request);

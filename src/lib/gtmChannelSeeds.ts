@@ -20,9 +20,16 @@ export interface ChannelSeedRecord {
   rejectionReason: string | null;
   enrichmentProvider: string | null;
   enrichmentResult: string | null;
+  /** Instantly list or campaign that owns the enrichment result. */
   enrichmentResourceId?: string | null;
   enrichmentUpdatedAt?: string | null;
   /** Instantly enrichment operation ID, distinct from the target lead list. */
+  enrichmentOperationId?: string | null;
+  /** Instantly background import job ID, when the provider creates one. */
+  enrichmentBackgroundJobId?: string | null;
+  /** Legacy alias retained for persisted records created before the operation
+   * and background-job IDs were stored separately. New writes use
+   * enrichmentBackgroundJobId. */
   enrichmentJobId?: string | null;
   enrichmentProviderStatus?: "SUBMITTED" | "PROCESSING" | "COMPLETED" | "FAILED" | "MISSING_PROVIDER_OBJECT" | "STALE" | null;
   enrichmentSubmittedAt?: string | null;

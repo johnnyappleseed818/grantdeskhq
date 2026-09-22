@@ -2,6 +2,7 @@ import { InstantlyClient, instantlyConfig } from "./instantly.ts";
 import { listGtmChannelSeeds, saveGtmChannelSeed } from "./persistence.ts";
 import { recordInstantlyVerifiedGtmContact } from "./contactEnrichment.ts";
 import { scannerScrapeGraphPageLimit } from "./gtmScrapeGraphEnrichment.ts";
+import type { ChannelSeedRecord } from "../src/lib/gtmChannelSeeds.ts";
 
 export type ChannelSeedEnrichmentSegment = "DIRECT" | "PARTNER";
 const titles: Record<ChannelSeedEnrichmentSegment, string[]> = {
@@ -27,9 +28,11 @@ export async function enrichChannelSeedsWithInstantly(segment: ChannelSeedEnrich
   const names = seeds.map((seed) => seed.organization);
   const preview = await client.previewSuperSearch({ companyNames: names, titles: titles[segment], limit: names.length });
   const response = await client.enrichSuperSearch({ companyNames: names, titles: titles[segment], listId, limit: names.length, searchName: `GrantDeskHQ ${segment} channel seeds 2026-08-28` });
-  const enrichmentJobId = String(response.id || "").trim() || null; const resourceId = String(response.resource_id || listId).trim() || listId;
+  const enrichmentOperationId = String(response.id || "").trim() || null;
+  const enrichmentBackgroundJobId = String(response.background_job_id || "").trim() || null;
+  const resourceId = String(response.resource_id || listId).trim() || listId;
   const now = new Date().toISOString();
-  await Promise.all(seeds.map((seed) => saveGtmChannelSeed({ ...seed, lifecycle: "ENRICHMENT_SUBMITTED", enrichmentProvider: "instantly_supersearch", enrichmentResult: `Submitted to Instantly SuperSearch; preview matched ${Number(preview.number_of_leads || 0)} candidate contact(s). Provider verification and role reconciliation remain required before any handoff.`, enrichmentResourceId: resourceId, enrichmentJobId, enrichmentProviderStatus: "SUBMITTED", enrichmentSubmittedAt: now, enrichmentLastCheckedAt: now, enrichmentAttemptCount: (seed.enrichmentAttemptCount || 0) + 1, enrichmentLastProviderError: null, enrichmentTerminalAt: null, enrichmentUpdatedAt: now })));
+  await Promise.all(seeds.map((seed) => saveGtmChannelSeed({ ...seed, lifecycle: "ENRICHMENT_SUBMITTED", enrichmentProvider: "instantly_supersearch", enrichmentResult: `Submitted to Instantly SuperSearch; preview matched ${Number(preview.number_of_leads || 0)} candidate contact(s). Provider verification and role reconciliation remain required before any handoff.`, enrichmentResourceId: resourceId, enrichmentOperationId, enrichmentBackgroundJobId, enrichmentJobId: enrichmentBackgroundJobId, enrichmentProviderStatus: "SUBMITTED", enrichmentSubmittedAt: now, enrichmentLastCheckedAt: now, enrichmentAttemptCount: (seed.enrichmentAttemptCount || 0) + 1, enrichmentLastProviderError: null, enrichmentTerminalAt: null, enrichmentUpdatedAt: now })));
   return { segment, selected: seeds.length, previewCount: Number(preview.number_of_leads || 0), submitted: seeds.length, resourceId, providerStatus: String(response.status || "") || null, blocked: null };
 }
 
@@ -41,8 +44,8 @@ export async function reconcileChannelSeedEnrichment(segment: ChannelSeedEnrichm
   if (!config.integrationEnabled || !config.apiKeyConfigured || !seeds.length) return result;
   const client = new InstantlyClient(config, env.INSTANTLY_API_KEY || "");
   const listId = segment === "DIRECT" ? config.directListId : config.partnerListId;
-  const listed = await client.listLeadsInList(listId);
-  const leads = Array.isArray(listed.items) ? listed.items : [];
+  const listed = await client.listAllLeadsInList(listId);
+  const leads = listed.items;
   const now = new Date().toISOString();
   for (const seed of seeds) {
     const lead = leads.find((item) => roleFits(segment, text(item.job_title)) && text(item.email) && (norm(text(item.company_name)) === norm(seed.organization) || norm(text(item.company_domain)) === norm(seed.organizationDomain || "")));
@@ -59,15 +62,17 @@ export async function reconcileChannelSeedEnrichment(segment: ChannelSeedEnrichm
     if (lead && [-1, -2, -3, -4].includes(Number(lead.verification_status))) {
       await markTerminal(seed, "PROVIDER_EMAIL_NOT_VERIFIED", "FAILED", now); result.providerRejected += 1; result.failed += 1; continue;
     }
-    const providerId = seed.enrichmentJobId || seed.enrichmentResourceId;
-    if (!providerId) { result.neverSubmitted += 1; continue; }
+    const provider = superSearchProviderReferences(seed);
+    if (!provider.resourceId) { result.neverSubmitted += 1; continue; }
     try {
-      const provider = await client.getSuperSearchEnrichment(providerId);
-      if (provider.in_progress === true || (lead && [11, 12].includes(Number(lead.verification_status)))) {
+      const resource = await client.getSuperSearchEnrichment(provider.resourceId);
+      const background = provider.backgroundJobId ? await client.getBackgroundJob(provider.backgroundJobId) : null;
+      if (backgroundJobFailed(background)) { await markTerminal(seed, "PROVIDER_ENRICHMENT_JOB_FAILED", "FAILED", now); result.providerRejected += 1; result.failed += 1; continue; }
+      if (resource.in_progress === true || backgroundJobProcessing(background) || (lead && [11, 12].includes(Number(lead.verification_status))) || (listed.truncated && !lead)) {
         if (providerJobIsStale(seed, Date.now(), env)) { await markTerminal(seed, "PROVIDER_JOB_STALE", "STALE", now); result.stale += 1; result.failed += 1; continue; }
-        await saveGtmChannelSeed({ ...seed, enrichmentProviderStatus: "PROCESSING", enrichmentLastCheckedAt: now, enrichmentUpdatedAt: now }); result.processing += 1; continue;
+        await saveGtmChannelSeed({ ...seed, enrichmentProviderStatus: "PROCESSING", enrichmentLastCheckedAt: now, enrichmentLastProviderError: listed.truncated && !lead ? "PROVIDER_LIST_PAGE_LIMIT_REACHED" : null, enrichmentUpdatedAt: now }); result.processing += 1; continue;
       }
-      await markTerminal(seed, lead ? "PROVIDER_VERIFICATION_NOT_TERMINAL" : "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT", "COMPLETED", now);
+      await markTerminal(seed, lead ? "PROVIDER_VERIFICATION_NOT_TERMINAL" : resource.has_no_leads === true ? "NO_ROLE_FIT_PROVIDER_CONTACT" : "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT", "COMPLETED", now);
       result.completedButUnreconciled += 1; result.failed += 1;
     } catch (error) {
       const message = safeError(error);
@@ -86,6 +91,24 @@ async function markTerminal(seed: Awaited<ReturnType<typeof listGtmChannelSeeds>
 
 function text(value: unknown) { return typeof value === "string" ? value.trim() : ""; }
 export function providerLeadIsVerified(lead: Record<string, unknown>) { return Number(lead.verification_status) === 1; }
+/** The provider distinguishes target resource, enrichment operation, and optional
+ * background-import job. Old persisted records used enrichmentJobId for the
+ * operation; they remain readable but are never sent to the resource endpoint. */
+export function superSearchProviderReferences(seed: Pick<ChannelSeedRecord, "enrichmentResourceId" | "enrichmentBackgroundJobId" | "enrichmentOperationId" | "enrichmentJobId">) {
+  return {
+    resourceId: text(seed.enrichmentResourceId),
+    backgroundJobId: text(seed.enrichmentBackgroundJobId),
+    operationId: text(seed.enrichmentOperationId || (!seed.enrichmentBackgroundJobId ? seed.enrichmentJobId : ""))
+  };
+}
+export function backgroundJobProcessing(job: Record<string, unknown> | null) {
+  if (!job) return false;
+  return !["completed", "complete", "success", "failed", "error", "cancelled", "canceled"].includes(text(job.status).toLowerCase());
+}
+export function backgroundJobFailed(job: Record<string, unknown> | null) {
+  if (!job) return false;
+  return ["failed", "error", "cancelled", "canceled"].includes(text(job.status).toLowerCase());
+}
 function norm(value: string) { return value.normalize("NFKC").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
 export function superSearchBatchLimit(env: NodeJS.ProcessEnv) { const configured = Number(env.GTM_SUPERSEARCH_MAX_PER_RUN || 50); return Number.isInteger(configured) && configured > 0 ? Math.min(100, configured) : 50; }
 export function superSearchEligibleSeed(seed: { organizationDomain?: string | null; source?: string; lifecycle: string; rejectionReason?: string | null; enrichmentTerminalAt?: string | null; enrichmentAttemptCount?: number | null }) {

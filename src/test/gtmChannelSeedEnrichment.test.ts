@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { providerJobIsStale, providerLeadIsVerified, scannerSeedNeedsPublicContactScan, superSearchBatchLimit, superSearchEligibleSeed } from "../../server/gtmChannelSeedEnrichment.ts";
+import { backgroundJobFailed, backgroundJobProcessing, providerJobIsStale, providerLeadIsVerified, scannerSeedNeedsPublicContactScan, superSearchBatchLimit, superSearchEligibleSeed, superSearchProviderReferences } from "../../server/gtmChannelSeedEnrichment.ts";
 
 describe("Instantly channel-seed enrichment reconciliation", () => {
   it("accepts Instantly's documented lead verification enum without creating a second verification job", () => {
@@ -11,6 +11,14 @@ describe("Instantly channel-seed enrichment reconciliation", () => {
   it("treats an in-progress provider job beyond the configured timeout as stale", () => {
     expect(providerJobIsStale({ enrichmentSubmittedAt: "2026-09-01T00:00:00.000Z" }, Date.parse("2026-09-01T02:00:00.000Z"), { INSTANTLY_ENRICHMENT_STALE_MS: "3600000" })).toBe(true);
     expect(providerJobIsStale({ enrichmentSubmittedAt: "2026-09-01T00:00:00.000Z" }, Date.parse("2026-09-01T00:30:00.000Z"), { INSTANTLY_ENRICHMENT_STALE_MS: "3600000" })).toBe(false);
+  });
+
+  it("keeps the provider resource and background-job identities distinct, including legacy records", () => {
+    expect(superSearchProviderReferences({ enrichmentResourceId: "list_1", enrichmentOperationId: "operation_1", enrichmentBackgroundJobId: "background_1", enrichmentJobId: "background_1" })).toEqual({ resourceId: "list_1", operationId: "operation_1", backgroundJobId: "background_1" });
+    expect(superSearchProviderReferences({ enrichmentResourceId: "list_legacy", enrichmentJobId: "operation_legacy" })).toEqual({ resourceId: "list_legacy", operationId: "operation_legacy", backgroundJobId: "" });
+    expect(backgroundJobProcessing({ status: "queued" })).toBe(true);
+    expect(backgroundJobProcessing({ status: "completed" })).toBe(false);
+    expect(backgroundJobFailed({ status: "failed" })).toBe(true);
   });
 
   it("retries a prior no-contact scanner record only until bounded official pages have been examined", () => {

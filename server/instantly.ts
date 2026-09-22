@@ -497,7 +497,7 @@ export class InstantlyClient {
   listCampaignAnalytics() { return this.api<unknown>("/campaigns/analytics"); }
   listRecentEmails() { return this.api<unknown>("/emails?limit=10&preview_only=true"); }
   listRecentEmailEvidence(limit = 100) { return this.api<unknown>(`/emails?limit=${Math.min(Math.max(limit, 1), 100)}`); }
-  listLeadsInList(listId: string, limit = 100) { return this.api<{ items?: Record<string, unknown>[] }>("/leads/list", { method: "POST", body: JSON.stringify({ limit: Math.min(Math.max(limit, 1), 100), list_id: listId }) }); }
+  listLeadsInList(listId: string, limit = 100, startingAfter = "") { return this.api<{ items?: Record<string, unknown>[]; next_starting_after?: string }>("/leads/list", { method: "POST", body: JSON.stringify({ limit: Math.min(Math.max(limit, 1), 100), list_id: listId, ...(startingAfter ? { starting_after: startingAfter } : {}) }) }); }
   listLeadsInCampaign(campaignId: string, limit = 100) { return this.api<{ items?: Record<string, unknown>[] }>("/leads/list", { method: "POST", body: JSON.stringify({ limit: Math.min(Math.max(limit, 1), 100), campaign: campaignId }) }); }
   getEmailVerification(email: string) { return this.api<{ verification_status?: string; catch_all?: boolean | string }>(`/email-verification/${encodeURIComponent(normalizeOutboundEmail(email))}`); }
   createEmailVerification(email: string) { return this.api<{ verification_status?: string; catch_all?: boolean | string }>("/email-verification", { method: "POST", body: JSON.stringify({ email: normalizeOutboundEmail(email) }) }); }
@@ -516,7 +516,22 @@ export class InstantlyClient {
   }
   /** List-only provider enrichment; this cannot enroll a campaign or send mail. */
   enrichSuperSearch(input: { companyNames: string[]; titles: string[]; listId: string; limit: number; searchName: string }) {
-    return this.api<{ id?: string; resource_id?: string; status?: string }>("/supersearch-enrichment/enrich-leads-from-supersearch", { method: "POST", body: JSON.stringify({ search_filters: { company_name: { include: input.companyNames, exclude: [] }, title: { include: input.titles, exclude: [] }, skip_owned_leads: true, show_one_lead_per_company: true }, limit: input.limit, resource_id: input.listId, search_name: input.searchName, work_email_enrichment: true, skip_rows_without_email: true, auto_update: false }) });
+    return this.api<{ id?: string; resource_id?: string; background_job_id?: string | null; status?: string }>("/supersearch-enrichment/enrich-leads-from-supersearch", { method: "POST", body: JSON.stringify({ search_filters: { company_name: { include: input.companyNames, exclude: [] }, title: { include: input.titles, exclude: [] }, skip_owned_leads: true, show_one_lead_per_company: true }, limit: input.limit, resource_id: input.listId, search_name: input.searchName, work_email_enrichment: true, skip_rows_without_email: true, auto_update: false }) });
+  }
+  /** Cursor through an explicit list. A one-page read can silently miss a
+   * freshly enriched contact once the list has more than 100 records. */
+  async listAllLeadsInList(listId: string, maximum = 2_500) {
+    const items: Record<string, unknown>[] = [];
+    let startingAfter = "";
+    while (items.length < maximum) {
+      const page = await this.listLeadsInList(listId, Math.min(100, maximum - items.length), startingAfter);
+      const pageItems = Array.isArray(page.items) ? page.items.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object") : [];
+      items.push(...pageItems);
+      const next = String(page.next_starting_after || "");
+      if (!pageItems.length || !next || next === startingAfter) return { items, truncated: false };
+      startingAfter = next;
+    }
+    return { items, truncated: true };
   }
   getSuperSearchEnrichment(id: string) { return this.api<Record<string, unknown>>(`/supersearch-enrichment/${encodeURIComponent(id)}`); }
   moveLeadsToList(ids: string[], campaignId: string, listId: string) { return this.api<Record<string, unknown>>("/leads/move", { method: "POST", body: JSON.stringify({ ids, campaign: campaignId, to_list_id: listId, check_duplicates: true }) }); }
