@@ -1248,6 +1248,33 @@ async function handleAutomaticInstantlyDispatch(request: IncomingMessage, respon
   const campaignNeedsActivation = campaignStatus === 3 && campaignReadyForEvaluation;
   const decision = decideControlledDispatch({ breakerClosed: Boolean(circuit && !circuit.tripped), flagsEnabled, campaignActive: campaignReadyForEvaluation, withinWindow, pendingProviderActivity: outstanding.length > 0, canaryState, fingerprintMatches: !activation || Boolean(knownCanary), criticalFailure: segmentRecords.some((record) => ["BOUNCED", "UNSUBSCRIBED"].includes(record.instantlySyncStatus)), dailyLimit: segmentDailyLimit, confirmedToday: sentToday, outstanding: outstanding.length, eligible: eligible.length, globalRemaining });
   const base = { mode: "AUTO", segment, decision, campaign: campaignSummary, capacity: providerCapacity, eligible: eligible.length, outstanding: outstanding.length, sentToday, globalSentToday, globalOutstanding, globalRemaining, segmentDailyLimit };
+  // Durable Cloud Run audit telemetry for scheduled decisions. It intentionally
+  // excludes recipient identifiers, copy, and provider credentials while making
+  // every fail-closed no-op independently diagnosable.
+  console.info(JSON.stringify({
+    event: "GTM_AUTOMATIC_DISPATCH_DECISION",
+    segment,
+    action: decision.action,
+    reason: decision.reason,
+    count: decision.count,
+    campaignStatus,
+    campaignNeedsActivation,
+    predicates: {
+      breakerClosed: Boolean(circuit && !circuit.tripped),
+      flagsEnabled,
+      campaignReadyForEvaluation,
+      withinWindow,
+      pendingProviderActivity: outstanding.length > 0,
+      canaryState,
+      fingerprintMatches: !activation || Boolean(knownCanary),
+      criticalFailure: segmentRecords.some((record) => ["BOUNCED", "UNSUBSCRIBED"].includes(record.instantlySyncStatus))
+    },
+    eligible: eligible.length,
+    outstanding: outstanding.length,
+    confirmedToday: sentToday,
+    globalRemaining,
+    timestamp: now.toISOString()
+  }));
   if (!client || !campaign || decision.action === "NOOP" || decision.action === "RECONCILE") return json(response, 200, base);
   if (campaignNeedsActivation) {
     await client.activateControlledCampaign(campaignId, config.controlledBatchId);
