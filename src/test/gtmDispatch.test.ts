@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decideControlledDispatch, dispatchActivationMatchesCampaign } from "../../server/gtmDispatch.ts";
+import { advanceDispatchActivationFromProvider, decideControlledDispatch, dispatchActivationMatchesCampaign } from "../../server/gtmDispatch.ts";
 
 const safe = { breakerClosed: true, flagsEnabled: true, campaignActive: true, withinWindow: true, pendingProviderActivity: false, canaryState: "NONE" as const, fingerprintMatches: true, criticalFailure: false, dailyLimit: 5, confirmedToday: 0, outstanding: 0, eligible: 5 };
 describe("server-authoritative controlled dispatch", () => {
@@ -9,6 +9,28 @@ describe("server-authoritative controlled dispatch", () => {
     expect(dispatchActivationMatchesCampaign(activation, "clean-direct", "fingerprint-b")).toBe(false);
     expect(dispatchActivationMatchesCampaign(activation, "clean-partner", "fingerprint-a")).toBe(false);
     expect(dispatchActivationMatchesCampaign(null, "clean-direct", "fingerprint-a")).toBe(false);
+  });
+
+  it("advances an accepted canary only from matching provider membership and confirmed first-send evidence", () => {
+    const activation = { campaignId: "clean-partner", providerLeadId: "lead_1", outcome: "ACCEPTED" as const, providerSentAt: "", failureReason: "", stateVersion: 4, updatedAt: "2026-09-22T14:45:00.000Z" };
+    const observed = advanceDispatchActivationFromProvider(activation, [{ instantlyCampaignId: "clean-partner", instantlyLeadId: "lead_1", instantlySyncStatus: "SENT", firstSentAt: "2026-09-22T14:46:00.000Z" }], "2026-09-22T14:47:00.000Z");
+    expect(observed).toMatchObject({ outcome: "SENT", providerSentAt: "2026-09-22T14:46:00.000Z", failureReason: "", stateVersion: 5, updatedAt: "2026-09-22T14:47:00.000Z" });
+  });
+
+  it("rejects mailbox-only, wrong-campaign, wrong-lead, and timestamp-free evidence", () => {
+    const activation = { campaignId: "clean-direct", providerLeadId: "lead_direct", outcome: "ACCEPTED" as const, providerSentAt: "", failureReason: "", stateVersion: 2, updatedAt: "2026-09-22T14:45:00.000Z" };
+    const inputs = [
+      { instantlyCampaignId: "other", instantlyLeadId: "lead_direct", instantlySyncStatus: "SENT", firstSentAt: "2026-09-22T14:46:00.000Z" },
+      { instantlyCampaignId: "clean-direct", instantlyLeadId: "other", instantlySyncStatus: "SENT", firstSentAt: "2026-09-22T14:46:00.000Z" },
+      { instantlyCampaignId: "clean-direct", instantlyLeadId: "lead_direct", instantlySyncStatus: "SENT", firstSentAt: "" },
+      { instantlyCampaignId: "clean-direct", instantlyLeadId: "lead_direct", instantlySyncStatus: "IN_CAMPAIGN", firstSentAt: "2026-09-22T14:46:00.000Z" }
+    ];
+    for (const record of inputs) expect(advanceDispatchActivationFromProvider(activation, [record], "2026-09-22T14:47:00.000Z")).toBe(activation);
+  });
+
+  it("fails a matching canary closed on a terminal provider safety event", () => {
+    const activation = { campaignId: "clean-direct", providerLeadId: "lead_direct", outcome: "ACCEPTED" as const, providerSentAt: "", failureReason: "", stateVersion: 2, updatedAt: "2026-09-22T14:45:00.000Z" };
+    expect(advanceDispatchActivationFromProvider(activation, [{ instantlyCampaignId: "clean-direct", instantlyLeadId: "lead_direct", instantlySyncStatus: "BOUNCED", firstSentAt: "2026-09-22T14:46:00.000Z" }], "2026-09-22T14:47:00.000Z")).toMatchObject({ outcome: "FAILED", failureReason: "CANARY_BOUNCED", stateVersion: 3 });
   });
 
   it.each([

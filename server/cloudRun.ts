@@ -56,7 +56,7 @@ import { listGtmScannerImportReceipts } from "./persistence.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
-import { decideControlledDispatch, dispatchActivationMatchesCampaign, type DispatchSegment } from "./gtmDispatch.ts";
+import { advanceDispatchActivationFromProvider, decideControlledDispatch, dispatchActivationMatchesCampaign, type DispatchSegment } from "./gtmDispatch.ts";
 import { calculateInstantlyProviderCapacity, configuredCleanCampaignIds, describeCampaignResponse, providerBackedCampaignLimit, resolveMappedCampaign } from "./gtmCapacity.ts";
 const maxBodyBytes = configuredPositiveInteger("MAX_REQUEST_BODY_BYTES", 24_000_000);
 
@@ -1202,7 +1202,7 @@ async function handleAutomaticInstantlyDispatch(request: IncomingMessage, respon
   const config = instantlyConfig();
   const campaignId = segment === "DIRECT" ? config.directCampaignId : config.partnerCampaignId;
   const client = config.apiKeyConfigured && config.integrationEnabled ? new InstantlyClient(config) : null;
-  const [circuit, model, outreach, records, activation, accounts] = await Promise.all([readOutboundCircuitBreaker(), readCanonicalGtmModel(), reconcileGtmOutreachLedger(confirmedHumanOutreach), readInstantlyRecords(), readGtmDispatchActivation(segment), client ? client.listAccounts().catch(() => null) : Promise.resolve(null)]);
+  const [circuit, model, outreach, records, persistedActivation, accounts] = await Promise.all([readOutboundCircuitBreaker(), readCanonicalGtmModel(), reconcileGtmOutreachLedger(confirmedHumanOutreach), readInstantlyRecords(), readGtmDispatchActivation(segment), client ? client.listAccounts().catch(() => null) : Promise.resolve(null)]);
   const campaign = client && campaignId ? await client.getCampaign(campaignId) : null;
   const [directCampaign, partnerCampaign] = client ? await Promise.all([
     config.directCampaignId === campaignId ? Promise.resolve(campaign) : client.getCampaign(config.directCampaignId),
@@ -1217,6 +1217,8 @@ async function handleAutomaticInstantlyDispatch(request: IncomingMessage, respon
   const fingerprintPayload = campaignSummary ? { ...campaignSummary, status: "CONFIGURATION_ONLY" } : null;
   const fingerprint = fingerprintPayload ? createHash("sha256").update(JSON.stringify(fingerprintPayload)).digest("hex") : "";
   const now = new Date();
+  const activation = advanceDispatchActivationFromProvider(persistedActivation, records, now.toISOString());
+  if (activation && activation !== persistedActivation) await saveGtmDispatchActivation(activation);
   const clock = new Intl.DateTimeFormat("en-US", { timeZone: "America/Detroit", weekday: "short", hour: "2-digit", hourCycle: "h23" }).formatToParts(now);
   const weekday = clock.find((part) => part.type === "weekday")?.value || "";
   const hour = Number(clock.find((part) => part.type === "hour")?.value || "99");

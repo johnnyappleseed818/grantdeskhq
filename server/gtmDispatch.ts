@@ -10,6 +10,50 @@ export function dispatchActivationMatchesCampaign(activation: { campaignId: stri
     && activation.configurationFingerprint === configurationFingerprint);
 }
 
+type DispatchActivationEvidence = {
+  campaignId: string;
+  providerLeadId: string;
+  outcome: DispatchCanaryState;
+  providerSentAt: string;
+  failureReason: string;
+  stateVersion: number;
+  updatedAt: string;
+};
+
+type ProviderCanaryEvidence = {
+  instantlyCampaignId: string;
+  instantlyLeadId: string;
+  instantlySyncStatus: string;
+  firstSentAt: string;
+};
+
+/** Advance a canary only from the same provider lead in the same mapped
+ * campaign. A mailbox timestamp, a different membership, or a warmup email is
+ * deliberately insufficient evidence. */
+export function advanceDispatchActivationFromProvider<T extends DispatchActivationEvidence>(activation: T | null, records: readonly ProviderCanaryEvidence[], observedAt: string): T | null {
+  if (!activation) return null;
+  const record = records.find((item) => item.instantlyLeadId === activation.providerLeadId && item.instantlyCampaignId === activation.campaignId);
+  if (!record) return activation;
+  const next = (outcome: DispatchCanaryState, providerSentAt: string, failureReason: string): T => ({
+    ...activation,
+    outcome,
+    providerSentAt,
+    failureReason,
+    stateVersion: activation.stateVersion + 1,
+    updatedAt: observedAt
+  });
+  if (["BOUNCED", "UNSUBSCRIBED", "ERROR"].includes(record.instantlySyncStatus)) {
+    const reason = record.instantlySyncStatus === "BOUNCED" ? "CANARY_BOUNCED" : record.instantlySyncStatus === "UNSUBSCRIBED" ? "CANARY_UNSUBSCRIBED" : "CANARY_PROVIDER_RECORD_ERROR";
+    return activation.outcome === "FAILED" && activation.failureReason === reason ? activation : next("FAILED", activation.providerSentAt, reason);
+  }
+  // A provider-confirmed first-send timestamp tied to this exact membership is
+  // the only positive evidence that can advance an accepted canary.
+  if (record.firstSentAt && ["SENT", "REPLIED", "POSITIVE", "NOT_INTERESTED", "SEQUENCE_COMPLETE"].includes(record.instantlySyncStatus)) {
+    return activation.outcome === "SENT" && activation.providerSentAt === record.firstSentAt ? activation : next("SENT", record.firstSentAt, "");
+  }
+  return activation;
+}
+
 /** Pure, fail-closed policy for the only autonomous prospect-dispatch boundary.
  * Callers cannot override this decision with scheduler request fields. */
 export function decideControlledDispatch(input: {
