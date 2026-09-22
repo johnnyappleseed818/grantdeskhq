@@ -38,6 +38,7 @@ describe("server-authoritative controlled dispatch", () => {
   ])("fails closed for %s", (input, reason) => expect(decideControlledDispatch(input).reason).toBe(reason));
   it("stages only one canary, waits for accepted activity, and counts only confirmed sends", () => {
     expect(decideControlledDispatch(safe)).toMatchObject({ action: "STAGE_CANARY", count: 1 });
+    expect(decideControlledDispatch({ ...safe, fingerprintMatches: false })).toMatchObject({ action: "STAGE_CANARY", reason: "CANARY_REQUIRED", count: 1 });
     expect(decideControlledDispatch({ ...safe, canaryState: "ACCEPTED", outstanding: 1 })).toMatchObject({ action: "RECONCILE", count: 0, remaining: 4 });
     expect(decideControlledDispatch({ ...safe, canaryState: "SENT", confirmedToday: 1, eligible: 4 })).toMatchObject({ action: "DISPATCH", count: 4, remaining: 4 });
   });

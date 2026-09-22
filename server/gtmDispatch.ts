@@ -68,8 +68,11 @@ export function decideControlledDispatch(input: {
   if (!input.withinWindow) return { action: "NOOP" as const, reason: "OUTSIDE_SENDING_WINDOW", count: 0, ...base };
   if (input.criticalFailure) return { action: "NOOP" as const, reason: "CRITICAL_SAFETY_FAILURE", count: 0, ...base };
   if (input.pendingProviderActivity || input.canaryState === "ACCEPTED") return { action: "RECONCILE" as const, reason: "AWAITING_PROVIDER_TERMINAL_STATE", count: 0, ...base };
-  if (input.canaryState === "FAILED" || !input.fingerprintMatches) return { action: "NOOP" as const, reason: input.canaryState === "FAILED" ? "CANARY_FAILED" : "CANARY_FINGERPRINT_CHANGED", count: 0, ...base };
+  // A stale configuration fingerprint invalidates prior canary proof; it must
+  // cause a fresh, single canary rather than permanently blocking an otherwise
+  // eligible segment. The old canary is never reused or backfilled.
   if (input.canaryState === "NONE") return { action: input.eligible > 0 && base.remaining > 0 ? "STAGE_CANARY" as const : "NOOP" as const, reason: input.eligible > 0 ? "CANARY_REQUIRED" : "NO_ELIGIBLE_RECIPIENT", count: input.eligible > 0 && base.remaining > 0 ? 1 : 0, ...base };
+  if (input.canaryState === "FAILED" || !input.fingerprintMatches) return { action: "NOOP" as const, reason: input.canaryState === "FAILED" ? "CANARY_FAILED" : "CANARY_FINGERPRINT_CHANGED", count: 0, ...base };
   if (base.remaining <= 0 || input.eligible <= 0) return { action: "NOOP" as const, reason: base.remaining <= 0 ? "DAILY_CAPACITY_REACHED" : "NO_ELIGIBLE_RECIPIENT", count: 0, ...base };
   return { action: "DISPATCH" as const, reason: "CANARY_CONFIRMED", count: Math.min(base.remaining, input.eligible), ...base };
 }
