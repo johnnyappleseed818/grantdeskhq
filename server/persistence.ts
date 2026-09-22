@@ -1220,7 +1220,7 @@ export async function recordGtmContactSuppression(email: string, reasons: string
     reasonsJson: JSON.stringify(merged),
     source: source.slice(0, 160),
     updatedAt: new Date().toISOString()
-  });
+  }, "GTM contact suppression");
 }
 
 export type LifecycleEventName = "assessment_viewed" | "account_created" | "first_report_started" | "source_file_added" | "ready_to_generate" | "report_generation_started" | "report_generated" | "report_viewed" | "pricing_viewed" | "checkout_started" | "checkout_completed" | "subscription_started" | "payment_failed" | "nudge_sent" | "sales_assist_created";
@@ -1401,7 +1401,7 @@ export async function saveBillingEvent(snapshot: BillingEventSnapshot) {
 
 export async function saveInstantlyRecord(record: InstantlyIntegrationRecord) {
   const accessToken = await gcpToken();
-  await writeDocument(accessToken, `gtm/instantly/records/${safeDocumentId(record.id)}`, { recordJson: JSON.stringify(record), updatedAt: record.updatedAt });
+  await writeDocument(accessToken, `gtm/instantly/records/${safeDocumentId(record.id)}`, { recordJson: JSON.stringify(record), updatedAt: record.updatedAt }, "Instantly membership evidence");
   return record;
 }
 
@@ -1636,7 +1636,7 @@ export async function saveInstantlyWebhookEvent(event: InstantlyWebhookEvent) {
 
 export async function saveInstantlyStatus(status: Record<string, unknown>) {
   const accessToken = await gcpToken();
-  await writeDocument(accessToken, "gtm/instantly/status/current", { statusJson: JSON.stringify(status), updatedAt: new Date().toISOString() });
+  await writeDocument(accessToken, "gtm/instantly/status/current", { statusJson: JSON.stringify(status), updatedAt: new Date().toISOString() }, "Instantly reconciliation snapshot");
 }
 
 export async function readInstantlyStatus(): Promise<Record<string, unknown> | null> {
@@ -1672,7 +1672,7 @@ export async function readGtmDispatchActivation(segment: "DIRECT" | "PARTNER"): 
 }
 export async function saveGtmDispatchActivation(next: GtmDispatchActivation) {
   const token = await gcpToken();
-  await writeDocument(token, dispatchActivationPath(next.segment), { activationJson: JSON.stringify(next), updatedAt: next.updatedAt });
+  await writeDocument(token, dispatchActivationPath(next.segment), { activationJson: JSON.stringify(next), updatedAt: next.updatedAt }, "Instantly dispatch activation");
   await writeDocumentIfAbsent(token, `gtm/instantly/dispatch-audits/${safeDocumentId(`${next.segment}:${next.stateVersion}:${next.updatedAt}`)}`, { activationJson: JSON.stringify(next), occurredAt: next.updatedAt });
 }
 
@@ -2188,9 +2188,15 @@ async function writeDocumentIfAbsent(accessToken: string, path: string, record: 
   throw new Error(`Analysis cache could not be saved (${response.status}).`);
 }
 
-async function writeDocument(accessToken: string, path: string, record: Record<string, unknown>) {
+export function firestoreWriteErrorCategory(value: unknown) {
+  const status = value && typeof value === "object" && !Array.isArray(value) ? String((value as { error?: { status?: unknown } }).error?.status || "") : "";
+  return /^[A-Z][A-Z_]{2,63}$/.test(status) ? status : "UNCLASSIFIED";
+}
+
+async function writeDocument(accessToken: string, path: string, record: Record<string, unknown>, operation = "Workspace record") {
   const url = `${firestoreBase}/${path}`;
-  const init = { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields: encodeFields(record) }) };
+  const body = JSON.stringify({ fields: encodeFields(record) });
+  const init = { method: "PATCH", headers: { "Content-Type": "application/json" }, body };
   const retryableStatuses = new Set([408, 429, 500, 502, 503, 504]);
   // Firestore permits only a limited write rate to an individual document.
   // Several idempotent scheduler lanes may legitimately reconcile the same
@@ -2206,7 +2212,11 @@ async function writeDocument(accessToken: string, path: string, record: Record<s
     const delay = persistenceRetryDelay(response.headers.get("retry-after"), attempt, base);
     await new Promise((resolve) => setTimeout(resolve, delay));
   }
-  if (!response?.ok) throw new Error(`Workspace record could not be saved (${response?.status || 503}).`);
+  if (!response?.ok) {
+    let category = "UNCLASSIFIED";
+    try { category = firestoreWriteErrorCategory(await response?.clone().json()); } catch { /* Provider text may contain data; retain only the safe category. */ }
+    throw new Error(`${operation} could not be saved (${response?.status || 503}; ${category}; payload_bytes=${Buffer.byteLength(body)}).`);
+  }
 }
 
 /** A zero Retry-After is not a safe immediate retry for a contended Firestore
