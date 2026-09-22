@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ambiguousProviderOutcomePrerequisites, hasSufficientLegacyProviderHistory, selectAmbiguousProviderOutcomeReservations } from "../../server/ambiguousHandoffResolution.ts";
+import { ambiguousProviderOutcomePrerequisites, hasPersistedQuarantineIdentity, hasProviderMembershipConflict, hasSufficientLegacyProviderHistory, selectAmbiguousProviderOutcomeReservations } from "../../server/ambiguousHandoffResolution.ts";
 
 const failed = {
   idempotencyKey: "direct:recipient:initial-v1",
@@ -37,5 +37,17 @@ describe("ambiguous provider outcome resolution", () => {
     expect(hasSufficientLegacyProviderHistory({ providerCampaignIsLegacy: true, permanentTombstonePresent: false, persistedCampaignMatches: true, persistedInitialSendAt: "2026-09-01T16:15:46Z" })).toBe(true);
     expect(hasSufficientLegacyProviderHistory({ providerCampaignIsLegacy: true, permanentTombstonePresent: false, persistedCampaignMatches: true, persistedInitialSendAt: "" })).toBe(false);
     expect(hasSufficientLegacyProviderHistory({ providerCampaignIsLegacy: false, permanentTombstonePresent: true, persistedCampaignMatches: true, persistedInitialSendAt: "2026-09-01T16:15:46Z" })).toBe(false);
+  });
+
+  it("quarantines a workspace-only provider identity but rejects positive conflicting memberships", () => {
+    expect(hasProviderMembershipConflict({ scopedMembershipCount: 0, providerCampaignId: "", requestedCampaignId: "clean-direct", legacyProviderHistorySufficient: false })).toBe(false);
+    expect(hasProviderMembershipConflict({ scopedMembershipCount: 1, providerCampaignId: "other-campaign", requestedCampaignId: "clean-direct", legacyProviderHistorySufficient: false })).toBe(true);
+    expect(hasProviderMembershipConflict({ scopedMembershipCount: 2, providerCampaignId: "", requestedCampaignId: "clean-direct", legacyProviderHistorySufficient: false })).toBe(true);
+  });
+
+  it("requires a complete persisted canonical identity before it can anchor quarantine", () => {
+    expect(hasPersistedQuarantineIdentity({ canonicalOrganizationId: "org:example.org", canonicalContactId: "org:example.org:casey@example.org", email: "casey@example.org" })).toBe(true);
+    expect(hasPersistedQuarantineIdentity({ canonicalOrganizationId: "org:example.org", canonicalContactId: "", email: "casey@example.org" })).toBe(false);
+    expect(hasPersistedQuarantineIdentity(null)).toBe(false);
   });
 });

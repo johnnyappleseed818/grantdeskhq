@@ -59,3 +59,24 @@ export function hasSufficientLegacyProviderHistory(input: {
     || (input.persistedCampaignMatches && Boolean(input.persistedInitialSendAt.trim()))
   );
 }
+
+/** A workspace identity without an active campaign is an unknown historical
+ * provider artifact, not evidence that the recipient is enrolled somewhere
+ * else. Only a positive conflicting campaign ID, or more than one positive
+ * membership, blocks safe quarantine. */
+export function hasProviderMembershipConflict(input: {
+  scopedMembershipCount: number;
+  providerCampaignId: string;
+  requestedCampaignId: string;
+  legacyProviderHistorySufficient: boolean;
+}) {
+  return input.scopedMembershipCount > 1
+    || Boolean(input.providerCampaignId && input.providerCampaignId !== input.requestedCampaignId && !input.legacyProviderHistorySufficient);
+}
+
+/** An existing durable Instantly record can anchor quarantine even when an old
+ * canonical projection no longer retains the contact. Its identity must be
+ * complete; a bare provider lead is never enough. */
+export function hasPersistedQuarantineIdentity(value: { canonicalOrganizationId?: string | null; canonicalContactId?: string | null; email?: string | null } | null) {
+  return Boolean(String(value?.canonicalOrganizationId || "").trim() && String(value?.canonicalContactId || "").trim() && String(value?.email || "").trim());
+}
