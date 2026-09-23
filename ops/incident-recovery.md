@@ -1,5 +1,13 @@
 # Incident recovery record — 2026-08-27
 
+## 2026-09-23 06:02–06:15 UTC: bounded Instantly reconciliation recovery
+
+- The exact production reconciliation failure was isolated on zero-traffic revision `grantdeskhq-prototype-00544-vim`: Firestore rejected the `Instantly reconciliation snapshot` with `400 INVALID_ARGUMENT` because its serialized payload was `1,640,394` bytes. Provider reads and per-membership evidence writes had already completed; no provider enrollment, send, campaign change, or lease release occurred.
+- Commit `46a25905b22c28ed10e9b833664ba2c36646076b` adds redacted persistence diagnostics. Commit `d2059af655de1b6d899d5ea50f45d3b4417de725` replaces the unbounded raw lead cache with compact non-contact lead-state and campaign-count telemetry while retaining deterministic provider membership evidence as separate records.
+- Focused suite: 119 tests passed; TypeScript, lint, and diff checks passed. Cloud Build `4e2fba10-6519-48b9-8003-830000c5b7f3` succeeded. Candidate `grantdeskhq-prototype-00545-taj` passed health and an authenticated reconciliation (`PASS`, 200 provider rows, 36 canonical records polled, no provider-read errors).
+- `grantdeskhq-prototype-00545-taj` now serves 100% of production traffic. The custom domain health endpoint returned HTTP 200. Its existing 15-minute Cloud Scheduler reconciliation executed autonomously at `2026-09-23T06:15:14Z` with HTTP 200 and logged `reconciliation=PASS`; configured Direct and Partner Clean campaign IDs both matched provider reads. Provider-backed capacity is 30/day from one ready shared mailbox.
+- The scheduled Drive import, validation, and Direct/Partner enrichment jobs remain enabled for 08:15, 08:30, 08:45, and 08:50 America/Detroit. No manual dispatch was invoked and no recipient was re-enrolled in this recovery. Current new-source execution remains to be observed on those durable jobs.
+
 ## 19:35–19:36 UTC: Instantly V2 authorization and membership evidence
 
 - The documented V2 `POST /api/v2/leads/move` endpoint requires `leads:update` (or the documented broader equivalents) and returns a background job. Documentation was consulted before testing.

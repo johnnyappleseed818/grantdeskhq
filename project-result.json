@@ -1,35 +1,40 @@
 {
-  "project": "GrantDeskHQ acquisition-capacity safety recovery",
+  "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-09-20T14:23:00Z",
+  "updatedAt": "2026-09-23T06:15:17Z",
   "commits": [
     "58294e9 fix(gtm): resolve provider lead campaign detail",
     "cfb39de fix(gtm): retain unresolved provider memberships",
-    "0dd7be3 fix(gtm): resolve scoped provider memberships"
+    "0dd7be3 fix(gtm): resolve scoped provider memberships",
+    "46a2590 fix(gtm): classify reconciliation persistence failures",
+    "d2059af fix(gtm): bound reconciliation provider telemetry"
   ],
   "builds": [
     { "id": "7ec7abaa-90e2-415d-8adb-7789073de95a", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00523-dir", "traffic": "0%" },
     { "id": "2d58b770-9857-4fa8-a708-80558de83fe6", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00524-hey", "traffic": "replaced" },
-    { "id": "8c183c2d-f150-4e55-99ce-b45c9b330e18", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00526-fuz", "traffic": "100%" }
+    { "id": "8c183c2d-f150-4e55-99ce-b45c9b330e18", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00526-fuz", "traffic": "replaced" },
+    { "id": "4e2fba10-6519-48b9-8003-830000c5b7f3", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00545-taj", "traffic": "100%" }
   ],
   "production": {
-    "revision": "grantdeskhq-prototype-00526-fuz",
+    "revision": "grantdeskhq-prototype-00545-taj",
     "traffic": "100%",
-    "customDomainHealth": "PASS — https://grantdeskhq.com/api/health returned HTTP 200 after promotion."
+    "customDomainHealth": "PASS — https://grantdeskhq.com/api/health returned HTTP 200 after promotion.",
+    "reconciliation": "PASS — autonomous Cloud Scheduler delivery at 2026-09-23T06:15:14Z returned HTTP 200; structured production audit recorded reconciliation=PASS and exact Clean campaign mappings."
   },
   "validated": {
-    "tests": "60 focused provider identity, ambiguous incident, handoff, and circuit tests passed; TypeScript and lint passed.",
+    "tests": "119 focused persistence, Instantly, handoff, dispatch, capacity, circuit, enrichment, and scanner tests passed; TypeScript and lint passed.",
     "providerIdentity": "PASS — a compact /leads/list response without campaign metadata is followed by a bounded GET /leads/{id} read; nested detail envelopes are parsed.",
     "failClosedUnknownMembership": "PASS — an exact provider lead with no campaign identity is retained as unresolved workspace state and excludes preflight/enrollment rather than being classified as absent.",
     "scopedMembershipProof": "PASS — exact-email reads scoped to the two Clean and two legacy campaign IDs found zero memberships. A scoped result would be treated as positive membership evidence only.",
-    "outboundEffect": "No provider write, enrollment, campaign activation, capacity change, or email occurred in this recovery."
+    "outboundEffect": "No provider write, enrollment, campaign activation, capacity change, lease release, or email occurred in the reconciliation-overflow recovery.",
+    "reconciliationSnapshot": "PASS — raw provider contacts are no longer persisted in the compact status document; deterministic per-membership evidence remains separate."
   },
   "criticalBlockers": [
     {
-      "operation": "Close circuit incident 0d2a668d0ebfd65d761c2ca8 and resume capacity alignment",
-      "provider": "Instantly",
-      "evidence": "At 2026-09-20T14:22:21.795843Z, the authenticated production-equivalent dry run found exactly one failed lead-less reservation (reference handoff_3182fa18336ed94213f80434). Instantly returned an exact workspace lead, but its detail contained no extractable campaign identity. The bounded reads in every configured Direct Clean, Partner Clean, Direct legacy, and Partner legacy campaign returned zero memberships. The resolver therefore recorded providerCampaignScope=NONE, providerScopedMembershipCount=0, providerResult=CROSS_CAMPAIGN_CONFLICT, and providerCrossCampaignConflictClear=false. This is intentionally fail-closed: absence from those configured campaign lists is not proof that the exact workspace lead has no other active or scheduled provider action.",
-      "smallestExternalAction": "Instantly support must return or correct the campaign membership, sequence state, and next-send state for the exact workspace lead associated with resolution reference handoff_3182fa18336ed94213f80434, or provide an API response that exposes those fields. Until then, do not close the breaker, activate campaigns, align capacity, or enroll contacts."
+      "operation": "Demonstrate new-source qualification and a net-new eligible Direct record through the durable Drive validation/enrichment schedule",
+      "provider": "Scheduled production jobs",
+      "evidence": "The repaired reconciliation path is deployed and its first autonomous run passed. At 2026-09-23T06:15:17Z, current provider telemetry showed no provider-read errors, but the next Drive import/validation/enrichment window has not yet occurred.",
+      "smallestExternalAction": "None now — observe the enabled 08:15–08:50 America/Detroit jobs and isolate only a concrete provider or application failure if one occurs."
     }
   ],
   "cleanup": {
