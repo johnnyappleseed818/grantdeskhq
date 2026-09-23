@@ -11,6 +11,7 @@ import {
   scannerSocialResearchToSignals,
   socialSignalToChannelSeed,
 } from "../lib/gtmChannelSeeds.ts";
+import { superSearchEligibleSeed } from "../../server/gtmChannelSeedEnrichment.ts";
 
 describe("2026-08-28 channel seed import", () => {
   it("creates exactly 30 deterministic organization-only seeds", () => {
@@ -81,6 +82,9 @@ describe("2026-08-28 channel seed import", () => {
       source: "gtm_public_discovery",
     });
     expect(channelSeedToCanonicalCandidate(direct).qualified).toBe(true);
+    // Scheduled public discovery must use this exact canonical seed route;
+    // it cannot fall back to the legacy Hunter batch before SuperSearch.
+    expect(superSearchEligibleSeed(direct)).toBe(true);
   });
 
   it("marks only independently verified partner rows eligible for provider enrichment", () => {

@@ -39,7 +39,7 @@ import { buildGtmOverview } from "../src/lib/gtmOverview.ts";
 import { readCanonicalGtmModel } from "./gtmCanonical.ts";
 import type { GtmOpportunity } from "../src/lib/gtm.ts";
 import { canonicalOrganizationId } from "../src/lib/gtmCanonical.ts";
-import { boundedEnrichmentLimit, GTM_INVENTORY_POLICY, inventoryDecision, socialDiscoveryBreadth, type InventoryAutopilotSnapshot } from "../src/lib/gtmInventoryPolicy.ts";
+import { GTM_INVENTORY_POLICY, inventoryDecision, socialDiscoveryBreadth, type InventoryAutopilotSnapshot } from "../src/lib/gtmInventoryPolicy.ts";
 import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type GtmOutcomeEvent, type GtmOutcomeType, type OpportunityClusterStatus } from "../src/lib/gtmOpportunityEngine.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
@@ -1715,19 +1715,26 @@ async function handleScheduledPartnerHunterReconciliation(request: IncomingMessa
   const partnerEvidenceQualified = before.records.filter((record) => record.segment === "PARTNER" && record.qualified && !record.priorContact).length;
   const shouldDiscoverPartner = partnerEvidenceQualified < 150 || before.metrics.partnerReady < GTM_INVENTORY_POLICY.partner.target;
   let discovery = await readGtmPartnerDiscoveryScan();
-  let partner = null;
+  let channelSeedEnrichment = null;
   if (shouldDiscoverPartner) {
     const knownDomains = before.records.filter((record) => record.segment === "PARTNER").map((record) => record.organizationDomain);
     const priorContactDomains = before.records.filter((record) => record.segment === "PARTNER" && record.priorContact).map((record) => record.organizationDomain);
     try {
       discovery = await runPartnerPublicDiscovery({ knownDomains, priorContactDomains, maximum: 50 }).then(saveGtmPartnerDiscoveryScan);
-      if (discovery?.opportunities.length) await importGtmChannelSeeds(discovery.opportunities.map((opportunity) => discoveredPartnerToChannelSeed(opportunity)));
+      if (discovery?.opportunities.length) {
+        await importGtmChannelSeeds(discovery.opportunities.map((opportunity) => discoveredPartnerToChannelSeed(opportunity)));
+        // New public organization evidence enters the same canonical seed
+        // queue as Drive imports. Do not send this new work through Hunter:
+        // Instantly SuperSearch supplies the provider-backed contact route.
+        channelSeedEnrichment = await enrichChannelSeedsWithInstantly("PARTNER");
+      }
     } catch (error) { console.error("GTM_PARTNER_DISCOVERY", error); }
-    const limit = boundedEnrichmentLimit("partner", before.metrics.partnerReady, Math.min(configuredPositiveInteger("HUNTER_MAX_LOOKUPS_PER_RUN", 10), 10));
-    if (limit > 0) partner = await runContactEnrichmentBatch({ segment: "partner", limit, discoveredPartner: discovery?.opportunities || [] });
   }
+  // Existing Hunter-backed records retain their historical reconciliation path,
+  // but new acquisition work is exclusively processed through channel seeds.
   const stored = await reconcileStoredContactEnrichmentBatch({ segment: "partner", limit: 20, discoveredPartner: discovery?.opportunities || [] });
-  console.info("GTM_HUNTER_BATCH " + JSON.stringify(partner ? { segment: partner.segment, attempted: partner.attempted, contactsResolved: partner.contactsResolved, verifiedEmails: partner.verifiedEmails, ready: partner.ready, needsVerification: partner.needsVerification, alreadyContacted: partner.alreadyContacted, duplicates: partner.duplicates, failures: partner.failures, providerUsage: partner.providerUsage } : { segment: "partner", skipped: "HEALTHY_READY_INVENTORY" }));
+  const channelSeedReconciliation = await reconcileChannelSeedEnrichment("PARTNER");
+  console.info("GTM_CHANNEL_SEED_PARTNER_REPLENISHMENT " + JSON.stringify(channelSeedEnrichment ? { segment: "PARTNER", selected: channelSeedEnrichment.selected, submitted: channelSeedEnrichment.submitted, blocked: channelSeedEnrichment.blocked, reconciled: channelSeedReconciliation.reconciled, verified: channelSeedReconciliation.verified } : { segment: "PARTNER", skipped: shouldDiscoverPartner ? "NO_NEW_PARTNER_ORGANIZATIONS" : "HEALTHY_READY_INVENTORY" }));
   const inventory = await persistInventoryAutopilot();
   let opportunityEngine = null;
   let opportunityEngineError: string | null = null;
@@ -1736,7 +1743,7 @@ async function handleScheduledPartnerHunterReconciliation(request: IncomingMessa
     opportunityEngineError = error instanceof Error ? error.message : "Opportunity cluster reconciliation could not be completed.";
     console.error("GTM_OPPORTUNITY_ENGINE", error);
   }
-  return json(response, 200, { decision, discovery, partner, stored, instantly, inventory, opportunityEngine, opportunityEngineError });
+  return json(response, 200, { decision, discovery, channelSeedEnrichment, channelSeedReconciliation, stored, instantly, inventory, opportunityEngine, opportunityEngineError });
 }
 
 async function handleSearchConsoleReconcile(request: IncomingMessage, response: ServerResponse) {
@@ -1796,8 +1803,16 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
     directDiscovery = await saveGtmDirectDiscoveryScan(directDiscovery);
   } catch (error) { errors.push(error instanceof Error ? error.message : "Public Direct discovery could not be saved."); }
   const directOpportunities = directDiscovery?.opportunities || [];
+  let directChannelSeedEnrichment = null;
   if (directOpportunities.length) {
-    try { await importGtmChannelSeeds(directOpportunities.map((opportunity) => discoveredOpportunityToChannelSeed(opportunity))); }
+    try {
+      await importGtmChannelSeeds(directOpportunities.map((opportunity) => discoveredOpportunityToChannelSeed(opportunity)));
+      // The daily discovery worker owns organization research only. New seeds
+      // use the established Instantly-backed enrichment queue, never a
+      // separate Hunter batch, so work is durable and independently
+      // reconciled by the channel-seed scheduler.
+      directChannelSeedEnrichment = await enrichChannelSeedsWithInstantly("DIRECT");
+    }
     catch (error) { errors.push(error instanceof Error ? error.message : "Direct discovery could not enter the Instantly enrichment queue."); }
   }
   let reconciliation;
@@ -1814,31 +1829,18 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
   catch (error) { errors.push(error instanceof Error ? error.message : "Social scan failed."); }
   if (social) try { await importGtmChannelSeeds(social.items.map((item) => socialSignalToChannelSeed(item)).filter((item): item is NonNullable<typeof item> => Boolean(item))); }
   catch (error) { errors.push(error instanceof Error ? error.message : "Social scan failed."); }
-  // Reuse the established daily GTM runtime for bounded Direct replenishment.
-  // The batch suppresses contacted organizations before a provider call and
-  // never discovers a new cohort or sends a message.
-  let directReplenishment;
-  try {
+  const directChannelSeedReconciliation = await reconcileChannelSeedEnrichment("DIRECT");
+  if (directDiscovery) {
     const canonical = await readCanonicalGtmModel();
-    const ready = canonical.metrics.directReady;
-    const configuredLimit = Math.min(configuredPositiveInteger("HUNTER_MAX_LOOKUPS_PER_RUN", 10), 10);
-    const limit = boundedEnrichmentLimit("direct", ready, configuredLimit);
-    if (limit > 0) {
-      directReplenishment = await runContactEnrichmentBatch({ segment: "direct", limit, discoveredDirect: [...opportunities, ...directOpportunities] });
-      if (directDiscovery) {
-        directDiscovery = await saveGtmDirectDiscoveryScan({ ...directDiscovery, telemetry: {
-          ...directDiscovery.telemetry,
-          hunterFinderCalls: directReplenishment.providerUsage.hunterLookups,
-          hunterVerifierCalls: directReplenishment.providerUsage.hunterVerifications,
-          verified: directReplenishment.verifiedEmails,
-          provisionallyVerified: directReplenishment.verifiedEmails,
-          readyCreated: (await readCanonicalGtmModel()).records.filter((record) => record.segment === "DIRECT" && record.state === "READY_TO_SEND" && directDiscovery!.opportunities.some((opportunity) => opportunity.id === record.id)).length,
-          mainBottleneck: (await readCanonicalGtmModel()).records.some((record) => record.segment === "DIRECT" && record.state === "READY_TO_SEND" && directDiscovery!.opportunities.some((opportunity) => opportunity.id === record.id)) ? "Qualified candidates passed every canonical readiness gate." : directReplenishment.records.find((record) => record.failureReason)?.failureReason || directDiscovery.telemetry.mainBottleneck
-        } });
-      }
-      console.info("GTM_HUNTER_DIRECT_REPLENISHMENT " + JSON.stringify({ attempted: directReplenishment.attempted, ready: directReplenishment.ready, needsVerification: directReplenishment.needsVerification, alreadyContacted: directReplenishment.alreadyContacted, providerUsage: directReplenishment.providerUsage }));
-    }
-  } catch (error) { errors.push(error instanceof Error ? error.message : "Direct replenishment could not be completed."); }
+    const readyCreated = canonical.records.filter((record) => record.segment === "DIRECT" && record.state === "READY_TO_SEND" && directDiscovery!.opportunities.some((opportunity) => record.sourceUrl === opportunity.evidence[0]?.url || record.sourceUrl === opportunity.organizationUrl)).length;
+    directDiscovery = await saveGtmDirectDiscoveryScan({ ...directDiscovery, telemetry: {
+      ...directDiscovery.telemetry,
+      verified: directChannelSeedReconciliation.verified,
+      readyCreated,
+      mainBottleneck: readyCreated ? "Qualified Direct recipients passed every canonical readiness gate." : directChannelSeedEnrichment?.blocked || "Awaiting provider-backed contact enrichment and canonical readiness gates."
+    } });
+  }
+  console.info("GTM_CHANNEL_SEED_DIRECT_REPLENISHMENT " + JSON.stringify({ selected: directChannelSeedEnrichment?.selected || 0, submitted: directChannelSeedEnrichment?.submitted || 0, blocked: directChannelSeedEnrichment?.blocked || null, reconciled: directChannelSeedReconciliation.reconciled, verified: directChannelSeedReconciliation.verified }));
   const inventory = await persistInventoryAutopilot();
   let opportunityEngine = null;
   try { opportunityEngine = await reconcileGtmOpportunityEngine(); }
@@ -1855,7 +1857,8 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
     controlPlaneUniqueOrganizationCount: reconciliation?.uniqueOrganizations || null,
     shadowMode: "SHADOW",
     shadowStatus: shadowStatus || null,
-    directReplenishment: directReplenishment || null,
+    directChannelSeedEnrichment,
+    directChannelSeedReconciliation,
     directDecision,
     inventory,
     opportunityEngine,
