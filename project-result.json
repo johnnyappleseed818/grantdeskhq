@@ -1,7 +1,7 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-09-23T06:37:00Z",
+  "updatedAt": "2026-09-23T11:00:29Z",
   "commits": [
     "58294e9 fix(gtm): resolve provider lead campaign detail",
     "cfb39de fix(gtm): retain unresolved provider memberships",
@@ -35,7 +35,7 @@
     {
       "operation": "Demonstrate fresh organization processing through the deployed scheduled channel-seed enrichment path",
       "provider": "Scheduled production jobs",
-      "evidence": "Commit 54af5b2 is serving 100%. It removes the demonstrated new-source Hunter dependency and sends fresh Direct/Partner discoveries into the canonical seed provider route. No fresh scheduled job has run on that revision yet.",
+      "evidence": "Commit 54af5b2 is serving 100%. The last Direct scan found 5 new organizations but created 0 READY through the legacy Hunter branch; current Direct canonical inventory is 0 READY, 4 NEEDS_VERIFICATION, and 124 RESEARCH_BACKLOG. The deployed fix sends fresh Direct/Partner discoveries into the canonical seed provider route. No fresh scheduled job has run on that revision yet.",
       "smallestExternalAction": "None now — observe the enabled 08:15–09:35 America/Detroit source jobs and isolate only a concrete provider or application failure if one occurs."
     }
   ],
