@@ -1,28 +1,30 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-09-23T06:15:17Z",
+  "updatedAt": "2026-09-23T06:37:00Z",
   "commits": [
     "58294e9 fix(gtm): resolve provider lead campaign detail",
     "cfb39de fix(gtm): retain unresolved provider memberships",
     "0dd7be3 fix(gtm): resolve scoped provider memberships",
     "46a2590 fix(gtm): classify reconciliation persistence failures",
-    "d2059af fix(gtm): bound reconciliation provider telemetry"
+    "d2059af fix(gtm): bound reconciliation provider telemetry",
+    "54af5b2 fix(gtm): route scheduled discovery through seed enrichment"
   ],
   "builds": [
     { "id": "7ec7abaa-90e2-415d-8adb-7789073de95a", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00523-dir", "traffic": "0%" },
     { "id": "2d58b770-9857-4fa8-a708-80558de83fe6", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00524-hey", "traffic": "replaced" },
     { "id": "8c183c2d-f150-4e55-99ce-b45c9b330e18", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00526-fuz", "traffic": "replaced" },
-    { "id": "4e2fba10-6519-48b9-8003-830000c5b7f3", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00545-taj", "traffic": "100%" }
+    { "id": "4e2fba10-6519-48b9-8003-830000c5b7f3", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00545-taj", "traffic": "replaced" },
+    { "id": "417d94df-08e1-4d38-a8dd-1b81960ff68b", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00547-gum", "traffic": "100%" }
   ],
   "production": {
-    "revision": "grantdeskhq-prototype-00545-taj",
+    "revision": "grantdeskhq-prototype-00547-gum",
     "traffic": "100%",
     "customDomainHealth": "PASS — https://grantdeskhq.com/api/health returned HTTP 200 after promotion.",
-    "reconciliation": "PASS — autonomous Cloud Scheduler delivery at 2026-09-23T06:15:14Z returned HTTP 200; structured production audit recorded reconciliation=PASS and exact Clean campaign mappings."
+    "reconciliation": "PASS — autonomous Cloud Scheduler delivery at 2026-09-23T06:15:14Z returned HTTP 200; the promoted revision also passed scheduler-authenticated read-only reconciliation with exact Clean campaign mappings."
   },
   "validated": {
-    "tests": "119 focused persistence, Instantly, handoff, dispatch, capacity, circuit, enrichment, and scanner tests passed; TypeScript and lint passed.",
+    "tests": "Prior reconciliation suite: 119 focused tests passed. Current scheduled-routing suite: 63 focused tests passed; TypeScript, lint, production build, and diff checks passed.",
     "providerIdentity": "PASS — a compact /leads/list response without campaign metadata is followed by a bounded GET /leads/{id} read; nested detail envelopes are parsed.",
     "failClosedUnknownMembership": "PASS — an exact provider lead with no campaign identity is retained as unresolved workspace state and excludes preflight/enrollment rather than being classified as absent.",
     "scopedMembershipProof": "PASS — exact-email reads scoped to the two Clean and two legacy campaign IDs found zero memberships. A scoped result would be treated as positive membership evidence only.",
@@ -31,10 +33,10 @@
   },
   "criticalBlockers": [
     {
-      "operation": "Demonstrate new-source qualification and a net-new eligible Direct record through the durable Drive validation/enrichment schedule",
+      "operation": "Demonstrate fresh organization processing through the deployed scheduled channel-seed enrichment path",
       "provider": "Scheduled production jobs",
-      "evidence": "The repaired reconciliation path is deployed and its first autonomous run passed. At 2026-09-23T06:15:17Z, current provider telemetry showed no provider-read errors, but the next Drive import/validation/enrichment window has not yet occurred.",
-      "smallestExternalAction": "None now — observe the enabled 08:15–08:50 America/Detroit jobs and isolate only a concrete provider or application failure if one occurs."
+      "evidence": "Commit 54af5b2 is serving 100%. It removes the demonstrated new-source Hunter dependency and sends fresh Direct/Partner discoveries into the canonical seed provider route. No fresh scheduled job has run on that revision yet.",
+      "smallestExternalAction": "None now — observe the enabled 08:15–09:35 America/Detroit source jobs and isolate only a concrete provider or application failure if one occurs."
     }
   ],
   "cleanup": {
