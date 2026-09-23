@@ -740,6 +740,25 @@ export function instantSafeSummary(value: unknown, fields: string[]) {
   })));
 }
 
+/** Reconciliation status is a compact dashboard/control-plane document, not a
+ * second store of provider contacts. Per-membership evidence is persisted in
+ * its own deterministic record; retain only bounded, non-contact telemetry
+ * here so a large provider page cannot exceed Firestore's document limit. */
+export function instantlyLeadTelemetry(leads: readonly Record<string, unknown>[]) {
+  const statusCounts: Record<string, number> = {};
+  const campaignCounts: Record<string, number> = {};
+  let latestProviderUpdatedAt = "";
+  for (const lead of leads) {
+    const status = String(lead.status ?? "UNKNOWN").trim().slice(0, 64) || "UNKNOWN";
+    statusCounts[status] = (statusCounts[status] || 0) + 1;
+    const campaignId = instantlyLeadCampaignId(lead);
+    if (campaignId) campaignCounts[campaignId] = (campaignCounts[campaignId] || 0) + 1;
+    const updatedAt = String(lead.timestamp_updated || "").trim();
+    if (Number.isFinite(Date.parse(updatedAt)) && updatedAt > latestProviderUpdatedAt) latestProviderUpdatedAt = updatedAt;
+  }
+  return { providerRows: leads.length, statusCounts, campaignCounts, latestProviderUpdatedAt };
+}
+
 export function stagingEligibility(record: CanonicalGtmRecord, outreach: OutreachRecord[], config = instantlyConfig()) {
   if (!config.integrationEnabled) return { eligible: false, reason: "INTEGRATION_DISABLED" } as const;
   if (record.segment === "DIRECT" && !config.directEnabled) return { eligible: false, reason: "DIRECT_DISABLED" } as const;

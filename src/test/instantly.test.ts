@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, cleanCampaignStatusAllowsAutomaticDispatch, cleanCampaignStatusAllowsCapacityAlignment, cleanInitialOnlyCampaignChecks, cleanInitialOnlyCampaignReady, cleanMembershipEvidenceId, cleanMembershipRebindReason, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyPreviewRecord, instantlyReconciliationRecordChanged, needsCanonicalInitialSendRecovery, normalizeInstantlyWebhook, rebindMappedInstantlyRecord, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "../../server/instantly";
+import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, cleanCampaignStatusAllowsAutomaticDispatch, cleanCampaignStatusAllowsCapacityAlignment, cleanInitialOnlyCampaignChecks, cleanInitialOnlyCampaignReady, cleanMembershipEvidenceId, cleanMembershipRebindReason, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyLeadTelemetry, instantlyPreviewRecord, instantlyReconciliationRecordChanged, needsCanonicalInitialSendRecovery, normalizeInstantlyWebhook, rebindMappedInstantlyRecord, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "../../server/instantly";
 import type { CanonicalGtmRecord } from "../lib/gtmCanonical";
 
 const record: CanonicalGtmRecord = {
@@ -24,6 +24,20 @@ describe("Instantly fail-closed integration", () => {
     expect(instantlyLeadCampaignId({ campaign: { id: "campaign_3" } })).toBe("campaign_3");
     expect(instantlyLeadCampaignId({ campaign: { campaign_id: "campaign_4" } })).toBe("campaign_4");
     expect(instantlyLeadCampaignId({ campaign_name: "Not an ID" })).toBe("");
+  });
+
+  it("persists aggregate provider telemetry without retaining contacts or oversized provider rows", () => {
+    const telemetry = instantlyLeadTelemetry(Array.from({ length: 200 }, (_, index) => ({
+      id: `lead_${index}`,
+      email: `contact_${index}@example.org`,
+      campaign_id: index % 2 ? "clean_direct" : "clean_partner",
+      status: index % 3,
+      timestamp_updated: "2026-09-22T15:50:00.000Z",
+      provider_blob: "x".repeat(20_000)
+    })));
+    expect(telemetry).toMatchObject({ providerRows: 200, statusCounts: { "0": 67, "1": 67, "2": 66 }, campaignCounts: { clean_direct: 100, clean_partner: 100 } });
+    expect(JSON.stringify(telemetry)).not.toContain("contact_0@example.org");
+    expect(Buffer.byteLength(JSON.stringify(telemetry))).toBeLessThan(5_000);
   });
 
   it("does not make an API request without a configured key", async () => {
