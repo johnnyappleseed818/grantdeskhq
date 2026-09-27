@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   buildScannerReconciliationReceipt,
+  mirrorReceiptToDrive,
   safeDriveError,
 } from "../../server/scannerDriveImport.ts";
 import {
@@ -263,4 +264,13 @@ it("re-observes an old immutable scanner batch without authorizing a second impo
     originalReceiptId: "scanner_import_original",
   });
   expect(receipt.rejectionReasons).toEqual({ NO_SAFE_SOURCE_URL: 1 });
+});
+
+it("mirrors an immutable receipt once and reuses its deterministic private Drive filename", async () => {
+  const fetchMock = vi.fn().mockResolvedValueOnce(Response.json({ files: [] })).mockResolvedValueOnce(Response.json({ id: "drive-receipt", name: "grantdeskhq-receipt-scanner_import_original.json", mimeType: "application/json", parents: ["folder"] }));
+  vi.stubGlobal("fetch", fetchMock);
+  const result = await mirrorReceiptToDrive({ id: "scanner_import_original", batchId: "daily-feed", sourceFileId: "source-file", contentHash: "hash", processedAt: "2026-09-27T00:00:00.000Z", accepted: 1, duplicate: 0, rejected: 0, pending: 1, canonicalRecordIds: ["seed-one"], errors: [] }, "folder", "token");
+  expect(result).toEqual({ state: "MIRRORED", fileId: "drive-receipt", error: "" });
+  expect(String(fetchMock.mock.calls[1]?.[0])).toContain("upload/drive/v3/files");
+  expect(String(fetchMock.mock.calls[1]?.[1]?.body)).toContain("grantdeskhq.feed-receipt.v1");
 });

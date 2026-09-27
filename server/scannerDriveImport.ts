@@ -5,7 +5,8 @@ import { scannerLeadFeedToChannelSeeds, scannerSocialResearchToSignals, type Sca
 export const SCANNER_DRIVE_FOLDER_ID = "1zfDj-tZGTLgVtlzn8isKRCNCyprIf_h2";
 const maxBatchBytes = 512_000;
 type DriveFile = { id?: string; name?: string; mimeType?: string; parents?: string[]; size?: string };
-export interface ScannerDriveImportFileResult { receipt: GtmScannerImportReceipt; importedNow: boolean; }
+export interface ScannerDriveReceiptMirror { state: "MIRRORED" | "FAILED"; fileId: string; error: string; }
+export interface ScannerDriveImportFileResult { receipt: GtmScannerImportReceipt; importedNow: boolean; mirror: ScannerDriveReceiptMirror; }
 
 export async function importScannerDriveBatches(env: NodeJS.ProcessEnv = process.env) {
   const folderId = env.GTM_SCANNER_DRIVE_FOLDER_ID?.trim() || SCANNER_DRIVE_FOLDER_ID;
@@ -14,6 +15,8 @@ export async function importScannerDriveBatches(env: NodeJS.ProcessEnv = process
   const list = await driveJson<{ files?: DriveFile[] }>(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`'${folderId}' in parents and trashed = false`)}&orderBy=createdTime&fields=${encodeURIComponent("files(id,name,mimeType,parents,size)")}`, token);
   const receipts: ScannerDriveImportFileResult[] = [];
   for (const item of list.files || []) {
+    // Private receipt mirrors share this folder but are never feed inputs.
+    if (item.name?.startsWith("grantdeskhq-receipt-")) continue;
     if (item.mimeType !== "application/json" || !item.id || !item.name?.endsWith(".json")) continue;
     const metadata = await driveJson<DriveFile>(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(item.id)}?fields=${encodeURIComponent("id,name,mimeType,parents,size")}`, token);
     if (metadata.mimeType !== "application/json" || !metadata.parents?.includes(folderId) || Number(metadata.size || 0) > maxBatchBytes) continue;
@@ -27,7 +30,8 @@ export async function importScannerDriveBatches(env: NodeJS.ProcessEnv = process
     const parsed = scannerLeadFeedToChannelSeeds({ batchId: payload.batch_id, sourceFileId: item.id, contentHash, records: payload.records as ScannerLeadFeedRecord[] });
     const prior = await readGtmScannerImportReceipt(receiptId);
     if (prior) {
-      receipts.push({ receipt: await immutableReconciliationReceipt({ prior, batchId: payload.batch_id, sourceFileId: item.id, contentHash, rowsSeen: payload.records.length, errors: parsed.rejected }), importedNow: false });
+      const receipt = await immutableReconciliationReceipt({ prior, batchId: payload.batch_id, sourceFileId: item.id, contentHash, rowsSeen: payload.records.length, errors: parsed.rejected });
+      receipts.push({ receipt, importedNow: false, mirror: await mirrorReceiptToDrive(prior, folderId, token) });
       continue;
     }
     const existing = new Set((await listGtmChannelSeeds()).map((seed) => seed.deduplicationKey));
@@ -38,9 +42,34 @@ export async function importScannerDriveBatches(env: NodeJS.ProcessEnv = process
     const socialEvidenceAdded = await preserveScannerSocialResearch(social.accepted);
     const errors = [...parsed.rejected, ...social.rejected];
     const receipt: GtmScannerImportReceipt = { id: receiptId, batchId: payload.batch_id, sourceFileId: item.id, contentHash, processedAt: new Date().toISOString(), rowsSeen: payload.records.length, accepted: saved.imported, duplicate: duplicate + saved.duplicate, rejected: errors.length, pending: saved.imported, canonicalRecordIds: fresh.map((seed) => seed.id), errors, rejectionReasons: groupRejectionReasons(errors), socialEvidenceAdded, receiptKind: "IMPORT", alreadyImported: false };
-    await saveGtmScannerImportReceipt(receipt); receipts.push({ receipt, importedNow: true });
+    await saveGtmScannerImportReceipt(receipt);
+    receipts.push({ receipt, importedNow: true, mirror: await mirrorReceiptToDrive(receipt, folderId, token) });
   }
   return { folderId, receipts };
+}
+
+/** Writes a compact, immutable receipt mirror to the same private folder. The
+ * deterministic filename makes re-observation safe: existing mirrors are
+ * reused, while a write permission failure is surfaced rather than hidden. */
+export async function mirrorReceiptToDrive(receipt: GtmScannerImportReceipt, folderId: string, token: string): Promise<ScannerDriveReceiptMirror> {
+  const name = `grantdeskhq-receipt-${receipt.id}.json`;
+  try {
+    const query = `'${folderId}' in parents and name = '${name}' and trashed = false`;
+    const existing = await driveJson<{ files?: DriveFile[] }>(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${encodeURIComponent("files(id,name,mimeType,parents)")}`, token);
+    const prior = (existing.files || []).find((item) => item.id && item.mimeType === "application/json" && item.parents?.includes(folderId));
+    if (prior?.id) return { state: "MIRRORED", fileId: prior.id, error: "" };
+    const boundary = `gdh_receipt_${receipt.id.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+    const metadata = JSON.stringify({ name, mimeType: "application/json", parents: [folderId], appProperties: { grantdeskhq_receipt_id: receipt.id, grantdeskhq_receipt_kind: receipt.receiptKind || "IMPORT" } });
+    const content = JSON.stringify({ schema_version: "grantdeskhq.feed-receipt.v1", receipt }, null, 2);
+    const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
+    const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,parents", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": `multipart/related; boundary=${boundary}` }, body, signal: AbortSignal.timeout(20_000) });
+    if (!response.ok) throw new Error(safeDriveError("receipt mirror upload", response.status, await response.json().catch(() => null)));
+    const created = await response.json() as DriveFile;
+    if (!created.id || created.name !== name || created.mimeType !== "application/json" || !created.parents?.includes(folderId)) throw new Error("Google Drive receipt mirror upload returned invalid metadata.");
+    return { state: "MIRRORED", fileId: created.id, error: "" };
+  } catch (error) {
+    return { state: "FAILED", fileId: "", error: error instanceof Error ? error.message : "Google Drive receipt mirror upload failed." };
+  }
 }
 
 /** Older immutable receipts did not contain a row-level loss funnel. Reading
