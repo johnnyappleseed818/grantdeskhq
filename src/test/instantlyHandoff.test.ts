@@ -83,12 +83,15 @@ describe("final Instantly handoff safety", () => {
     await expect(executeFinalInstantlyHandoff(valid, { reserve: vi.fn().mockResolvedValue({ acquired: true, record: { idempotencyKey: "x", normalizedEmail: "casey@example.org", campaignId: "campaign_a", handoffStatus: "HANDOFF_STARTED", externalLeadId: "", handedOffAt: "" } }), findExistingLead: vi.fn(), createLead: vi.fn().mockResolvedValue({ id: "provider_lead" }), complete: vi.fn().mockRejectedValue(new Error("Firestore timeout")), fail })).rejects.toThrow("Firestore timeout");
     expect(fail).not.toHaveBeenCalled();
   });
-  it("rejects an existing provider enrollment before a second external write", async () => {
+  it("quarantines an existing provider enrollment before a second external write without tripping healthy recipients", async () => {
     const createLead = vi.fn();
     const tripCircuitBreaker = vi.fn().mockResolvedValue(undefined);
-    await expect(executeFinalInstantlyHandoff(valid, { reserve: vi.fn().mockResolvedValue({ acquired: true, record: { idempotencyKey: "x", normalizedEmail: "casey@example.org", campaignId: "campaign_a", handoffStatus: "HANDOFF_STARTED", externalLeadId: "", handedOffAt: "" } }), findExistingLead: vi.fn().mockResolvedValue({ id: "provider_lead", campaignId: "other_campaign" }), createLead, complete: vi.fn(), fail: vi.fn(), tripCircuitBreaker })).rejects.toThrow("active or unresolved");
+    const quarantineDuplicateProviderEnrollment = vi.fn().mockResolvedValue(undefined);
+    const result = await executeFinalInstantlyHandoff(valid, { reserve: vi.fn().mockResolvedValue({ acquired: true, record: { idempotencyKey: "x", normalizedEmail: "casey@example.org", campaignId: "campaign_a", handoffStatus: "HANDOFF_STARTED", externalLeadId: "", handedOffAt: "" } }), findExistingLead: vi.fn().mockResolvedValue({ id: "provider_lead", campaignId: "other_campaign" }), createLead, complete: vi.fn(), fail: vi.fn(), tripCircuitBreaker, quarantineDuplicateProviderEnrollment });
+    expect(result.reason).toBe("DUPLICATE_PROVIDER_ENROLLMENT_QUARANTINED");
     expect(createLead).not.toHaveBeenCalled();
-    expect(tripCircuitBreaker).toHaveBeenCalledWith("DUPLICATE_PROVIDER_ENROLLMENT", expect.any(String));
+    expect(quarantineDuplicateProviderEnrollment).toHaveBeenCalledWith("casey@example.org");
+    expect(tripCircuitBreaker).not.toHaveBeenCalled();
   });
 
   it("rejects a provider-confirmed same-day prospecting send before enrollment", async () => {

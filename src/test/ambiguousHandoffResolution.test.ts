@@ -19,17 +19,19 @@ const failed = {
 };
 
 describe("ambiguous provider outcome resolution", () => {
-  it("selects only one lead-less failed reservation and fails closed for none or many", () => {
-    expect(selectAmbiguousProviderOutcomeReservations([failed])).toMatchObject({ resolvable: true, reason: "EXACTLY_ONE_UNRESOLVED_RESERVATION" });
+  it("selects a bounded batch of lead-less failed reservations and fails closed for none or a systemic volume", () => {
+    expect(selectAmbiguousProviderOutcomeReservations([failed])).toMatchObject({ resolvable: true, reason: "BOUNDED_UNRESOLVED_RESERVATIONS" });
     expect(selectAmbiguousProviderOutcomeReservations([])).toMatchObject({ resolvable: false, reason: "NO_UNRESOLVED_RESERVATION" });
-    expect(selectAmbiguousProviderOutcomeReservations([failed, { ...failed, normalizedEmail: "other@example.org" }])).toMatchObject({ resolvable: false, reason: "MULTIPLE_UNRESOLVED_RESERVATIONS" });
+    expect(selectAmbiguousProviderOutcomeReservations([failed, { ...failed, normalizedEmail: "other@example.org" }])).toMatchObject({ resolvable: true, reason: "BOUNDED_UNRESOLVED_RESERVATIONS" });
+    expect(selectAmbiguousProviderOutcomeReservations(Array.from({ length: 6 }, (_, index) => ({ ...failed, normalizedEmail: `other${index}@example.org` })))).toMatchObject({ resolvable: false, reason: "UNRESOLVED_RESERVATION_LIMIT_EXCEEDED" });
     expect(selectAmbiguousProviderOutcomeReservations([{ ...failed, externalLeadId: "lead_1" }])).toMatchObject({ resolvable: false, reason: "NO_UNRESOLVED_RESERVATION" });
   });
 
-  it("requires a paused, safe, exact-incident resolution and rejects cross-campaign provider state", () => {
-    const safe = ambiguousProviderOutcomePrerequisites({ circuitReason: "AMBIGUOUS_PROVIDER_OUTCOME", expectedEventMatches: true, campaignsPaused: true, noActiveReservation: true, exactlyOneUnresolvedReservation: true, canonicalOrTombstoneIdentityPresent: true, providerLookupCompleted: true, providerCrossCampaignConflict: false });
+  it("requires a paused, safe, exact provider-safety incident with bounded identities and unambiguous memberships", () => {
+    const safe = ambiguousProviderOutcomePrerequisites({ circuitReason: "DUPLICATE_PROVIDER_ENROLLMENT", expectedEventMatches: true, campaignsPaused: true, noActiveReservation: true, resolvableUnresolvedReservations: true, allResolutionIdentitiesPresent: true, providerLookupsCompleted: true, providerMembershipsUnambiguous: true });
     expect(Object.values(safe).every(Boolean)).toBe(true);
-    expect(ambiguousProviderOutcomePrerequisites({ circuitReason: "AMBIGUOUS_PROVIDER_OUTCOME", expectedEventMatches: true, campaignsPaused: true, noActiveReservation: true, exactlyOneUnresolvedReservation: true, canonicalOrTombstoneIdentityPresent: true, providerLookupCompleted: true, providerCrossCampaignConflict: true }).providerCrossCampaignConflictClear).toBe(false);
+    expect(ambiguousProviderOutcomePrerequisites({ circuitReason: "DUPLICATE_PROVIDER_ENROLLMENT", expectedEventMatches: true, campaignsPaused: true, noActiveReservation: true, resolvableUnresolvedReservations: true, allResolutionIdentitiesPresent: false, providerLookupsCompleted: true, providerMembershipsUnambiguous: true }).allResolutionIdentitiesPresent).toBe(false);
+    expect(ambiguousProviderOutcomePrerequisites({ circuitReason: "AMBIGUOUS_PROVIDER_OUTCOME", expectedEventMatches: true, campaignsPaused: true, noActiveReservation: true, resolvableUnresolvedReservations: true, allResolutionIdentitiesPresent: true, providerLookupsCompleted: true, providerMembershipsUnambiguous: false }).providerMembershipsUnambiguous).toBe(false);
   });
 
   it("accepts legacy cross-campaign evidence only with a tombstone or matching persisted first send", () => {

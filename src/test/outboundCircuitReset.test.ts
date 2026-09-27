@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { verifyLegacyProviderExclusions, type InstantlyIntegrationRecord } from "../../server/instantly.ts";
-import { closeAmbiguousProviderOutcomeIncident, closeOutboundCircuitIncident, hasActiveInstantlyHandoffReservation, outboundCircuitEventId, resetOutboundCircuitBreaker } from "../../server/persistence.ts";
+import { closeAmbiguousProviderOutcomeIncident, closeOutboundCircuitIncident, closeProviderSafetyIncident, hasActiveInstantlyHandoffReservation, outboundCircuitEventId, resetOutboundCircuitBreaker } from "../../server/persistence.ts";
 import type { CanonicalGtmRecord } from "../lib/gtmCanonical.ts";
 
 const legacy = (overrides: Partial<CanonicalGtmRecord> = {}): CanonicalGtmRecord => ({
@@ -111,5 +111,21 @@ describe("audited legacy provider exclusion", () => {
     const urls = writeFetch.mock.calls.map(([url]) => String(url));
     expect(urls.some((url) => url.includes("/incidents/records/"))).toBe(true);
     expect(urls.some((url) => url.includes("/ambiguous-handoff-closures/records/"))).toBe(true);
+  });
+  it("preserves and closes a bounded duplicate-provider incident with immutable provider-safety audit evidence", async () => {
+    const duplicate = { ...breaker, reason: "DUPLICATE_PROVIDER_ENROLLMENT", detail: "pre-write duplicate was quarantined" };
+    const eventId = outboundCircuitEventId(duplicate);
+    const prerequisites = { providerSafetyIncident: true, expectedEventMatches: true, campaignsPaused: true, noActiveReservation: true, resolvableUnresolvedReservations: true, allResolutionIdentitiesPresent: true, providerLookupsCompleted: true, providerMembershipsUnambiguous: true, allRequiredFlags: true };
+    const writeFetch = vi.fn(async (url: string) => {
+      const target = String(url);
+      if (target.includes("metadata.google.internal")) return Response.json({ access_token: "test-token", expires_in: 3600 });
+      if (target.includes("circuit-breaker") && !target.includes("currentDocument.exists")) return firestore(duplicate);
+      return Response.json({});
+    });
+    vi.stubGlobal("fetch", writeFetch);
+    await expect(closeProviderSafetyIncident({ expectedEventId: eventId, expectedVersion: 1, reason: "quarantined bounded duplicate provider reservations", executionIdentity: "scheduler@example.org", resolutionRecordIds: ["quarantine_one", "quarantine_two"], prerequisites, dryRun: false })).resolves.toMatchObject({ cleared: true, eventId, nextGeneration: expect.any(Number) });
+    const urls = writeFetch.mock.calls.map(([url]) => String(url));
+    expect(urls.some((url) => url.includes("/incidents/records/"))).toBe(true);
+    expect(urls.some((url) => url.includes("/provider-safety-closures/records/"))).toBe(true);
   });
 });

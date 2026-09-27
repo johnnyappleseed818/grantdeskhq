@@ -13,6 +13,10 @@ export interface FinalHandoffDependencies {
    * boundary uses them to fail closed and create an auditable incident. */
   assertCircuitClosed?(): Promise<void>;
   tripCircuitBreaker?(reason: string, detail: string): Promise<void>;
+  /** A pre-write duplicate is a per-recipient safety gate. The caller must
+   * persist durable suppression before this function returns its no-write
+   * result; healthy recipients remain independently eligible. */
+  quarantineDuplicateProviderEnrollment?(email: string): Promise<void>;
 }
 
 /** Sole prospect-enrollment choreography: reserve durably before Instantly and
@@ -58,8 +62,8 @@ export async function executeFinalInstantlyHandoff(input: { email: string; campa
       return { created: false, externalLeadId, idempotencyKey, reason: "RECOVERED_EXISTING_PROVIDER_LEAD" as const };
     }
     await dependencies.fail(idempotencyKey, validated.email, "Existing provider enrollment has an unknown or conflicting campaign.");
-    await dependencies.tripCircuitBreaker?.("DUPLICATE_PROVIDER_ENROLLMENT", "A normalized recipient already exists in another provider enrollment.");
-    throw new Error("Recipient already has an active or unresolved Instantly enrollment.");
+    await dependencies.quarantineDuplicateProviderEnrollment?.(validated.email);
+    return { created: false, externalLeadId: "", idempotencyKey, reason: "DUPLICATE_PROVIDER_ENROLLMENT_QUARANTINED" as const };
   }
   if (await dependencies.hasRecentProspectingSend?.(validated.email)) {
     await dependencies.fail(idempotencyKey, validated.email, "Provider evidence shows a GrantDeskHQ prospecting message in the last 24 hours.");

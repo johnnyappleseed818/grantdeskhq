@@ -14,12 +14,16 @@ export function selectAmbiguousProviderOutcomeReservations(reservations: readonl
   );
   return {
     unresolved,
-    resolvable: unresolved.length === 1,
-    reason: unresolved.length === 1
-      ? "EXACTLY_ONE_UNRESOLVED_RESERVATION"
+    // A single circuit event can conservatively contain a small bounded set of
+    // pre-write failures. Resolving them as one audited batch prevents one
+    // safely-rejected identity from holding unrelated recipients fail-closed.
+    // More than five remains a systemic safety failure for operator review.
+    resolvable: unresolved.length >= 1 && unresolved.length <= 5,
+    reason: unresolved.length >= 1 && unresolved.length <= 5
+      ? "BOUNDED_UNRESOLVED_RESERVATIONS"
       : unresolved.length === 0
         ? "NO_UNRESOLVED_RESERVATION"
-        : "MULTIPLE_UNRESOLVED_RESERVATIONS"
+        : "UNRESOLVED_RESERVATION_LIMIT_EXCEEDED"
   } as const;
 }
 
@@ -28,20 +32,20 @@ export function ambiguousProviderOutcomePrerequisites(input: {
   expectedEventMatches: boolean;
   campaignsPaused: boolean;
   noActiveReservation: boolean;
-  exactlyOneUnresolvedReservation: boolean;
-  canonicalOrTombstoneIdentityPresent: boolean;
-  providerLookupCompleted: boolean;
-  providerCrossCampaignConflict: boolean;
+  resolvableUnresolvedReservations: boolean;
+  allResolutionIdentitiesPresent: boolean;
+  providerLookupsCompleted: boolean;
+  providerMembershipsUnambiguous: boolean;
 }) {
   return {
-    ambiguousProviderOutcome: input.circuitReason === "AMBIGUOUS_PROVIDER_OUTCOME",
+    providerSafetyIncident: input.circuitReason === "AMBIGUOUS_PROVIDER_OUTCOME" || input.circuitReason === "DUPLICATE_PROVIDER_ENROLLMENT",
     expectedEventMatches: input.expectedEventMatches,
     campaignsPaused: input.campaignsPaused,
     noActiveReservation: input.noActiveReservation,
-    exactlyOneUnresolvedReservation: input.exactlyOneUnresolvedReservation,
-    canonicalOrTombstoneIdentityPresent: input.canonicalOrTombstoneIdentityPresent,
-    providerLookupCompleted: input.providerLookupCompleted,
-    providerCrossCampaignConflictClear: !input.providerCrossCampaignConflict
+    resolvableUnresolvedReservations: input.resolvableUnresolvedReservations,
+    allResolutionIdentitiesPresent: input.allResolutionIdentitiesPresent,
+    providerLookupsCompleted: input.providerLookupsCompleted,
+    providerMembershipsUnambiguous: input.providerMembershipsUnambiguous
   };
 }
 

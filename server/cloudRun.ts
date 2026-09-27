@@ -17,7 +17,7 @@ import { reconcileGtmOutreachLedger, updateFeedbackReview } from "./persistence.
 import { hasActiveInstantlyHandoffReservation, listInstantlyHandoffReservations } from "./persistence.ts";
 import { assertOutboundCircuitClosed, completeInstantlyHandoff, failInstantlyHandoff, gcpToken, outboundCircuitEventId, outboundCircuitTelemetry, readOutboundCircuitBreaker, reserveInstantlyHandoff, tripOutboundCircuitBreaker } from "./persistence.ts";
 import { closeOutboundCircuitIncident, createGtmOutboundTombstone, createUnattributedProviderOutcomeQuarantine, readGtmOutboundTombstone } from "./persistence.ts";
-import { closeAmbiguousProviderOutcomeIncident } from "./persistence.ts";
+import { closeProviderSafetyIncident } from "./persistence.ts";
 import { readGtmDispatchActivation, saveGtmDispatchActivation } from "./persistence.ts";
 import { runDailyAwardScan } from "./gtmAwardScanner.ts";
 import { runDailySocialScan } from "./gtmDailyScanner.ts";
@@ -47,7 +47,7 @@ import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, c
 import { adoptMappedInstantlyLead, canReplaceInstantlyPreview, cleanMembershipEvidenceId, cleanMembershipRebindReason, isCleanMembershipEvidenceRecord, needsCanonicalInitialSendRecovery, rebindMappedInstantlyRecord } from "./instantly.ts";
 import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from "./outboundIncidentClosure.ts";
-import { ambiguousProviderOutcomePrerequisites, hasPersistedQuarantineIdentity, hasProviderMembershipConflict, hasSufficientLegacyProviderHistory, hasUnattributedReservationQuarantineIdentity, selectAmbiguousProviderOutcomeReservations } from "./ambiguousHandoffResolution.ts";
+import { ambiguousProviderOutcomePrerequisites, hasPersistedQuarantineIdentity, hasUnattributedReservationQuarantineIdentity, selectAmbiguousProviderOutcomeReservations } from "./ambiguousHandoffResolution.ts";
 import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed, socialSignalToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
 import { enrichChannelSeedsWithInstantly, reconcileChannelSeedEnrichment, summarizeChannelSeedLifecycle } from "./gtmChannelSeedEnrichment.ts";
 import { importScannerDriveBatches } from "./scannerDriveImport.ts";
@@ -775,6 +775,9 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
       fail: failInstantlyHandoff,
       assertCircuitClosed: assertOutboundCircuitClosed,
       tripCircuitBreaker: tripOutboundCircuitBreaker,
+      quarantineDuplicateProviderEnrollment: async (email) => {
+        await recordGtmContactSuppression(email, ["duplicate_contact"], "provider_duplicate_preflight");
+      },
       findExistingLead: async (email, campaign) => {
         const lead = await client.findLeadByEmail(email, campaign);
         return lead ? { id: String(lead.id || ""), campaignId: instantlyLeadCampaignId(lead) } : null;
@@ -783,7 +786,8 @@ async function handleControlledInstantlyBatch(request: IncomingMessage, response
       createLead: () => client.createLeadInControlledCampaign({ email: record.email || "", firstName, lastName: rest.join(" "), companyName: record.organization, jobTitle: record.title || "", campaignId, personalization: body, subject, sequenceId: "initial-v1", segment: record.segment, customVariables: { batch_id: batchId, canonical_organization_id: record.organizationId, canonical_contact_id: `${record.organizationId}:${record.email}`, segment: record.segment, source: record.sourceUrl, why_now_or_fit: record.whyNow, openingLine: controlledOpening(record), message_version: "controlled-benefit-led-v2" } }, batchId)
     });
     const preview = instantlyPreviewRecord(record);
-    const persisted = { ...preview, instantlyCampaignId: campaignId, instantlyLeadId: handoff.externalLeadId, instantlySyncStatus: "IN_CAMPAIGN" as const, messageVersion: "controlled-benefit-led-v2", controlledBatchId: batchId, failureReason: handoff.reason === "HANDOFF_COMPLETE" || handoff.reason === "RECOVERED_EXISTING_PROVIDER_LEAD" ? "" : handoff.reason, updatedAt: new Date().toISOString() };
+    const duplicateQuarantined = handoff.reason === "DUPLICATE_PROVIDER_ENROLLMENT_QUARANTINED";
+    const persisted = { ...preview, instantlyCampaignId: campaignId, instantlyLeadId: handoff.externalLeadId, instantlySyncStatus: duplicateQuarantined ? "QUARANTINED" as const : "IN_CAMPAIGN" as const, messageVersion: "controlled-benefit-led-v2", controlledBatchId: batchId, failureReason: handoff.reason === "HANDOFF_COMPLETE" || handoff.reason === "RECOVERED_EXISTING_PROVIDER_LEAD" ? "" : handoff.reason, updatedAt: new Date().toISOString() };
     await saveInstantlyRecord(persisted);
     created.push(persisted);
   }
@@ -852,12 +856,9 @@ async function handleOutboundCircuitReset(request: IncomingMessage, response: Se
   return json(response, 200, { ...result, currentEventId, prerequisites });
 }
 
-/**
- * A provider timeout may leave one reservation in an unknowable state. This
- * operation never retries it. It first adopts an actually-present membership;
- * otherwise it permanently quarantines the affected canonical identity, then
- * closes this *specific* incident with a durable audit record.
- */
+/** Resolves a bounded, pre-write provider-safety incident. It never retries an
+ * enrollment: positive same-campaign evidence is adopted, while every other
+ * identity is permanently quarantined before the audited circuit closure. */
 async function handleAmbiguousProviderOutcomeResolution(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   const identity = await requireGtmScheduler(request);
@@ -890,37 +891,30 @@ async function handleAmbiguousProviderOutcomeResolution(request: IncomingMessage
     client.getCampaign(config.partnerCampaignId)
   ]);
   const selection = selectAmbiguousProviderOutcomeReservations(reservations);
-  const reservation = selection.resolvable ? selection.unresolved[0] : null;
-  const canonical = reservation
-    ? model.records.find((record) => String(record.email || "").trim().toLowerCase() === reservation.normalizedEmail && Boolean(record.organizationId)) || null
-    : null;
-  const tombstone = reservation ? await readGtmOutboundTombstone(reservation.normalizedEmail) : null;
-  const persisted = reservation
-    ? records.find((record) => String(record.email || "").trim().toLowerCase() === reservation.normalizedEmail && Boolean(record.canonicalOrganizationId)) || null
-    : null;
-  const workspaceProviderLead = reservation ? await client.findLeadByEmail(reservation.normalizedEmail, "") : null;
-  // A compact workspace lookup can omit campaign metadata. Querying an exact
-  // email inside each configured campaign supplies positive membership proof;
-  // zero scoped matches remain unresolved and cannot clear the incident.
-  const scopedProviderMemberships = workspaceProviderLead && !instantlyLeadCampaignId(workspaceProviderLead) && reservation
-    ? await client.findLeadMembershipsByEmail(reservation.normalizedEmail, [config.directCampaignId, config.partnerCampaignId, config.legacyDirectCampaignId, config.legacyPartnerCampaignId])
-    : [];
-  const providerLead = scopedProviderMemberships.length === 1 ? scopedProviderMemberships[0] : workspaceProviderLead;
-  const providerCampaignId = providerLead ? instantlyLeadCampaignId(providerLead) : "";
-  const providerSameCampaign = Boolean(providerLead && reservation && providerCampaignId === reservation.campaignId);
-  const providerCampaignIsLegacy = [config.legacyDirectCampaignId, config.legacyPartnerCampaignId].includes(providerCampaignId);
-  const legacyProviderHistorySufficient = hasSufficientLegacyProviderHistory({
-    providerCampaignIsLegacy,
-    permanentTombstonePresent: Boolean(tombstone),
-    persistedCampaignMatches: Boolean(persisted && persisted.instantlyCampaignId === providerCampaignId),
-    persistedInitialSendAt: String(persisted?.firstSentAt || "")
-  });
-  const providerCrossCampaignConflict = hasProviderMembershipConflict({
-    scopedMembershipCount: scopedProviderMemberships.length,
-    providerCampaignId,
-    requestedCampaignId: reservation?.campaignId || "",
-    legacyProviderHistorySufficient
-  });
+  const resolutionItems = await Promise.all(selection.unresolved.map(async (reservation) => {
+    const canonical = model.records.find((record) => String(record.email || "").trim().toLowerCase() === reservation.normalizedEmail && Boolean(record.organizationId)) || null;
+    const tombstone = await readGtmOutboundTombstone(reservation.normalizedEmail);
+    const persisted = records.find((record) => String(record.email || "").trim().toLowerCase() === reservation.normalizedEmail && Boolean(record.canonicalOrganizationId)) || null;
+    const workspaceProviderLead = await client.findLeadByEmail(reservation.normalizedEmail, "");
+    // Workspace lookup may omit membership metadata. Query each configured
+    // campaign for positive membership proof; a bare workspace lead is not a
+    // send and becomes a conservative permanent quarantine.
+    const scopedProviderMemberships = workspaceProviderLead && !instantlyLeadCampaignId(workspaceProviderLead)
+      ? await client.findLeadMembershipsByEmail(reservation.normalizedEmail, [config.directCampaignId, config.partnerCampaignId, config.legacyDirectCampaignId, config.legacyPartnerCampaignId])
+      : [];
+    const providerLead = scopedProviderMemberships.length === 1 ? scopedProviderMemberships[0] : workspaceProviderLead;
+    const providerCampaignId = providerLead ? instantlyLeadCampaignId(providerLead) : "";
+    const providerSameCampaign = Boolean(providerLead && providerCampaignId === reservation.campaignId);
+    const persistedIdentityPresent = hasPersistedQuarantineIdentity(persisted);
+    const unattributedReservationIdentityPresent = hasUnattributedReservationQuarantineIdentity(reservation);
+    const identityPresent = Boolean(
+      (canonical && canonical.email && canonical.organizationId)
+      || persistedIdentityPresent
+      || tombstone
+      || unattributedReservationIdentityPresent
+    );
+    return { reservation, canonical, tombstone, persisted, providerLead, providerCampaignId, providerSameCampaign, persistedIdentityPresent, unattributedReservationIdentityPresent, identityPresent, scopedMembershipCount: scopedProviderMemberships.length };
+  }));
   // Capacity alignment later requires an explicit provider-paused state. For
   // incident closure, an explicit terminal provider state is equally safe: no
   // delivery can start while status is 0, 2, or 3. Unknown/missing state is
@@ -928,107 +922,71 @@ async function handleAmbiguousProviderOutcomeResolution(request: IncomingMessage
   const inactiveStates = new Set([0, 2, 3]);
   const campaignsPaused = [directCampaign, partnerCampaign].every((campaign) => Number.isFinite(Number(campaign.status)) && inactiveStates.has(Number(campaign.status)));
   const allRequiredFlags = Boolean(config.outboundEmailEnabled && config.outboundEnabled && config.autoHandoffEnabled && config.directEnabled && config.partnerEnabled);
-  const persistedIdentityPresent = hasPersistedQuarantineIdentity(persisted);
-  const unattributedReservationIdentityPresent = hasUnattributedReservationQuarantineIdentity(reservation);
-  const quarantineIdentityPresent = Boolean(
-    (canonical && reservation && canonical.email && canonical.organizationId)
-    || persistedIdentityPresent
-    || providerSameCampaign
-    || legacyProviderHistorySufficient
-    || (unattributedReservationIdentityPresent && scopedProviderMemberships.length === 0 && !providerCampaignId)
-  );
   const prerequisites = ambiguousProviderOutcomePrerequisites({
     circuitReason: circuit.reason,
     expectedEventMatches: eventMatches,
     campaignsPaused,
     noActiveReservation: !hasActiveInstantlyHandoffReservation(reservations),
-    exactlyOneUnresolvedReservation: selection.resolvable,
-    canonicalOrTombstoneIdentityPresent: quarantineIdentityPresent,
-    providerLookupCompleted: Boolean(reservation),
-    providerCrossCampaignConflict
+    resolvableUnresolvedReservations: selection.resolvable,
+    allResolutionIdentitiesPresent: resolutionItems.length > 0 && resolutionItems.every((item) => item.identityPresent),
+    providerLookupsCompleted: resolutionItems.length === selection.unresolved.length,
+    // Two positive campaign memberships for the same recipient is a systemic
+    // segmentation failure. A single legacy/other membership is quarantined
+    // locally and never replayed.
+    providerMembershipsUnambiguous: resolutionItems.every((item) => item.scopedMembershipCount <= 1)
   });
   const safe = allRequiredFlags && Object.values(prerequisites).every(Boolean);
-  const resolutionRef = reservation ? `handoff_${createHash("sha256").update(reservation.idempotencyKey).digest("hex").slice(0, 24)}` : "";
-  const providerCampaignScope = providerCampaignId === config.directCampaignId ? "DIRECT_CLEAN" : providerCampaignId === config.partnerCampaignId ? "PARTNER_CLEAN" : providerCampaignId === config.legacyDirectCampaignId ? "LEGACY_DIRECT" : providerCampaignId === config.legacyPartnerCampaignId ? "LEGACY_PARTNER" : providerCampaignId ? "OTHER" : "NONE";
-  const providerResult = providerCrossCampaignConflict ? "CROSS_CAMPAIGN_CONFLICT" : legacyProviderHistorySufficient ? "LEGACY_HISTORY_CONFIRMED" : providerSameCampaign ? "ADOPT_EXISTING_MEMBERSHIP" : reservation ? "NO_PROVIDER_MEMBERSHIP" : "NOT_EVALUATED";
+  const plannedActions = resolutionItems.map((item) => item.providerSameCampaign ? "ADOPT_EXISTING_MEMBERSHIP" : item.tombstone ? "RETAIN_TOMBSTONE" : item.canonical || item.persisted ? "QUARANTINE_CANONICAL_IDENTITY" : "QUARANTINE_UNATTRIBUTED_RESERVATION");
   try {
-    console.info(JSON.stringify({ event: "OUTBOUND_AMBIGUOUS_PROVIDER_RESOLUTION", mode, eventId: outboundCircuitEventId(circuit), version: circuit.version, prerequisites: { ...prerequisites, allRequiredFlags }, campaignStates: { direct: Number(directCampaign.status), partner: Number(partnerCampaign.status) }, providerCampaignScope, providerScopedMembershipCount: scopedProviderMemberships.length, persistedIdentityPresent, unattributedReservationIdentityPresent, persistedInitialSendEvidence: Boolean(persisted?.firstSentAt), unresolvedReservationCount: selection.unresolved.length, selection: selection.reason, providerResult, resolutionRef, timestamp: new Date().toISOString() }));
+    console.info(JSON.stringify({ event: "OUTBOUND_PROVIDER_SAFETY_RESOLUTION", mode, eventId: outboundCircuitEventId(circuit), version: circuit.version, circuitReason: circuit.reason, prerequisites: { ...prerequisites, allRequiredFlags }, campaignStates: { direct: Number(directCampaign.status), partner: Number(partnerCampaign.status) }, unresolvedReservationCount: selection.unresolved.length, selection: selection.reason, plannedActionCounts: plannedActions.reduce<Record<string, number>>((counts, action) => ({ ...counts, [action]: (counts[action] || 0) + 1 }), {}), ambiguousMembershipCount: resolutionItems.filter((item) => item.scopedMembershipCount > 1).length, timestamp: new Date().toISOString() }));
   } catch { /* Protected observability must not alter fail-closed behavior. */ }
-  if (!safe) return json(response, 409, { error: "Ambiguous-provider resolution prerequisites are not satisfied.", prerequisites: { ...prerequisites, allRequiredFlags }, identityEvidence: { canonical: Boolean(canonical), persisted: persistedIdentityPresent, tombstone: Boolean(tombstone), unattributedReservation: unattributedReservationIdentityPresent }, unresolvedReservationCount: selection.unresolved.length, selection: selection.reason, providerResult });
-  if (!reservation || (!canonical && !persistedIdentityPresent && !providerSameCampaign && !unattributedReservationIdentityPresent)) return json(response, 409, { error: "Ambiguous-provider resolution identity could not be established." });
+  if (!safe) return json(response, 409, { error: "Provider-safety resolution prerequisites are not satisfied.", prerequisites: { ...prerequisites, allRequiredFlags }, unresolvedReservationCount: selection.unresolved.length, selection: selection.reason, plannedActionCounts: plannedActions.reduce<Record<string, number>>((counts, action) => ({ ...counts, [action]: (counts[action] || 0) + 1 }), {}) });
   if (!apply) return json(response, 200, {
     mode,
     eventId: outboundCircuitEventId(circuit),
     version: circuit.version,
     prerequisites: { ...prerequisites, allRequiredFlags },
-    providerResult,
-    plannedAction: providerSameCampaign ? "ADOPT_EXISTING_MEMBERSHIP_AND_CLOSE" : legacyProviderHistorySufficient ? "RETAIN_OR_CREATE_LEGACY_TOMBSTONE_AND_CLOSE" : canonical || persistedIdentityPresent ? "QUARANTINE_UNRESOLVED_IDENTITY_AND_CLOSE" : "QUARANTINE_UNATTRIBUTED_RESERVATION_AND_CLOSE",
-    resolutionRef
+    resolutionCount: resolutionItems.length,
+    plannedActions
   });
 
-  let resolutionRecordId = resolutionRef;
-  if (providerSameCampaign) {
-    await completeInstantlyHandoff(reservation.idempotencyKey, reservation.normalizedEmail, String(providerLead?.id || providerLead?.lead_id || ""));
-    await reconcileInstantlyPolling();
-  } else if (legacyProviderHistorySufficient) {
-    // The legacy provider membership and either an immutable tombstone or a
-    // persisted provider-confirmed initial-send record prove this contact is
-    // permanently excluded. Never "repair" it by changing provider history.
-    const retained = tombstone || await createGtmOutboundTombstone({
-      email: reservation.normalizedEmail,
-      organizationId: persisted!.canonicalOrganizationId,
-      canonicalRecordId: persisted!.canonicalContactId || persisted!.id,
-      reason: "ALREADY_CONTACTED",
-      priorContactReference: persisted!.id,
-      priorContactAt: persisted!.firstSentAt,
-      historicalCampaignId: providerCampaignId,
-      historicalProviderLeadId: String(providerLead?.id || providerLead?.lead_id || ""),
-      incidentId: expectedEventId,
-      creationSource: "ambiguous_provider_outcome_resolution",
-      creationOperator: identity.email
-    });
-    resolutionRecordId = retained.tombstone.tombstoneId;
-  } else if (canonical || persistedIdentityPresent) {
-    const now = new Date().toISOString();
-    const quarantined = {
-      ...(canonical ? instantlyPreviewRecord(canonical, now) : persisted!),
-      id: `instantly_ambiguous_${createHash("sha256").update(reservation.idempotencyKey).digest("hex").slice(0, 40)}`,
-      instantlyCampaignId: reservation.campaignId,
-      instantlySyncStatus: "QUARANTINED" as const,
-      messageVersion: "ambiguous-provider-outcome-quarantine-v1",
-      failureReason: "AMBIGUOUS_PROVIDER_OUTCOME_QUARANTINED",
-      lastInstantlySyncAt: now,
-      updatedAt: now
-    };
-    await saveInstantlyRecord(quarantined);
-    await recordGtmContactSuppression(reservation.normalizedEmail, ["provider_outcome_unresolved"], "ambiguous_provider_outcome_resolution");
-    resolutionRecordId = quarantined.id;
-  } else {
-    // This records no invented organization/contact identity. It is an
-    // email-scoped permanent quarantine tied to the immutable reservation
-    // provenance, and suppression blocks every future outbound boundary.
-    const quarantined = await createUnattributedProviderOutcomeQuarantine({
-      email: reservation.normalizedEmail,
-      idempotencyKey: reservation.idempotencyKey,
-      source: reservation.source,
-      campaignId: reservation.campaignId,
-      incidentId: expectedEventId,
-      creationSource: "ambiguous_provider_outcome_resolution",
-      creationOperator: identity.email
-    });
-    await recordGtmContactSuppression(reservation.normalizedEmail, ["provider_outcome_unresolved"], "ambiguous_provider_outcome_unattributed_quarantine");
-    resolutionRecordId = quarantined.quarantine.quarantineId;
+  const resolutionRecordIds: string[] = [];
+  for (const item of resolutionItems) {
+    const { reservation } = item;
+    if (item.providerSameCampaign) {
+      await completeInstantlyHandoff(reservation.idempotencyKey, reservation.normalizedEmail, String(item.providerLead?.id || item.providerLead?.lead_id || ""));
+      resolutionRecordIds.push(`handoff_${createHash("sha256").update(reservation.idempotencyKey).digest("hex").slice(0, 24)}`);
+      continue;
+    }
+    if (item.tombstone) {
+      await recordGtmContactSuppression(reservation.normalizedEmail, ["duplicate_contact"], "provider_safety_existing_tombstone");
+      resolutionRecordIds.push(item.tombstone.tombstoneId);
+      continue;
+    }
+    if (item.canonical || item.persisted) {
+      const now = new Date().toISOString();
+      const base = item.canonical ? instantlyPreviewRecord(item.canonical, now) : item.persisted!;
+      const quarantined = { ...base, id: `instantly_provider_safety_${createHash("sha256").update(reservation.idempotencyKey).digest("hex").slice(0, 40)}`, instantlyCampaignId: reservation.campaignId, instantlySyncStatus: "QUARANTINED" as const, messageVersion: "provider-safety-quarantine-v1", failureReason: "DUPLICATE_PROVIDER_ENROLLMENT_QUARANTINED", lastInstantlySyncAt: now, updatedAt: now };
+      await saveInstantlyRecord(quarantined);
+      await recordGtmContactSuppression(reservation.normalizedEmail, ["duplicate_contact"], "provider_safety_resolution");
+      resolutionRecordIds.push(quarantined.id);
+      continue;
+    }
+    const quarantined = await createUnattributedProviderOutcomeQuarantine({ email: reservation.normalizedEmail, idempotencyKey: reservation.idempotencyKey, source: reservation.source, campaignId: reservation.campaignId, incidentId: expectedEventId, creationSource: "provider_safety_resolution", creationOperator: identity.email });
+    await recordGtmContactSuppression(reservation.normalizedEmail, ["duplicate_contact"], "provider_safety_unattributed_quarantine");
+    resolutionRecordIds.push(quarantined.quarantine.quarantineId);
   }
-  const result = await closeAmbiguousProviderOutcomeIncident({
+  if (resolutionItems.some((item) => item.providerSameCampaign)) await reconcileInstantlyPolling();
+  const result = await closeProviderSafetyIncident({
     expectedEventId,
     expectedVersion,
     reason,
     executionIdentity: identity.email,
-    resolutionRecordIds: [resolutionRecordId],
+    resolutionRecordIds,
     prerequisites: { ...prerequisites, allRequiredFlags },
     dryRun: false
   });
-  return json(response, 200, { mode, ...result, providerResult, resolutionRef });
+  return json(response, 200, { mode, ...result, resolutionCount: resolutionItems.length, plannedActions });
 }
 
 /** One-time incident containment: duplicate recipients in the bounded provider
@@ -1288,10 +1246,12 @@ async function handleAutomaticInstantlyDispatch(request: IncomingMessage, respon
     const [firstName, ...rest] = String(record.contact || "").split(/\s+/);
     const handoff = await executeFinalInstantlyHandoff({ email: record.email || "", campaignId, subject: controlledSubject(record), body: controlledEmail(record), sequenceId: "initial-v1", source: record.sourceUrl }, {
       reserve: async (value) => { const check = await readGtmContactSuppression(value.normalizedEmail); if (check.status !== "CLEAR") throw new Error("Suppression changed before handoff."); return reserveInstantlyHandoff(value); }, complete: completeInstantlyHandoff, fail: failInstantlyHandoff, assertCircuitClosed: assertOutboundCircuitClosed, tripCircuitBreaker: tripOutboundCircuitBreaker,
+      quarantineDuplicateProviderEnrollment: async (email) => { await recordGtmContactSuppression(email, ["duplicate_contact"], "provider_duplicate_preflight"); },
       findExistingLead: async (email, providerCampaignId) => { const lead = await client.findLeadByEmail(email, providerCampaignId); return lead ? { id: String(lead.id || ""), campaignId: instantlyLeadCampaignId(lead) } : null; },
       createLead: () => client.createLeadInControlledCampaign({ email: record.email || "", firstName, lastName: rest.join(" "), companyName: record.organization, jobTitle: record.title || "", campaignId, personalization: controlledEmail(record), subject: controlledSubject(record), sequenceId: "initial-v1", segment, customVariables: { batch_id: config.controlledBatchId, canonical_organization_id: record.organizationId, canonical_contact_id: `${record.organizationId}:${record.email}`, segment, source: record.sourceUrl, why_now_or_fit: record.whyNow, openingLine: controlledOpening(record), message_version: "auto-dispatch-v1" } }, config.controlledBatchId)
     });
-    const persisted = { ...instantlyPreviewRecord(record), instantlyCampaignId: campaignId, instantlyLeadId: handoff.externalLeadId, instantlySyncStatus: "IN_CAMPAIGN" as const, messageVersion: "auto-dispatch-v1", controlledBatchId: config.controlledBatchId, failureReason: "", updatedAt: now.toISOString() };
+    const duplicateQuarantined = handoff.reason === "DUPLICATE_PROVIDER_ENROLLMENT_QUARANTINED";
+    const persisted = { ...instantlyPreviewRecord(record), instantlyCampaignId: campaignId, instantlyLeadId: handoff.externalLeadId, instantlySyncStatus: duplicateQuarantined ? "QUARANTINED" as const : "IN_CAMPAIGN" as const, messageVersion: "auto-dispatch-v1", controlledBatchId: config.controlledBatchId, failureReason: duplicateQuarantined ? handoff.reason : "", updatedAt: now.toISOString() };
     await saveInstantlyRecord(persisted); created.push(persisted);
     handoffs.push({ canonicalRecordId: record.id, state: persisted.instantlySyncStatus, created: handoff.created });
   }

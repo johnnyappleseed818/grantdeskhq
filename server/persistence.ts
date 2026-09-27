@@ -1644,6 +1644,36 @@ export async function closeAmbiguousProviderOutcomeIncident(input: { expectedEve
   await writeDocument(accessToken, outboundCircuitPath, next);
   return { eventId, auditId, cleared: true, idempotent: false, nextGeneration: next.generation };
 }
+
+/** Closes a bounded provider-safety incident after every failed reservation
+ * has been adopted or permanently quarantined. It preserves the original
+ * incident and never creates, retries, or removes a provider lead. */
+export async function closeProviderSafetyIncident(input: { expectedEventId: string; expectedVersion: number; reason: string; executionIdentity: string; resolutionRecordIds: string[]; prerequisites: Record<string, boolean>; dryRun: boolean }) {
+  const current = await readOutboundCircuitBreaker();
+  if (!current) throw new Error("No outbound circuit-breaker event exists.");
+  const eventId = outboundCircuitEventId(current);
+  if (!current.tripped) {
+    if (current.resetEventId === input.expectedEventId) return { eventId: input.expectedEventId, auditId: current.resolutionAuditId || "", cleared: true, idempotent: true, nextGeneration: current.generation };
+    throw new Error("No active outbound circuit-breaker incident exists.");
+  }
+  const supportedReasons = new Set(["AMBIGUOUS_PROVIDER_OUTCOME", "DUPLICATE_PROVIDER_ENROLLMENT"]);
+  if (eventId !== input.expectedEventId || current.version !== input.expectedVersion || !supportedReasons.has(current.reason)) throw new Error("Outbound provider-safety incident is stale or mismatched.");
+  if (!input.reason.trim() || !input.resolutionRecordIds.length || !Object.values(input.prerequisites).every(Boolean)) throw new Error("Outbound provider-safety resolution prerequisites are not satisfied.");
+  const resolutionRecordIds = [...new Set(input.resolutionRecordIds)].sort();
+  const auditId = safeDocumentId(`provider-safety-closure:${eventId}:${resolutionRecordIds.join(":")}:${input.reason.trim().toLowerCase()}`);
+  const audit = { auditId, eventId, expectedVersion: input.expectedVersion, prior: current, reason: input.reason.trim().slice(0, 300), executionIdentity: input.executionIdentity, resolutionRecordIds, prerequisites: input.prerequisites, codeRuleVersion: "provider-safety-closure-v1", timestamp: new Date().toISOString() };
+  if (input.dryRun) return { eventId, auditId, cleared: false, idempotent: false, nextGeneration: current.generation + 1, audit };
+  const accessToken = await gcpToken();
+  await writeDocumentIfAbsent(accessToken, `gtm/instantly/safety/incidents/records/${safeDocumentId(eventId)}`, { incidentId: eventId, stateJson: JSON.stringify(current), preservedAt: audit.timestamp, codeRuleVersion: audit.codeRuleVersion });
+  const created = await writeDocumentIfAbsent(accessToken, `gtm/instantly/safety/provider-safety-closures/records/${auditId}`, audit);
+  if (!created) {
+    const after = await readOutboundCircuitBreaker();
+    if (after?.resetEventId === eventId && after.resolutionAuditId === auditId) return { eventId, auditId, cleared: true, idempotent: true, nextGeneration: after.generation };
+  }
+  const next = { ...current, tripped: false, version: current.version + 1, generation: current.generation + 1, resetEventId: eventId, resetReason: audit.reason, resetExecutionIdentity: input.executionIdentity, resetAt: audit.timestamp, resolvedIncidentId: eventId, resolutionAuditId: auditId, codeRuleVersion: audit.codeRuleVersion };
+  await writeDocument(accessToken, outboundCircuitPath, next);
+  return { eventId, auditId, cleared: true, idempotent: false, nextGeneration: next.generation };
+}
 export async function readInstantlyRecords(limit = 200): Promise<InstantlyIntegrationRecord[]> {
   const accessToken = await gcpToken();
   const response = await authorizedFetch(`${firestoreBase}/gtm/instantly/records?pageSize=${Math.min(Math.max(limit, 1), 200)}`, accessToken);
