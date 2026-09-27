@@ -1,7 +1,7 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-09-27T09:56:00Z",
+  "updatedAt": "2026-09-27T11:47:00Z",
   "commits": [
     "58294e9 fix(gtm): resolve provider lead campaign detail",
     "cfb39de fix(gtm): retain unresolved provider memberships",
@@ -9,7 +9,9 @@
     "46a2590 fix(gtm): classify reconciliation persistence failures",
     "d2059af fix(gtm): bound reconciliation provider telemetry",
     "54af5b2 fix(gtm): route scheduled discovery through seed enrichment",
-    "f40fcc7 fix(gtm): paginate channel-seed reconciliation"
+    "f40fcc7 fix(gtm): paginate channel-seed reconciliation",
+    "8b35d98 fix(gtm): quarantine bounded provider duplicates",
+    "30eccdd feat(gtm): mirror scanner import receipts to Drive"
   ],
   "builds": [
     { "id": "7ec7abaa-90e2-415d-8adb-7789073de95a", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00523-dir", "traffic": "0%" },
@@ -17,28 +19,36 @@
     { "id": "8c183c2d-f150-4e55-99ce-b45c9b330e18", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00526-fuz", "traffic": "replaced" },
     { "id": "4e2fba10-6519-48b9-8003-830000c5b7f3", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00545-taj", "traffic": "replaced" },
     { "id": "417d94df-08e1-4d38-a8dd-1b81960ff68b", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00547-gum", "traffic": "replaced" },
-    { "id": "253794b7-87ec-4497-804c-c93fc8acd7b5", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00549-juf", "traffic": "100%" }
+    { "id": "253794b7-87ec-4497-804c-c93fc8acd7b5", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00549-juf", "traffic": "replaced" },
+    { "id": "6b79cc7b-2d01-47aa-a634-1ab8f1994540", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00552-duk", "traffic": "100%" },
+    { "id": "363ad388-f037-4098-ae4d-0b478f16d56a", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00554-naw", "traffic": "0%" }
   ],
   "production": {
-    "revision": "grantdeskhq-prototype-00549-juf",
+    "revision": "grantdeskhq-prototype-00552-duk",
     "traffic": "100%",
     "customDomainHealth": "PASS — https://grantdeskhq.com/api/health returned HTTP 200 after promotion.",
-    "reconciliation": "PASS — the promoted revision reads all 602 canonical channel seeds through bounded Firestore pagination; a candidate reconciliation completed 20 Direct and 8 Partner existing submitted records without provider writes, enrollment, or sending."
+    "reconciliation": "PASS — bounded pre-write duplicate reservations are permanently quarantined with immutable provider-safety closure audit before the breaker opens a new generation; no provider write, enrollment, or send was replayed."
   },
   "validated": {
     "tests": "Prior reconciliation suite: 119 focused tests passed. Scheduled-routing suite: 63 focused tests passed. Current pagination suite: 73 focused tests passed; TypeScript, lint, production build, and diff checks passed.",
     "providerIdentity": "PASS — a compact /leads/list response without campaign metadata is followed by a bounded GET /leads/{id} read; nested detail envelopes are parsed.",
     "failClosedUnknownMembership": "PASS — an exact provider lead with no campaign identity is retained as unresolved workspace state and excludes preflight/enrollment rather than being classified as absent.",
     "scopedMembershipProof": "PASS — exact-email reads scoped to the two Clean and two legacy campaign IDs found zero memberships. A scoped result would be treated as positive membership evidence only.",
-    "outboundEffect": "The pagination recovery performed only existing provider reads and canonical terminal-state reconciliation; no campaign activation, enrollment, capacity change, lease release, or email occurred.",
+    "outboundEffect": "The provider-safety closure quarantined two existing failed reservations and preserved the old incident; it created no provider lead, enrollment, campaign change, capacity change, or email.",
     "reconciliationSnapshot": "PASS — raw provider contacts are no longer persisted in the compact status document; deterministic per-membership evidence remains separate."
   },
   "criticalBlockers": [
     {
-      "operation": "Produce source-supported, role-fit provider-verified contacts from the remaining eligible seed inventory",
-      "provider": "Instantly SuperSearch / public-evidence validation",
-      "evidence": "The paginated production reconciliation now reports 602 seeds. The 28 most-recent submitted enrichments all reached terminal NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT; the queue is not stuck. Direct has 33 ENRICHMENT_PENDING and Partner has 124 ENRICHMENT_PENDING, with 1 and 23 canonical READY respectively.",
-      "smallestExternalAction": "None yet — allow the enabled weekday workers to process the remaining paginated eligible queue. If their next scheduled run again yields no verified role-fit contacts, inspect the provider query/result coverage before changing eligibility or sending behavior."
+      "operation": "Mirror immutable importer receipts into the configured private Google Drive folder",
+      "provider": "Google Drive API",
+      "evidence": "Production runtime read and imported the supplied batch, while zero-traffic candidate receipt upload returned 403 insufficientParentPermissions.",
+      "smallestExternalAction": "Share folder 1zfDj-tZGTLgVtlzn8isKRCNCyprIf_h2 with grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com as Editor."
+    },
+    {
+      "operation": "Run a tested local coding fallback on this host",
+      "provider": "Ollama local provider",
+      "evidence": "Host has 7.8 GiB RAM, 2 CPU threads, no GPU, and no Ollama installation or local model. The sandbox-preserving launcher was syntax/synthetic-quota tested but cannot complete a representative local repository task here.",
+      "smallestExternalAction": "Use a persistent development host with a supported Ollama installation and enough RAM for the selected coding model; then pull qwen2.5-coder:1.5b or a stronger approved model and run the launcher smoke test."
     }
   ],
   "cleanup": {
