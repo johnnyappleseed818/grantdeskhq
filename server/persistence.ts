@@ -1532,6 +1532,23 @@ export async function readOutboundCircuitBreaker() {
   return { ...base, incidentId: String(fields.incidentId || "") || outboundCircuitEventId(base), version: Math.max(1, Number(fields.version || 1)), generation: Math.max(1, Number(fields.generation || 1)), resetEventId: String(fields.resetEventId || ""), resetReason: String(fields.resetReason || ""), resolvedIncidentId: String(fields.resolvedIncidentId || ""), resolutionAuditId: String(fields.resolutionAuditId || "") };
 }
 
+/** Scheduler-visible breaker state intentionally excludes free-text detail,
+ * which may contain a provider response or recipient-derived context. */
+export function outboundCircuitTelemetry(state: Awaited<ReturnType<typeof readOutboundCircuitBreaker>>) {
+  if (!state) return null;
+  return {
+    tripped: state.tripped,
+    reason: state.reason,
+    trippedAt: state.trippedAt,
+    incidentId: state.incidentId,
+    version: state.version,
+    generation: state.generation,
+    resetEventId: state.resetEventId,
+    resolvedIncidentId: state.resolvedIncidentId,
+    resolutionAuditId: state.resolutionAuditId
+  };
+}
+
 export async function tripOutboundCircuitBreaker(reason: string, detail: string) {
   const prior = await readOutboundCircuitBreaker();
   if (prior?.tripped) return;

@@ -15,7 +15,7 @@ import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
 import { confirmedHumanOutreach, summarizeOutreach } from "../src/lib/gtmOutreach.ts";
 import { reconcileGtmOutreachLedger, updateFeedbackReview } from "./persistence.ts";
 import { hasActiveInstantlyHandoffReservation, listInstantlyHandoffReservations } from "./persistence.ts";
-import { assertOutboundCircuitClosed, completeInstantlyHandoff, failInstantlyHandoff, gcpToken, outboundCircuitEventId, readOutboundCircuitBreaker, reserveInstantlyHandoff, tripOutboundCircuitBreaker } from "./persistence.ts";
+import { assertOutboundCircuitClosed, completeInstantlyHandoff, failInstantlyHandoff, gcpToken, outboundCircuitEventId, outboundCircuitTelemetry, readOutboundCircuitBreaker, reserveInstantlyHandoff, tripOutboundCircuitBreaker } from "./persistence.ts";
 import { closeOutboundCircuitIncident, createGtmOutboundTombstone, createUnattributedProviderOutcomeQuarantine, readGtmOutboundTombstone } from "./persistence.ts";
 import { closeAmbiguousProviderOutcomeIncident } from "./persistence.ts";
 import { readGtmDispatchActivation, saveGtmDispatchActivation } from "./persistence.ts";
@@ -1870,8 +1870,8 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
 async function handleGtmSourcingStatus(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
-  const [direct, social, awards, canonical, channelSeeds] = await Promise.all([readGtmDirectDiscoveryScan(), readGtmDailyScan(), readGtmAwardScan(), readCanonicalGtmModel(), listGtmChannelSeeds()]);
-  return json(response, 200, { direct, social, awards, channelSeeds: summarizeChannelSeedLifecycle(channelSeeds), canonical: { metrics: canonical.metrics, records: canonical.records.filter((record) => record.segment === "DIRECT") } });
+  const [direct, social, awards, canonical, channelSeeds, circuit] = await Promise.all([readGtmDirectDiscoveryScan(), readGtmDailyScan(), readGtmAwardScan(), readCanonicalGtmModel(), listGtmChannelSeeds(), readOutboundCircuitBreaker()]);
+  return json(response, 200, { direct, social, awards, breaker: outboundCircuitTelemetry(circuit), channelSeeds: summarizeChannelSeedLifecycle(channelSeeds), canonical: { metrics: canonical.metrics, records: canonical.records.filter((record) => record.segment === "DIRECT") } });
 }
 
 /** Scheduler-authenticated, calculation-only inventory refresh. It intentionally
