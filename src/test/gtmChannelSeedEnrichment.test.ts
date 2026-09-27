@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { backgroundJobFailed, backgroundJobProcessing, providerJobIsStale, providerLeadIsVerified, scannerSeedNeedsPublicContactScan, superSearchBatchLimit, superSearchEligibleSeed, superSearchProviderReferences } from "../../server/gtmChannelSeedEnrichment.ts";
+import { backgroundJobFailed, backgroundJobProcessing, providerJobIsStale, providerLeadIsVerified, scannerSeedNeedsPublicContactScan, summarizeChannelSeedLifecycle, superSearchBatchLimit, superSearchEligibleSeed, superSearchProviderReferences } from "../../server/gtmChannelSeedEnrichment.ts";
 
 describe("Instantly channel-seed enrichment reconciliation", () => {
   it("accepts Instantly's documented lead verification enum without creating a second verification job", () => {
@@ -33,5 +33,17 @@ describe("Instantly channel-seed enrichment reconciliation", () => {
     expect(superSearchEligibleSeed({ organizationDomain: "", source: "chatgpt_scanner_drive", lifecycle: "EVIDENCE_QUALIFIED" })).toBe(false);
     expect(superSearchBatchLimit({})).toBe(50);
     expect(superSearchBatchLimit({ GTM_SUPERSEARCH_MAX_PER_RUN: "999" })).toBe(100);
+  });
+
+  it("reports redacted lifecycle and terminal reason counts by segment", () => {
+    expect(summarizeChannelSeedLifecycle([
+      { segment: "DIRECT", lifecycle: "ENRICHMENT_FAILED", enrichmentProviderStatus: "COMPLETED", rejectionReason: "NO_ROLE_FIT_PROVIDER_CONTACT" },
+      { segment: "DIRECT", lifecycle: "ENRICHMENT_SUBMITTED", enrichmentProviderStatus: "PROCESSING", rejectionReason: null },
+      { segment: "PARTNER", lifecycle: "VERIFIED", enrichmentProviderStatus: "COMPLETED", rejectionReason: null }
+    ])).toEqual({
+      total: 3,
+      direct: { total: 2, lifecycle: { ENRICHMENT_FAILED: 1, ENRICHMENT_SUBMITTED: 1 }, providerStatus: { COMPLETED: 1, PROCESSING: 1 }, terminalReason: { NO_ROLE_FIT_PROVIDER_CONTACT: 1 } },
+      partner: { total: 1, lifecycle: { VERIFIED: 1 }, providerStatus: { COMPLETED: 1 }, terminalReason: {} }
+    });
   });
 });

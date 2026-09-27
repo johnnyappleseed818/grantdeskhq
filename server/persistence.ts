@@ -785,17 +785,39 @@ export async function importGtmChannelSeeds(seeds: readonly ChannelSeedRecord[])
   return { imported, duplicate, upgraded, total: seeds.length };
 }
 
-export async function listGtmChannelSeeds(limit = 100): Promise<ChannelSeedRecord[]> {
+/**
+ * Lists the complete bounded channel-seed collection. Firestore limits a
+ * collection page to 100 documents; treating that page as the full queue
+ * silently stranded later scanner/discovery rows from validation, enrichment,
+ * and canonical projection once the queue crossed 100 records.
+ */
+export async function listGtmChannelSeeds(limit = 2_500): Promise<ChannelSeedRecord[]> {
   const accessToken = await gcpToken();
-  const response = await authorizedFetch(`${firestoreBase}/gtm/channel-seeds/records?pageSize=${Math.min(Math.max(limit, 1), 100)}`, accessToken);
-  if (response.status === 404) return [];
-  if (!response.ok) throw new Error(`GTM channel seeds could not be loaded (${response.status}).`);
-  const body = await response.json() as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> };
-  return (body.documents || []).flatMap((document) => {
-    const value = decodeFields(document.fields || {}).recordJson;
-    try { return value ? [JSON.parse(String(value)) as ChannelSeedRecord] : []; }
-    catch { return []; }
-  });
+  const maximum = Math.max(1, Math.min(Math.floor(limit), 2_500));
+  const seeds: ChannelSeedRecord[] = [];
+  const seenPageTokens = new Set<string>();
+  let pageToken = "";
+  do {
+    const remaining = maximum - seeds.length;
+    const query = new URLSearchParams({ pageSize: String(Math.min(remaining, 100)) });
+    if (pageToken) query.set("pageToken", pageToken);
+    const response = await authorizedFetch(`${firestoreBase}/gtm/channel-seeds/records?${query}`, accessToken);
+    if (response.status === 404) return seeds;
+    if (!response.ok) throw new Error(`GTM channel seeds could not be loaded (${response.status}).`);
+    const body = await response.json() as { documents?: Array<{ fields?: Record<string, FirestoreValue> }>; nextPageToken?: string };
+    for (const document of body.documents || []) {
+      if (seeds.length >= maximum) break;
+      const value = decodeFields(document.fields || {}).recordJson;
+      try { if (value) seeds.push(JSON.parse(String(value)) as ChannelSeedRecord); }
+      catch { /* A malformed historical document remains skipped, as before. */ }
+    }
+    const nextPageToken = String(body.nextPageToken || "");
+    if (!nextPageToken || seeds.length >= maximum) break;
+    if (seenPageTokens.has(nextPageToken)) throw new Error("GTM channel-seed pagination returned a repeated continuation token.");
+    seenPageTokens.add(nextPageToken);
+    pageToken = nextPageToken;
+  } while (seeds.length < maximum);
+  return seeds;
 }
 
 /** Retains only safe organization-seed lifecycle data; provider contact data

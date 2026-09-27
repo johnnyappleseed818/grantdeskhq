@@ -9,7 +9,7 @@ import { compileGrantReport } from "./reportCompiler.ts";
 import { preflightGrantSetup } from "./preflightCompiler.ts";
 import { compileReadinessAudit } from "./readinessCompiler.ts";
 import { HttpError, requireGtmAdmin, requireUser } from "./auth.ts";
-import { addSupportingEvidence, beginFreeFirstAward, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, importGtmChannelSeeds, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readFreeFirstAwardStatus, readGtmAwardScan, readGtmContactSuppression, readGtmContentEngineState, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmDirectDiscoveryScan, readGtmEnrichmentUsage, readGtmInventoryAutopilot, readGtmOpportunityEngineState, readGtmOutcomeEvents, readGtmPartnerDiscoveryScan, readGtmShadowStatus, readInstantlyRecords, readInstantlyStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, recordGtmContactSuppression, reconcileLifecycleNurture, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveFunnelPreferences, saveGtmContentEngineState, saveGtmDailyScan, saveGtmDirectDiscoveryScan, saveGtmInventoryAutopilot, saveGtmOpportunityEngineState, saveGtmOutcomeEvent, saveGtmPartnerDiscoveryScan, saveInstantlyRecord, saveInstantlyStatus, saveInstantlyWebhookEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview, updateGtmDailySocialItem } from "./persistence.ts";
+import { addSupportingEvidence, beginFreeFirstAward, checkReliabilityDependencies, confirmEvidenceMatch, deleteReport, finalizeCompilationAnalysisCache, importGtmChannelSeeds, listGtmChannelSeeds, readBillingAttribution, readBillingStatus, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, readFreeFirstAwardStatus, readGtmAwardScan, readGtmContactSuppression, readGtmContentEngineState, readGtmControlPlaneReconciliation, readGtmDailyScan, readGtmDirectDiscoveryScan, readGtmEnrichmentUsage, readGtmInventoryAutopilot, readGtmOpportunityEngineState, readGtmOutcomeEvents, readGtmPartnerDiscoveryScan, readGtmShadowStatus, readInstantlyRecords, readInstantlyStatus, readSearchConsoleState, readLatestReliabilityCanary, readReliabilityDashboard, listFeedback, listReports, recordGtmContactSuppression, reconcileLifecycleNurture, removeSupportingEvidence, saveBillingEvent, saveFeedback, saveFunnelPreferences, saveGtmContentEngineState, saveGtmDailyScan, saveGtmDirectDiscoveryScan, saveGtmInventoryAutopilot, saveGtmOpportunityEngineState, saveGtmOutcomeEvent, saveGtmPartnerDiscoveryScan, saveInstantlyRecord, saveInstantlyStatus, saveInstantlyWebhookEvent, saveLifecycleEvent, saveCompilation, saveGtmAwardScan, saveGtmControlPlaneReconciliation, saveGtmShadowStatus, saveSearchConsoleState, saveReview, updateGtmDailySocialItem } from "./persistence.ts";
 import { validateFeedbackInput, type FeedbackSubmission } from "../src/lib/feedback.ts";
 import { validateFeedbackReviewInput } from "../src/lib/feedback.ts";
 import { confirmedHumanOutreach, summarizeOutreach } from "../src/lib/gtmOutreach.ts";
@@ -49,7 +49,7 @@ import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from 
 import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from "./outboundIncidentClosure.ts";
 import { ambiguousProviderOutcomePrerequisites, hasPersistedQuarantineIdentity, hasProviderMembershipConflict, hasSufficientLegacyProviderHistory, hasUnattributedReservationQuarantineIdentity, selectAmbiguousProviderOutcomeReservations } from "./ambiguousHandoffResolution.ts";
 import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed, socialSignalToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
-import { enrichChannelSeedsWithInstantly, reconcileChannelSeedEnrichment } from "./gtmChannelSeedEnrichment.ts";
+import { enrichChannelSeedsWithInstantly, reconcileChannelSeedEnrichment, summarizeChannelSeedLifecycle } from "./gtmChannelSeedEnrichment.ts";
 import { importScannerDriveBatches } from "./scannerDriveImport.ts";
 import { validateScannerSourceSeedsWithScrapeGraph } from "./scannerScrapeGraphValidation.ts";
 import { listGtmScannerImportReceipts } from "./persistence.ts";
@@ -1870,8 +1870,8 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
 async function handleGtmSourcingStatus(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
-  const [direct, social, awards, canonical] = await Promise.all([readGtmDirectDiscoveryScan(), readGtmDailyScan(), readGtmAwardScan(), readCanonicalGtmModel()]);
-  return json(response, 200, { direct, social, awards, canonical: { metrics: canonical.metrics, records: canonical.records.filter((record) => record.segment === "DIRECT") } });
+  const [direct, social, awards, canonical, channelSeeds] = await Promise.all([readGtmDirectDiscoveryScan(), readGtmDailyScan(), readGtmAwardScan(), readCanonicalGtmModel(), listGtmChannelSeeds()]);
+  return json(response, 200, { direct, social, awards, channelSeeds: summarizeChannelSeedLifecycle(channelSeeds), canonical: { metrics: canonical.metrics, records: canonical.records.filter((record) => record.segment === "DIRECT") } });
 }
 
 /** Scheduler-authenticated, calculation-only inventory refresh. It intentionally

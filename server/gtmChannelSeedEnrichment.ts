@@ -11,6 +11,27 @@ const titles: Record<ChannelSeedEnrichmentSegment, string[]> = {
 };
 export interface ChannelSeedEnrichmentResult { segment: ChannelSeedEnrichmentSegment; selected: number; previewCount: number | null; submitted: number; resourceId: string | null; providerStatus: string | null; blocked: string | null; }
 
+/** Safe aggregate telemetry for the scheduler and System Health. It contains
+ * no organization, contact, source URL, provider ID, or provider payload. */
+export function summarizeChannelSeedLifecycle(seeds: ReadonlyArray<Pick<ChannelSeedRecord, "segment" | "lifecycle" | "enrichmentProviderStatus" | "rejectionReason">>) {
+  const freshCounts = () => ({ total: 0, lifecycle: {} as Record<string, number>, providerStatus: {} as Record<string, number>, terminalReason: {} as Record<string, number> });
+  const direct = freshCounts();
+  const partner = freshCounts();
+  const increment = (target: ReturnType<typeof freshCounts>, key: "lifecycle" | "providerStatus" | "terminalReason", value: string | null | undefined) => {
+    if (!value) return;
+    target[key][value] = (target[key][value] || 0) + 1;
+  };
+  for (const seed of seeds) {
+    if (seed.segment !== "DIRECT" && seed.segment !== "PARTNER") continue;
+    const target = seed.segment === "DIRECT" ? direct : partner;
+    target.total += 1;
+    increment(target, "lifecycle", seed.lifecycle);
+    increment(target, "providerStatus", seed.enrichmentProviderStatus);
+    if (seed.lifecycle === "ENRICHMENT_FAILED" || seed.lifecycle === "REJECTED") increment(target, "terminalReason", seed.rejectionReason);
+  }
+  return { total: direct.total + partner.total, direct, partner };
+}
+
 /** Idempotent contact enrichment. ScrapeGraphAI remains an evidence extractor,
  * but a public site without a published role-fit email must not serialize the
  * provider-backed work-email route. Instantly SuperSearch is therefore the
