@@ -1,7 +1,7 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-09-28T11:47:40Z",
+  "updatedAt": "2026-09-28T12:00:30Z",
   "commits": [
     "58294e9 fix(gtm): resolve provider lead campaign detail",
     "cfb39de fix(gtm): retain unresolved provider memberships",
@@ -105,6 +105,35 @@
     "reconciliationReceiptId": "scanner_import_reconciled_d00f55cf4fe342019378b3ab37f8",
     "canonicalRecordsPresent": 22,
     "missingCanonicalRecordIds": 0
+  },
+  "boundedCycle": {
+    "observedAt": "2026-09-28T11:55:49Z",
+    "import": { "httpStatus": 200, "lifecycle": "DISCOVERED", "providerCalls": 0, "sends": 0, "receiptMirrorPending": true, "newImports": 0 },
+    "enrichment": {
+      "direct": { "httpStatus": 500, "provider": "Instantly", "providerHttpStatus": 402, "providerRequestId": "2294914806639929328" },
+      "partner": { "httpStatus": 500, "provider": "Instantly", "providerHttpStatus": 402, "providerRequestId": "5715684821413718830" },
+      "reconciliation": { "direct": { "httpStatus": 200, "reconciled": 0, "pending": 0, "failed": 0 }, "partner": { "httpStatus": 200, "reconciled": 0, "pending": 0, "failed": 0 } }
+    },
+    "providerPolling": { "httpStatus": 200, "mode": "READ_ONLY", "reconciliation": "PASS", "lastSuccessfulSync": "2026-09-28T11:59:13.252Z", "newEnrollments": 0, "newSends": 0 },
+    "dispatch": {
+      "direct": { "action": "NOOP", "reason": "OUTSIDE_SENDING_WINDOW", "eligible": 1, "outstanding": 0, "campaignStatus": 3, "campaignNeedsActivation": true },
+      "partner": { "action": "NOOP", "reason": "OUTSIDE_SENDING_WINDOW", "eligible": 22, "outstanding": 0, "campaignStatus": 3, "campaignNeedsActivation": true }
+    }
+  },
+  "seoExecution": {
+    "job": "grantdeskhq-seo-reconciliation",
+    "manualSchedulerInvocationAt": "2026-09-28T11:57:38.361961Z",
+    "httpStatus": 200,
+    "analyticsStatus": "PASS",
+    "pages": 13,
+    "queries": 10,
+    "sitemap": "PASS",
+    "dataThrough": "2026-09-25",
+    "errors": []
+  },
+  "localCodingFallback": {
+    "status": "NOT_IMPLEMENTED",
+    "evidence": "This host has 7.8 GiB RAM, two CPU threads, no GPU, and no Ollama/local model. No compatible local model has completed a real repository edit/test and simulated quota recovery."
   },
   "cleanup": {
     "temporaryScheduler": "REMOVED — grantdeskhq-ambiguous-resolution-dry was deleted after the no-write validation."
