@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
-import { importGtmChannelSeeds, listGtmChannelSeeds, readGtmDailyScan, readGtmScannerImportReceipt, saveGtmDailyScan, saveGtmScannerImportReceipt, gcpToken, type GtmScannerImportReceipt } from "./persistence.ts";
+import { importGtmChannelSeeds, listGtmChannelSeeds, listGtmScannerImportReceipts, readGtmDailyScan, readGtmScannerImportReceipt, saveGtmDailyScan, saveGtmScannerImportReceipt, gcpToken, type GtmScannerImportReceipt } from "./persistence.ts";
 import { scannerLeadFeedToChannelSeeds, scannerSocialResearchToSignals, type ScannerLeadFeedRecord, type ScannerSocialResearchRecord } from "../src/lib/gtmChannelSeeds.ts";
 
 export const SCANNER_DRIVE_FOLDER_ID = "1zfDj-tZGTLgVtlzn8isKRCNCyprIf_h2";
 const maxBatchBytes = 512_000;
 type DriveFile = { id?: string; name?: string; mimeType?: string; parents?: string[]; size?: string };
+type DriveFilePage = { files?: DriveFile[]; nextPageToken?: string };
 export interface ScannerDriveReceiptMirror { state: "MIRRORED" | "FAILED"; fileId: string; error: string; }
 export interface ScannerDriveImportFileResult { receipt: GtmScannerImportReceipt; importedNow: boolean; mirror: ScannerDriveReceiptMirror; }
 
@@ -12,9 +13,13 @@ export async function importScannerDriveBatches(env: NodeJS.ProcessEnv = process
   const folderId = env.GTM_SCANNER_DRIVE_FOLDER_ID?.trim() || SCANNER_DRIVE_FOLDER_ID;
   if (folderId !== SCANNER_DRIVE_FOLDER_ID) throw new Error("Scanner Drive folder configuration does not match the approved private folder.");
   const token = await gcpToken();
-  const list = await driveJson<{ files?: DriveFile[] }>(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`'${folderId}' in parents and trashed = false`)}&orderBy=createdTime&fields=${encodeURIComponent("files(id,name,mimeType,parents,size)")}`, token);
+  const files = await listDriveFolderFiles(folderId, token);
+  const historicReceipts = await listGtmScannerImportReceipts();
+  const receiptByBatchId = new Map(historicReceipts
+    .filter((receipt) => receipt.receiptKind === "IMPORT" || !receipt.receiptKind)
+    .map((receipt) => [receipt.batchId, receipt]));
   const receipts: ScannerDriveImportFileResult[] = [];
-  for (const item of list.files || []) {
+  for (const item of files) {
     // Private receipt mirrors share this folder but are never feed inputs.
     if (item.name?.startsWith("grantdeskhq-receipt-")) continue;
     if (item.mimeType !== "application/json" || !item.id || !item.name?.endsWith(".json")) continue;
@@ -34,6 +39,15 @@ export async function importScannerDriveBatches(env: NodeJS.ProcessEnv = process
       receipts.push({ receipt, importedNow: false, mirror: await mirrorReceiptToDrive(prior, folderId, token) });
       continue;
     }
+    const priorBatch = receiptByBatchId.get(payload.batch_id);
+    if (priorBatch && priorBatch.contentHash !== contentHash) {
+      const conflictId = `scanner_import_quarantined_${createHash("sha256").update(`${payload.batch_id}:${priorBatch.contentHash}:${contentHash}`).digest("hex").slice(0, 28)}`;
+      const existingConflict = await readGtmScannerImportReceipt(conflictId);
+      const receipt = existingConflict || buildScannerBatchConflictReceipt({ id: conflictId, prior: priorBatch, batchId: payload.batch_id, sourceFileId: item.id, contentHash, records: payload.records as ScannerLeadFeedRecord[] });
+      if (!existingConflict) await saveGtmScannerImportReceipt(receipt);
+      receipts.push({ receipt, importedNow: false, mirror: await mirrorReceiptToDrive(receipt, folderId, token) });
+      continue;
+    }
     const existing = new Set((await listGtmChannelSeeds()).map((seed) => seed.deduplicationKey));
     const social = scannerSocialResearchToSignals({ batchId: payload.batch_id, records: Array.isArray(payload.social_signals) ? payload.social_signals as ScannerSocialResearchRecord[] : [] });
     const fresh = parsed.accepted.filter((seed) => !existing.has(seed.deduplicationKey));
@@ -43,9 +57,70 @@ export async function importScannerDriveBatches(env: NodeJS.ProcessEnv = process
     const errors = [...parsed.rejected, ...social.rejected];
     const receipt: GtmScannerImportReceipt = { id: receiptId, batchId: payload.batch_id, sourceFileId: item.id, contentHash, processedAt: new Date().toISOString(), rowsSeen: payload.records.length, accepted: saved.imported, duplicate: duplicate + saved.duplicate, rejected: errors.length, pending: saved.imported, canonicalRecordIds: fresh.map((seed) => seed.id), errors, rejectionReasons: groupRejectionReasons(errors), socialEvidenceAdded, receiptKind: "IMPORT", alreadyImported: false };
     await saveGtmScannerImportReceipt(receipt);
+    receiptByBatchId.set(payload.batch_id, receipt);
     receipts.push({ receipt, importedNow: true, mirror: await mirrorReceiptToDrive(receipt, folderId, token) });
   }
   return { folderId, receipts };
+}
+
+/** Drive returns at most one page unless the caller follows nextPageToken. A
+ * bounded complete folder view is required so an older file cannot hide a
+ * newer immutable batch or a conflicting reuse of its batch ID. */
+export async function listDriveFolderFiles(folderId: string, token: string, maximum = 2_500): Promise<DriveFile[]> {
+  const files: DriveFile[] = [];
+  const seenPageTokens = new Set<string>();
+  let pageToken = "";
+  do {
+    const page = await driveJson<DriveFilePage>(scannerDriveFolderPageUrl(folderId, pageToken), token);
+    for (const item of page.files || []) {
+      if (files.length >= maximum) break;
+      files.push(item);
+    }
+    const nextPageToken = String(page.nextPageToken || "");
+    if (!nextPageToken || files.length >= maximum) break;
+    if (seenPageTokens.has(nextPageToken)) throw new Error("Google Drive folder pagination returned a repeated continuation token.");
+    seenPageTokens.add(nextPageToken);
+    pageToken = nextPageToken;
+  } while (files.length < maximum);
+  return files;
+}
+
+export function scannerDriveFolderPageUrl(folderId: string, pageToken = "") {
+  const query = new URLSearchParams({
+    q: `'${folderId}' in parents and trashed = false`,
+    orderBy: "createdTime",
+    pageSize: "100",
+    fields: "nextPageToken,files(id,name,mimeType,parents,size)"
+  });
+  if (pageToken) query.set("pageToken", pageToken);
+  return `https://www.googleapis.com/drive/v3/files?${query}`;
+}
+
+/** A changed file claiming an already-processed batch ID is untrusted. Keep
+ * both immutable byte identities and record every supplied row as quarantined;
+ * it must never create new organization/contact inventory or provider work. */
+export function buildScannerBatchConflictReceipt(input: { id: string; prior: GtmScannerImportReceipt; batchId: string; sourceFileId: string; contentHash: string; records: readonly ScannerLeadFeedRecord[] }): GtmScannerImportReceipt {
+  const errors = input.records.map((record, index) => ({ sourceRecordKey: typeof record?.source_record_key === "string" && record.source_record_key.trim() ? record.source_record_key.trim() : `row-${index + 1}`, reason: "BATCH_ID_CONTENT_HASH_CONFLICT" }));
+  return {
+    id: input.id,
+    batchId: input.batchId,
+    sourceFileId: input.sourceFileId,
+    contentHash: input.contentHash,
+    processedAt: new Date().toISOString(),
+    rowsSeen: input.records.length,
+    accepted: 0,
+    duplicate: 0,
+    rejected: errors.length,
+    pending: 0,
+    canonicalRecordIds: [],
+    errors,
+    rejectionReasons: groupRejectionReasons(errors),
+    receiptKind: "QUARANTINE",
+    alreadyImported: true,
+    quarantined: true,
+    quarantineReason: "BATCH_ID_CONTENT_HASH_CONFLICT",
+    conflictingReceiptId: input.prior.id
+  };
 }
 
 /** Writes a compact, immutable receipt mirror to the same private folder. The

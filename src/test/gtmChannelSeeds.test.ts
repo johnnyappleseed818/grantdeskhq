@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  buildScannerBatchConflictReceipt,
   buildScannerReconciliationReceipt,
   mirrorReceiptToDrive,
   safeDriveError,
+  scannerDriveFolderPageUrl,
 } from "../../server/scannerDriveImport.ts";
 import {
   channelSeedManifest,
@@ -273,4 +275,52 @@ it("mirrors an immutable receipt once and reuses its deterministic private Drive
   expect(result).toEqual({ state: "MIRRORED", fileId: "drive-receipt", error: "" });
   expect(String(fetchMock.mock.calls[1]?.[0])).toContain("upload/drive/v3/files");
   expect(String(fetchMock.mock.calls[1]?.[1]?.body)).toContain("grantdeskhq.feed-receipt.v1");
+});
+
+it("follows Drive folder pagination without widening the configured folder", () => {
+  const page = scannerDriveFolderPageUrl("private-folder", "next-page");
+  const query = new URL(page).searchParams;
+  expect(query.get("pageToken")).toBe("next-page");
+  expect(query.get("q")).toBe("'private-folder' in parents and trashed = false");
+  expect(query.get("pageSize")).toBe("100");
+});
+
+it("quarantines a reused scanner batch ID with changed immutable bytes", () => {
+  const receipt = buildScannerBatchConflictReceipt({
+    id: "scanner_import_quarantined_one",
+    prior: {
+      id: "scanner_import_original",
+      batchId: "daily-feed",
+      sourceFileId: "old-file",
+      contentHash: "old-hash",
+      processedAt: "2026-09-27T00:00:00.000Z",
+      accepted: 1,
+      duplicate: 0,
+      rejected: 0,
+      pending: 1,
+      canonicalRecordIds: ["existing-seed"],
+      errors: [],
+      receiptKind: "IMPORT",
+    },
+    batchId: "daily-feed",
+    sourceFileId: "changed-file",
+    contentHash: "new-hash",
+    records: [
+      { source_record_key: "direct-one", segment: "DIRECT", organization_name: "Example Nonprofit" },
+      { source_record_key: "partner-one", segment: "PARTNER", organization_name: "Example Partner" },
+    ],
+  });
+  expect(receipt).toMatchObject({
+    receiptKind: "QUARANTINE",
+    quarantined: true,
+    quarantineReason: "BATCH_ID_CONTENT_HASH_CONFLICT",
+    conflictingReceiptId: "scanner_import_original",
+    accepted: 0,
+    pending: 0,
+    rejected: 2,
+  });
+  expect(receipt.errors).toEqual([
+    { sourceRecordKey: "direct-one", reason: "BATCH_ID_CONTENT_HASH_CONFLICT" },
+    { sourceRecordKey: "partner-one", reason: "BATCH_ID_CONTENT_HASH_CONFLICT" },
+  ]);
 });
