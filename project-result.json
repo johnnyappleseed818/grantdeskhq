@@ -87,7 +87,7 @@
     "directDispatch": "grantdeskhq-direct-controlled-dispatch: every 15 minutes 09:00-16:45 America/Detroit weekdays",
     "partnerDispatch": "grantdeskhq-partner-live-reconcile: every 15 minutes 09:00-16:45 America/Detroit weekdays",
     "receiptMirrorRetry": "grantdeskhq-scanner-receipt-mirror: 08:20 America/Detroit weekdays, one Cloud Scheduler retry (60–300 seconds)",
-    "nextBusinessWindow": "2026-09-28 08:15 America/Detroit import; 08:20 America/Detroit receipt mirror; 09:00 America/Detroit / 13:00 UTC dispatch"
+    "nextBusinessWindow": "2026-09-28 14:45 America/Detroit / 18:45 UTC dispatch; 2026-09-29 08:15 America/Detroit import; 08:20 America/Detroit receipt-mirror retry"
   },
   "feedReceipt": {
     "id": "scanner_import_reconciled_d00f55cf4fe342019378b3ab37f8",
@@ -132,7 +132,7 @@
     "direct": { "schedulerAt": "2026-09-28T18:11:44.058Z", "selected": 1, "previewCount": 15, "submitted": 1, "providerCalls": 1, "sends": 0 },
     "partner": { "schedulerAt": "2026-09-28T18:13:05.992Z", "selected": 1, "previewCount": 3, "submitted": 1, "providerCalls": 1, "sends": 0 },
     "socialReplenishment": { "schedulerAt": "2026-09-28T18:16:36.993Z", "segment": "DIRECT", "selected": 1, "submitted": 1, "sends": 0 },
-    "reconciliation": "The existing Direct and Partner channel-seed reconciliation schedulers were invoked after submission. Their authenticated responses were HTTP 200; submitted contacts remain provider-pending until a later terminal provider result."
+    "reconciliation": "The existing Direct and Partner channel-seed reconciliation schedulers automatically ran at 2026-09-28T18:30:20.144978Z and 2026-09-28T18:30:25.217997Z, respectively, against revision 00560-giv. Both authenticated responses were HTTP 200. Submitted contacts remain provider-pending until a later terminal provider result; the endpoint intentionally does not log response bodies."
   },
   "seoExecution": {
     "job": "grantdeskhq-seo-reconciliation",
@@ -153,10 +153,10 @@
   "nextScheduledProof": {
     "servingRevision": "grantdeskhq-prototype-00560-giv",
     "traffic": "100%",
-    "jobRouting": "All checked jobs target the untagged production service URL, whose only 100% route is revision 00558-xuw.",
-    "partnerEnrichment": "2026-09-28T12:50:03.783078Z / 08:50:03 EDT / 15:50:03 IDT",
-    "directAndPartnerDispatch": "2026-09-28T13:00:00Z / 09:00 EDT / 16:00 IDT",
-    "durableReconciliation": "grantdeskhq-instantly-reconciliation, */15 * * * * Etc/UTC, next 2026-09-28T12:30:04.370829Z"
+    "jobRouting": "All checked jobs target the untagged production service URL, whose only 100% route is revision 00560-giv.",
+    "partnerEnrichment": "2026-09-29T12:50:00Z / 08:50 EDT / 15:50 IDT",
+    "directAndPartnerDispatch": "2026-09-28T18:45:00Z / 14:45 EDT / 21:45 IDT; current dispatch remains fail-closed by the provider-shared daily capacity ledger",
+    "durableReconciliation": "grantdeskhq-channel-seed-reconcile-direct and grantdeskhq-channel-seed-reconcile-partner, */30 * * * * Etc/UTC; observed automatic HTTP 200 runs at 2026-09-28T18:30Z; next 2026-09-28T19:00Z"
   },
   "firstBlockingTransition": {
     "newCandidatePath": "EVIDENCE_QUALIFIED -> bounded Instantly SuperSearch request",
