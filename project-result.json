@@ -1,7 +1,7 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-09-27T11:47:00Z",
+  "updatedAt": "2026-09-28T07:13:15Z",
   "commits": [
     "58294e9 fix(gtm): resolve provider lead campaign detail",
     "cfb39de fix(gtm): retain unresolved provider memberships",
@@ -11,7 +11,9 @@
     "54af5b2 fix(gtm): route scheduled discovery through seed enrichment",
     "f40fcc7 fix(gtm): paginate channel-seed reconciliation",
     "8b35d98 fix(gtm): quarantine bounded provider duplicates",
-    "30eccdd feat(gtm): mirror scanner import receipts to Drive"
+    "30eccdd feat(gtm): mirror scanner import receipts to Drive",
+    "f6845cb fix(gtm): paginate and quarantine scanner batches",
+    "b8b481d fix(gtm): retry failed immutable receipt mirrors"
   ],
   "builds": [
     { "id": "7ec7abaa-90e2-415d-8adb-7789073de95a", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00523-dir", "traffic": "0%" },
@@ -21,13 +23,16 @@
     { "id": "417d94df-08e1-4d38-a8dd-1b81960ff68b", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00547-gum", "traffic": "replaced" },
     { "id": "253794b7-87ec-4497-804c-c93fc8acd7b5", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00549-juf", "traffic": "replaced" },
     { "id": "6b79cc7b-2d01-47aa-a634-1ab8f1994540", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00552-duk", "traffic": "100%" },
-    { "id": "363ad388-f037-4098-ae4d-0b478f16d56a", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00554-naw", "traffic": "0%" }
+    { "id": "363ad388-f037-4098-ae4d-0b478f16d56a", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00554-naw", "traffic": "0%" },
+    { "id": "c1ce66ce-87ac-4488-b6c2-c2d152b9a007", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00555-jaq", "traffic": "0%" },
+    { "id": "3aedcd3c-9e44-480f-ad57-8cdeaf6c1083", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00556-suw", "traffic": "0%" }
   ],
   "production": {
     "revision": "grantdeskhq-prototype-00552-duk",
     "traffic": "100%",
     "customDomainHealth": "PASS — https://grantdeskhq.com/api/health returned HTTP 200 after promotion.",
-    "reconciliation": "PASS — bounded pre-write duplicate reservations are permanently quarantined with immutable provider-safety closure audit before the breaker opens a new generation; no provider write, enrollment, or send was replayed."
+    "reconciliation": "PASS — bounded pre-write duplicate reservations are permanently quarantined with immutable provider-safety closure audit before the breaker opens a new generation; no provider write, enrollment, or send was replayed.",
+    "pendingCandidate": "grantdeskhq-prototype-00556-suw is READY at 0%; it turns a failed immutable Drive receipt mirror into an idempotent scheduler retry (authenticated import returns HTTP 503 with importedNow=0, providerCalls=0, sends=0)."
   },
   "validated": {
     "tests": "Prior reconciliation suite: 119 focused tests passed. Scheduled-routing suite: 63 focused tests passed. Current pagination suite: 73 focused tests passed; TypeScript, lint, production build, and diff checks passed.",
@@ -41,7 +46,7 @@
     {
       "operation": "Mirror immutable importer receipts into the configured private Google Drive folder",
       "provider": "Google Drive API",
-      "evidence": "Production runtime read and imported the supplied batch, while zero-traffic candidate receipt upload returned 403 insufficientParentPermissions.",
+      "evidence": "Production runtime reads the private folder and imported canonical DISCOVERED records. Both zero-traffic candidates saw Drive files.create return 403 UNKNOWN insufficientParentPermissions; the current candidate returns HTTP 503 to make the durable scheduler retry only the already-persisted receipt mirror.",
       "smallestExternalAction": "Share folder 1zfDj-tZGTLgVtlzn8isKRCNCyprIf_h2 with grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com as Editor."
     },
     {
