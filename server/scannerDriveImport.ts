@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { importGtmChannelSeeds, listGtmChannelSeeds, listGtmScannerImportReceipts, readGtmDailyScan, readGtmScannerImportReceipt, saveGtmDailyScan, saveGtmScannerImportReceipt, gcpToken, type GtmScannerImportReceipt } from "./persistence.ts";
-import { scannerLeadFeedToChannelSeeds, scannerSocialResearchToSignals, type ScannerLeadFeedRecord, type ScannerSocialResearchRecord } from "../src/lib/gtmChannelSeeds.ts";
+import { scannerLeadFeedToChannelSeeds, scannerSocialResearchToSignals, type ChannelSeedRecord, type ScannerLeadFeedRecord, type ScannerSocialResearchRecord } from "../src/lib/gtmChannelSeeds.ts";
 
 export const SCANNER_DRIVE_FOLDER_ID = "1zfDj-tZGTLgVtlzn8isKRCNCyprIf_h2";
 const maxBatchBytes = 512_000;
@@ -8,6 +8,26 @@ type DriveFile = { id?: string; name?: string; mimeType?: string; parents?: stri
 type DriveFilePage = { files?: DriveFile[]; nextPageToken?: string };
 export interface ScannerDriveReceiptMirror { state: "MIRRORED" | "FAILED"; fileId: string; error: string; }
 export interface ScannerDriveImportFileResult { receipt: GtmScannerImportReceipt; importedNow: boolean; mirror: ScannerDriveReceiptMirror; }
+export interface ScannerReceiptProjection {
+  id: string;
+  batchId: string;
+  sourceFileId: string;
+  contentHash: string;
+  processedAt: string;
+  receiptKind: string;
+  rowsSeen: number;
+  accepted: number;
+  duplicate: number;
+  rejected: number;
+  pending: number;
+  canonicalRecordIds: string[];
+  canonicalRecordsPresent: string[];
+  missingCanonicalRecordIds: string[];
+  rejectionReasons: Record<string, number>;
+  socialEvidenceAdded: number;
+  quarantined: boolean;
+  quarantineReason: string | null;
+}
 
 /** A scheduler retry is safe here: the durable batch receipt is already
  * written before mirroring, so the next invocation retries only the missing
@@ -43,7 +63,7 @@ export async function importScannerDriveBatches(env: NodeJS.ProcessEnv = process
     const prior = await readGtmScannerImportReceipt(receiptId);
     if (prior) {
       const receipt = await immutableReconciliationReceipt({ prior, batchId: payload.batch_id, sourceFileId: item.id, contentHash, rowsSeen: payload.records.length, errors: parsed.rejected });
-      receipts.push({ receipt, importedNow: false, mirror: await mirrorReceiptToDrive(prior, folderId, token) });
+      receipts.push({ receipt, importedNow: false, mirror: await mirrorReceiptToDrive(receipt, folderId, token) });
       continue;
     }
     const priorBatch = receiptByBatchId.get(payload.batch_id);
@@ -68,6 +88,60 @@ export async function importScannerDriveBatches(env: NodeJS.ProcessEnv = process
     receipts.push({ receipt, importedNow: true, mirror: await mirrorReceiptToDrive(receipt, folderId, token) });
   }
   return { folderId, receipts };
+}
+
+/** Receipt export is intentionally independent of scanner import. The durable
+ * Firestore receipt is the authority; this bounded retry only checks or creates
+ * its deterministic Drive mirror and cannot reinsert candidates or touch a
+ * contact provider. */
+export async function retryScannerDriveReceiptMirrors(env: NodeJS.ProcessEnv = process.env) {
+  const folderId = env.GTM_SCANNER_DRIVE_FOLDER_ID?.trim() || SCANNER_DRIVE_FOLDER_ID;
+  if (folderId !== SCANNER_DRIVE_FOLDER_ID) throw new Error("Scanner Drive folder configuration does not match the approved private folder.");
+  const receipts = await listGtmScannerImportReceipts();
+  const limit = scannerReceiptMirrorRetryLimit(env);
+  const selected = receipts.slice(0, limit);
+  const token = await gcpToken();
+  const results: ScannerDriveImportFileResult[] = [];
+  for (const receipt of selected) results.push({ receipt, importedNow: false, mirror: await mirrorReceiptToDrive(receipt, folderId, token) });
+  return { folderId, totalReceipts: receipts.length, attempted: results.length, deferred: Math.max(0, receipts.length - results.length), receipts: results };
+}
+
+export function scannerReceiptMirrorRetryLimit(env: NodeJS.ProcessEnv = process.env) {
+  const configured = Number(env.GTM_SCANNER_RECEIPT_MIRROR_MAX_PER_RUN || 100);
+  return Number.isInteger(configured) && configured > 0 ? Math.min(250, configured) : 100;
+}
+
+/** Scheduler-authenticated reporting projection. Receipt bindings and opaque
+ * canonical IDs are exposed, but no organization, contact, email, or provider
+ * payload is returned. This reads committed Firestore state, never logs. */
+export function scannerReceiptProjection(receipts: ReadonlyArray<GtmScannerImportReceipt>, channelSeeds: ReadonlyArray<Pick<ChannelSeedRecord, "id">>, batchId = ""): ScannerReceiptProjection[] {
+  const canonicalIds = new Set(channelSeeds.map((seed) => seed.id));
+  return receipts
+    .filter((receipt) => !batchId || receipt.batchId === batchId)
+    .map((receipt) => {
+      const ids = [...new Set(receipt.canonicalRecordIds || [])];
+      const canonicalRecordsPresent = ids.filter((id) => canonicalIds.has(id));
+      return {
+        id: receipt.id,
+        batchId: receipt.batchId,
+        sourceFileId: receipt.sourceFileId,
+        contentHash: receipt.contentHash,
+        processedAt: receipt.processedAt,
+        receiptKind: receipt.receiptKind || "IMPORT",
+        rowsSeen: receipt.rowsSeen || 0,
+        accepted: receipt.accepted,
+        duplicate: receipt.duplicate,
+        rejected: receipt.rejected,
+        pending: receipt.pending,
+        canonicalRecordIds: ids,
+        canonicalRecordsPresent,
+        missingCanonicalRecordIds: ids.filter((id) => !canonicalIds.has(id)),
+        rejectionReasons: receipt.rejectionReasons || groupRejectionReasons(receipt.errors || []),
+        socialEvidenceAdded: receipt.socialEvidenceAdded || 0,
+        quarantined: Boolean(receipt.quarantined),
+        quarantineReason: receipt.quarantineReason || null
+      };
+    });
 }
 
 /** Drive returns at most one page unless the caller follows nextPageToken. A

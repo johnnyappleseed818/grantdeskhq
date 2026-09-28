@@ -3,6 +3,8 @@ import {
   buildScannerBatchConflictReceipt,
   buildScannerReconciliationReceipt,
   mirrorReceiptToDrive,
+  scannerReceiptMirrorRetryLimit,
+  scannerReceiptProjection,
   safeDriveError,
   scannerDriveFileUrl,
   scannerDriveFolderPageUrl,
@@ -358,4 +360,15 @@ it("retries only immutable receipt mirroring after an import has committed", () 
     },
   ])).toBe(true);
   expect(scannerReceiptMirrorRetryRequired([])).toBe(false);
+});
+
+it("reports committed receipt bindings against canonical records without exposing contact data", () => {
+  const receipts = [
+    { id: "scanner_import_batch", batchId: "daily-batch", sourceFileId: "drive-file", contentHash: "sha256", processedAt: "2026-09-28T00:00:00.000Z", rowsSeen: 2, accepted: 1, duplicate: 1, rejected: 0, pending: 1, canonicalRecordIds: ["seed-present", "seed-missing"], errors: [], receiptKind: "IMPORT" as const, socialEvidenceAdded: 3 }
+  ];
+  expect(scannerReceiptProjection(receipts, [{ id: "seed-present" }], "daily-batch")).toEqual([
+    expect.objectContaining({ sourceFileId: "drive-file", contentHash: "sha256", accepted: 1, duplicate: 1, canonicalRecordsPresent: ["seed-present"], missingCanonicalRecordIds: ["seed-missing"], socialEvidenceAdded: 3 })
+  ]);
+  expect(scannerReceiptMirrorRetryLimit({ GTM_SCANNER_RECEIPT_MIRROR_MAX_PER_RUN: "999" })).toBe(250);
+  expect(scannerReceiptMirrorRetryLimit({ GTM_SCANNER_RECEIPT_MIRROR_MAX_PER_RUN: "invalid" })).toBe(100);
 });

@@ -50,7 +50,7 @@ import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from 
 import { ambiguousProviderOutcomePrerequisites, hasPersistedQuarantineIdentity, hasUnattributedReservationQuarantineIdentity, selectAmbiguousProviderOutcomeReservations } from "./ambiguousHandoffResolution.ts";
 import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed, socialSignalToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
 import { enrichChannelSeedsWithInstantly, reconcileChannelSeedEnrichment, summarizeChannelSeedLifecycle } from "./gtmChannelSeedEnrichment.ts";
-import { importScannerDriveBatches, scannerReceiptMirrorRetryRequired } from "./scannerDriveImport.ts";
+import { importScannerDriveBatches, retryScannerDriveReceiptMirrors, scannerReceiptMirrorRetryRequired, scannerReceiptProjection } from "./scannerDriveImport.ts";
 import { validateScannerSourceSeedsWithScrapeGraph } from "./scannerScrapeGraphValidation.ts";
 import { listGtmScannerImportReceipts } from "./persistence.ts";
 
@@ -159,6 +159,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/direct-discovery") return await handleGtmDirectDiscovery(request, response);
     if (url.pathname === "/api/gtm/channel-seeds/import") return await handleGtmChannelSeedImport(request, response);
     if (url.pathname === "/api/gtm/scanner-drive/import") return await handleGtmScannerDriveImport(request, response);
+    if (url.pathname === "/api/gtm/scanner-drive/receipts/retry") return await handleGtmScannerDriveReceiptRetry(request, response);
     if (url.pathname === "/api/gtm/scanner-drive/validate") return await handleGtmScannerDriveValidation(request, response);
     if (url.pathname === "/api/gtm/scanner-imports") return await handleGtmScannerImportReceipts(request, response);
     if (url.pathname === "/api/gtm/channel-seeds/enrich") return await handleGtmChannelSeedEnrich(request, response);
@@ -480,9 +481,24 @@ async function handleGtmScannerDriveImport(request: IncomingMessage, response: S
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
   const result = await importScannerDriveBatches();
+  const receiptMirrorPending = scannerReceiptMirrorRetryRequired(result.receipts);
+  console.info(JSON.stringify({ event: "GTM_SCANNER_DRIVE_IMPORT", receiptCount: result.receipts.length, importedNow: result.receipts.filter((item) => item.importedNow).length, acceptedNow: result.receipts.filter((item) => item.importedNow).reduce((sum, item) => sum + item.receipt.accepted, 0), reconciledExisting: result.receipts.filter((item) => !item.importedNow).length, receiptMirrorPending, receipts: result.receipts.map((item) => ({ id: item.receipt.id, batchId: item.receipt.batchId, rowsSeen: item.receipt.rowsSeen || null, accepted: item.receipt.accepted, duplicate: item.receipt.duplicate, rejected: item.receipt.rejected, receiptKind: item.receipt.receiptKind || "IMPORT", importedNow: item.importedNow, mirrorState: item.mirror.state, mirrorFileId: item.mirror.fileId || "", mirrorError: item.mirror.error || "" })), timestamp: new Date().toISOString() }));
+  // Receipt export has its own bounded scheduler retry. A committed source
+  // batch must remain available to validation/enrichment even when Drive has
+  // no storage for its human-readable mirror.
+  return json(response, 200, { lifecycle: "DISCOVERED", providerCalls: 0, sends: 0, receiptMirrorPending, ...result });
+}
+
+/** Scheduler-only mirror retry. It reads immutable Firestore receipts and
+ * uploads only absent deterministic copies; it never imports, enriches,
+ * reserves, enrolls, or sends. */
+async function handleGtmScannerDriveReceiptRetry(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const result = await retryScannerDriveReceiptMirrors();
   const receiptMirrorRetryRequired = scannerReceiptMirrorRetryRequired(result.receipts);
-  console.info(JSON.stringify({ event: "GTM_SCANNER_DRIVE_IMPORT", receiptCount: result.receipts.length, importedNow: result.receipts.filter((item) => item.importedNow).length, acceptedNow: result.receipts.filter((item) => item.importedNow).reduce((sum, item) => sum + item.receipt.accepted, 0), reconciledExisting: result.receipts.filter((item) => !item.importedNow).length, receipts: result.receipts.map((item) => ({ id: item.receipt.id, batchId: item.receipt.batchId, rowsSeen: item.receipt.rowsSeen || null, accepted: item.receipt.accepted, duplicate: item.receipt.duplicate, rejected: item.receipt.rejected, receiptKind: item.receipt.receiptKind || "IMPORT", importedNow: item.importedNow, mirrorState: item.mirror.state, mirrorFileId: item.mirror.fileId || "", mirrorError: item.mirror.error || "" })), timestamp: new Date().toISOString() }));
-  return json(response, receiptMirrorRetryRequired ? 503 : 200, { lifecycle: "DISCOVERED", providerCalls: 0, sends: 0, receiptMirrorRetryRequired, ...result });
+  console.info(JSON.stringify({ event: "GTM_SCANNER_DRIVE_RECEIPT_MIRROR", totalReceipts: result.totalReceipts, attempted: result.attempted, deferred: result.deferred, receiptMirrorRetryRequired, receipts: result.receipts.map((item) => ({ id: item.receipt.id, mirrorState: item.mirror.state, mirrorError: item.mirror.error || "" })), timestamp: new Date().toISOString() }));
+  return json(response, receiptMirrorRetryRequired ? 503 : 200, { lifecycle: "RECEIPT_MIRROR", providerCalls: 0, sends: 0, receiptMirrorRetryRequired, ...result });
 }
 
 /** Scheduler-only public-source validation. It cannot enrich, stage, or send. */
@@ -1831,8 +1847,10 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
 async function handleGtmSourcingStatus(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
-  const [direct, social, awards, canonical, channelSeeds, circuit] = await Promise.all([readGtmDirectDiscoveryScan(), readGtmDailyScan(), readGtmAwardScan(), readCanonicalGtmModel(), listGtmChannelSeeds(), readOutboundCircuitBreaker()]);
-  return json(response, 200, { direct, social, awards, breaker: outboundCircuitTelemetry(circuit), channelSeeds: summarizeChannelSeedLifecycle(channelSeeds), canonical: { metrics: canonical.metrics, records: canonical.records.filter((record) => record.segment === "DIRECT") } });
+  const query = new URL(request.url || "/", "https://grantdeskhq.local").searchParams;
+  const batchId = String(query.get("batchId") || "").trim().slice(0, 200);
+  const [direct, social, awards, canonical, channelSeeds, circuit, receipts] = await Promise.all([readGtmDirectDiscoveryScan(), readGtmDailyScan(), readGtmAwardScan(), readCanonicalGtmModel(), listGtmChannelSeeds(), readOutboundCircuitBreaker(), listGtmScannerImportReceipts()]);
+  return json(response, 200, { direct, social, awards, breaker: outboundCircuitTelemetry(circuit), channelSeeds: summarizeChannelSeedLifecycle(channelSeeds), scannerReceipts: scannerReceiptProjection(receipts, channelSeeds, batchId), canonical: { metrics: canonical.metrics, records: canonical.records.filter((record) => record.segment === "DIRECT") } });
 }
 
 /** Scheduler-authenticated, calculation-only inventory refresh. It intentionally
