@@ -64,6 +64,24 @@
     "canonical": { "directReady": 1, "partnerReady": 22, "directNeedsVerification": 4, "partnerNeedsVerification": 31, "replies": 1, "positiveReplies": 0, "trials": 0, "paid": 0, "mrr": 0 },
     "channelSeeds": { "directTotal": 356, "partnerTotal": 336, "directVerified": 13, "partnerVerified": 15, "directPending": 43, "partnerPending": 128 }
   },
+  "dispatchDryRun": {
+    "observedAt": "2026-09-28T11:08:00Z",
+    "direct": { "eligible": 1, "action": "NOOP", "reason": "OUTSIDE_SENDING_WINDOW", "sentToday": 0 },
+    "partner": { "eligible": 22, "action": "NOOP", "reason": "OUTSIDE_SENDING_WINDOW", "sentToday": 0 },
+    "globalOutstanding": 2,
+    "providerDailyCapacity": 30,
+    "remainingCapacity": 28,
+    "providerWrites": 0,
+    "sends": 0
+  },
+  "durableSchedules": {
+    "scannerImport": "grantdeskhq-scanner-drive-import: 08:15 America/Detroit weekdays",
+    "directEnrichment": "grantdeskhq-channel-seed-enrich-direct: 08:45 America/Detroit weekdays",
+    "partnerEnrichment": "grantdeskhq-channel-seed-enrich-partner: 08:50 America/Detroit weekdays",
+    "directDispatch": "grantdeskhq-direct-controlled-dispatch: every 15 minutes 09:00-16:45 America/Detroit weekdays",
+    "partnerDispatch": "grantdeskhq-partner-live-reconcile: every 15 minutes 09:00-16:45 America/Detroit weekdays",
+    "nextBusinessWindow": "2026-09-29 08:15 America/Detroit import; 09:00 America/Detroit / 13:00 UTC dispatch"
+  },
   "feedReceipt": {
     "id": "scanner_import_reconciled_d00f55cf4fe342019378b3ab37f8",
     "sourceFileId": "1TLUt6EVy78PIuftDeBLEEj79BYrsOAuM",
