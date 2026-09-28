@@ -1,7 +1,7 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-09-28T12:00:30Z",
+  "updatedAt": "2026-09-28T12:20:28Z",
   "commits": [
     "58294e9 fix(gtm): resolve provider lead campaign detail",
     "cfb39de fix(gtm): retain unresolved provider memberships",
@@ -133,7 +133,29 @@
   },
   "localCodingFallback": {
     "status": "NOT_IMPLEMENTED",
-    "evidence": "This host has 7.8 GiB RAM, two CPU threads, no GPU, and no Ollama/local model. No compatible local model has completed a real repository edit/test and simulated quota recovery."
+    "evidence": "Verified 2026-09-28T12:20Z: this host has 7.8 GiB RAM (6.9 GiB available), two CPU threads, no GPU, Codex CLI 0.151.0, and no Ollama/local model. No compatible local model has completed a real repository edit/test and simulated quota recovery."
+  },
+  "nextScheduledProof": {
+    "servingRevision": "grantdeskhq-prototype-00558-xuw",
+    "traffic": "100%",
+    "jobRouting": "All checked jobs target the untagged production service URL, whose only 100% route is revision 00558-xuw.",
+    "partnerEnrichment": "2026-09-28T12:50:03.783078Z / 08:50:03 EDT / 15:50:03 IDT",
+    "directAndPartnerDispatch": "2026-09-28T13:00:00Z / 09:00 EDT / 16:00 IDT",
+    "durableReconciliation": "grantdeskhq-instantly-reconciliation, */15 * * * * Etc/UTC, next 2026-09-28T12:30:04.370829Z"
+  },
+  "firstBlockingTransition": {
+    "newCandidatePath": "ENRICHMENT_PENDING -> configured Instantly contact-enrichment request",
+    "evidence": "Direct HTTP 402 request 2294914806639929328; Partner HTTP 402 request 5715684821413718830. No provider error body was exposed, so allowance/plan/billing cause remains unclassified and no retry was made.",
+    "readyToSendPath": "No failed transition is established. Before the approved window, both segment controllers passed all safety predicates except withinWindow; status 3 campaigns require server-authoritative activation when the 09:00 EDT controller executes."
+  },
+  "socialStatus": {
+    "storedScanGeneratedAt": "2026-09-28T07:06:22.255Z",
+    "sourcesChecked": 38,
+    "itemsExamined": 48,
+    "itemsQualified": 10,
+    "itemsSuppressed": 2,
+    "errors": [],
+    "caveat": "The persisted source-specific successes are from 2026-09-10; a current social execution remains pending and is not claimed."
   },
   "cleanup": {
     "temporaryScheduler": "REMOVED — grantdeskhq-ambiguous-resolution-dry was deleted after the no-write validation."
