@@ -4,6 +4,7 @@ import {
   buildScannerReconciliationReceipt,
   mirrorReceiptToDrive,
   safeDriveError,
+  scannerDriveFileUrl,
   scannerDriveFolderPageUrl,
   scannerReceiptMirrorRetryRequired,
 } from "../../server/scannerDriveImport.ts";
@@ -275,6 +276,7 @@ it("mirrors an immutable receipt once and reuses its deterministic private Drive
   const result = await mirrorReceiptToDrive({ id: "scanner_import_original", batchId: "daily-feed", sourceFileId: "source-file", contentHash: "hash", processedAt: "2026-09-27T00:00:00.000Z", accepted: 1, duplicate: 0, rejected: 0, pending: 1, canonicalRecordIds: ["seed-one"], errors: [] }, "folder", "token");
   expect(result).toEqual({ state: "MIRRORED", fileId: "drive-receipt", error: "" });
   expect(String(fetchMock.mock.calls[1]?.[0])).toContain("upload/drive/v3/files");
+  expect(String(fetchMock.mock.calls[1]?.[0])).toContain("supportsAllDrives=true");
   expect(String(fetchMock.mock.calls[1]?.[1]?.body)).toContain("grantdeskhq.feed-receipt.v1");
 });
 
@@ -284,6 +286,15 @@ it("follows Drive folder pagination without widening the configured folder", () 
   expect(query.get("pageToken")).toBe("next-page");
   expect(query.get("q")).toBe("'private-folder' in parents and trashed = false");
   expect(query.get("pageSize")).toBe("100");
+  expect(query.get("includeItemsFromAllDrives")).toBe("true");
+  expect(query.get("supportsAllDrives")).toBe("true");
+});
+
+it("uses Shared Drive support for exact immutable file reads", () => {
+  const url = new URL(scannerDriveFileUrl("file-id", { alt: "media" }));
+  expect(url.pathname).toBe("/drive/v3/files/file-id");
+  expect(url.searchParams.get("alt")).toBe("media");
+  expect(url.searchParams.get("supportsAllDrives")).toBe("true");
 });
 
 it("quarantines a reused scanner batch ID with changed immutable bytes", () => {

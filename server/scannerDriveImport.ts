@@ -30,9 +30,9 @@ export async function importScannerDriveBatches(env: NodeJS.ProcessEnv = process
     // Private receipt mirrors share this folder but are never feed inputs.
     if (item.name?.startsWith("grantdeskhq-receipt-")) continue;
     if (item.mimeType !== "application/json" || !item.id || !item.name?.endsWith(".json")) continue;
-    const metadata = await driveJson<DriveFile>(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(item.id)}?fields=${encodeURIComponent("id,name,mimeType,parents,size")}`, token);
+    const metadata = await driveJson<DriveFile>(scannerDriveFileUrl(item.id, { fields: "id,name,mimeType,parents,size" }), token);
     if (metadata.mimeType !== "application/json" || !metadata.parents?.includes(folderId) || Number(metadata.size || 0) > maxBatchBytes) continue;
-    const raw = await driveBytes(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(item.id)}?alt=media`, token);
+    const raw = await driveBytes(scannerDriveFileUrl(item.id, { alt: "media" }), token);
     if (raw.byteLength > maxBatchBytes) continue;
     let payload: Record<string, unknown>;
     try { payload = JSON.parse(Buffer.from(raw).toString("utf8")) as Record<string, unknown>; } catch { continue; }
@@ -97,10 +97,20 @@ export function scannerDriveFolderPageUrl(folderId: string, pageToken = "") {
     q: `'${folderId}' in parents and trashed = false`,
     orderBy: "createdTime",
     pageSize: "100",
-    fields: "nextPageToken,files(id,name,mimeType,parents,size)"
+    fields: "nextPageToken,files(id,name,mimeType,parents,size)",
+    includeItemsFromAllDrives: "true",
+    supportsAllDrives: "true"
   });
   if (pageToken) query.set("pageToken", pageToken);
   return `https://www.googleapis.com/drive/v3/files?${query}`;
+}
+
+/** The private feed may be moved into a Shared Drive because service accounts
+ * cannot own files in My Drive. Every exact-file read therefore advertises
+ * Shared Drive support without widening access beyond the configured parent. */
+export function scannerDriveFileUrl(fileId: string, params: Record<string, string>) {
+  const query = new URLSearchParams({ ...params, supportsAllDrives: "true" });
+  return `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?${query}`;
 }
 
 /** A changed file claiming an already-processed batch ID is untrusted. Keep
@@ -137,14 +147,21 @@ export async function mirrorReceiptToDrive(receipt: GtmScannerImportReceipt, fol
   const name = `grantdeskhq-receipt-${receipt.id}.json`;
   try {
     const query = `'${folderId}' in parents and name = '${name}' and trashed = false`;
-    const existing = await driveJson<{ files?: DriveFile[] }>(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${encodeURIComponent("files(id,name,mimeType,parents)")}`, token);
+    const existingQuery = new URLSearchParams({
+      q: query,
+      fields: "files(id,name,mimeType,parents)",
+      includeItemsFromAllDrives: "true",
+      supportsAllDrives: "true"
+    });
+    const existing = await driveJson<{ files?: DriveFile[] }>(`https://www.googleapis.com/drive/v3/files?${existingQuery}`, token);
     const prior = (existing.files || []).find((item) => item.id && item.mimeType === "application/json" && item.parents?.includes(folderId));
     if (prior?.id) return { state: "MIRRORED", fileId: prior.id, error: "" };
     const boundary = `gdh_receipt_${receipt.id.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
     const metadata = JSON.stringify({ name, mimeType: "application/json", parents: [folderId], appProperties: { grantdeskhq_receipt_id: receipt.id, grantdeskhq_receipt_kind: receipt.receiptKind || "IMPORT" } });
     const content = JSON.stringify({ schema_version: "grantdeskhq.feed-receipt.v1", receipt }, null, 2);
     const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
-    const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,parents", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": `multipart/related; boundary=${boundary}` }, body, signal: AbortSignal.timeout(20_000) });
+    const uploadQuery = new URLSearchParams({ uploadType: "multipart", fields: "id,name,mimeType,parents", supportsAllDrives: "true" });
+    const response = await fetch(`https://www.googleapis.com/upload/drive/v3/files?${uploadQuery}`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": `multipart/related; boundary=${boundary}` }, body, signal: AbortSignal.timeout(20_000) });
     if (!response.ok) throw new Error(safeDriveError("receipt mirror upload", response.status, await response.json().catch(() => null)));
     const created = await response.json() as DriveFile;
     if (!created.id || created.name !== name || created.mimeType !== "application/json" || !created.parents?.includes(folderId)) throw new Error("Google Drive receipt mirror upload returned invalid metadata.");
