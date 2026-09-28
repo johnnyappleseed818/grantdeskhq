@@ -1,7 +1,7 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-09-28T12:20:28Z",
+  "updatedAt": "2026-09-28T18:21:28Z",
   "commits": [
     "58294e9 fix(gtm): resolve provider lead campaign detail",
     "cfb39de fix(gtm): retain unresolved provider memberships",
@@ -15,7 +15,8 @@
     "f6845cb fix(gtm): paginate and quarantine scanner batches",
     "b8b481d fix(gtm): retry failed immutable receipt mirrors",
     "b8f1534 fix(gtm): support shared Drive feed receipts",
-    "acd3eb3 fix(gtm): decouple receipt mirrors from imports"
+    "acd3eb3 fix(gtm): decouple receipt mirrors from imports",
+    "2309d5360b5524b006cba27345ea54463795aa76 fix(gtm): bound SuperSearch access retries"
   ],
   "builds": [
     { "id": "7ec7abaa-90e2-415d-8adb-7789073de95a", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00523-dir", "traffic": "0%" },
@@ -29,10 +30,11 @@
     { "id": "c1ce66ce-87ac-4488-b6c2-c2d152b9a007", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00555-jaq", "traffic": "0%" },
     { "id": "3aedcd3c-9e44-480f-ad57-8cdeaf6c1083", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00556-suw", "traffic": "0%" },
     { "id": "ac63300d-7514-4a92-aae5-71c7fb83b885", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00557-piy", "traffic": "0%" },
-    { "id": "0b868d74-e071-410b-88ec-662d13cefbe3", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00558-xuw", "traffic": "100%" }
+    { "id": "0b868d74-e071-410b-88ec-662d13cefbe3", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00558-xuw", "traffic": "replaced" },
+    { "id": "b56831f1-b5fa-428b-8659-fb50c14e5609", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00560-giv", "traffic": "100%" }
   ],
   "production": {
-    "revision": "grantdeskhq-prototype-00558-xuw",
+    "revision": "grantdeskhq-prototype-00560-giv",
     "traffic": "100%",
     "customDomainHealth": "PASS — https://grantdeskhq.com/api/health returned HTTP 200 after promotion.",
     "reconciliation": "PASS — bounded pre-write duplicate reservations are permanently quarantined with immutable provider-safety closure audit before the breaker opens a new generation; no provider write, enrollment, or send was replayed.",
@@ -40,7 +42,7 @@
     "receiptMirrorRetry": "grantdeskhq-scanner-receipt-mirror is ENABLED at 08:20 America/Detroit on weekdays, with one bounded retry (60–300 seconds), authenticated as grantdeskhq-gtm-scheduler."
   },
   "validated": {
-    "tests": "Prior reconciliation suite: 119 focused tests passed. Scheduled-routing suite: 63 focused tests passed. Current pagination suite: 73 focused tests passed. Receipt-isolation suite: 38 focused tests passed; TypeScript, lint, production build, and diff checks passed.",
+    "tests": "Prior reconciliation suite: 119 focused tests passed. Scheduled-routing suite: 63 focused tests passed. Current pagination suite: 73 focused tests passed. Receipt-isolation suite: 38 focused tests passed. SuperSearch access-recovery suite: 64 focused tests passed; TypeScript (via production build), lint, production build, and diff checks passed.",
     "receiptMirrorSafety": "PASS — candidate import replay returned HTTP 200 with importedNow=0, acceptedNow=0, providerCalls=0, sends=0 and receiptMirrorPending=true; the separate retry returned HTTP 503 with only Drive storageQuotaExceeded failures.",
     "providerIdentity": "PASS — a compact /leads/list response without campaign metadata is followed by a bounded GET /leads/{id} read; nested detail envelopes are parsed.",
     "failClosedUnknownMembership": "PASS — an exact provider lead with no campaign identity is retained as unresolved workspace state and excludes preflight/enrollment rather than being classified as absent.",
@@ -120,6 +122,17 @@
       "partner": { "action": "NOOP", "reason": "OUTSIDE_SENDING_WINDOW", "eligible": 22, "outstanding": 0, "campaignStatus": 3, "campaignNeedsActivation": true }
     }
   },
+  "superSearchAccessRecovery": {
+    "observedAt": "2026-09-28T18:13:05.992Z",
+    "workspace": "d8e61c1a-335b-42e9-9932-039e9ff6b05f",
+    "leadFinderProduct": "pid_free",
+    "availableCreditsBeforeProbe": 21.5,
+    "previousRejectedBatchSizes": { "direct": 43, "partner": 50 },
+    "direct": { "schedulerAt": "2026-09-28T18:11:44.058Z", "selected": 1, "previewCount": 15, "submitted": 1, "providerCalls": 1, "sends": 0 },
+    "partner": { "schedulerAt": "2026-09-28T18:13:05.992Z", "selected": 1, "previewCount": 3, "submitted": 1, "providerCalls": 1, "sends": 0 },
+    "socialReplenishment": { "schedulerAt": "2026-09-28T18:16:36.993Z", "segment": "DIRECT", "selected": 1, "submitted": 1, "sends": 0 },
+    "reconciliation": "The existing Direct and Partner channel-seed reconciliation schedulers were invoked after submission. Their authenticated responses were HTTP 200; submitted contacts remain provider-pending until a later terminal provider result."
+  },
   "seoExecution": {
     "job": "grantdeskhq-seo-reconciliation",
     "manualSchedulerInvocationAt": "2026-09-28T11:57:38.361961Z",
@@ -132,11 +145,12 @@
     "errors": []
   },
   "localCodingFallback": {
-    "status": "NOT_IMPLEMENTED",
-    "evidence": "Verified 2026-09-28T12:20Z: this host has 7.8 GiB RAM (6.9 GiB available), two CPU threads, no GPU, Codex CLI 0.151.0, and no Ollama/local model. No compatible local model has completed a real repository edit/test and simulated quota recovery."
+    "status": "BLOCKED",
+    "launcher": "scripts/grantdeskhq-codex-fallback.sh [local|cloud|auto] <prompt>",
+    "evidence": "Verified 2026-09-28T18:21Z: this host has 7.8 GiB RAM (6.9 GiB available), two CPU threads, no GPU, Codex CLI 0.151.0, and no Ollama/local model. The launcher now keeps the Ollama runtime/models in ignored repository state, binds only loopback, preserves workspace-write sandbox plus flock, and synthetic quota recovery checkpoints without retrying cloud. The official Ollama Linux installer redirected to GitHub release v0.34.4, which returned HTTP 404, so no model could complete the required real edit/test."
   },
   "nextScheduledProof": {
-    "servingRevision": "grantdeskhq-prototype-00558-xuw",
+    "servingRevision": "grantdeskhq-prototype-00560-giv",
     "traffic": "100%",
     "jobRouting": "All checked jobs target the untagged production service URL, whose only 100% route is revision 00558-xuw.",
     "partnerEnrichment": "2026-09-28T12:50:03.783078Z / 08:50:03 EDT / 15:50:03 IDT",
@@ -144,9 +158,9 @@
     "durableReconciliation": "grantdeskhq-instantly-reconciliation, */15 * * * * Etc/UTC, next 2026-09-28T12:30:04.370829Z"
   },
   "firstBlockingTransition": {
-    "newCandidatePath": "ENRICHMENT_PENDING -> configured Instantly contact-enrichment request",
-    "evidence": "Direct HTTP 402 request 2294914806639929328; Partner HTTP 402 request 5715684821413718830. No provider error body was exposed, so allowance/plan/billing cause remains unclassified and no retry was made.",
-    "readyToSendPath": "No failed transition is established. Before the approved window, both segment controllers passed all safety predicates except withinWindow; status 3 campaigns require server-authoritative activation when the 09:00 EDT controller executes."
+    "newCandidatePath": "EVIDENCE_QUALIFIED -> bounded Instantly SuperSearch request",
+    "evidence": "The production credential's Lead Finder plan is pid_free with 21.5 available credits. The former Direct/Partner requests selected 43/50 organizations and received 402. Revision 00560 read the plan, selected one record per scheduler invocation, and submitted Direct (preview 15) and Partner (preview 3) jobs without a 402; no campaign enrollment or send occurred.",
+    "readyToSendPath": "At 2026-09-28T18:15Z, both automatic dispatchers were inside the Detroit window and passed breaker/flag/sender/canary predicates, but safely returned DAILY_CAPACITY_REACHED because their existing canonical ledger counted 2 Direct plus 34 Partner first-send records against a shared provider capacity of 30. No new prospect was enrolled or sent."
   },
   "socialStatus": {
     "storedScanGeneratedAt": "2026-09-28T07:06:22.255Z",

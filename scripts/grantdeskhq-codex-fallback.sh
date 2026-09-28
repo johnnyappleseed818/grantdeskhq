@@ -12,6 +12,9 @@ local_model="${GDH_LOCAL_MODEL:-qwen2.5-coder:1.5b}"
 state_dir="$root/.codex"
 state_file="$state_dir/local-fallback-state.json"
 lock_file="/tmp/grantdeskhq-codex-fallback.lock"
+ollama_bin="${GDH_OLLAMA_BIN:-$state_dir/ollama-runtime/bin/ollama}"
+ollama_models="${OLLAMA_MODELS:-$state_dir/ollama-models}"
+ollama_host="${OLLAMA_HOST:-127.0.0.1:11434}"
 
 checkpoint() {
   mkdir -p "$state_dir"
@@ -25,22 +28,40 @@ checkpoint() {
 }
 
 require_local_provider() {
-  if ! command -v ollama >/dev/null 2>&1; then
+  if [[ ! -x "$ollama_bin" ]]; then
     checkpoint "LOCAL_PROVIDER_UNAVAILABLE"
-    printf '%s\n' "LOCAL_PROVIDER_UNAVAILABLE: install Ollama and pull $local_model on a persistent host with sufficient memory."
+    printf '%s\n' "LOCAL_PROVIDER_UNAVAILABLE: install Ollama at $ollama_bin or set GDH_OLLAMA_BIN, then pull $local_model."
     exit 69
   fi
-  if ! ollama list 2>/dev/null | awk 'NR > 1 { print $1 }' | grep -Fxq "$local_model"; then
+  if ! OLLAMA_HOST="$ollama_host" OLLAMA_MODELS="$ollama_models" "$ollama_bin" list 2>/dev/null | awk 'NR > 1 { print $1 }' | grep -Fxq "$local_model"; then
     checkpoint "LOCAL_MODEL_UNAVAILABLE"
     printf '%s\n' "LOCAL_MODEL_UNAVAILABLE: pull $local_model before running local mode."
     exit 69
   fi
 }
 
+ensure_local_server() {
+  if curl -fsS "http://$ollama_host/api/tags" >/dev/null 2>&1; then return 0; fi
+  mkdir -p "$state_dir" "$ollama_models"
+  OLLAMA_HOST="$ollama_host" OLLAMA_MODELS="$ollama_models" nohup "$ollama_bin" serve >"$state_dir/ollama-local.log" 2>&1 &
+  local pid=$!
+  for _ in $(seq 1 20); do
+    if curl -fsS "http://$ollama_host/api/tags" >/dev/null 2>&1; then
+      printf '%s\n' "$pid" >"$state_dir/ollama-local.pid"
+      return 0
+    fi
+    sleep 1
+  done
+  checkpoint "LOCAL_PROVIDER_START_FAILED"
+  printf '%s\n' "LOCAL_PROVIDER_START_FAILED: see $state_dir/ollama-local.log"
+  exit 69
+}
+
 run_local() {
   require_local_provider
+  ensure_local_server
   checkpoint "LOCAL_STARTED"
-  exec flock -n "$lock_file" codex exec --oss --local-provider ollama -m "$local_model" --sandbox workspace-write "$@"
+  exec env OLLAMA_HOST="$ollama_host" OLLAMA_MODELS="$ollama_models" flock -n "$lock_file" codex exec --oss --local-provider ollama -m "$local_model" --sandbox workspace-write "$@"
 }
 
 run_cloud() {
