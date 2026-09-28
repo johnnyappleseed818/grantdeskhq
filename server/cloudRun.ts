@@ -50,7 +50,7 @@ import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from 
 import { ambiguousProviderOutcomePrerequisites, hasPersistedQuarantineIdentity, hasUnattributedReservationQuarantineIdentity, selectAmbiguousProviderOutcomeReservations } from "./ambiguousHandoffResolution.ts";
 import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed, socialSignalToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
 import { enrichChannelSeedsWithInstantly, reconcileChannelSeedEnrichment, summarizeChannelSeedLifecycle } from "./gtmChannelSeedEnrichment.ts";
-import { importScannerDriveBatches } from "./scannerDriveImport.ts";
+import { importScannerDriveBatches, scannerReceiptMirrorRetryRequired } from "./scannerDriveImport.ts";
 import { validateScannerSourceSeedsWithScrapeGraph } from "./scannerScrapeGraphValidation.ts";
 import { listGtmScannerImportReceipts } from "./persistence.ts";
 
@@ -480,8 +480,9 @@ async function handleGtmScannerDriveImport(request: IncomingMessage, response: S
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   await requireGtmScheduler(request);
   const result = await importScannerDriveBatches();
+  const receiptMirrorRetryRequired = scannerReceiptMirrorRetryRequired(result.receipts);
   console.info(JSON.stringify({ event: "GTM_SCANNER_DRIVE_IMPORT", receiptCount: result.receipts.length, importedNow: result.receipts.filter((item) => item.importedNow).length, acceptedNow: result.receipts.filter((item) => item.importedNow).reduce((sum, item) => sum + item.receipt.accepted, 0), reconciledExisting: result.receipts.filter((item) => !item.importedNow).length, receipts: result.receipts.map((item) => ({ id: item.receipt.id, batchId: item.receipt.batchId, rowsSeen: item.receipt.rowsSeen || null, accepted: item.receipt.accepted, duplicate: item.receipt.duplicate, rejected: item.receipt.rejected, receiptKind: item.receipt.receiptKind || "IMPORT", importedNow: item.importedNow, mirrorState: item.mirror.state, mirrorFileId: item.mirror.fileId || "", mirrorError: item.mirror.error || "" })), timestamp: new Date().toISOString() }));
-  return json(response, 200, { lifecycle: "DISCOVERED", providerCalls: 0, sends: 0, ...result });
+  return json(response, receiptMirrorRetryRequired ? 503 : 200, { lifecycle: "DISCOVERED", providerCalls: 0, sends: 0, receiptMirrorRetryRequired, ...result });
 }
 
 /** Scheduler-only public-source validation. It cannot enrich, stage, or send. */

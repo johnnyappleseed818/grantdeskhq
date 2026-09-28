@@ -9,6 +9,13 @@ type DriveFilePage = { files?: DriveFile[]; nextPageToken?: string };
 export interface ScannerDriveReceiptMirror { state: "MIRRORED" | "FAILED"; fileId: string; error: string; }
 export interface ScannerDriveImportFileResult { receipt: GtmScannerImportReceipt; importedNow: boolean; mirror: ScannerDriveReceiptMirror; }
 
+/** A scheduler retry is safe here: the durable batch receipt is already
+ * written before mirroring, so the next invocation retries only the missing
+ * immutable Drive receipt and cannot reinsert a candidate or call a provider. */
+export function scannerReceiptMirrorRetryRequired(receipts: readonly ScannerDriveImportFileResult[]) {
+  return receipts.some((item) => item.mirror.state === "FAILED");
+}
+
 export async function importScannerDriveBatches(env: NodeJS.ProcessEnv = process.env) {
   const folderId = env.GTM_SCANNER_DRIVE_FOLDER_ID?.trim() || SCANNER_DRIVE_FOLDER_ID;
   if (folderId !== SCANNER_DRIVE_FOLDER_ID) throw new Error("Scanner Drive folder configuration does not match the approved private folder.");

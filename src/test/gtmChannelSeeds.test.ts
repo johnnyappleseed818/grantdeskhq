@@ -5,6 +5,7 @@ import {
   mirrorReceiptToDrive,
   safeDriveError,
   scannerDriveFolderPageUrl,
+  scannerReceiptMirrorRetryRequired,
 } from "../../server/scannerDriveImport.ts";
 import {
   channelSeedManifest,
@@ -323,4 +324,27 @@ it("quarantines a reused scanner batch ID with changed immutable bytes", () => {
     { sourceRecordKey: "direct-one", reason: "BATCH_ID_CONTENT_HASH_CONFLICT" },
     { sourceRecordKey: "partner-one", reason: "BATCH_ID_CONTENT_HASH_CONFLICT" },
   ]);
+});
+
+it("retries only immutable receipt mirroring after an import has committed", () => {
+  expect(scannerReceiptMirrorRetryRequired([
+    {
+      importedNow: false,
+      receipt: {
+        id: "scanner_import_existing",
+        batchId: "daily-feed",
+        sourceFileId: "source-file",
+        contentHash: "hash",
+        processedAt: "2026-09-28T00:00:00.000Z",
+        accepted: 1,
+        duplicate: 0,
+        rejected: 0,
+        pending: 1,
+        canonicalRecordIds: ["existing-seed"],
+        errors: [],
+      },
+      mirror: { state: "FAILED", fileId: "", error: "permission" },
+    },
+  ])).toBe(true);
+  expect(scannerReceiptMirrorRetryRequired([])).toBe(false);
 });
