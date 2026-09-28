@@ -148,7 +148,7 @@
   "localCodingFallback": {
     "status": "BLOCKED",
     "launcher": "scripts/grantdeskhq-codex-fallback.sh [local|cloud|auto] <prompt>",
-    "evidence": "Verified 2026-09-28T18:21Z: this host has 7.8 GiB RAM (6.9 GiB available), two CPU threads, no GPU, Codex CLI 0.151.0, and no Ollama/local model. The launcher now keeps the Ollama runtime/models in ignored repository state, binds only loopback, preserves workspace-write sandbox plus flock, and synthetic quota recovery checkpoints without retrying cloud. The official Ollama Linux installer redirected to GitHub release v0.34.4, which returned HTTP 404, so no model could complete the required real edit/test."
+    "evidence": "Verified 2026-09-28T18:37Z: this host has 7.8 GiB RAM (6.9 GiB available), two CPU threads, no GPU, Codex CLI 0.151.0, and no Ollama/local model. The launcher keeps the Ollama runtime/models in ignored repository state, binds only loopback, preserves workspace-write sandbox plus flock, and synthetic quota recovery checkpoints without retrying cloud. The corrected official v0.34.4 Linux archive is ollama-linux-amd64.tar.zst and its downloaded SHA-256 matched the official checksum, but the host has no zstd/unzstd, pip, compiler, make, or usable Linux zstd package asset. A temporary pure-JS decoder rejected the archive's block type. No runtime or model was installed; no local real edit/test occurred."
   },
   "nextScheduledProof": {
     "servingRevision": "grantdeskhq-prototype-00560-giv",
