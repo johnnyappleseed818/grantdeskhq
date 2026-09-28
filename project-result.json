@@ -127,6 +127,7 @@
     "workspace": "d8e61c1a-335b-42e9-9932-039e9ff6b05f",
     "leadFinderProduct": "pid_free",
     "availableCreditsBeforeProbe": 21.5,
+    "availableCreditsAfterBoundedSubmissions": 19.5,
     "previousRejectedBatchSizes": { "direct": 43, "partner": 50 },
     "direct": { "schedulerAt": "2026-09-28T18:11:44.058Z", "selected": 1, "previewCount": 15, "submitted": 1, "providerCalls": 1, "sends": 0 },
     "partner": { "schedulerAt": "2026-09-28T18:13:05.992Z", "selected": 1, "previewCount": 3, "submitted": 1, "providerCalls": 1, "sends": 0 },
