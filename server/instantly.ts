@@ -441,6 +441,57 @@ export function needsCanonicalInitialSendRecovery(record: InstantlyIntegrationRe
     && normalizeOutboundEmail(record.email) === normalizeOutboundEmail(canonical.email || "")
   );
 }
+
+/**
+ * A provider response may contain request-specific data. Keep only the small,
+ * redacted diagnostic needed to safely classify a failed operation. Callers
+ * must never persist a response body or a request URL query string.
+ */
+export class InstantlyApiError extends Error {
+  readonly status: number;
+  readonly requestId: string;
+  readonly path: string;
+  readonly providerCode: string;
+  readonly providerDetail: string;
+
+  constructor(input: { status: number; requestId?: string; path: string; providerCode?: string; providerDetail?: string }) {
+    const requestId = String(input.requestId || "").trim();
+    const providerCode = redactedInstantlyDiagnostic(input.providerCode || "");
+    const providerDetail = redactedInstantlyDiagnostic(input.providerDetail || "");
+    super(`Instantly API request failed (${input.status})${requestId ? ` request ${requestId}` : ""}${providerCode ? ` code ${providerCode}` : ""}${providerDetail ? `: ${providerDetail}` : ""}.`);
+    this.name = "InstantlyApiError";
+    this.status = input.status;
+    this.requestId = requestId;
+    this.path = instantlySafePath(input.path);
+    this.providerCode = providerCode;
+    this.providerDetail = providerDetail;
+  }
+}
+
+export function instantlySafePath(path: string) { return String(path || "").split("?")[0].slice(0, 180); }
+
+/** Redacts email addresses, tokens, and oversized values before a diagnostic can
+ * reach a queue record, structured log, or error response. */
+export function redactedInstantlyDiagnostic(value: unknown) {
+  return String(value || "")
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[redacted-email]")
+    .replace(/bearer\s+[a-z0-9._~+\-/=]+/gi, "bearer [redacted]")
+    .replace(/\b(api[_-]?key|token|secret|authorization)\b\s*[:=]\s*[^\s,;]+/gi, "$1=[redacted]")
+    .replace(/\s+/g, " ").trim().slice(0, 240);
+}
+
+function instantlyProviderDiagnostic(body: string) {
+  try {
+    const parsed = JSON.parse(body) as unknown;
+    const root = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+    const nested = root.error && typeof root.error === "object" && !Array.isArray(root.error) ? root.error as Record<string, unknown> : {};
+    const code = root.code ?? root.error_code ?? nested.code ?? nested.error_code ?? "";
+    const detail = root.message ?? root.detail ?? (typeof root.error === "string" ? root.error : "") ?? nested.message ?? nested.detail ?? "";
+    return { providerCode: redactedInstantlyDiagnostic(code), providerDetail: redactedInstantlyDiagnostic(detail) };
+  } catch {
+    return { providerCode: "", providerDetail: redactedInstantlyDiagnostic(body) };
+  }
+}
 /** No request can be made until integration is deliberately enabled and keyed. */
 export class InstantlyClient {
   private readonly config: InstantlyConfig;
@@ -480,7 +531,8 @@ export class InstantlyClient {
         continue;
       }
       const requestId = String(response.headers.get("x-request-id") || "").trim();
-      throw new Error(`Instantly API request failed (${response.status})${requestId ? ` request ${requestId}` : ""}.`);
+      const diagnostic = instantlyProviderDiagnostic(await response.text().catch(() => ""));
+      throw new InstantlyApiError({ status: response.status, requestId, path, ...diagnostic });
     }
     throw new Error("Instantly API request exhausted its bounded retry.");
   }
@@ -490,6 +542,12 @@ export class InstantlyClient {
   createBlockListEntry(value: string) { return this.api<Record<string, unknown>>("/block-lists-entries", { method: "POST", body: JSON.stringify({ bl_value: normalizeOutboundEmail(value) }) }); }
   createLeadList(name: string) { return this.api<{ id?: string; name?: string }>("/lead-lists", { method: "POST", body: JSON.stringify({ name }) }); }
   listWorkspaces() { return this.api<unknown>("/workspaces?limit=100"); }
+  /** Official read-only workspace identity endpoint. */
+  getCurrentWorkspace() { return this.api<Record<string, unknown>>("/workspaces/current"); }
+  /** Official read-only plan/credit endpoint. It is deliberately queried before
+   * SuperSearch writes so an exhausted or unavailable allowance cannot cause a
+   * blind paid-request retry. */
+  getWorkspaceBillingPlanDetails() { return this.api<Record<string, unknown>>("/workspace-billing/plan-details"); }
   listCampaigns() { return this.api<unknown>("/campaigns?limit=100"); }
   getCampaign(id: string) { return this.api<Record<string, unknown>>(`/campaigns/${encodeURIComponent(id)}`); }
   /**

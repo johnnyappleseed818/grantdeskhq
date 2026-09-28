@@ -47,6 +47,13 @@ describe("Instantly fail-closed integration", () => {
     expect(request).not.toHaveBeenCalled();
   });
 
+  it("keeps a failed provider response diagnostic redacted and bound to its endpoint", async () => {
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: "INSUFFICIENT_CREDITS", message: "No credits for casey@example.org; token=secret-token" }), { status: 402, headers: { "x-request-id": "request_402" } }));
+    const client = new InstantlyClient(instantlyConfig({ INSTANTLY_INTEGRATION_ENABLED: "true" }), "key", request);
+    await expect(client.previewSuperSearch({ companyNames: ["Example"], titles: ["CFO"], limit: 1 })).rejects.toMatchObject({ name: "InstantlyApiError", status: 402, requestId: "request_402", path: "/supersearch-enrichment/preview-leads-from-supersearch", providerCode: "INSUFFICIENT_CREDITS" });
+    await expect(client.previewSuperSearch({ companyNames: ["Example"], titles: ["CFO"], limit: 1 })).rejects.not.toThrow(/casey@example\.org|secret-token/);
+  });
+
   it("creates a provider verification only when no existing verification job is found", async () => {
     const request = vi.fn()
       .mockResolvedValueOnce(new Response("missing", { status: 404 }))

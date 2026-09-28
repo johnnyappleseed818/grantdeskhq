@@ -1,4 +1,4 @@
-import { InstantlyClient, instantlyConfig } from "./instantly.ts";
+import { InstantlyApiError, InstantlyClient, instantlyConfig, redactedInstantlyDiagnostic } from "./instantly.ts";
 import { listGtmChannelSeeds, saveGtmChannelSeed } from "./persistence.ts";
 import { recordInstantlyVerifiedGtmContact } from "./contactEnrichment.ts";
 import { scannerScrapeGraphPageLimit } from "./gtmScrapeGraphEnrichment.ts";
@@ -40,21 +40,38 @@ export function summarizeChannelSeedLifecycle(seeds: ReadonlyArray<Pick<ChannelS
 export async function enrichChannelSeedsWithInstantly(segment: ChannelSeedEnrichmentSegment, env: NodeJS.ProcessEnv = process.env): Promise<ChannelSeedEnrichmentResult> {
   const config = instantlyConfig(env);
   const allSeeds = await listGtmChannelSeeds();
-  const seeds = allSeeds.filter((seed) => seed.segment === segment && superSearchEligibleSeed(seed)).slice(0, superSearchBatchLimit(env));
+  const recoveryVersion = superSearchAccessRecoveryVersion(env);
+  const eligible = allSeeds.filter((seed) => seed.segment === segment && superSearchEligibleSeed(seed, recoveryVersion));
+  const seeds = eligible.slice(0, superSearchBatchLimit(env));
   if (!config.integrationEnabled || !config.apiKeyConfigured) return { segment, selected: seeds.length, previewCount: null, submitted: 0, resourceId: null, providerStatus: null, blocked: "INSTANTLY_NOT_CONFIGURED" };
   const listId = segment === "DIRECT" ? config.directListId : config.partnerListId;
   if (!listId) return { segment, selected: seeds.length, previewCount: null, submitted: 0, resourceId: null, providerStatus: null, blocked: "MISSING_SEGMENT_LIST" };
   if (!seeds.length) return { segment, selected: 0, previewCount: 0, submitted: 0, resourceId: null, providerStatus: null, blocked: null };
   const client = new InstantlyClient(config, env.INSTANTLY_API_KEY || "");
-  const names = seeds.map((seed) => seed.organization);
-  const preview = await client.previewSuperSearch({ companyNames: names, titles: titles[segment], limit: names.length });
-  const response = await client.enrichSuperSearch({ companyNames: names, titles: titles[segment], listId, limit: names.length, searchName: `GrantDeskHQ ${segment} channel seeds 2026-08-28` });
+  let allowance: number | null;
+  try { allowance = superSearchAvailableCredits(await client.getWorkspaceBillingPlanDetails()); }
+  catch (error) {
+    if (superSearchAccessDenied(error)) return blockSuperSearchAccess(allSeeds, recoveryVersion, error, null, segment);
+    throw error;
+  }
+  if (allowance === null || allowance < 1) return blockSuperSearchAccess(allSeeds, recoveryVersion, null, allowance, segment);
+  const limitedSeeds = seeds.slice(0, Math.max(1, Math.min(seeds.length, Math.floor(allowance))));
+  const names = limitedSeeds.map((seed) => seed.organization);
+  let preview: { number_of_leads?: number; number_of_redacted_results?: number };
+  let response: { id?: string; resource_id?: string; background_job_id?: string | null; status?: string };
+  try {
+    preview = await client.previewSuperSearch({ companyNames: names, titles: titles[segment], limit: names.length });
+    response = await client.enrichSuperSearch({ companyNames: names, titles: titles[segment], listId, limit: names.length, searchName: `GrantDeskHQ ${segment} channel seeds 2026-08-28` });
+  } catch (error) {
+    if (superSearchAccessDenied(error)) return blockSuperSearchAccess(allSeeds, recoveryVersion, error, allowance, segment);
+    throw error;
+  }
   const enrichmentOperationId = String(response.id || "").trim() || null;
   const enrichmentBackgroundJobId = String(response.background_job_id || "").trim() || null;
   const resourceId = String(response.resource_id || listId).trim() || listId;
   const now = new Date().toISOString();
-  await Promise.all(seeds.map((seed) => saveGtmChannelSeed({ ...seed, lifecycle: "ENRICHMENT_SUBMITTED", enrichmentProvider: "instantly_supersearch", enrichmentResult: `Submitted to Instantly SuperSearch; preview matched ${Number(preview.number_of_leads || 0)} candidate contact(s). Provider verification and role reconciliation remain required before any handoff.`, enrichmentResourceId: resourceId, enrichmentOperationId, enrichmentBackgroundJobId, enrichmentJobId: enrichmentBackgroundJobId, enrichmentProviderStatus: "SUBMITTED", enrichmentSubmittedAt: now, enrichmentLastCheckedAt: now, enrichmentAttemptCount: (seed.enrichmentAttemptCount || 0) + 1, enrichmentLastProviderError: null, enrichmentTerminalAt: null, enrichmentUpdatedAt: now })));
-  return { segment, selected: seeds.length, previewCount: Number(preview.number_of_leads || 0), submitted: seeds.length, resourceId, providerStatus: String(response.status || "") || null, blocked: null };
+  await Promise.all(limitedSeeds.map((seed) => saveGtmChannelSeed({ ...seed, lifecycle: "ENRICHMENT_SUBMITTED", enrichmentProvider: "instantly_supersearch", enrichmentResult: `Submitted to Instantly SuperSearch; preview matched ${Number(preview.number_of_leads || 0)} candidate contact(s). Provider verification and role reconciliation remain required before any handoff.`, enrichmentResourceId: resourceId, enrichmentOperationId, enrichmentBackgroundJobId, enrichmentJobId: enrichmentBackgroundJobId, enrichmentProviderStatus: "SUBMITTED", enrichmentSubmittedAt: now, enrichmentLastCheckedAt: now, enrichmentAttemptCount: (seed.enrichmentAttemptCount || 0) + 1, enrichmentLastProviderError: null, enrichmentAccessRecoveryVersion: recoveryVersion, enrichmentTerminalAt: null, enrichmentUpdatedAt: now })));
+  return { segment, selected: limitedSeeds.length, previewCount: Number(preview.number_of_leads || 0), submitted: limitedSeeds.length, resourceId, providerStatus: String(response.status || "") || null, blocked: null };
 }
 
 
@@ -131,13 +148,53 @@ export function backgroundJobFailed(job: Record<string, unknown> | null) {
   return ["failed", "error", "cancelled", "canceled"].includes(text(job.status).toLowerCase());
 }
 function norm(value: string) { return value.normalize("NFKC").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
-export function superSearchBatchLimit(env: NodeJS.ProcessEnv) { const configured = Number(env.GTM_SUPERSEARCH_MAX_PER_RUN || 50); return Number.isInteger(configured) && configured > 0 ? Math.min(100, configured) : 50; }
-export function superSearchEligibleSeed(seed: { organizationDomain?: string | null; source?: string; lifecycle: string; rejectionReason?: string | null; enrichmentTerminalAt?: string | null; enrichmentAttemptCount?: number | null }) {
+/** A deliberately small first recovery probe avoids repeating the former
+ * 43/50-record request against a workspace with a bounded credit allowance.
+ * Operators may raise it only through the deployed configuration after a
+ * successful provider result and capacity review. */
+export function superSearchBatchLimit(env: NodeJS.ProcessEnv) { const configured = Number(env.GTM_SUPERSEARCH_MAX_PER_RUN || 1); return Number.isInteger(configured) && configured > 0 ? Math.min(100, configured) : 1; }
+export function superSearchAccessRecoveryVersion(env: NodeJS.ProcessEnv) { return String(env.GTM_SUPERSEARCH_ACCESS_RECOVERY_VERSION || "v1").trim().slice(0, 80) || "v1"; }
+export function superSearchAvailableCredits(plan: unknown): number | null {
+  if (!plan || typeof plan !== "object" || Array.isArray(plan)) return null;
+  const root = plan as Record<string, unknown>;
+  const expectedProduct = String(root.plan_id_leadfinder || root.leadfinder_plan_id || "").trim();
+  const entries: Array<Record<string, unknown>> = [];
+  const visit = (value: unknown, depth = 0) => {
+    if (depth > 4 || !value) return;
+    if (Array.isArray(value)) { value.forEach((item) => visit(item, depth + 1)); return; }
+    if (typeof value !== "object") return;
+    const record = value as Record<string, unknown>;
+    if (record.available_credits !== undefined) entries.push(record);
+    Object.values(record).forEach((item) => visit(item, depth + 1));
+  };
+  visit(root);
+  const selected = entries.find((entry) => !expectedProduct || String(entry.product || entry.plan_id || "").trim() === expectedProduct) || entries[0];
+  const value = Number(selected?.available_credits);
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+export function superSearchEligibleSeed(seed: { organizationDomain?: string | null; source?: string; lifecycle: string; rejectionReason?: string | null; enrichmentTerminalAt?: string | null; enrichmentAttemptCount?: number | null; enrichmentAccessRecoveryVersion?: string | null }, recoveryVersion = "v1") {
   if (!seed.organizationDomain) return false;
+  if (seed.lifecycle === "ENRICHMENT_BLOCKED" && String(seed.rejectionReason || "").startsWith("INSTANTLY_SUPERSEARCH_")) return seed.enrichmentAccessRecoveryVersion !== recoveryVersion;
   return seed.lifecycle === "EVIDENCE_QUALIFIED"
     || seed.lifecycle === "ENRICHMENT_PENDING"
     || (seed.source === "chatgpt_scanner_drive" && seed.lifecycle === "ENRICHMENT_FAILED" && seed.rejectionReason === "NO_EXPLICIT_PUBLISHED_ROLE_FIT_EMAIL")
     || (seed.lifecycle === "ENRICHMENT_FAILED" && !seed.enrichmentTerminalAt && (seed.enrichmentAttemptCount || 0) < 3);
+}
+
+async function blockSuperSearchAccess(allSeeds: Awaited<ReturnType<typeof listGtmChannelSeeds>>, recoveryVersion: string, error: unknown, allowance: number | null, segment: ChannelSeedEnrichmentSegment): Promise<ChannelSeedEnrichmentResult> {
+  const now = new Date().toISOString();
+  const apiError = error instanceof InstantlyApiError ? error : null;
+  const blocked = allowance === null ? "INSTANTLY_SUPERSEARCH_ALLOWANCE_UNAVAILABLE" : allowance < 1 ? "INSTANTLY_SUPERSEARCH_CREDITS_UNAVAILABLE" : "INSTANTLY_SUPERSEARCH_ACCESS_BLOCKED";
+  const detail = apiError
+    ? [`HTTP_${apiError.status}`, apiError.path, apiError.requestId && `REQUEST_${apiError.requestId}`, apiError.providerCode && `CODE_${apiError.providerCode}`, apiError.providerDetail].filter(Boolean).join(" ")
+    : redactedInstantlyDiagnostic(error instanceof Error ? error.message : "Workspace billing details unavailable");
+  const affected = allSeeds.filter((seed) => superSearchEligibleSeed(seed, recoveryVersion));
+  await Promise.all(affected.map((seed) => saveGtmChannelSeed({ ...seed, lifecycle: "ENRICHMENT_BLOCKED", rejectionReason: `${blocked}${apiError ? `_HTTP_${apiError.status}` : ""}`, enrichmentProvider: "instantly_supersearch", enrichmentProviderStatus: "BLOCKED", enrichmentResult: "Instantly SuperSearch enrichment is blocked before provider job creation. The record is preserved and requires a new configured recovery generation after the account condition is resolved.", enrichmentLastCheckedAt: now, enrichmentLastProviderError: detail || blocked, enrichmentAccessRecoveryVersion: recoveryVersion, enrichmentUpdatedAt: now })));
+  return { segment, selected: 0, previewCount: null, submitted: 0, resourceId: null, providerStatus: "BLOCKED", blocked };
+}
+
+function superSearchAccessDenied(error: unknown) {
+  return error instanceof InstantlyApiError && [402, 403].includes(error.status);
 }
 export function scannerSeedNeedsPublicContactScan(seed: { enrichmentTerminalAt?: string | null; enrichmentLastProviderError?: string | null; scrapeGraphEvidence?: { pagesExamined?: string[] | null } | null }, env: NodeJS.ProcessEnv = process.env) { const examined = seed.scrapeGraphEvidence?.pagesExamined || []; return (!seed.enrichmentTerminalAt || seed.enrichmentLastProviderError === "NO_EXPLICIT_PUBLISHED_ROLE_FIT_EMAIL") && examined.length < scannerScrapeGraphPageLimit(env); }
 function roleFits(segment: ChannelSeedEnrichmentSegment, title: string) { return segment === "DIRECT" ? /\b(cfo|finance director|controller|director of grants|grants manager|institutional giving)\b/i.test(title) : /\b(founder|ceo|managing partner|partner|principal)\b/i.test(title); }

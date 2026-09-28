@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { backgroundJobFailed, backgroundJobProcessing, providerJobIsStale, providerLeadIsVerified, scannerSeedNeedsPublicContactScan, summarizeChannelSeedLifecycle, superSearchBatchLimit, superSearchEligibleSeed, superSearchProviderReferences } from "../../server/gtmChannelSeedEnrichment.ts";
+import { backgroundJobFailed, backgroundJobProcessing, providerJobIsStale, providerLeadIsVerified, scannerSeedNeedsPublicContactScan, summarizeChannelSeedLifecycle, superSearchAccessRecoveryVersion, superSearchAvailableCredits, superSearchBatchLimit, superSearchEligibleSeed, superSearchProviderReferences } from "../../server/gtmChannelSeedEnrichment.ts";
 
 describe("Instantly channel-seed enrichment reconciliation", () => {
   it("accepts Instantly's documented lead verification enum without creating a second verification job", () => {
@@ -31,8 +31,17 @@ describe("Instantly channel-seed enrichment reconciliation", () => {
     expect(superSearchEligibleSeed({ organizationDomain: "example.org", source: "chatgpt_scanner_drive", lifecycle: "EVIDENCE_QUALIFIED" })).toBe(true);
     expect(superSearchEligibleSeed({ organizationDomain: "example.org", source: "chatgpt_scanner_drive", lifecycle: "ENRICHMENT_FAILED", rejectionReason: "NO_EXPLICIT_PUBLISHED_ROLE_FIT_EMAIL", enrichmentTerminalAt: "2026-09-16T00:00:00.000Z" })).toBe(true);
     expect(superSearchEligibleSeed({ organizationDomain: "", source: "chatgpt_scanner_drive", lifecycle: "EVIDENCE_QUALIFIED" })).toBe(false);
-    expect(superSearchBatchLimit({})).toBe(50);
+    expect(superSearchBatchLimit({})).toBe(1);
     expect(superSearchBatchLimit({ GTM_SUPERSEARCH_MAX_PER_RUN: "999" })).toBe(100);
+  });
+
+  it("uses the lead-finder allowance for a bounded recovery and does not retry a blocked generation", () => {
+    expect(superSearchAvailableCredits({ plan_id_leadfinder: "pid_free", credits: [{ product: "pid_free", available_credits: 21.5 }] })).toBe(21.5);
+    expect(superSearchAvailableCredits({ credits: [] })).toBeNull();
+    expect(superSearchAccessRecoveryVersion({})).toBe("v1");
+    const blocked = { organizationDomain: "example.org", lifecycle: "ENRICHMENT_BLOCKED", rejectionReason: "INSTANTLY_SUPERSEARCH_ACCESS_BLOCKED_HTTP_402", enrichmentAccessRecoveryVersion: "v1" };
+    expect(superSearchEligibleSeed(blocked, "v1")).toBe(false);
+    expect(superSearchEligibleSeed(blocked, "v2")).toBe(true);
   });
 
   it("reports redacted lifecycle and terminal reason counts by segment", () => {
