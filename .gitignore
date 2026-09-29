@@ -10,3 +10,7 @@ test-results/
 .env.*
 !.env.example
 .codex/local-fallback-state.json
+.codex/ollama-runtime/
+.codex/ollama-models/
+.codex/ollama-local.log
+.codex/ollama-local.pid
