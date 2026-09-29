@@ -1,7 +1,7 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-09-29T07:25:00Z",
+  "updatedAt": "2026-09-29T14:52:00Z",
   "commits": [
     "58294e9 fix(gtm): resolve provider lead campaign detail",
     "cfb39de fix(gtm): retain unresolved provider memberships",
@@ -16,7 +16,9 @@
     "b8b481d fix(gtm): retry failed immutable receipt mirrors",
     "b8f1534 fix(gtm): support shared Drive feed receipts",
     "acd3eb3 fix(gtm): decouple receipt mirrors from imports",
-    "2309d5360b5524b006cba27345ea54463795aa76 fix(gtm): bound SuperSearch access retries"
+    "2309d5360b5524b006cba27345ea54463795aa76 fix(gtm): bound SuperSearch access retries",
+    "d0551b113ca7c8b305be5532026d3dd861d3435a fix(gtm): paginate persisted Instantly safety records",
+    "6f9137cb5f1910e241bd0229f198527f31ba99e7 chore(deploy): exclude local coding cache from builds"
   ],
   "builds": [
     { "id": "7ec7abaa-90e2-415d-8adb-7789073de95a", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00523-dir", "traffic": "0%" },
@@ -31,7 +33,8 @@
     { "id": "3aedcd3c-9e44-480f-ad57-8cdeaf6c1083", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00556-suw", "traffic": "0%" },
     { "id": "ac63300d-7514-4a92-aae5-71c7fb83b885", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00557-piy", "traffic": "0%" },
     { "id": "0b868d74-e071-410b-88ec-662d13cefbe3", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00558-xuw", "traffic": "replaced" },
-    { "id": "b56831f1-b5fa-428b-8659-fb50c14e5609", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00560-giv", "traffic": "100%" }
+    { "id": "b56831f1-b5fa-428b-8659-fb50c14e5609", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00560-giv", "traffic": "100%" },
+    { "id": "4d2d7295-b7f0-4a3b-bf67-3b49ccff0b40", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00562-maw", "traffic": "promoted before the post-window observation" }
   ],
   "production": {
     "revision": "grantdeskhq-prototype-00560-giv",
@@ -39,10 +42,11 @@
     "customDomainHealth": "PASS — https://grantdeskhq.com/api/health returned HTTP 200 after promotion.",
     "reconciliation": "PASS — bounded pre-write duplicate reservations are permanently quarantined with immutable provider-safety closure audit before the breaker opens a new generation; no provider write, enrollment, or send was replayed.",
     "receiptMirrorIsolation": "PASS — the authenticated importer returns 200 after the committed database import/reconciliation even when Drive receipt mirroring is pending. The dedicated retry route alone returns 503; neither route replays providers or sends.",
-    "receiptMirrorRetry": "grantdeskhq-scanner-receipt-mirror is ENABLED at 08:20 America/Detroit on weekdays, with one bounded retry (60–300 seconds), authenticated as grantdeskhq-gtm-scheduler."
+    "receiptMirrorRetry": "grantdeskhq-scanner-receipt-mirror is ENABLED at 08:20 America/Detroit on weekdays, with one bounded retry (60–300 seconds), authenticated as grantdeskhq-gtm-scheduler.",
+    "servingRevision": "PASS — grantdeskhq-prototype-00565-mow receives 100% production traffic after the verified pagination-safety promotion; custom-domain health returned HTTP 200."
   },
   "validated": {
-    "tests": "Prior reconciliation suite: 119 focused tests passed. Scheduled-routing suite: 63 focused tests passed. Current pagination suite: 73 focused tests passed. Receipt-isolation suite: 38 focused tests passed. SuperSearch access-recovery suite: 64 focused tests passed; TypeScript (via production build), lint, production build, and diff checks passed.",
+    "tests": "Prior reconciliation suite: 119 focused tests passed. Scheduled-routing suite: 63 focused tests passed. Current pagination suite: 73 focused tests passed. Receipt-isolation suite: 38 focused tests passed. SuperSearch access-recovery suite: 64 focused tests passed. Post-window persisted-Instanly pagination suite: 31 tests in 4 files passed; TypeScript (via production build), lint, production build, and diff checks passed.",
     "receiptMirrorSafety": "PASS — candidate import replay returned HTTP 200 with importedNow=0, acceptedNow=0, providerCalls=0, sends=0 and receiptMirrorPending=true; the separate retry returned HTTP 503 with only Drive storageQuotaExceeded failures.",
     "providerIdentity": "PASS — a compact /leads/list response without campaign metadata is followed by a bounded GET /leads/{id} read; nested detail envelopes are parsed.",
     "failClosedUnknownMembership": "PASS — an exact provider lead with no campaign identity is retained as unresolved workspace state and excludes preflight/enrollment rather than being classified as absent.",
@@ -62,6 +66,12 @@
       "provider": "Ollama local provider",
       "evidence": "The user-local Ollama 0.34.4 runtime and two models are now installed in ignored repository state. qwen2.5-coder:1.5b failed a real Codex local run because it does not support the required thinking protocol. qwen3:4b accepted the protocol but Codex supplied a 43,947-token initial prompt; Ollama truncated it to 2,050 tokens and had processed only 1,024 tokens after 102 seconds at about 10 tokens/second, without an edit. The host has 7.8 GiB RAM, 2 CPU threads and no GPU.",
       "smallestExternalAction": "Use a persistent host with at least 16 GiB RAM and substantially more CPU or a supported GPU. Then run the isolated launcher smoke test with a tool-capable model and adequate context; do not route production credentials through the local fallback."
+    },
+    {
+      "operation": "Resume Partner automatic dispatch",
+      "provider": "Instantly terminal-state safety guard",
+      "evidence": "The 2026-09-29T14:45:13.666445Z production audit record 6abbcef9000a2b4d5d10c5a6 reports PARTNER action=NOOP, reason=CRITICAL_SAFETY_FAILURE, eligible=1, outstanding=0, and predicates.criticalFailure=true. Code defines this predicate as a current Partner Clean membership with INSTANTLY sync status BOUNCED or UNSUBSCRIBED. The audited aggregate intentionally redacts the affected identity; a direct developer Firestore read is not authorized.",
+      "smallestExternalAction": "Use the existing authenticated production reconciliation/reporting surface to identify and preserve the terminal provider record's quarantine or suppression. Do not retry enrollment, release capacity, or relax the bounce/unsubscribe guard; the Direct channel remains independently eligible when it has canonical READY inventory."
     }
   ],
   "currentFunnel": {
@@ -71,13 +81,13 @@
     "channelSeeds": { "directTotal": 356, "partnerTotal": 336, "directVerified": 13, "partnerVerified": 15, "directPending": 43, "partnerPending": 128 }
   },
   "currentFunnelReadOnly": {
-    "observedAt": "2026-09-29T07:16:54Z",
+    "observedAt": "2026-09-29T14:45:20Z",
     "canonical": { "directReady": 0, "partnerReady": 1, "directNeedsVerification": 4, "partnerNeedsVerification": 31, "replies": 1, "positiveReplies": 0 },
     "channelSeeds": {
-      "direct": { "total": 381, "verified": 13, "discovered": 199, "evidenceQualified": 2, "enrichmentPending": 49, "enrichmentFailed": 77 },
-      "partner": { "total": 345, "verified": 16, "discovered": 100, "enrichmentPending": 127, "enrichmentFailed": 95 }
+      "direct": { "total": 383, "verified": 13, "discovered": 195, "evidenceQualified": 2, "enrichmentPending": 50, "enrichmentFailed": 79 },
+      "partner": { "total": 348, "verified": 16, "discovered": 97, "evidenceQualified": 0, "enrichmentPending": 130, "enrichmentFailed": 97 }
     },
-    "provider": { "reconciliation": "PASS", "dailyCapacity": 30, "readyMailboxCount": 1, "sharedMailboxCount": 1, "directCleanCampaignStatus": 3, "partnerCleanCampaignStatus": 3, "activeReservations": "NOT_CONFIRMED: the authenticated aggregate response intentionally excludes record-level reservation identities" }
+    "provider": { "reconciliation": "PASS", "dailyCapacity": 30, "readyMailboxCount": 1, "sharedMailboxCount": 1, "directCleanCampaignStatus": 3, "partnerCleanCampaignStatus": 3, "activeReservations": "NOT_CONFIRMED: the authenticated aggregate response intentionally excludes record-level reservation identities", "postWindowGlobalRemainingCapacity": 28 }
   },
   "dispatchDryRun": {
     "observedAt": "2026-09-28T11:47:40Z",
@@ -177,9 +187,9 @@
     "evidence": "Verified 2026-09-29T07:24Z: Node 24 native streaming Zstandard decompression unpacked the checksum-verified official Ollama 0.34.4 runtime into ignored repository state, loopback-only. The launcher cold-start ordering was fixed and `bash -n` passed. qwen2.5-coder:1.5b is installed but Codex reported it does not support thinking. qwen3:4b is installed and started, but its 4,096-token CPU context truncated Codex's 43,947-token initial prompt to 2,050; after 102 seconds it had processed 1,024 prompt tokens and never performed the isolated file edit. The synthetic quota checkpoint remains tested, but a real local edit/test and therefore automatic local fallback remain unproven."
   },
   "currentNextAction": {
-    "validation": "The deployed grantdeskhq-scanner-drive-validate job will evaluate the committed September 29 DISCOVERED records at 2026-09-29T12:30:00Z / 08:30 EDT / 15:30 Asia/Jerusalem.",
-    "enrichment": "The existing budget-bound Direct and Partner SuperSearch jobs run at 12:45Z and 12:50Z, respectively. They remain limited by the deployed provider allowance preflight; no manual provider replay was performed.",
-    "outbound": "The controller next evaluates the Clean campaigns at 13:00Z / 09:00 EDT / 16:00 Asia/Jerusalem. It alone may reactivate a completed campaign or enroll a recipient after its canonical and provider gates pass; the operator made no manual activation, send, capacity reset, or reservation release.",
+    "validation": "Observed 2026-09-29T12:32:36.286057970Z Scheduler attempt 1iodadwf3ffrdr: HTTP 200. The global validator selected 10, qualified 3, deferred 5, and rejected 2; per-batch linkage is NOT_CONFIRMED.",
+    "enrichment": "Observed Direct 2026-09-29T12:45:17.965711436Z attempt 17v0itdf4yzwg3 and Partner 2026-09-29T12:50:16.768797299Z attempt ehb98vf52u8sv: both HTTP 200, one bounded SuperSearch submission each. Terminal provider verification is NOT_CONFIRMED.",
+    "outbound": "Observed 2026-09-29T13:00 direct attempt vohs82exjg6i and Partner attempt y551f3f4g5oa8: both HTTP 200 with no provider write. At 14:45 Direct safely had no eligible recipient; Partner safely failed closed on a terminal provider state. The controller alone may enroll only after canonical and provider gates pass; no manual activation, send, capacity reset, reservation release, or provider replay was performed.",
     "receiptMirror": "Database receipt is authoritative; its separate Drive-mirror retry remains non-blocking and currently fails with Drive 403 storageQuotaExceeded."
   },
   "developmentFallbackCommits": [
@@ -187,13 +197,13 @@
     "501dff8 chore(dev): ignore local Ollama fallback artifacts"
   ],
   "nextScheduledProof": {
-    "servingRevision": "grantdeskhq-prototype-00560-giv",
+    "servingRevision": "grantdeskhq-prototype-00565-mow",
     "traffic": "100%",
-    "jobRouting": "All checked jobs target the untagged production service URL, whose only 100% route is revision 00560-giv.",
-    "scannerValidation": "2026-09-29T12:30:00Z / 08:30 EDT / 15:30 Asia/Jerusalem",
-    "directEnrichment": "2026-09-29T12:45:00Z / 08:45 EDT / 15:45 Asia/Jerusalem",
-    "partnerEnrichment": "2026-09-29T12:50:00Z / 08:50 EDT / 15:50 Asia/Jerusalem",
-    "directAndPartnerDispatch": "2026-09-29T13:00:00Z / 09:00 EDT / 16:00 Asia/Jerusalem; no manual campaign activation or provider replay was performed",
+    "jobRouting": "The Cloud Run Admin API confirmed grantdeskhq-prototype-00565-mow at 100% traffic after promotion. Scheduled calls before 14:52Z executed on 00562-maw; future calls use the untagged 00565-mow production route.",
+    "scannerValidation": "Observed automatic completion: 2026-09-29T12:32:36.286057970Z / 08:32:36 EDT / 15:32:36 Asia/Jerusalem, Cloud Scheduler attempt 1iodadwf3ffrdr, HTTP 200.",
+    "directEnrichment": "Observed automatic completion: 2026-09-29T12:45:17.965711436Z, Cloud Scheduler attempt 17v0itdf4yzwg3, HTTP 200.",
+    "partnerEnrichment": "Observed automatic completion: 2026-09-29T12:50:16.768797299Z, Cloud Scheduler attempt ehb98vf52u8sv, HTTP 200.",
+    "directAndPartnerDispatch": "Observed automatic completion: Direct 2026-09-29T13:00:17.425323093Z attempt vohs82exjg6i, Partner 2026-09-29T13:00:17.721080815Z attempt y551f3f4g5oa8, both HTTP 200. Later 14:45 evaluation found the exact safe no-op reasons; no manual campaign activation or provider replay occurred.",
     "socialScan": "2026-09-29T13:35:00Z / 09:35 EDT / 16:35 Asia/Jerusalem",
     "durableReconciliation": "grantdeskhq-instantly-reconciliation, */15 * * * * Etc/UTC; observed automatic HTTP 200 at 2026-09-29T07:15:36Z; next 2026-09-29T07:30:00Z"
   },
@@ -210,6 +220,28 @@
     "itemsSuppressed": 2,
     "errors": [],
     "caveat": "The persisted source-specific successes are from 2026-09-10; a current social execution remains pending and is not claimed."
+  },
+  "september29PostWindowVerification": {
+    "batchSpecific": {
+      "validation": "NOT_CONFIRMED: the scheduled validator's selected 10 records are drawn from the account-wide DISCOVERED queue; current reporting does not bind those selections to a source batch.",
+      "providerVerifiedContacts": "NOT_CONFIRMED",
+      "ready": "NOT_CONFIRMED",
+      "enrollments": "NOT_CONFIRMED",
+      "providerConfirmedProspectingSends": "NOT_CONFIRMED"
+    },
+    "schedulerAttempts": {
+      "validation": { "id": "1iodadwf3ffrdr", "finishedAt": "2026-09-29T12:32:36.286057970Z", "httpStatus": 200 },
+      "directEnrichment": { "id": "17v0itdf4yzwg3", "finishedAt": "2026-09-29T12:45:17.965711436Z", "httpStatus": 200, "selected": 1, "submitted": 1 },
+      "partnerEnrichment": { "id": "ehb98vf52u8sv", "finishedAt": "2026-09-29T12:50:16.768797299Z", "httpStatus": 200, "selected": 1, "submitted": 1 },
+      "directDispatch": { "id": "vohs82exjg6i", "finishedAt": "2026-09-29T13:00:17.425323093Z", "httpStatus": 200 },
+      "partnerDispatch": { "id": "y551f3f4g5oa8", "finishedAt": "2026-09-29T13:00:17.721080815Z", "httpStatus": 200 },
+      "reconciliation": { "id": "kyceif4rlx1r", "finishedAt": "2026-09-29T13:00:23.235185474Z", "httpStatus": 200 }
+    },
+    "dispatchAudit": {
+      "direct": { "id": "6abbcef90008e73bb43879f5", "occurredAt": "2026-09-29T14:45:13.583483Z", "action": "NOOP", "reason": "NO_ELIGIBLE_RECIPIENT", "eligible": 0, "outstanding": 0, "globalRemaining": 28 },
+      "partner": { "id": "6abbcef9000a2b4d5d10c5a6", "occurredAt": "2026-09-29T14:45:13.666445Z", "action": "NOOP", "reason": "CRITICAL_SAFETY_FAILURE", "eligible": 1, "outstanding": 0, "globalRemaining": 28, "falsePredicate": "criticalFailure" }
+    },
+    "codeRepair": "readInstantlyRecords and listInstantlyHandoffReservations now page all bounded Firestore results (up to 2,500) instead of only the first 200. This prevents an existing membership or reservation on a later page from being missed and replayed. Focused regression suite passed; the 00565-mow candidate was health-checked and promoted after validation."
   },
   "cleanup": {
     "temporaryScheduler": "REMOVED — grantdeskhq-ambiguous-resolution-dry was deleted after the no-write validation."
