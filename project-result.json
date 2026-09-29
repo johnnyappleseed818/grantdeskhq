@@ -1,7 +1,7 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-09-29T14:52:00Z",
+  "updatedAt": "2026-09-29T15:00:18Z",
   "commits": [
     "58294e9 fix(gtm): resolve provider lead campaign detail",
     "cfb39de fix(gtm): retain unresolved provider memberships",
@@ -240,6 +240,12 @@
     "dispatchAudit": {
       "direct": { "id": "6abbcef90008e73bb43879f5", "occurredAt": "2026-09-29T14:45:13.583483Z", "action": "NOOP", "reason": "NO_ELIGIBLE_RECIPIENT", "eligible": 0, "outstanding": 0, "globalRemaining": 28 },
       "partner": { "id": "6abbcef9000a2b4d5d10c5a6", "occurredAt": "2026-09-29T14:45:13.666445Z", "action": "NOOP", "reason": "CRITICAL_SAFETY_FAILURE", "eligible": 1, "outstanding": 0, "globalRemaining": 28, "falsePredicate": "criticalFailure" }
+    },
+    "postPromotionAutonomousDispatch": {
+      "revision": "grantdeskhq-prototype-00565-mow",
+      "partner": { "auditId": "6abbd27a000b0e509b159219", "occurredAt": "2026-09-29T15:00:10.724560Z", "action": "DISPATCH", "reason": "CANARY_CONFIRMED", "count": 1, "eligible": 1, "outstandingBefore": 0, "globalRemainingBefore": 28, "schedulerAttemptId": "nd147vf5glwfj", "schedulerHttpStatus": 200 },
+      "direct": { "action": "NOOP", "reason": "NO_ELIGIBLE_RECIPIENT", "eligible": 0, "outstanding": 0 },
+      "providerOutcome": "NOT_CONFIRMED: the scheduler discards the controller response body and the redacted audit deliberately omits recipient and provider identifiers. A durable reconciliation job ran at 2026-09-29T15:00:12.256009620Z; no provider-confirmed send is asserted."
     },
     "codeRepair": "readInstantlyRecords and listInstantlyHandoffReservations now page all bounded Firestore results (up to 2,500) instead of only the first 200. This prevents an existing membership or reservation on a later page from being missed and replayed. Focused regression suite passed; the 00565-mow candidate was health-checked and promoted after validation."
   },
