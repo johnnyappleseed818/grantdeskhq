@@ -1,7 +1,7 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-09-29T07:16:54Z",
+  "updatedAt": "2026-09-29T07:25:00Z",
   "commits": [
     "58294e9 fix(gtm): resolve provider lead campaign detail",
     "cfb39de fix(gtm): retain unresolved provider memberships",
@@ -176,6 +176,16 @@
     "launcher": "scripts/grantdeskhq-codex-fallback.sh [local|cloud|auto] <prompt>",
     "evidence": "Verified 2026-09-29T07:24Z: Node 24 native streaming Zstandard decompression unpacked the checksum-verified official Ollama 0.34.4 runtime into ignored repository state, loopback-only. The launcher cold-start ordering was fixed and `bash -n` passed. qwen2.5-coder:1.5b is installed but Codex reported it does not support thinking. qwen3:4b is installed and started, but its 4,096-token CPU context truncated Codex's 43,947-token initial prompt to 2,050; after 102 seconds it had processed 1,024 prompt tokens and never performed the isolated file edit. The synthetic quota checkpoint remains tested, but a real local edit/test and therefore automatic local fallback remain unproven."
   },
+  "currentNextAction": {
+    "validation": "The deployed grantdeskhq-scanner-drive-validate job will evaluate the committed September 29 DISCOVERED records at 2026-09-29T12:30:00Z / 08:30 EDT / 15:30 Asia/Jerusalem.",
+    "enrichment": "The existing budget-bound Direct and Partner SuperSearch jobs run at 12:45Z and 12:50Z, respectively. They remain limited by the deployed provider allowance preflight; no manual provider replay was performed.",
+    "outbound": "The controller next evaluates the Clean campaigns at 13:00Z / 09:00 EDT / 16:00 Asia/Jerusalem. It alone may reactivate a completed campaign or enroll a recipient after its canonical and provider gates pass; the operator made no manual activation, send, capacity reset, or reservation release.",
+    "receiptMirror": "Database receipt is authoritative; its separate Drive-mirror retry remains non-blocking and currently fails with Drive 403 storageQuotaExceeded."
+  },
+  "developmentFallbackCommits": [
+    "f479f27 fix(dev): start local fallback before model check",
+    "501dff8 chore(dev): ignore local Ollama fallback artifacts"
+  ],
   "nextScheduledProof": {
     "servingRevision": "grantdeskhq-prototype-00560-giv",
     "traffic": "100%",
