@@ -1,7 +1,7 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-09-28T18:21:28Z",
+  "updatedAt": "2026-09-29T07:16:54Z",
   "commits": [
     "58294e9 fix(gtm): resolve provider lead campaign detail",
     "cfb39de fix(gtm): retain unresolved provider memberships",
@@ -70,6 +70,15 @@
     "canonical": { "directReady": 1, "partnerReady": 22, "directNeedsVerification": 4, "partnerNeedsVerification": 31, "replies": 1, "positiveReplies": 0, "trials": 0, "paid": 0, "mrr": 0 },
     "channelSeeds": { "directTotal": 356, "partnerTotal": 336, "directVerified": 13, "partnerVerified": 15, "directPending": 43, "partnerPending": 128 }
   },
+  "currentFunnelReadOnly": {
+    "observedAt": "2026-09-29T07:16:54Z",
+    "canonical": { "directReady": 0, "partnerReady": 1, "directNeedsVerification": 4, "partnerNeedsVerification": 31, "replies": 1, "positiveReplies": 0 },
+    "channelSeeds": {
+      "direct": { "total": 381, "verified": 13, "discovered": 199, "evidenceQualified": 2, "enrichmentPending": 49, "enrichmentFailed": 77 },
+      "partner": { "total": 345, "verified": 16, "discovered": 100, "enrichmentPending": 127, "enrichmentFailed": 95 }
+    },
+    "provider": { "reconciliation": "PASS", "dailyCapacity": 30, "readyMailboxCount": 1, "sharedMailboxCount": 1, "directCleanCampaignStatus": 3, "partnerCleanCampaignStatus": 3, "activeReservations": "NOT_CONFIRMED: the authenticated aggregate response intentionally excludes record-level reservation identities" }
+  },
   "dispatchDryRun": {
     "observedAt": "2026-09-28T11:47:40Z",
     "direct": { "eligible": 1, "action": "NOOP", "reason": "OUTSIDE_SENDING_WINDOW", "sentToday": 0 },
@@ -87,7 +96,7 @@
     "directDispatch": "grantdeskhq-direct-controlled-dispatch: every 15 minutes 09:00-16:45 America/Detroit weekdays",
     "partnerDispatch": "grantdeskhq-partner-live-reconcile: every 15 minutes 09:00-16:45 America/Detroit weekdays",
     "receiptMirrorRetry": "grantdeskhq-scanner-receipt-mirror: 08:20 America/Detroit weekdays, one Cloud Scheduler retry (60–300 seconds)",
-    "nextBusinessWindow": "2026-09-28 14:45 America/Detroit / 18:45 UTC dispatch; 2026-09-29 08:15 America/Detroit import; 08:20 America/Detroit receipt-mirror retry"
+    "nextBusinessWindow": "2026-09-29 08:15 America/Detroit / 12:15 UTC / 15:15 Asia/Jerusalem import; 08:30 EDT / 12:30 UTC validation; 09:00 EDT / 13:00 UTC / 16:00 Asia/Jerusalem dispatch"
   },
   "feedReceipt": {
     "id": "scanner_import_reconciled_d00f55cf4fe342019378b3ab37f8",
@@ -107,6 +116,23 @@
     "reconciliationReceiptId": "scanner_import_reconciled_d00f55cf4fe342019378b3ab37f8",
     "canonicalRecordsPresent": 22,
     "missingCanonicalRecordIds": 0
+  },
+  "september29FeedReceipt": {
+    "id": "scanner_import_96c74b4d2feb1e02dced700eaa6ae3a9",
+    "batchId": "daily-grantdeskhq-2026-09-29-c556cfb9-edb4-4a00-a2c0-74af0be64427",
+    "sourceFileId": "1tgOiwICL6y2dNPtLaeEbObn2MTa11VFt",
+    "contentHash": "0bc3460f4698455165bcd89fa522545472c7d24e92199bb56630d329d7763c61",
+    "processedAt": "2026-09-29T07:12:47.228Z",
+    "organizationRows": 30,
+    "accepted": 27,
+    "duplicate": 3,
+    "organizationRejected": 0,
+    "socialSignals": { "rows": 8, "reviewStored": 4, "rejected": 4, "rejectionReason": "MALFORMED_OR_UNSAFE_SOCIAL_RESEARCH" },
+    "canonicalRecordIdsPresent": 27,
+    "missingCanonicalRecordIds": 0,
+    "providerCalls": 0,
+    "sends": 0,
+    "receiptMirror": "PENDING: Google Drive files.create returned 403 storageQuotaExceeded after the database receipt committed"
   },
   "boundedCycle": {
     "observedAt": "2026-09-28T11:55:49Z",
@@ -154,14 +180,17 @@
     "servingRevision": "grantdeskhq-prototype-00560-giv",
     "traffic": "100%",
     "jobRouting": "All checked jobs target the untagged production service URL, whose only 100% route is revision 00560-giv.",
-    "partnerEnrichment": "2026-09-29T12:50:00Z / 08:50 EDT / 15:50 IDT",
-    "directAndPartnerDispatch": "2026-09-28T18:45:00Z / 14:45 EDT / 21:45 IDT; current dispatch remains fail-closed by the provider-shared daily capacity ledger",
-    "durableReconciliation": "grantdeskhq-channel-seed-reconcile-direct and grantdeskhq-channel-seed-reconcile-partner, */30 * * * * Etc/UTC; observed automatic HTTP 200 runs at 2026-09-28T18:30Z; next 2026-09-28T19:00Z"
+    "scannerValidation": "2026-09-29T12:30:00Z / 08:30 EDT / 15:30 Asia/Jerusalem",
+    "directEnrichment": "2026-09-29T12:45:00Z / 08:45 EDT / 15:45 Asia/Jerusalem",
+    "partnerEnrichment": "2026-09-29T12:50:00Z / 08:50 EDT / 15:50 Asia/Jerusalem",
+    "directAndPartnerDispatch": "2026-09-29T13:00:00Z / 09:00 EDT / 16:00 Asia/Jerusalem; no manual campaign activation or provider replay was performed",
+    "socialScan": "2026-09-29T13:35:00Z / 09:35 EDT / 16:35 Asia/Jerusalem",
+    "durableReconciliation": "grantdeskhq-instantly-reconciliation, */15 * * * * Etc/UTC; observed automatic HTTP 200 at 2026-09-29T07:15:36Z; next 2026-09-29T07:30:00Z"
   },
   "firstBlockingTransition": {
     "newCandidatePath": "EVIDENCE_QUALIFIED -> bounded Instantly SuperSearch request",
     "evidence": "The production credential's Lead Finder plan is pid_free with 21.5 available credits. The former Direct/Partner requests selected 43/50 organizations and received 402. Revision 00560 read the plan, selected one record per scheduler invocation, and submitted Direct (preview 15) and Partner (preview 3) jobs without a 402; no campaign enrollment or send occurred.",
-    "readyToSendPath": "At 2026-09-28T18:15Z, both automatic dispatchers were inside the Detroit window and passed breaker/flag/sender/canary predicates, but safely returned DAILY_CAPACITY_REACHED because their existing canonical ledger counted 2 Direct plus 34 Partner first-send records against a shared provider capacity of 30. No new prospect was enrolled or sent."
+    "readyToSendPath": "At 2026-09-28T18:15Z, both automatic dispatchers were inside the Detroit window and passed breaker/flag/sender/canary predicates, but safely returned DAILY_CAPACITY_REACHED because their existing canonical ledger counted 2 Direct plus 34 Partner first-send records against a shared provider capacity of 30. The inspected guard keys counts by America/Detroit date and subtracts only sent plus active staged/approved/in-campaign records. On 2026-09-29 the provider reports a fresh shared capacity of 30, but both Clean campaigns are status 3 (Completed/inactive); automatic controller evaluation at the next open window is required. No manual campaign activation, capacity reset, reservation release, or provider replay was performed."
   },
   "socialStatus": {
     "storedScanGeneratedAt": "2026-09-28T07:06:22.255Z",
