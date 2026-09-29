@@ -66,12 +66,6 @@
       "provider": "Ollama local provider",
       "evidence": "The user-local Ollama 0.34.4 runtime and two models are now installed in ignored repository state. qwen2.5-coder:1.5b failed a real Codex local run because it does not support the required thinking protocol. qwen3:4b accepted the protocol but Codex supplied a 43,947-token initial prompt; Ollama truncated it to 2,050 tokens and had processed only 1,024 tokens after 102 seconds at about 10 tokens/second, without an edit. The host has 7.8 GiB RAM, 2 CPU threads and no GPU.",
       "smallestExternalAction": "Use a persistent host with at least 16 GiB RAM and substantially more CPU or a supported GPU. Then run the isolated launcher smoke test with a tool-capable model and adequate context; do not route production credentials through the local fallback."
-    },
-    {
-      "operation": "Resume Partner automatic dispatch",
-      "provider": "Instantly terminal-state safety guard",
-      "evidence": "The 2026-09-29T14:45:13.666445Z production audit record 6abbcef9000a2b4d5d10c5a6 reports PARTNER action=NOOP, reason=CRITICAL_SAFETY_FAILURE, eligible=1, outstanding=0, and predicates.criticalFailure=true. Code defines this predicate as a current Partner Clean membership with INSTANTLY sync status BOUNCED or UNSUBSCRIBED. The audited aggregate intentionally redacts the affected identity; a direct developer Firestore read is not authorized.",
-      "smallestExternalAction": "Use the existing authenticated production reconciliation/reporting surface to identify and preserve the terminal provider record's quarantine or suppression. Do not retry enrollment, release capacity, or relax the bounce/unsubscribe guard; the Direct channel remains independently eligible when it has canonical READY inventory."
     }
   ],
   "currentFunnel": {
@@ -247,6 +241,7 @@
       "direct": { "action": "NOOP", "reason": "NO_ELIGIBLE_RECIPIENT", "eligible": 0, "outstanding": 0 },
       "providerOutcome": "NOT_CONFIRMED: the scheduler discards the controller response body and the redacted audit deliberately omits recipient and provider identifiers. A durable reconciliation job ran at 2026-09-29T15:00:12.256009620Z; no provider-confirmed send is asserted."
     },
+    "remainingBusinessEvidence": "The earlier Partner criticalFailure predicate cleared through ordinary reconciliation and did not require a safety bypass. The current non-terminal states are: Direct has zero canonical READY recipients; the one autonomous Partner handoff awaits its normal provider reconciliation. These are not evidence for a retry, new enrollment, or a provider-confirmed send.",
     "codeRepair": "readInstantlyRecords and listInstantlyHandoffReservations now page all bounded Firestore results (up to 2,500) instead of only the first 200. This prevents an existing membership or reservation on a later page from being missed and replayed. Focused regression suite passed; the 00565-mow candidate was health-checked and promoted after validation."
   },
   "cleanup": {
