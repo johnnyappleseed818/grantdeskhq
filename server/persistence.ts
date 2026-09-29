@@ -1693,24 +1693,68 @@ export async function closeProviderSafetyIncident(input: { expectedEventId: stri
   await writeDocument(accessToken, outboundCircuitPath, next);
   return { eventId, auditId, cleared: true, idempotent: false, nextGeneration: next.generation };
 }
-export async function readInstantlyRecords(limit = 200): Promise<InstantlyIntegrationRecord[]> {
+/**
+ * The automatic dispatcher must see every bounded persisted membership, not
+ * only Firestore's first page. Otherwise a historical or newly-created record
+ * beyond page one could look eligible and trigger a duplicate provider write.
+ */
+export async function readInstantlyRecords(limit = 2_500): Promise<InstantlyIntegrationRecord[]> {
   const accessToken = await gcpToken();
-  const response = await authorizedFetch(`${firestoreBase}/gtm/instantly/records?pageSize=${Math.min(Math.max(limit, 1), 200)}`, accessToken);
-  if (response.status === 404) return [];
-  if (!response.ok) throw new Error(`Instantly records could not be loaded (${response.status}).`);
-  return (((await response.json()) as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> }).documents || []).flatMap((document) => {
-    try { const value = JSON.parse(String(decodeFields(document.fields || {}).recordJson || "")) as InstantlyIntegrationRecord; return value?.id ? [value] : []; } catch { return []; }
-  });
+  const maximum = Math.max(1, Math.min(Math.floor(limit), 2_500));
+  const records: InstantlyIntegrationRecord[] = [];
+  const seenPageTokens = new Set<string>();
+  let pageToken = "";
+  do {
+    const query = new URLSearchParams({ pageSize: String(Math.min(200, maximum - records.length)) });
+    if (pageToken) query.set("pageToken", pageToken);
+    const response = await authorizedFetch(`${firestoreBase}/gtm/instantly/records?${query}`, accessToken);
+    if (response.status === 404) return records;
+    if (!response.ok) throw new Error(`Instantly records could not be loaded (${response.status}).`);
+    const body = await response.json() as { documents?: Array<{ fields?: Record<string, FirestoreValue> }>; nextPageToken?: string };
+    for (const document of body.documents || []) {
+      if (records.length >= maximum) break;
+      try {
+        const value = JSON.parse(String(decodeFields(document.fields || {}).recordJson || "")) as InstantlyIntegrationRecord;
+        if (value?.id) records.push(value);
+      } catch { /* A malformed historical record cannot make a recipient eligible. */ }
+    }
+    const nextPageToken = String(body.nextPageToken || "");
+    if (!nextPageToken || records.length >= maximum) break;
+    if (seenPageTokens.has(nextPageToken)) throw new Error("Instantly record pagination returned a repeated continuation token.");
+    seenPageTokens.add(nextPageToken);
+    pageToken = nextPageToken;
+  } while (records.length < maximum);
+  return records;
 }
 
 /** Historical provider membership is not an in-flight write. The durable
  * handoff lease is the only authoritative reservation boundary. */
-export async function listInstantlyHandoffReservations(limit = 200): Promise<InstantlyHandoffRecord[]> {
+/** Reservations are the duplicate-write boundary, so they use the same
+ * bounded complete pagination as membership records. */
+export async function listInstantlyHandoffReservations(limit = 2_500): Promise<InstantlyHandoffRecord[]> {
   const accessToken = await gcpToken();
-  const response = await authorizedFetch(`${firestoreBase}/gtm/instantly/handoffs?pageSize=${Math.min(Math.max(limit, 1), 200)}`, accessToken);
-  if (response.status === 404) return [];
-  if (!response.ok) throw new Error(`Instantly handoff reservations could not be loaded (${response.status}).`);
-  return (((await response.json()) as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> }).documents || []).map((document) => handoffFromFields(decodeFields(document.fields || {})));
+  const maximum = Math.max(1, Math.min(Math.floor(limit), 2_500));
+  const reservations: InstantlyHandoffRecord[] = [];
+  const seenPageTokens = new Set<string>();
+  let pageToken = "";
+  do {
+    const query = new URLSearchParams({ pageSize: String(Math.min(200, maximum - reservations.length)) });
+    if (pageToken) query.set("pageToken", pageToken);
+    const response = await authorizedFetch(`${firestoreBase}/gtm/instantly/handoffs?${query}`, accessToken);
+    if (response.status === 404) return reservations;
+    if (!response.ok) throw new Error(`Instantly handoff reservations could not be loaded (${response.status}).`);
+    const body = await response.json() as { documents?: Array<{ fields?: Record<string, FirestoreValue> }>; nextPageToken?: string };
+    for (const document of body.documents || []) {
+      if (reservations.length >= maximum) break;
+      reservations.push(handoffFromFields(decodeFields(document.fields || {})));
+    }
+    const nextPageToken = String(body.nextPageToken || "");
+    if (!nextPageToken || reservations.length >= maximum) break;
+    if (seenPageTokens.has(nextPageToken)) throw new Error("Instantly handoff reservation pagination returned a repeated continuation token.");
+    seenPageTokens.add(nextPageToken);
+    pageToken = nextPageToken;
+  } while (reservations.length < maximum);
+  return reservations;
 }
 
 export function hasActiveInstantlyHandoffReservation(reservations: readonly InstantlyHandoffRecord[], now = Date.now()) {
