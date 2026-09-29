@@ -60,8 +60,8 @@
     {
       "operation": "Run a tested local coding fallback on this host",
       "provider": "Ollama local provider",
-      "evidence": "Host has 7.8 GiB RAM, 2 CPU threads, no GPU, and no Ollama installation or local model. The sandbox-preserving launcher was syntax/synthetic-quota tested but cannot complete a representative local repository task here.",
-      "smallestExternalAction": "Use a persistent development host with a supported Ollama installation and enough RAM for the selected coding model; then pull qwen2.5-coder:1.5b or a stronger approved model and run the launcher smoke test."
+      "evidence": "The user-local Ollama 0.34.4 runtime and two models are now installed in ignored repository state. qwen2.5-coder:1.5b failed a real Codex local run because it does not support the required thinking protocol. qwen3:4b accepted the protocol but Codex supplied a 43,947-token initial prompt; Ollama truncated it to 2,050 tokens and had processed only 1,024 tokens after 102 seconds at about 10 tokens/second, without an edit. The host has 7.8 GiB RAM, 2 CPU threads and no GPU.",
+      "smallestExternalAction": "Use a persistent host with at least 16 GiB RAM and substantially more CPU or a supported GPU. Then run the isolated launcher smoke test with a tool-capable model and adequate context; do not route production credentials through the local fallback."
     }
   ],
   "currentFunnel": {
@@ -174,7 +174,7 @@
   "localCodingFallback": {
     "status": "BLOCKED",
     "launcher": "scripts/grantdeskhq-codex-fallback.sh [local|cloud|auto] <prompt>",
-    "evidence": "Verified 2026-09-28T18:37Z: this host has 7.8 GiB RAM (6.9 GiB available), two CPU threads, no GPU, Codex CLI 0.151.0, and no Ollama/local model. The launcher keeps the Ollama runtime/models in ignored repository state, binds only loopback, preserves workspace-write sandbox plus flock, and synthetic quota recovery checkpoints without retrying cloud. The corrected official v0.34.4 Linux archive is ollama-linux-amd64.tar.zst and its downloaded SHA-256 matched the official checksum, but the host has no zstd/unzstd, pip, compiler, make, or usable Linux zstd package asset. A temporary pure-JS decoder rejected the archive's block type. No runtime or model was installed; no local real edit/test occurred."
+    "evidence": "Verified 2026-09-29T07:24Z: Node 24 native streaming Zstandard decompression unpacked the checksum-verified official Ollama 0.34.4 runtime into ignored repository state, loopback-only. The launcher cold-start ordering was fixed and `bash -n` passed. qwen2.5-coder:1.5b is installed but Codex reported it does not support thinking. qwen3:4b is installed and started, but its 4,096-token CPU context truncated Codex's 43,947-token initial prompt to 2,050; after 102 seconds it had processed 1,024 prompt tokens and never performed the isolated file edit. The synthetic quota checkpoint remains tested, but a real local edit/test and therefore automatic local fallback remain unproven."
   },
   "nextScheduledProof": {
     "servingRevision": "grantdeskhq-prototype-00560-giv",

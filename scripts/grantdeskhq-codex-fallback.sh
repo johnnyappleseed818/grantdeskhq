@@ -27,12 +27,15 @@ checkpoint() {
   ' "$state_file" "$mode" "$1"
 }
 
-require_local_provider() {
+require_local_binary() {
   if [[ ! -x "$ollama_bin" ]]; then
     checkpoint "LOCAL_PROVIDER_UNAVAILABLE"
     printf '%s\n' "LOCAL_PROVIDER_UNAVAILABLE: install Ollama at $ollama_bin or set GDH_OLLAMA_BIN, then pull $local_model."
     exit 69
   fi
+}
+
+require_local_model() {
   if ! OLLAMA_HOST="$ollama_host" OLLAMA_MODELS="$ollama_models" "$ollama_bin" list 2>/dev/null | awk 'NR > 1 { print $1 }' | grep -Fxq "$local_model"; then
     checkpoint "LOCAL_MODEL_UNAVAILABLE"
     printf '%s\n' "LOCAL_MODEL_UNAVAILABLE: pull $local_model before running local mode."
@@ -58,8 +61,9 @@ ensure_local_server() {
 }
 
 run_local() {
-  require_local_provider
+  require_local_binary
   ensure_local_server
+  require_local_model
   checkpoint "LOCAL_STARTED"
   exec env OLLAMA_HOST="$ollama_host" OLLAMA_MODELS="$ollama_models" flock -n "$lock_file" codex exec --oss --local-provider ollama -m "$local_model" --sandbox workspace-write "$@"
 }
