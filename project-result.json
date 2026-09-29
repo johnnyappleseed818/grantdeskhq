@@ -37,7 +37,7 @@
     { "id": "4d2d7295-b7f0-4a3b-bf67-3b49ccff0b40", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00562-maw", "traffic": "promoted before the post-window observation" }
   ],
   "production": {
-    "revision": "grantdeskhq-prototype-00560-giv",
+    "revision": "grantdeskhq-prototype-00565-mow",
     "traffic": "100%",
     "customDomainHealth": "PASS — https://grantdeskhq.com/api/health returned HTTP 200 after promotion.",
     "reconciliation": "PASS — bounded pre-write duplicate reservations are permanently quarantined with immutable provider-safety closure audit before the breaker opens a new generation; no provider write, enrollment, or send was replayed.",
@@ -46,7 +46,7 @@
     "servingRevision": "PASS — grantdeskhq-prototype-00565-mow receives 100% production traffic after the verified pagination-safety promotion; custom-domain health returned HTTP 200."
   },
   "validated": {
-    "tests": "Prior reconciliation suite: 119 focused tests passed. Scheduled-routing suite: 63 focused tests passed. Current pagination suite: 73 focused tests passed. Receipt-isolation suite: 38 focused tests passed. SuperSearch access-recovery suite: 64 focused tests passed. Post-window persisted-Instanly pagination suite: 31 tests in 4 files passed; TypeScript (via production build), lint, production build, and diff checks passed.",
+    "tests": "Prior reconciliation suite: 119 focused tests passed. Scheduled-routing suite: 63 focused tests passed. Current pagination suite: 73 focused tests passed. Receipt-isolation suite: 38 focused tests passed. SuperSearch access-recovery suite: 64 focused tests passed. Post-window persisted-Instantly pagination suite: 31 tests in 4 files passed; TypeScript (via production build), lint, production build, and diff checks passed.",
     "receiptMirrorSafety": "PASS — candidate import replay returned HTTP 200 with importedNow=0, acceptedNow=0, providerCalls=0, sends=0 and receiptMirrorPending=true; the separate retry returned HTTP 503 with only Drive storageQuotaExceeded failures.",
     "providerIdentity": "PASS — a compact /leads/list response without campaign metadata is followed by a bounded GET /leads/{id} read; nested detail envelopes are parsed.",
     "failClosedUnknownMembership": "PASS — an exact provider lead with no campaign identity is retained as unresolved workspace state and excludes preflight/enrollment rather than being classified as absent.",
