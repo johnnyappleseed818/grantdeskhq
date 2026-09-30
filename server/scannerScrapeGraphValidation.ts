@@ -1,5 +1,5 @@
 import { lookup } from "node:dns/promises";
-import { listGtmChannelSeeds, saveGtmChannelSeed } from "./persistence.ts";
+import { createGtmScannerRecoveryCohort, listGtmChannelSeeds, listGtmScannerImportReceipts, listGtmScannerRecoveryCohorts, readGtmScannerRecoveryCohort, saveGtmChannelSeed, type GtmScannerRecoveryCohort } from "./persistence.ts";
 import { extractPublicOrganizationEvidence, readScrapeGraphCreditBalance, scrapeGraphBudgetAllowsCall, scrapeGraphRuntimeConfiguration } from "./scrapeGraphEvidence.ts";
 import type { ChannelSeedRecord } from "../src/lib/gtmChannelSeeds.ts";
 
@@ -11,7 +11,8 @@ type Outcome = { canonicalRecordId: string; segment: ChannelSeedRecord["segment"
 export async function validateScannerSourceSeedsWithScrapeGraph(env: NodeJS.ProcessEnv = process.env) {
   const now = new Date().toISOString();
   const allSeeds = await listGtmChannelSeeds();
-  const candidates = allSeeds.filter((seed) => seed.source === "chatgpt_scanner_drive" && scannerValidationDueForScrapeGraph(seed, now, env)).slice(0, configuredLimit(env));
+  const cohorts = await listGtmScannerRecoveryCohorts();
+  const candidates = prioritizeScannerValidationCandidates(allSeeds, cohorts, now, env).slice(0, configuredLimit(env));
   const configuration = scrapeGraphRuntimeConfiguration(env);
   const result = {
     selected: candidates.length, validated: 0, deferred: 0, rejected: 0, remediated: 0,
@@ -42,6 +43,76 @@ export async function validateScannerSourceSeedsWithScrapeGraph(env: NodeJS.Proc
     result.validated++; result.outcomes.push(outcome(seed, "QUALIFIED", contact ? "EVIDENCE_QUALIFIED_PUBLIC_CONTACT" : "EVIDENCE_QUALIFIED_CONTACT_UNRESOLVED", extracted.httpStatus, extracted.requestId));
   }
   return result;
+}
+
+const directRecoverySelectionBasis = "Deterministic pre-validation priority: Direct scanner records from the immutable receipt, ordered by safe public-source shape and explicit post-award evidence terms. This is not qualification evidence and does not authorize contact or outreach.";
+
+/** Creates or returns the fixed recovery cohort from the immutable receipt.
+ * The caller is scheduler-authenticated, and this operation cannot call an
+ * evidence, contact, verification, enrollment, or delivery provider. */
+export async function createOrReadScannerDirectRecoveryCohort(batchId: string) {
+  const normalizedBatchId = batchId.trim();
+  if (!/^daily-grantdeskhq-[a-z0-9-]{8,160}$/i.test(normalizedBatchId)) throw new Error("batchId is not a permitted immutable scanner batch identifier.");
+  const existing = await readGtmScannerRecoveryCohort(normalizedBatchId);
+  if (existing) return { cohort: existing, created: false };
+  const receipts = await listGtmScannerImportReceipts();
+  const receipt = receipts
+    .filter((item) => item.batchId === normalizedBatchId && !item.quarantined && item.sourceFileId && item.contentHash && item.canonicalRecordIds?.length)
+    .sort((left, right) => Number(right.receiptKind === "RECONCILIATION") - Number(left.receiptKind === "RECONCILIATION") || right.processedAt.localeCompare(left.processedAt))[0];
+  if (!receipt) throw new Error("No committed immutable scanner receipt is available for this batch.");
+  const selected = selectScannerDirectRecoveryCohort(await listGtmChannelSeeds(), receipt.batchId, receipt.canonicalRecordIds, 10);
+  if (selected.length < 1) throw new Error("The committed scanner receipt has no recoverable Direct organization records for a cohort.");
+  const cohort: GtmScannerRecoveryCohort = {
+    id: `scanner_direct_recovery_${receipt.batchId}`,
+    batchId: receipt.batchId,
+    sourceFileId: receipt.sourceFileId,
+    contentHash: receipt.contentHash,
+    segment: "DIRECT",
+    canonicalRecordIds: selected.map((seed) => seed.id),
+    selectedAt: new Date().toISOString(),
+    selectionBasis: directRecoverySelectionBasis,
+    creationSource: "scheduler_authenticated_recovery",
+    stateVersion: 1
+  };
+  return createGtmScannerRecoveryCohort(cohort);
+}
+
+/** A fixed cohort may prioritize its first unattempted evidence pass. Retry
+ * records immediately return to normal bounded scheduling so a bad batch can
+ * never starve the rest of the production queue. */
+export function prioritizeScannerValidationCandidates(seeds: readonly ChannelSeedRecord[], cohorts: readonly GtmScannerRecoveryCohort[], now: string, env: NodeJS.ProcessEnv = process.env) {
+  const due = seeds.filter((seed) => seed.source === "chatgpt_scanner_drive" && scannerValidationDueForScrapeGraph(seed, now, env));
+  const dueById = new Map(due.map((seed) => [seed.id, seed]));
+  const prioritizedIds = cohorts
+    .filter((cohort) => cohort.segment === "DIRECT")
+    .flatMap((cohort) => cohort.canonicalRecordIds)
+    .filter((id, index, all) => all.indexOf(id) === index);
+  const priority = prioritizedIds
+    .map((id) => dueById.get(id))
+    .filter((seed): seed is ChannelSeedRecord => seed !== undefined && (seed.validationAttemptCount || 0) === 0);
+  const selected = new Set(priority.map((seed) => seed.id));
+  return [...priority, ...due.filter((seed) => !selected.has(seed.id))];
+}
+
+/** The score is strictly a deterministic work-order preference. Every source,
+ * official-domain, role, email, verification, suppression, and enrollment
+ * gate still runs in the normal validator/controller path. */
+export function selectScannerDirectRecoveryCohort(seeds: readonly ChannelSeedRecord[], batchId: string, canonicalRecordIds: readonly string[], maximum = 10) {
+  const receiptIds = new Set(canonicalRecordIds);
+  const limit = Math.max(1, Math.min(10, Math.floor(maximum)));
+  return seeds
+    .filter((seed) => seed.segment === "DIRECT" && seed.source === "chatgpt_scanner_drive" && seed.scannerBatchId === batchId && receiptIds.has(seed.id) && (seed.lifecycle === "DISCOVERED" || seed.lifecycle === "ROLE_UNRESOLVED"))
+    .sort((left, right) => directRecoveryPriority(right) - directRecoveryPriority(left) || left.id.localeCompare(right.id))
+    .slice(0, limit);
+}
+
+function directRecoveryPriority(seed: ChannelSeedRecord) {
+  const source = publicSource(seed.sourceUrl);
+  const terms = `${seed.evidenceSummary} ${seed.qualificationReasons.join(" ")}`.toLowerCase();
+  return (source ? 2 : 0)
+    + (seed.scannerClaimedDomain && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(seed.scannerClaimedDomain) ? 2 : 0)
+    + (/grant|restricted fund|post-award|report|compliance|budget/.test(terms) ? 2 : 0)
+    + (seed.targetRoleGroup.length ? 1 : 0);
 }
 
 async function record(seed: ChannelSeedRecord, disposition: "DEFERRED" | "REJECTED", reason: string, detail: string, now: string, env: NodeJS.ProcessEnv, httpStatus: number | null = null, requestId: string | null = null) {

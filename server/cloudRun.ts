@@ -51,7 +51,7 @@ import { ambiguousProviderOutcomePrerequisites, hasPersistedQuarantineIdentity, 
 import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed, socialSignalToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
 import { enrichChannelSeedsWithInstantly, reconcileChannelSeedEnrichment, summarizeChannelSeedLifecycle } from "./gtmChannelSeedEnrichment.ts";
 import { importScannerDriveBatches, retryScannerDriveReceiptMirrors, scannerReceiptMirrorRetryRequired, scannerReceiptProjection } from "./scannerDriveImport.ts";
-import { validateScannerSourceSeedsWithScrapeGraph } from "./scannerScrapeGraphValidation.ts";
+import { createOrReadScannerDirectRecoveryCohort, validateScannerSourceSeedsWithScrapeGraph } from "./scannerScrapeGraphValidation.ts";
 import { listGtmScannerImportReceipts } from "./persistence.ts";
 
 const port = Number(process.env.PORT || 8080);
@@ -160,6 +160,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/gtm/channel-seeds/import") return await handleGtmChannelSeedImport(request, response);
     if (url.pathname === "/api/gtm/scanner-drive/import") return await handleGtmScannerDriveImport(request, response);
     if (url.pathname === "/api/gtm/scanner-drive/receipts/retry") return await handleGtmScannerDriveReceiptRetry(request, response);
+    if (url.pathname === "/api/gtm/scanner-drive/recovery-cohort") return await handleGtmScannerDriveRecoveryCohort(request, response);
     if (url.pathname === "/api/gtm/scanner-drive/validate") return await handleGtmScannerDriveValidation(request, response);
     if (url.pathname === "/api/gtm/scanner-imports") return await handleGtmScannerImportReceipts(request, response);
     if (url.pathname === "/api/gtm/channel-seeds/enrich") return await handleGtmChannelSeedEnrich(request, response);
@@ -499,6 +500,18 @@ async function handleGtmScannerDriveReceiptRetry(request: IncomingMessage, respo
   const receiptMirrorRetryRequired = scannerReceiptMirrorRetryRequired(result.receipts);
   console.info(JSON.stringify({ event: "GTM_SCANNER_DRIVE_RECEIPT_MIRROR", totalReceipts: result.totalReceipts, attempted: result.attempted, deferred: result.deferred, receiptMirrorRetryRequired, receipts: result.receipts.map((item) => ({ id: item.receipt.id, mirrorState: item.mirror.state, mirrorError: item.mirror.error || "" })), timestamp: new Date().toISOString() }));
   return json(response, receiptMirrorRetryRequired ? 503 : 200, { lifecycle: "RECEIPT_MIRROR", providerCalls: 0, sends: 0, receiptMirrorRetryRequired, ...result });
+}
+
+/** Scheduler-only creation of an immutable Direct recovery work-order. It is
+ * deliberately separate from validation and cannot trigger provider work. */
+async function handleGtmScannerDriveRecoveryCohort(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  await requireGtmScheduler(request);
+  const input = await readJson(request) as { batchId?: unknown };
+  if (typeof input.batchId !== "string") return json(response, 400, { error: "batchId must be an immutable scanner batch identifier." });
+  const result = await createOrReadScannerDirectRecoveryCohort(input.batchId);
+  console.info(JSON.stringify({ event: "GTM_SCANNER_DIRECT_RECOVERY_COHORT", cohortId: result.cohort.id, batchId: result.cohort.batchId, sourceFileId: result.cohort.sourceFileId, contentHash: result.cohort.contentHash, selected: result.cohort.canonicalRecordIds.length, created: result.created, timestamp: new Date().toISOString() }));
+  return json(response, 200, { cohortId: result.cohort.id, batchId: result.cohort.batchId, sourceFileId: result.cohort.sourceFileId, contentHash: result.cohort.contentHash, canonicalRecordIds: result.cohort.canonicalRecordIds, selectedAt: result.cohort.selectedAt, selectionBasis: result.cohort.selectionBasis, created: result.created, providerCalls: 0, sends: 0 });
 }
 
 /** Scheduler-only public-source validation. It cannot enrich, stage, or send. */

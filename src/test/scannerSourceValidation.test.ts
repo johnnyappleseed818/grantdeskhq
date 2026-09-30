@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hunterFailureStopsValidation, hunterUsageAllowsDomainLookup, scannerEvidenceBackedIdentity, scannerValidationDue, sourceProvesOrganizationDomain } from "../../server/scannerSourceValidation.ts";
-import { nextScrapeGraphReservedCredits } from "../../server/scannerScrapeGraphValidation.ts";
+import { nextScrapeGraphReservedCredits, prioritizeScannerValidationCandidates, selectScannerDirectRecoveryCohort } from "../../server/scannerScrapeGraphValidation.ts";
 import type { ChannelSeedRecord } from "../lib/gtmChannelSeeds.ts";
 
 const seed = (hint: string, segment: "DIRECT" | "PARTNER" = "PARTNER"): ChannelSeedRecord => ({
@@ -70,5 +70,28 @@ describe("scanner validation recovery", () => {
   it("accumulates ScrapeGraphAI retry credits instead of resetting the durable budget", () => {
     expect(nextScrapeGraphReservedCredits(5, 5)).toBe(10);
     expect(nextScrapeGraphReservedCredits(10, 5)).toBe(15);
+  });
+
+  it("selects a deterministic Direct work-order from a committed batch without treating priority as qualification", () => {
+    const batchId = "daily-grantdeskhq-2026-09-29-fixed-cohort";
+    const records = Array.from({ length: 12 }, (_, index) => ({
+      ...seed("", "DIRECT"), id: `direct-${String(index).padStart(2, "0")}`,
+      scannerBatchId: batchId,
+      scannerClaimedDomain: index < 2 ? "example.org" : null,
+      evidenceSummary: index < 2 ? "Public grant reporting and restricted fund evidence" : "Research claim"
+    }));
+    const selected = selectScannerDirectRecoveryCohort(records, batchId, records.map((record) => record.id));
+    expect(selected).toHaveLength(10);
+    expect(selected.slice(0, 2).map((record) => record.id)).toEqual(["direct-00", "direct-01"]);
+    expect(selected.every((record) => record.lifecycle === "DISCOVERED")).toBe(true);
+  });
+
+  it("prioritizes a cohort's first evidence attempt but does not starve normal retry work", () => {
+    const now = "2026-09-15T14:00:00.000Z";
+    const cohort = { ...seed("", "DIRECT"), id: "cohort-first", scannerBatchId: "daily-grantdeskhq-2026-09-29-fixed-cohort" };
+    const global = { ...seed("", "DIRECT"), id: "global-first", scannerBatchId: "daily-other" };
+    const retry = { ...seed("", "DIRECT"), id: "cohort-retry", scannerBatchId: cohort.scannerBatchId, lifecycle: "ROLE_UNRESOLVED" as const, validationDisposition: "DEFERRED" as const, validationAttemptCount: 1, validationNextAttemptAt: now };
+    const cohorts = [{ id: "fixed", batchId: cohort.scannerBatchId!, sourceFileId: "file", contentHash: "hash", segment: "DIRECT" as const, canonicalRecordIds: [cohort.id, retry.id], selectedAt: now, selectionBasis: "test", creationSource: "scheduler_authenticated_recovery" as const, stateVersion: 1 as const }];
+    expect(prioritizeScannerValidationCandidates([global, retry, cohort], cohorts, now).map((record) => record.id)).toEqual(["cohort-first", "global-first", "cohort-retry"]);
   });
 });

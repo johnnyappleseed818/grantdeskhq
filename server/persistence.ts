@@ -863,6 +863,90 @@ export interface GtmScannerImportReceipt {
   conflictingReceiptId?: string;
 }
 
+/**
+ * A fixed, source-bound recovery cohort is an audit record for validation
+ * priority only. It is deliberately stored alongside scanner receipts and
+ * channel seeds rather than becoming a second prospect database. Cohort
+ * membership never qualifies, enriches, verifies, reserves, enrolls, or
+ * sends a recipient.
+ */
+export interface GtmScannerRecoveryCohort {
+  id: string;
+  batchId: string;
+  sourceFileId: string;
+  contentHash: string;
+  segment: "DIRECT";
+  canonicalRecordIds: string[];
+  selectedAt: string;
+  selectionBasis: string;
+  creationSource: "scheduler_authenticated_recovery";
+  stateVersion: 1;
+}
+
+function scannerRecoveryCohortPath(batchId: string) {
+  return `gtm/scanner-recovery-cohorts/records/${safeDocumentId(`direct:${batchId}`)}`;
+}
+
+export async function readGtmScannerRecoveryCohort(batchId: string): Promise<GtmScannerRecoveryCohort | null> {
+  const response = await authorizedFetch(`${firestoreBase}/${scannerRecoveryCohortPath(batchId)}`, await gcpToken());
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`GTM scanner recovery cohort could not be loaded (${response.status}).`);
+  const value = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}).cohortJson;
+  try { return value ? JSON.parse(String(value)) as GtmScannerRecoveryCohort : null; } catch { return null; }
+}
+
+/** The complete bounded collection is needed so an earlier cohort cannot hide
+ * a later one when scheduled validation chooses its safe priority ordering. */
+export async function listGtmScannerRecoveryCohorts(limit = 100): Promise<GtmScannerRecoveryCohort[]> {
+  const maximum = Math.max(1, Math.min(Math.floor(limit), 250));
+  const cohorts: GtmScannerRecoveryCohort[] = [];
+  const seenPageTokens = new Set<string>();
+  let pageToken = "";
+  do {
+    const query = new URLSearchParams({ pageSize: String(Math.min(100, maximum - cohorts.length)) });
+    if (pageToken) query.set("pageToken", pageToken);
+    const response = await authorizedFetch(`${firestoreBase}/gtm/scanner-recovery-cohorts/records?${query}`, await gcpToken());
+    if (response.status === 404) return cohorts;
+    if (!response.ok) throw new Error(`GTM scanner recovery cohorts could not be loaded (${response.status}).`);
+    const body = await response.json() as { documents?: Array<{ fields?: Record<string, FirestoreValue> }>; nextPageToken?: string };
+    for (const document of body.documents || []) {
+      if (cohorts.length >= maximum) break;
+      const value = decodeFields(document.fields || {}).cohortJson;
+      try { if (value) cohorts.push(JSON.parse(String(value)) as GtmScannerRecoveryCohort); }
+      catch { /* Malformed historical audit metadata never authorizes a cohort. */ }
+    }
+    const nextPageToken = String(body.nextPageToken || "");
+    if (!nextPageToken || cohorts.length >= maximum) break;
+    if (seenPageTokens.has(nextPageToken)) throw new Error("GTM scanner recovery cohort pagination returned a repeated continuation token.");
+    seenPageTokens.add(nextPageToken);
+    pageToken = nextPageToken;
+  } while (cohorts.length < maximum);
+  return cohorts.sort((left, right) => left.selectedAt.localeCompare(right.selectedAt));
+}
+
+/** Immutable compare-and-set write. A retry may recover the identical cohort,
+ * but a changed source file/hash or changed selection is a safety failure. */
+export async function createGtmScannerRecoveryCohort(cohort: GtmScannerRecoveryCohort) {
+  const path = scannerRecoveryCohortPath(cohort.batchId);
+  const accessToken = await gcpToken();
+  const created = await writeDocumentIfAbsent(accessToken, path, {
+    batchId: cohort.batchId,
+    sourceFileId: cohort.sourceFileId,
+    contentHash: cohort.contentHash,
+    selectedAt: cohort.selectedAt,
+    cohortJson: JSON.stringify(cohort)
+  });
+  if (created) return { cohort, created: true };
+  const existing = await readGtmScannerRecoveryCohort(cohort.batchId);
+  const same = existing
+    && existing.sourceFileId === cohort.sourceFileId
+    && existing.contentHash === cohort.contentHash
+    && existing.segment === cohort.segment
+    && existing.canonicalRecordIds.join("|") === cohort.canonicalRecordIds.join("|");
+  if (!same) throw new Error("Immutable scanner recovery cohort conflicts with the committed receipt binding or selection.");
+  return { cohort: existing, created: false };
+}
+
 export async function readGtmScannerImportReceipt(id: string): Promise<GtmScannerImportReceipt | null> {
   const response = await authorizedFetch(`${firestoreBase}/gtm/scanner-imports/records/${safeDocumentId(id)}`, await gcpToken());
   if (response.status === 404) return null;
