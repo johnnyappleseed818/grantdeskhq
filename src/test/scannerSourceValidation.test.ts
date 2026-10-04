@@ -86,12 +86,13 @@ describe("scanner validation recovery", () => {
     expect(selected.every((record) => record.lifecycle === "DISCOVERED")).toBe(true);
   });
 
-  it("prioritizes a cohort's first evidence attempt but does not starve normal retry work", () => {
+  it("prioritizes one post-cohort evidence attempt even after an older attempt, but does not starve normal retry work", () => {
     const now = "2026-09-15T14:00:00.000Z";
-    const cohort = { ...seed("", "DIRECT"), id: "cohort-first", scannerBatchId: "daily-grantdeskhq-2026-09-29-fixed-cohort" };
+    const selectedAt = "2026-09-15T13:00:00.000Z";
+    const cohort = { ...seed("", "DIRECT"), id: "cohort-first", scannerBatchId: "daily-grantdeskhq-2026-09-29-fixed-cohort", lifecycle: "ROLE_UNRESOLVED" as const, validationDisposition: "DEFERRED" as const, validationAttemptCount: 1, validationLastAttemptAt: "2026-09-15T12:00:00.000Z", validationNextAttemptAt: now };
     const global = { ...seed("", "DIRECT"), id: "global-first", scannerBatchId: "daily-other" };
-    const retry = { ...seed("", "DIRECT"), id: "cohort-retry", scannerBatchId: cohort.scannerBatchId, lifecycle: "ROLE_UNRESOLVED" as const, validationDisposition: "DEFERRED" as const, validationAttemptCount: 1, validationNextAttemptAt: now };
-    const cohorts = [{ id: "fixed", batchId: cohort.scannerBatchId!, sourceFileId: "file", contentHash: "hash", segment: "DIRECT" as const, canonicalRecordIds: [cohort.id, retry.id], selectedAt: now, selectionBasis: "test", creationSource: "scheduler_authenticated_recovery" as const, stateVersion: 1 as const }];
+    const retry = { ...seed("", "DIRECT"), id: "cohort-retry", scannerBatchId: cohort.scannerBatchId, lifecycle: "ROLE_UNRESOLVED" as const, validationDisposition: "DEFERRED" as const, validationAttemptCount: 1, validationLastAttemptAt: now, validationNextAttemptAt: now };
+    const cohorts = [{ id: "fixed", batchId: cohort.scannerBatchId!, sourceFileId: "file", contentHash: "hash", segment: "DIRECT" as const, canonicalRecordIds: [cohort.id, retry.id], selectedAt, selectionBasis: "test", creationSource: "scheduler_authenticated_recovery" as const, stateVersion: 1 as const }];
     expect(prioritizeScannerValidationCandidates([global, retry, cohort], cohorts, now).map((record) => record.id)).toEqual(["cohort-first", "global-first", "cohort-retry"]);
   });
 });

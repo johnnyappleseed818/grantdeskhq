@@ -77,21 +77,31 @@ export async function createOrReadScannerDirectRecoveryCohort(batchId: string) {
   return createGtmScannerRecoveryCohort(cohort);
 }
 
-/** A fixed cohort may prioritize its first unattempted evidence pass. Retry
- * records immediately return to normal bounded scheduling so a bad batch can
- * never starve the rest of the production queue. */
+/** A fixed cohort may prioritize one evidence pass after the immutable cohort
+ * was selected. A historical attempt before selection does not strand that
+ * record, while post-cohort retries immediately return to normal bounded
+ * scheduling so a bad batch can never starve the production queue. */
 export function prioritizeScannerValidationCandidates(seeds: readonly ChannelSeedRecord[], cohorts: readonly GtmScannerRecoveryCohort[], now: string, env: NodeJS.ProcessEnv = process.env) {
   const due = seeds.filter((seed) => seed.source === "chatgpt_scanner_drive" && scannerValidationDueForScrapeGraph(seed, now, env));
-  const dueById = new Map(due.map((seed) => [seed.id, seed]));
-  const prioritizedIds = cohorts
-    .filter((cohort) => cohort.segment === "DIRECT")
-    .flatMap((cohort) => cohort.canonicalRecordIds)
-    .filter((id, index, all) => all.indexOf(id) === index);
-  const priority = prioritizedIds
-    .map((id) => dueById.get(id))
-    .filter((seed): seed is ChannelSeedRecord => seed !== undefined && (seed.validationAttemptCount || 0) === 0);
+  const cohortById = new Map<string, GtmScannerRecoveryCohort>();
+  for (const cohort of cohorts.filter((entry) => entry.segment === "DIRECT")) {
+    for (const id of cohort.canonicalRecordIds) {
+      const current = cohortById.get(id);
+      if (!current || current.selectedAt < cohort.selectedAt) cohortById.set(id, cohort);
+    }
+  }
+  const priority = due.filter((seed) => {
+    const cohort = cohortById.get(seed.id);
+    return Boolean(cohort) && !validatedSinceCohortSelection(seed, cohort!);
+  });
   const selected = new Set(priority.map((seed) => seed.id));
   return [...priority, ...due.filter((seed) => !selected.has(seed.id))];
+}
+
+function validatedSinceCohortSelection(seed: ChannelSeedRecord, cohort: GtmScannerRecoveryCohort) {
+  const lastAttemptAt = Date.parse(seed.validationLastAttemptAt || "");
+  const cohortSelectedAt = Date.parse(cohort.selectedAt || "");
+  return Number.isFinite(lastAttemptAt) && Number.isFinite(cohortSelectedAt) && lastAttemptAt >= cohortSelectedAt;
 }
 
 /** The score is strictly a deterministic work-order preference. Every source,
