@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, cleanCampaignStatusAllowsAutomaticDispatch, cleanCampaignStatusAllowsCapacityAlignment, cleanInitialOnlyCampaignChecks, cleanInitialOnlyCampaignReady, cleanMembershipEvidenceId, cleanMembershipRebindReason, controlledCampaignSafetySummary, InstantlyClient, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyLeadTelemetry, instantlyPreviewRecord, instantlyReconciliationRecordChanged, needsCanonicalInitialSendRecovery, normalizeInstantlyWebhook, rebindMappedInstantlyRecord, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "../../server/instantly";
+import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, cleanCampaignStatusAllowsAutomaticDispatch, cleanCampaignStatusAllowsCapacityAlignment, cleanInitialOnlyCampaignChecks, cleanInitialOnlyCampaignReady, cleanMembershipEvidenceId, cleanMembershipRebindReason, controlledCampaignSafetySummary, InstantlyClient, instantSafeSummary, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyLeadTelemetry, instantlyPreviewRecord, instantlyReconciliationRecordChanged, needsCanonicalInitialSendRecovery, normalizeInstantlyWebhook, rebindMappedInstantlyRecord, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "../../server/instantly";
 import type { CanonicalGtmRecord } from "../lib/gtmCanonical";
 
 const record: CanonicalGtmRecord = {
@@ -38,6 +38,13 @@ describe("Instantly fail-closed integration", () => {
     expect(telemetry).toMatchObject({ providerRows: 200, statusCounts: { "0": 67, "1": 67, "2": 66 }, campaignCounts: { clean_direct: 100, clean_partner: 100 } });
     expect(JSON.stringify(telemetry)).not.toContain("contact_0@example.org");
     expect(Buffer.byteLength(JSON.stringify(telemetry))).toBeLessThan(5_000);
+  });
+
+  it("bounds workspace diagnostic summaries so reconciliation status remains a Firestore-sized control-plane document", () => {
+    const summary = instantSafeSummary({ items: Array.from({ length: 200 }, (_, index) => ({ id: `campaign_${index}`, name: "x".repeat(20_000), status: 1 })) }, ["id", "name", "status"]);
+    expect(summary).toHaveLength(50);
+    expect(summary[0]?.name).toHaveLength(256);
+    expect(Buffer.byteLength(JSON.stringify(summary))).toBeLessThan(20_000);
   });
 
   it("does not make an API request without a configured key", async () => {

@@ -791,11 +791,21 @@ export function instantlyItems(value: unknown): Array<Record<string, unknown>> {
   return Array.isArray(items) ? items.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item)) : [];
 }
 
-export function instantSafeSummary(value: unknown, fields: string[]) {
-  return instantlyItems(value).map((item) => Object.fromEntries(fields.flatMap((field) => {
-    const value = item[field];
-    return typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? [[field, value]] : [];
-  })));
+/** Bounded dashboard telemetry only. Full provider rows stay in Instantly and
+ * per-membership state stays in deterministic records; allowing unbounded
+ * workspace metadata here can exceed Firestore's one-document limit and stop
+ * otherwise read-only reconciliation. */
+export function instantSafeSummary(value: unknown, fields: string[], maximum = 50) {
+  const limit = Math.max(1, Math.min(Math.floor(maximum), 100));
+  return instantlyItems(value).slice(0, limit).map((item) => {
+    const entries: Array<[string, string | number | boolean]> = [];
+    for (const field of fields) {
+      const fieldValue = item[field];
+      if (typeof fieldValue === "string") entries.push([field, fieldValue.slice(0, 256)]);
+      else if (typeof fieldValue === "number" || typeof fieldValue === "boolean") entries.push([field, fieldValue]);
+    }
+    return Object.fromEntries(entries);
+  });
 }
 
 /** Reconciliation status is a compact dashboard/control-plane document, not a
