@@ -1,22 +1,24 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-10-04T06:07:00Z",
+  "updatedAt": "2026-10-04T06:22:26Z",
   "latestDirectRecovery": {
     "status": "PARTIAL",
     "effortAccounting": "Cumulative active duration before the 2026-10-04 credit interruption was not instrumented. This resumed segment used targeted repository, Cloud Run, Scheduler, provider, and receipt checks only; total remains under the authorized four-hour recovery cap.",
     "commits": [
       "e96151162a5410989d4a55deea7df8d91cf3a2dd fix(gtm): prioritize fixed scanner recovery cohort",
-      "ae4fcd14cca6bf34030ea0e1329c042edd078a4a fix(gtm): honor cohort selection timestamp"
+      "ae4fcd14cca6bf34030ea0e1329c042edd078a4a fix(gtm): honor cohort selection timestamp",
+      "eb3bfa622edfbecdd73e655837c802c70ce17658 fix(gtm): prioritize direct recovery enrichment"
     ],
     "builds": [
       { "id": "88b633fe-9375-4691-a0a8-3f2693dd6bec", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00567-nob", "traffic": "replaced" },
-      { "id": "8706e38d-8789-4f71-a495-c88b8f278e1e", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00569-lux", "traffic": "100%" }
+      { "id": "8706e38d-8789-4f71-a495-c88b8f278e1e", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00569-lux", "traffic": "replaced" },
+      { "id": "98b3d98c-6b0e-43de-8f9c-335abb1d36f0", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00571-tom", "traffic": "100%" }
     ],
     "production": {
-      "revision": "grantdeskhq-prototype-00569-lux",
+      "revision": "grantdeskhq-prototype-00571-tom",
       "traffic": "100% verified by Cloud Run Admin API",
-      "customDomainHealth": "PASS — https://grantdeskhq.com/api/health returned HTTP 200 with deploymentRevision grantdeskhq-prototype-00569-lux",
+      "customDomainHealth": "PASS — https://grantdeskhq.com/api/health returned HTTP 200 with deploymentRevision grantdeskhq-prototype-00571-tom",
       "runtimeIdentity": "grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com"
     },
     "receipt": {
@@ -64,6 +66,18 @@
         "blocked": "SCRAPEGRAPH_CREDIT_HEADROOM_REACHED",
         "remainingCredits": 80,
         "requiredHeadroom": 100
+      },
+      "instantlyContactProbe": {
+        "at": "2026-10-04T06:19:00Z",
+        "candidateRevision": "grantdeskhq-prototype-00571-tom",
+        "selected": 1,
+        "previewMatches": 0,
+        "submitted": 1,
+        "reconciliation": "COMPLETED_WITHOUT_ROLE_FIT_VERIFIED_CONTACT",
+        "providerVerifiedContacts": 0,
+        "enrollments": 0,
+        "sends": 0,
+        "evidence": "The immutable cohort ordering selected the evidence-qualified Direct record. Instantly SuperSearch accepted one bounded search, then reconciliation found no matching role-fit provider-verified lead. The canonical seed moved to terminal ENRICHMENT_FAILED; no retry, reservation, campaign handoff, or email was created."
       }
     },
     "providerReconciliation": {
@@ -99,6 +113,12 @@
         "operation": "public organization evidence extraction for the fixed Direct cohort",
         "evidence": "Authenticated balance read returned 80 credits; the configured immutable safety rule requires 100 credits headroom. The deployed validator returned SCRAPEGRAPH_CREDIT_HEADROOM_REACHED with zero extraction calls.",
         "smallestAction": "Restore the approved included-credit allowance to at least 100 remaining credits without enabling paid overage, then the deployed weekday validator will resume the fixed cohort automatically."
+      },
+      {
+        "component": "Fixed Direct cohort source/contact quality",
+        "operation": "provider-backed contact discovery for the only evidence-qualified cohort organization",
+        "evidence": "The deployed bounded Instantly SuperSearch probe selected one cohort record, previewed zero matches, and reconciliation completed without a role-fit provider-verified contact.",
+        "smallestAction": "No unsafe retry is permitted. Continue durable discovery/qualification on new evidence and process only organizations that independently pass the existing ICP and contact-verification gates."
       },
       {
         "component": "Partner handoff reporting",
