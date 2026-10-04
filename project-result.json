@@ -58,6 +58,13 @@
       "lastScheduledDailyBusinessAction": "2026-10-04T13:35:04Z on 00575-but: daily scanner HTTP 200; structured telemetry at 13:35:46Z recorded Direct channel-seed selected=1, Instantly enrichment submitted=1, reconciled=0, verified=0. This is provider enrichment activity, not a verified contact, enrollment, or send.",
       "lastScheduledSeoAction": "2026-10-04T14:20:01Z on 00575-but: SEO reconciliation HTTP 200. Its structured log reported Search Console PASS, 12 pages, 11 queries, sitemap PASS, dataThrough 2026-10-01, errors=[]. Public robots references the sitemap; it contains 14 URLs, with latest lastmod 2026-08-30. Aggregate clicks/impressions remain unavailable from the scheduler-safe log."
     },
+    "capacityAudit": {
+      "checkedAt": "2026-10-04T19:29:00.000Z",
+      "workspaceId": "d8e61c1a-335b-42e9-9932-039e9ff6b05f",
+      "mailboxes": "3 total; 1 status=1 and warmed with daily_limit=30; 2 status=2, not warmed. Healthy aggregate provider capacity is 30 unique initial emails per approved business day.",
+      "campaigns": "Both configured Clean campaigns read successfully with provider status=3 (Completed) and daily_limit/daily_max_leads=30. The server-authoritative controller may only reactivate/evaluate them after all eligibility, capacity, suppression, and window gates pass.",
+      "gapToCommercialTarget": "270 additional healthy unique daily sender slots are required to reach the 300/day target. The authenticated provider plan endpoint returned no pricing, credit, or capacity-entitlement values, so incremental dollar cost is UNKNOWN rather than estimated."
+    },
     "nextDurableExecution": {
       "scannerImport": "2026-10-05 08:15 America/Detroit / 12:15 UTC / 15:15 Asia/Jerusalem",
       "scannerValidation": "2026-10-05 08:30 America/Detroit / 12:30 UTC / 15:30 Asia/Jerusalem",
@@ -67,7 +74,11 @@
       "dailyAwardAndSocialScan": "2026-10-05 13:35 UTC / 09:35 America/Detroit / 16:35 Asia/Jerusalem"
     },
     "remainingBlockers": [
-      "ScrapeGraphAI optional fallback remains blocked at the existing zero-overage guard: last observed balance 80 credits versus required 100-credit headroom. Independent official-source and Instantly paths are unaffected.",
+      "Private MCP is code-complete and deployed, but public ChatGPT submission requires a standards-compatible OAuth authorization flow; Firebase bearer auth remains intentionally private.",
+      "No provider-confirmed send from the new scheduled source path has occurred yet. The next deployed weekday cycle must create/reject/defer records and reconciliation must supply authoritative provider outcomes; no manual provider replay is authorized."
+      "ScrapeGraphAI optional fallback remains blocked at the existing zero-overage guard: last runtime-observed balance was 80 credits versus required 100-credit headroom. The development runtime grantdeskhq-dev-vm@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com was denied secretmanager.versions.access on grantdeskhq-scrapegraph-api-key, so no newer local balance is claimed. Independent official-source and Instantly paths are unaffected.",
+      "Private MCP is code-complete and deployed, but public ChatGPT submission requires a standards-compatible OAuth authorization flow; Firebase bearer auth remains intentionally private.",
+      "No provider-confirmed send from the new scheduled source path has occurred yet. The next deployed weekday cycle must create/reject/defer records and reconciliation must supply authoritative provider outcomes; no manual provider replay is authorized."
       "Private MCP is code-complete and deployed, but public ChatGPT submission requires a standards-compatible OAuth authorization flow; Firebase bearer auth remains intentionally private.",
       "No provider-confirmed send from the new scheduled source path has occurred yet. The next deployed weekday cycle must create/reject/defer records and reconciliation must supply authoritative provider outcomes; no manual provider replay is authorized."
     ]
