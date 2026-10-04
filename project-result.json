@@ -1,7 +1,39 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-10-04T17:49:22.144Z",
+  "updatedAt": "2026-10-04T19:09:00.000Z",
+  "latestSourceIndependentRelease": {
+    "status": "PARTIAL",
+    "commit": "44e5f299ef465d266ae1e9d113946aaef89f5ee7",
+    "build": {
+      "id": "54fc43df-c754-40b0-8f83-7c8f213b50cd",
+      "status": "SUCCESS",
+      "image": "us-central1-docker.pkg.dev/grantdeskhq-proto-ek-2026/cloud-run-source-deploy/grantdeskhq-prototype@sha256:da50cd2b3625c775e1d792c96d086586b06abe04a94221f005e8a333f0ec00a2"
+    },
+    "production": {
+      "revision": "grantdeskhq-prototype-00577-bab",
+      "traffic": "100%",
+      "health": "PASS — custom-domain /api/health returned HTTP 200 with deploymentRevision grantdeskhq-prototype-00577-bab",
+      "candidateSmoke": "PASS — tagged candidate returned health 200 and rejected unauthenticated POST /mcp with HTTP 401",
+      "runtimeIdentity": "grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com"
+    },
+    "implemented": {
+      "sourceIndependentValidation": "Structured award, scanner, and identified-social records first require independently fetched official-domain evidence. ScrapeGraphAI is an optional per-record fallback; its unavailable or headroom-blocked state defers only that record for six hours without consuming a validation attempt.",
+      "officialContactBinding": "An extracted email is accepted only when the named role and email are visibly published on a same-domain official contact page, never on a funder, award, directory, or discovery source.",
+      "awardAndSocialCoverage": "Daily source telemetry names state/local award notices, foundation grantee announcements, nonprofit award announcements, finance/grants hiring, public Reddit/forums, public LinkedIn, and public G2 research. Anonymous social records remain review-only.",
+      "grantReportingMcp": "Private stateless /mcp endpoint exposes five typed read-only tenant-bound GrantDeskHQ reporting tools; it accepts no organization/file/GTM identifiers beyond an authenticated tenant-owned report ID. Public ChatGPT submission remains blocked on OAuth implementation."
+    },
+    "verification": {
+      "focusedTests": "47 acquisition/feed/social/MCP tests passed; 36 capacity/dispatch/enrichment tests passed; TypeScript, lint, and diff checks passed.",
+      "scheduledImporter": "grantdeskhq-scanner-drive-import is ENABLED, runs 08:15 weekdays America/Detroit, POSTs {} to /api/gtm/scanner-drive/import, and uses grantdeskhq-gtm-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com with the production audience."
+    },
+    "currentEvidenceBoundary": "No new provider send or paid extraction was forced on Sunday. The next autonomous ingestion/validation/enrichment/dispatch window begins 2026-10-05 08:15 America/Detroit (12:15 UTC); it is the required live proof for the newly deployed source-independent route.",
+    "remainingBlockers": [
+      "ScrapeGraphAI balance was last read as 80 credits while the immutable zero-overage guard requires 100 credits headroom; optional fallback calls remain deferred, while independent official-evidence and Instantly routes continue.",
+      "Public ChatGPT plugin submission needs a standards-compatible OAuth authorization flow; existing Firebase bearer authentication intentionally remains private rather than being weakened.",
+      "No provider-confirmed send from the newly deployed automatic source path exists yet; scheduled execution and provider reconciliation are pending the next business window."
+    ]
+  },
   "latestPostPromotionVerification": {
     "status": "PARTIAL",
     "production": {
