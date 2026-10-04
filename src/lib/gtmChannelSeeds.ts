@@ -140,6 +140,44 @@ export function discoveredOpportunityToChannelSeed(opportunity: GtmOpportunity, 
   return dynamicSeed({ organization: opportunity.organization, segment: "DIRECT", organizationDomain: domainFromUrl(opportunity.organizationUrl || ""), sourceUrl: opportunity.evidence[0]?.url || opportunity.organizationUrl || "", observedAt: opportunity.observedAt || importedAt, evidenceSummary: opportunity.whyNow, targetRoleGroup: ["CFO", "Finance Director", "Controller", "Director of Grants", "Grants Manager", "Institutional Giving leader"], importedAt });
 }
 
+/** A structured award record establishes a timely organization-level research
+ * signal, but cannot supply an official organization domain or a contact.
+ * Keep it DISCOVERED so the normal independent-domain validator—not a paid
+ * extractor—decides whether it can enter provider-backed contact discovery. */
+export function discoveredAwardToChannelSeed(opportunity: GtmOpportunity, importedAt = new Date().toISOString()): ChannelSeedRecord {
+  const sourceUrl = opportunity.evidence[0]?.url || "";
+  const observedAt = opportunity.observedAt || importedAt;
+  return {
+    id: recordId("DIRECT", opportunity.organization),
+    organization: opportunity.organization.trim(),
+    segment: "DIRECT",
+    targetRoleGroup: ["CFO", "Finance Director", "Controller", "Director of Grants", "Grants Manager", "Institutional Giving leader"],
+    source: "usaspending_award",
+    sourceUrl,
+    observedAt,
+    importedAt,
+    lifecycle: "DISCOVERED",
+    organizationDomain: null,
+    evidenceSummary: opportunity.whyNow,
+    qualificationReasons: [
+      "Structured USAspending award evidence was imported as DISCOVERED.",
+      "The award is a timing signal only; an official organization domain, ICP evidence, current role-fit contact, verification, suppression, and final campaign gates remain required."
+    ],
+    rejectionReason: null,
+    enrichmentProvider: null,
+    enrichmentResult: null,
+    deduplicationKey: `DIRECT:${opportunity.organization.normalize("NFKC").trim().toLowerCase()}`,
+    scannerUnknownFields: {
+      awardStartDate: opportunity.awardStartDate || null,
+      awardEndDate: opportunity.awardEndDate || null,
+      awardObservedAt: observedAt,
+      awardEvidenceId: opportunity.evidence[0]?.id || null,
+      awardPublicationDate: opportunity.evidence[0]?.observedAt || null,
+      awardSource: "USAspending"
+    }
+  };
+}
+
 export function discoveredPartnerToChannelSeed(opportunity: PartnerDiscoveryOpportunity, importedAt = new Date().toISOString()): ChannelSeedRecord {
   return dynamicSeed({ organization: opportunity.organization, segment: "PARTNER", organizationDomain: opportunity.organizationDomain, sourceUrl: opportunity.sourceUrl, observedAt: opportunity.observedAt || importedAt, evidenceSummary: opportunity.whyFit, targetRoleGroup: ["Founder", "CEO", "Managing Partner", "Nonprofit Practice Lead", "Partner", "Principal"], importedAt });
 }
@@ -207,6 +245,8 @@ export interface ScannerSocialResearchRecord {
   organization_domain?: string | null;
 }
 
+const scannerForumHosts = new Set(["community.npquarterly.org", "forums.techsoup.org", "grantprofessionals.org", "www.grantprofessionals.org", "nonprofitquarterly.org"]);
+
 /** Anonymous scanner research remains visible but cannot create an outbound seed. */
 export function scannerSocialResearchToSignals(input: { batchId: string; records: readonly ScannerSocialResearchRecord[]; observedAt?: string }) {
   const observedAt = input.observedAt || new Date().toISOString();
@@ -216,9 +256,21 @@ export function scannerSocialResearchToSignals(input: { batchId: string; records
   for (const raw of input.records) {
     const sourceRecordKey = typeof raw.source_record_key === "string" ? raw.source_record_key.trim() : "";
     const url = typeof raw.source_url === "string" ? raw.source_url.trim() : "";
-    const platform = String(raw.platform || "").trim().toLowerCase();
-    if (!sourceRecordKey || !url || platform !== "reddit" || !isSafePublicSourceUrl(url) || !/^https:\/\/(?:www\.)?reddit\.com\/r\/[^/]+\/comments\//i.test(url)) {
-      rejected.push({ sourceRecordKey, reason: "MALFORMED_OR_UNSAFE_SOCIAL_RESEARCH" });
+    const platform = scannerSocialPlatform(raw.platform);
+    if (!sourceRecordKey) {
+      rejected.push({ sourceRecordKey, reason: "MISSING_SOCIAL_SOURCE_RECORD_KEY" });
+      continue;
+    }
+    if (!platform) {
+      rejected.push({ sourceRecordKey, reason: "UNSUPPORTED_SOCIAL_PLATFORM" });
+      continue;
+    }
+    if (!url) {
+      rejected.push({ sourceRecordKey, reason: "MISSING_SOCIAL_SOURCE_URL" });
+      continue;
+    }
+    if (!isSafeScannerSocialUrl(url, platform)) {
+      rejected.push({ sourceRecordKey, reason: "UNSAFE_OR_PLATFORM_MISMATCH_SOCIAL_URL" });
       continue;
     }
     const id = `scanner-social-${createHash("sha256").update(`${input.batchId}:${sourceRecordKey}:${url}`).digest("hex").slice(0, 18)}`;
@@ -227,7 +279,7 @@ export function scannerSocialResearchToSignals(input: { batchId: string; records
     const pain = scannerText(raw.pain_category, "Post-award reporting research");
     const evidence = scannerText(raw.evidence_excerpt, "Older anonymous public research evidence.");
     accepted.push({
-      id, platform: "reddit", title: `Historical Reddit research: ${pain}`.slice(0, 180), url,
+      id, platform, title: `Historical ${platform} research: ${pain}`.slice(0, 180), url,
       author: "anonymous", publishedAt: scannerText(raw.published_at, "unknown"), observedAt: scannerText(raw.observed_at, observedAt),
       evidenceSummary: evidence, observedPain: pain, painThemes: [pain],
       whyRelevant: scannerText(raw.fit_rationale, "Older anonymous research evidence only; no organization or buyer is identified."),
@@ -236,6 +288,26 @@ export function scannerSocialResearchToSignals(input: { batchId: string; records
     });
   }
   return { accepted, rejected };
+}
+
+function scannerSocialPlatform(value: unknown): "reddit" | "forum" | "linkedin" | "g2" | null {
+  const platform = String(value || "").trim().toLowerCase();
+  return platform === "reddit" || platform === "forum" || platform === "linkedin" || platform === "g2" ? platform : null;
+}
+
+function isSafeScannerSocialUrl(value: string, platform: NonNullable<ReturnType<typeof scannerSocialPlatform>>) {
+  if (!isSafePublicSourceUrl(value)) return false;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return false;
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    if (platform === "reddit") return host === "reddit.com" && /^\/r\/[^/]+\/comments\//i.test(url.pathname);
+    if (platform === "linkedin") return host === "linkedin.com" && /(\/posts\/|\/feed\/update|\/pulse\/)/.test(url.pathname);
+    if (platform === "g2") return host === "g2.com" && /\/(reviews?|products\/[^/]+\/reviews?)/.test(url.pathname);
+    return scannerForumHosts.has(host) && url.pathname.length > 1;
+  } catch {
+    return false;
+  }
 }
 
 /** Scanner exports are untrusted discovery data. They never advance to enrichment or READY. */

@@ -13,6 +13,7 @@ import {
 import {
   channelSeedManifest,
   channelSeedToCanonicalCandidate,
+  discoveredAwardToChannelSeed,
   discoveredOpportunityToChannelSeed,
   scannerLeadFeedToChannelSeeds,
   scannerSocialResearchToSignals,
@@ -94,6 +95,21 @@ describe("2026-08-28 channel seed import", () => {
     expect(superSearchEligibleSeed(direct)).toBe(true);
   });
 
+  it("keeps structured USAspending awards DISCOVERED until independent organization evidence is verified", () => {
+    const award = discoveredAwardToChannelSeed({
+      id: "usaspending-award-1",
+      organization: "Example Awardee",
+      signalKind: "grant_award",
+      headline: "Recent federal award record detected",
+      observedAt: "2026-10-04",
+      evidence: [{ id: "award-source-1", title: "Award", url: "https://www.usaspending.gov/award/example/", observedAt: "2026-10-03", authority: "official", excerpt: "Federal assistance award", supports: ["recipient"] }],
+      score: { pain: 1, timing: 1, fit: 1, value: 1 }, entityVerified: true, nonprofitVerified: true, conflicts: [], unknowns: [], recommendedRoles: [], whyNow: "Recent award signal", recommendedAngle: "Verify reporting workflow", emailSubject: "", draftMessage: "", awardStartDate: "2026-10-01"
+    });
+    expect(award).toMatchObject({ source: "usaspending_award", lifecycle: "DISCOVERED", organizationDomain: null });
+    expect(channelSeedToCanonicalCandidate(award)).toMatchObject({ qualified: false, blockers: expect.arrayContaining(["SEED_REQUIRES_INDEPENDENT_PUBLIC_VERIFICATION"]) });
+    expect(award.scannerUnknownFields).toMatchObject({ awardStartDate: "2026-10-01", awardSource: "USAspending" });
+  });
+
   it("marks only independently verified partner rows eligible for provider enrichment", () => {
     const partners = channelSeedManifest().filter(
       (seed) => seed.segment === "PARTNER",
@@ -171,6 +187,30 @@ it("keeps anonymous scanner Reddit evidence out of contact discovery", () => {
     publishedAt: "unknown",
   });
   expect(result.accepted[0]?.suggestedResponse).toContain("RESEARCH_ONLY");
+});
+
+it("keeps only safely attributable social research as REVIEW evidence with a precise rejection reason", () => {
+  const result = scannerSocialResearchToSignals({
+    batchId: "grantdeskhq-social-research-safe-url",
+    records: [
+      { source_record_key: "unsafe", platform: "Reddit", source_url: "http://127.0.0.1/private" },
+      { source_record_key: "unsupported", platform: "Mastodon", source_url: "https://social.example/posts/example" },
+    ],
+  });
+  expect(result.accepted).toEqual([]);
+  expect(result.rejected).toEqual([
+    { sourceRecordKey: "unsafe", reason: "UNSAFE_OR_PLATFORM_MISMATCH_SOCIAL_URL" },
+    { sourceRecordKey: "unsupported", reason: "UNSUPPORTED_SOCIAL_PLATFORM" },
+  ]);
+});
+
+it("keeps a safely indexed LinkedIn source as anonymous REVIEW evidence", () => {
+  const result = scannerSocialResearchToSignals({
+    batchId: "grantdeskhq-social-research-linkedin",
+    records: [{ source_record_key: "linkedin|one", platform: "linkedin", source_url: "https://www.linkedin.com/posts/example_grant-reporting-activity-1" }],
+  });
+  expect(result.rejected).toEqual([]);
+  expect(result.accepted[0]).toMatchObject({ platform: "linkedin", author: "anonymous", status: "SKIPPED" });
 });
 
 it("redacts Google Drive API errors to stable classification fields", () => {

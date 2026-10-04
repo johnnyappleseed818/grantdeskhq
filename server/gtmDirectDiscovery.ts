@@ -43,7 +43,9 @@ const schema = {
 
 export const directSourceRegistry = (now: string, statuses: Partial<Record<string, GtmSourceRegistryEntry["status"]>> = {}): GtmSourceRegistryEntry[] => [
   { name: "USAspending recent federal awards", type: "Recent award signals", mode: "PUBLIC_AUTOMATED", enabled: true, lastAttempt: now, lastSuccess: statuses["USAspending recent federal awards"] === "PASS" ? now : null, status: statuses["USAspending recent federal awards"] || "NOT_RUN" },
-  { name: "Public grant and funding announcements", type: "Public web discovery", mode: "PUBLIC_SEARCH_DISCOVERY", enabled: true, lastAttempt: now, lastSuccess: statuses["Public grant and funding announcements"] === "PASS" ? now : null, status: statuses["Public grant and funding announcements"] || "NOT_RUN" },
+  { name: "State and local public award notices", type: "Public web discovery", mode: "PUBLIC_SEARCH_DISCOVERY", enabled: true, lastAttempt: now, lastSuccess: statuses["State and local public award notices"] === "PASS" ? now : null, status: statuses["State and local public award notices"] || "NOT_RUN" },
+  { name: "Foundation grantee announcements", type: "Public web discovery", mode: "PUBLIC_SEARCH_DISCOVERY", enabled: true, lastAttempt: now, lastSuccess: statuses["Foundation grantee announcements"] === "PASS" ? now : null, status: statuses["Foundation grantee announcements"] || "NOT_RUN" },
+  { name: "Nonprofit award announcements", type: "Public web discovery", mode: "PUBLIC_SEARCH_DISCOVERY", enabled: true, lastAttempt: now, lastSuccess: statuses["Nonprofit award announcements"] === "PASS" ? now : null, status: statuses["Nonprofit award announcements"] || "NOT_RUN" },
   { name: "Public nonprofit finance and grants hiring", type: "Public web discovery", mode: "PUBLIC_SEARCH_DISCOVERY", enabled: true, lastAttempt: now, lastSuccess: statuses["Public nonprofit finance and grants hiring"] === "PASS" ? now : null, status: statuses["Public nonprofit finance and grants hiring"] || "NOT_RUN" }
 ];
 
@@ -52,7 +54,7 @@ export async function runDirectPublicDiscovery(input: { now?: Date; knownOrganiz
   const now = input.now || new Date();
   const at = now.toISOString();
   const telemetry = {
-    lastScan: at, sourcesAttempted: ["Public grant and funding announcements", "Public nonprofit finance and grants hiring"], sourcesSuccessful: [] as string[], sourceErrors: [] as string[], rawCandidatesExamined: 0, newOrganizations: 0, duplicates: 0, priorContactRemoved: 0, suppressed: 0, outsideIcpOrLowQuality: 0, qualified: 0, contactsResolvedPublicly: 0, hunterFinderCalls: 0, hunterVerifierCalls: 0, verified: 0, readyCreated: 0, stagedInInstantly: 0, mainBottleneck: "No public discovery result was returned."
+    lastScan: at, sourcesAttempted: ["State and local public award notices", "Foundation grantee announcements", "Nonprofit award announcements", "Public nonprofit finance and grants hiring"], sourcesSuccessful: [] as string[], sourceErrors: [] as string[], rawCandidatesExamined: 0, newOrganizations: 0, duplicates: 0, priorContactRemoved: 0, suppressed: 0, outsideIcpOrLowQuality: 0, qualified: 0, contactsResolvedPublicly: 0, hunterFinderCalls: 0, hunterVerifierCalls: 0, verified: 0, readyCreated: 0, stagedInInstantly: 0, mainBottleneck: "No public discovery result was returned."
   };
   const registryStatuses: Partial<Record<string, GtmSourceRegistryEntry["status"]>> = {};
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -66,8 +68,8 @@ export async function runDirectPublicDiscovery(input: { now?: Date; knownOrganiz
       body: JSON.stringify({
         model: process.env.OPENAI_GTM_MODEL || DEFAULT_MODEL, store: false, reasoning: { effort: "low" },
         tools: [{ type: "web_search", search_context_size: "medium", external_web_access: true }], tool_choice: "required", max_tool_calls: 16, include: ["web_search_call.action.sources"],
-        input: [{ role: "system", content: [{ type: "input_text", text: "You are GrantDeskHQ's strict, source-backed nonprofit acquisition researcher. Find only recent public nonprofit grant/funding announcements and public nonprofit finance/grants job listings. Do not invent any organization, date, nonprofit status, role, person, email, URL, or pain. A public award or job is a timing signal, not proof of a reporting problem. Exclude fundraisers, pre-award grant-writing, generic finance jobs, universities, hospitals, government agencies, for-profit vendors, generic articles, and stale listings. For a named contact, use only a person/title visibly supported by an official organization page. Include a direct email only when it is visibly published on an official source; otherwise return empty strings. Do not guess email patterns." }] },
-          { role: "user", content: [{ type: "input_text", text: `Today is ${at.slice(0, 10)}. Run a bounded public search for US nonprofit signals from the last 30 days. Search grant/funding announcements and job listings for Grants Manager, Director of Grants, Grant Accountant, Grant Finance Manager, Controller, Director of Finance, or Finance Manager where the actual listing mentions grant reporting, funder reporting, post-award work, grant compliance, budget-to-actual, supporting documentation, or grant financial reporting. Return at most 50 evidence-backed candidates. Every sourceUrl, organizationUrl, contactRoleUrl, and contactEmailSourceUrl you provide must be an actual public source URL found by your search; use empty strings where no official contact evidence exists.` }] }],
+        input: [{ role: "system", content: [{ type: "input_text", text: "You are GrantDeskHQ's strict, source-backed nonprofit acquisition researcher. Find only recent state/local award notices, foundation grantee announcements, nonprofit award announcements, and public nonprofit finance/grants job listings. Do not invent any organization, date, nonprofit status, role, person, email, URL, or pain. A public award or job is a timing signal, not proof of a reporting problem. Exclude fundraisers, pre-award grant-writing, generic finance jobs, universities, hospitals, government agencies, for-profit vendors, generic articles, and stale listings. For a named contact, use only a person/title visibly supported by an official organization page. Include a direct email only when it is visibly published on an official source; otherwise return empty strings. Do not guess email patterns." }] },
+          { role: "user", content: [{ type: "input_text", text: `Today is ${at.slice(0, 10)}. Run a bounded public search for US nonprofit signals from the last 30 days: state/local award notices, foundation grantee announcements, nonprofit award announcements, and finance/grants job listings for Grants Manager, Director of Grants, Grant Accountant, Grant Finance Manager, Controller, Director of Finance, or Finance Manager where the actual listing mentions grant reporting, funder reporting, post-award work, grant compliance, budget-to-actual, supporting documentation, or grant financial reporting. Preserve the actual award date, publication date, and amendment/update date separately whenever the source exposes them. Return at most 50 evidence-backed candidates. Every sourceUrl, organizationUrl, contactRoleUrl, and contactEmailSourceUrl you provide must be an actual public source URL found by your search; use empty strings where no official contact evidence exists.` }] }],
         text: { format: { type: "json_schema", name: "grantdeskhq_direct_public_discovery", strict: true, schema } }
       })
     });
@@ -78,9 +80,11 @@ export async function runDirectPublicDiscovery(input: { now?: Date; knownOrganiz
     const sourceUrls = new Set(collectUrls(body).map(normalizeUrl).filter(Boolean));
     const candidates = JSON.parse(text) as DiscoveryDraft;
     telemetry.rawCandidatesExamined = candidates.candidates.length;
-    registryStatuses["Public grant and funding announcements"] = "PASS";
+    registryStatuses["State and local public award notices"] = "PASS";
+    registryStatuses["Foundation grantee announcements"] = "PASS";
+    registryStatuses["Nonprofit award announcements"] = "PASS";
     registryStatuses["Public nonprofit finance and grants hiring"] = "PASS";
-    telemetry.sourcesSuccessful.push("Public grant and funding announcements", "Public nonprofit finance and grants hiring");
+    telemetry.sourcesSuccessful.push("State and local public award notices", "Foundation grantee announcements", "Nonprofit award announcements", "Public nonprofit finance and grants hiring");
     const known = new Set(input.knownOrganizationIds || []);
     const prior = new Set(input.priorContactOrganizationIds || []);
     const suppressedDomains = new Set([...(input.suppressedDomains || [])].map((value) => value.toLowerCase()));
@@ -116,7 +120,7 @@ export async function runDirectPublicDiscovery(input: { now?: Date; knownOrganiz
   } catch (error) {
     telemetry.sourceErrors.push(error instanceof Error ? error.message : "Public Direct discovery failed.");
     telemetry.mainBottleneck = "Public discovery source failed; the last successful inventory remains available.";
-    registryStatuses["Public grant and funding announcements"] = "ERROR"; registryStatuses["Public nonprofit finance and grants hiring"] = "ERROR";
+    registryStatuses["State and local public award notices"] = "ERROR"; registryStatuses["Foundation grantee announcements"] = "ERROR"; registryStatuses["Nonprofit award announcements"] = "ERROR"; registryStatuses["Public nonprofit finance and grants hiring"] = "ERROR";
     return { generatedAt: at, sourceRegistry: directSourceRegistry(at, registryStatuses), telemetry, opportunities: [], limitations: ["The public Direct scan failed without changing canonical prospect or outreach state."] };
   }
 }

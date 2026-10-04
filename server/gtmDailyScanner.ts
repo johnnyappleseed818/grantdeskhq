@@ -14,6 +14,7 @@ function sourceRegistry(now: string, urls: string[] = [], error?: string): GtmSo
     { name: "Reddit public discussions", type: "Public discussion", mode: "PUBLIC_AUTOMATED", enabled: true, lastAttempt: now, lastSuccess: hosts.has("reddit.com") ? now : null, status: status("reddit.com"), ...(error ? { error } : {}) },
     { name: "Public nonprofit finance and grant forums", type: "Public search discovery", mode: "PUBLIC_SEARCH_DISCOVERY", enabled: true, lastAttempt: now, lastSuccess: [...hosts].some((host) => FORUM_HOSTS.has(host)) ? now : null, status: error ? "ERROR" : [...hosts].some((host) => FORUM_HOSTS.has(host)) ? "PASS" : "PARTIAL", ...(error ? { error } : {}) },
     { name: "LinkedIn public search", type: "Public search discovery", mode: "PUBLIC_SEARCH_DISCOVERY", enabled: true, lastAttempt: now, lastSuccess: hosts.has("linkedin.com") ? now : null, status: status("linkedin.com"), ...(error ? { error } : {}) },
+    { name: "G2 public reviews", type: "Public review research", mode: "PUBLIC_SEARCH_DISCOVERY", enabled: true, lastAttempt: now, lastSuccess: hosts.has("g2.com") ? now : null, status: status("g2.com"), ...(error ? { error } : {}) },
     { name: "LinkedIn private groups", type: "Manual authenticated watchlist", mode: "MANUAL_AUTHENTICATED", enabled: false, lastAttempt: null, lastSuccess: null, status: "MANUAL" }
   ];
 }
@@ -53,7 +54,7 @@ export async function runDailySocialScan(now = new Date(), breadth: "STANDARD" |
         type: "web_search",
         search_context_size: "medium",
         external_web_access: true,
-        filters: { allowed_domains: ["reddit.com", "community.npquarterly.org", "forums.techsoup.org", "grantprofessionals.org", "linkedin.com"] }
+        filters: { allowed_domains: ["reddit.com", "community.npquarterly.org", "forums.techsoup.org", "grantprofessionals.org", "linkedin.com", "g2.com"] }
       }],
       tool_choice: "required",
       max_tool_calls: breadth === "EXPANDED" ? 18 : 12,
@@ -63,14 +64,14 @@ export async function runDailySocialScan(now = new Date(), breadth: "STANDARD" |
           role: "system",
           content: [{
             type: "input_text",
-            text: "You are GrantDeskHQ's evidence-first market researcher. Discovery has high recall; qualification remains strict. Find public, indexed discussions that may reveal actual grant-management, reporting, reconciliation, compliance, deadline, documentation, or cross-team ownership pain. Never invent a person, organization, quote, date, URL, complaint, or product usage. A search result is research evidence, not permission to contact anyone. Exclude grant discovery, proposal writing, fundraising, vendor promotion, generic evergreen articles, job listings, duplicates, and pre-award-only discussions. Explicitly cover public Reddit r/nonprofit, r/grantwriters, and r/nonprofittech where accessible, plus other demonstrably relevant public subreddits. Reddit and public forums are allowed. LinkedIn is allowed only for pages discoverable by ordinary public web search; never access a login-only page or private group. Return dates as ISO YYYY-MM-DD when visible; if a thread is older than 30 days, return it only when a separately visible recent update date is supplied. Summarize in your own words; do not present a paraphrase as a direct quote."
+            text: "You are GrantDeskHQ's evidence-first market researcher. Discovery has high recall; qualification remains strict. Find public, indexed discussions that may reveal actual grant-management, reporting, reconciliation, compliance, deadline, documentation, or cross-team ownership pain. Never invent a person, organization, quote, date, URL, complaint, or product usage. A search result is research evidence, not permission to contact anyone. Exclude grant discovery, proposal writing, fundraising, vendor promotion, generic evergreen articles, job listings, duplicates, and pre-award-only discussions. Explicitly cover public Reddit r/nonprofit, r/grantwriters, and r/nonprofittech where accessible, plus other demonstrably relevant public subreddits. Reddit and public forums are allowed. LinkedIn is allowed only for pages discoverable by ordinary public web search; never access a login-only page or private group. Public G2 reviews may be used only as anonymous market research, never as an organization or contact identity. Return dates as ISO YYYY-MM-DD when visible; if a thread is older than 30 days, return it only when a separately visible recent update date is supplied. Summarize in your own words; do not present a paraphrase as a direct quote."
           }]
         },
         {
           role: "user",
           content: [{
             type: "input_text",
-            text: `Today is ${scanDate}. Run a bounded ${breadth === "EXPANDED" ? "expanded-breadth" : "standard"} high-recall search for public Reddit, public nonprofit-finance/grant forums, and legitimately public LinkedIn discussions published or visibly updated within the last ${WINDOW_DAYS} days. Run explicit Reddit coverage for r/nonprofit, r/grantwriters, and r/nonprofittech. Search combinations including grant reporting, managing grant reporting, grant management, post-award, grant compliance, grant closeout, grant reporting software, grant management software, QBO grants, QuickBooks grants, grant budget vs actual, budget vs actual grants, grant spreadsheet, grant tracker, grant finance, grant accountant, restricted funds reporting, funder reporting, supporting documentation, grant reporting workflow, collecting program data, grant deadlines, reporting workload, and grant reporting staff. Favor pain terms such as spreadsheet, manual, hours, time consuming, workflow, deadline, reporting burden, reconcile, documentation, compliance, ownership, tool, software, recommendation, and multiple grants. Return up to ${breadth === "EXPANDED" ? 60 : 36} candidate thread/post URLs for content/context qualification. Use canonical public URLs, never search-result URLs. If date or author is not visible return "unknown". Supply a brief, helpful human response that answers first and mentions GrantDeskHQ only when genuinely relevant.`
+            text: `Today is ${scanDate}. Run a bounded ${breadth === "EXPANDED" ? "expanded-breadth" : "standard"} high-recall search for public Reddit, public nonprofit-finance/grant forums, legitimately public LinkedIn discussions, and public G2 reviews published or visibly updated within the last ${WINDOW_DAYS} days. Run explicit Reddit coverage for r/nonprofit, r/grantwriters, and r/nonprofittech. Search combinations including grant reporting, managing grant reporting, grant management, post-award, grant compliance, grant closeout, grant reporting software, grant management software, QBO grants, QuickBooks grants, grant budget vs actual, budget vs actual grants, grant spreadsheet, grant tracker, grant finance, grant accountant, restricted funds reporting, funder reporting, supporting documentation, grant reporting workflow, collecting program data, grant deadlines, reporting workload, and grant reporting staff. Favor pain terms such as spreadsheet, manual, hours, time consuming, workflow, deadline, reporting burden, reconcile, documentation, compliance, ownership, tool, software, recommendation, and multiple grants. Return up to ${breadth === "EXPANDED" ? 60 : 36} candidate thread/post URLs for content/context qualification. Use canonical public URLs, never search-result URLs. If date or author is not visible return "unknown". Supply a brief, helpful human response that answers first and mentions GrantDeskHQ only when genuinely relevant.`
           }, {
             type: "input_text",
             text: "Set identifiedOrganization and identifiedSegment only if the linked public discussion itself explicitly identifies the organization and supports a current post-award problem for that organization; otherwise set both to null. Never infer an organization from an anonymous author, username, or context."
@@ -138,7 +139,7 @@ export function normalizeDailySocialScan(draft: SearchDraft, sourceUrls: string[
     itemsRespondedSkipped: 0,
     sourceRegistry: sourceRegistry(observedAt, sourceUrls),
     errors: [],
-    coverage: `${sourceIndex.size} indexed public discussion URL${sourceIndex.size === 1 ? "" : "s"} checked across Reddit, public forums/web, and public LinkedIn search; ${items.length} result${items.length === 1 ? "" : "s"} passed the strict source, recency, and relevance gates. This is a bounded daily scan, not exhaustive coverage.`,
+    coverage: `${sourceIndex.size} indexed public discussion URL${sourceIndex.size === 1 ? "" : "s"} checked across Reddit, public forums/web, public LinkedIn search, and public G2 reviews; ${items.length} result${items.length === 1 ? "" : "s"} passed the strict source, recency, and relevance gates. This is a bounded daily scan, not exhaustive coverage.`,
     items,
     limitations: [
       "Search indexes can omit, delay, or misdate public posts.",
@@ -186,9 +187,11 @@ function safeCanonicalUrl(value: string, platform: SocialPlatform) {
     if (platform === "reddit" && host !== "reddit.com" && !host.endsWith(".reddit.com")) return "";
     if (platform === "forum" && !FORUM_HOSTS.has(host)) return "";
     if (platform === "linkedin" && host !== "linkedin.com" && !host.endsWith(".linkedin.com")) return "";
+    if (platform === "g2" && host !== "g2.com" && !host.endsWith(".g2.com")) return "";
     if (platform === "reddit" && !/\/comments\//.test(url.pathname)) return "";
     if (platform === "forum" && !url.pathname.includes("/")) return "";
     if (platform === "linkedin" && !/(\/posts\/|\/feed\/update|\/pulse\/)/.test(url.pathname)) return "";
+    if (platform === "g2" && !/\/(reviews?|products\/[^/]+\/reviews?)/.test(url.pathname)) return "";
     url.search = "";
     url.hash = "";
     return url.toString();

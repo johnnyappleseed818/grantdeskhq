@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { backgroundJobFailed, backgroundJobProcessing, prioritizeChannelSeedEnrichmentCandidates, providerJobIsStale, providerLeadIsVerified, scannerSeedNeedsPublicContactScan, summarizeChannelSeedLifecycle, superSearchAccessRecoveryVersion, superSearchAvailableCredits, superSearchBatchLimit, superSearchEligibleSeed, superSearchProviderReferences } from "../../server/gtmChannelSeedEnrichment.ts";
+import type { GtmScannerRecoveryCohort } from "../../server/persistence.ts";
+import type { ChannelSeedRecord } from "../lib/gtmChannelSeeds.ts";
 
 describe("Instantly channel-seed enrichment reconciliation", () => {
   it("accepts Instantly's documented lead verification enum without creating a second verification job", () => {
@@ -49,8 +51,8 @@ describe("Instantly channel-seed enrichment reconciliation", () => {
       { id: "older", segment: "DIRECT", organizationDomain: "older.example", lifecycle: "EVIDENCE_QUALIFIED" },
       { id: "cohort", segment: "DIRECT", organizationDomain: "cohort.example", lifecycle: "EVIDENCE_QUALIFIED" },
       { id: "partner", segment: "PARTNER", organizationDomain: "partner.example", lifecycle: "EVIDENCE_QUALIFIED" }
-    ] as any;
-    const cohorts = [{ id: "c", batchId: "daily-grantdeskhq-test", sourceFileId: "file", contentHash: "hash", segment: "DIRECT", canonicalRecordIds: ["cohort"], selectedAt: "2026-09-30T00:00:00.000Z", selectionBasis: "test", creationSource: "scheduler_authenticated_recovery", stateVersion: 1 }] as any;
+    ] as unknown as ChannelSeedRecord[];
+    const cohorts = [{ id: "c", batchId: "daily-grantdeskhq-test", sourceFileId: "file", contentHash: "hash", segment: "DIRECT", canonicalRecordIds: ["cohort"], selectedAt: "2026-09-30T00:00:00.000Z", selectionBasis: "test", creationSource: "scheduler_authenticated_recovery", stateVersion: 1 }] as unknown as GtmScannerRecoveryCohort[];
     expect(prioritizeChannelSeedEnrichmentCandidates(seeds, cohorts, "DIRECT").map((seed) => seed.id)).toEqual(["cohort", "older"]);
     expect(prioritizeChannelSeedEnrichmentCandidates(seeds, cohorts, "PARTNER").map((seed) => seed.id)).toEqual(["partner"]);
   });

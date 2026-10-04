@@ -46,6 +46,7 @@
     "seo:run": "node scripts/seo/run-seo-growth.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.0",
     "fflate": "^0.8.3",
     "firebase": "12.17.1",
     "lucide-react": "0.468.0",

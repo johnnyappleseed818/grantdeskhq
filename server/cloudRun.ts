@@ -48,11 +48,12 @@ import { adoptMappedInstantlyLead, canReplaceInstantlyPreview, cleanMembershipEv
 import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from "./outboundIncidentClosure.ts";
 import { ambiguousProviderOutcomePrerequisites, hasPersistedQuarantineIdentity, hasUnattributedReservationQuarantineIdentity, selectAmbiguousProviderOutcomeReservations } from "./ambiguousHandoffResolution.ts";
-import { channelSeedManifest, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed, socialSignalToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
+import { channelSeedManifest, discoveredAwardToChannelSeed, discoveredOpportunityToChannelSeed, discoveredPartnerToChannelSeed, socialSignalToChannelSeed } from "../src/lib/gtmChannelSeeds.ts";
 import { enrichChannelSeedsWithInstantly, reconcileChannelSeedEnrichment, summarizeChannelSeedLifecycle } from "./gtmChannelSeedEnrichment.ts";
 import { importScannerDriveBatches, retryScannerDriveReceiptMirrors, scannerReceiptMirrorRetryRequired, scannerReceiptProjection } from "./scannerDriveImport.ts";
 import { createOrReadScannerDirectRecoveryCohort, validateScannerSourceSeedsWithScrapeGraph } from "./scannerScrapeGraphValidation.ts";
 import { listGtmScannerImportReceipts } from "./persistence.ts";
+import { handleGrantReportingMcp } from "./chatgptGrantReportingMcp.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
@@ -142,6 +143,7 @@ createServer(async (request, response) => {
     if (url.pathname === "/api/lifecycle/funnel-status") return await handleFunnelStatus(request, response);
     if (url.pathname === "/api/lifecycle/preferences") return await handleFunnelPreferences(request, response);
     if (url.pathname === "/api/lifecycle/nurture/reconcile") return await handleLifecycleNurtureReconcile(request, response);
+    if (url.pathname === "/mcp") return await handleGrantReportingMcp(request, response);
     if (url.pathname === "/api/reports/preflight") return await handlePreflight(request, response);
     if (url.pathname === "/api/compile-report" || url.pathname === "/api/reports/compile") return await handleCompiler(request, response);
     if (url.pathname === "/api/gtm/outreach") return await handleGtmOutreach(request, response);
@@ -1782,6 +1784,13 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
     catch (error) { errors.push(error instanceof Error ? error.message : "Award scan failed."); }
   }
   const opportunities = awardScan?.opportunities || [];
+  let awardSeedImport: { imported: number; duplicate: number; upgraded: number; total: number } | null = null;
+  if (opportunities.length) try {
+    // Structured award evidence is an independent replenishment source.  It
+    // enters the canonical queue as DISCOVERED and never bypasses official
+    // domain, role, verification, suppression, or campaign checks.
+    awardSeedImport = await importGtmChannelSeeds(opportunities.map((opportunity) => discoveredAwardToChannelSeed(opportunity)));
+  } catch (error) { errors.push(error instanceof Error ? error.message : "Structured award discovery could not enter the canonical queue."); }
   let directDiscovery;
   if (shouldDiscoverDirect) try {
     directDiscovery = await runDirectPublicDiscovery({
@@ -1842,6 +1851,7 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
     socialResearchMode: "REVIEW_ONLY_FOR_ANONYMOUS; IDENTIFIED_ORGANIZATIONS_ENTER_DISCOVERED_VALIDATION",
     socialTelemetry: social ? { sourcesChecked: social.sourceCount, itemsExamined: social.itemsExamined, itemsQualified: social.itemsQualified, itemsSuppressed: social.itemsSuppressed, errors: social.errors } : null,
     awardCandidateCount: awardScan?.opportunities.length || null,
+    awardSeedImport,
     directDiscovery: directDiscovery || null,
     controlPlaneCardCount: reconciliation?.cards.length || null,
     controlPlaneUniqueOrganizationCount: reconciliation?.uniqueOrganizations || null,

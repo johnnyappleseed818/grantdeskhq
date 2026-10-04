@@ -1,7 +1,7 @@
 export type SignalKind = "grant_award" | "job_posting" | "grant_announcement" | "excel_pain" | "competitor_intent";
 export type SourceAuthority = "official" | "employer" | "professional" | "community" | "review_platform";
 export type OpportunityStage = "new" | "reviewing" | "ready" | "contacted" | "replied" | "converted" | "dismissed";
-export type SocialPlatform = "reddit" | "forum" | "linkedin";
+export type SocialPlatform = "reddit" | "forum" | "linkedin" | "g2";
 export type TargetTier = "core" | "emerging" | "adjacent";
 
 export interface DailySocialSignal {

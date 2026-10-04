@@ -56,9 +56,17 @@ describe("daily GTM social signal validation", () => {
     expect(scan.sourceRegistry?.find((source) => source.name === "LinkedIn private groups")?.status).toBe("MANUAL");
   });
 
+  it("keeps source-backed public G2 review research as review-only market evidence", () => {
+    const g2 = { ...baseSignal, platform: "g2" as const, url: "https://www.g2.com/products/example/reviews", title: "Grant reporting reconciliation review", observedPain: "Manual grant reporting reconciliation takes too long.", publishedAt: "2026-08-20" };
+    const scan = normalizeDailySocialScan({ summary: "G2 coverage", signals: [g2] }, [g2.url], new Date("2026-08-24T12:00:00.000Z"), 2);
+    expect(scan.items).toHaveLength(1);
+    expect(scan.items[0]).toMatchObject({ platform: "g2", status: "ACTIONABLE", identifiedOrganization: null });
+  });
+
   it("records transparent bounded source registry rather than implying universal coverage", () => {
     const registry = directSourceRegistry("2026-08-24T12:00:00.000Z", { "USAspending recent federal awards": "PASS" });
     expect(registry.map((source) => source.name)).toContain("Public nonprofit finance and grants hiring");
+    expect(registry.map((source) => source.name)).toEqual(expect.arrayContaining(["State and local public award notices", "Foundation grantee announcements", "Nonprofit award announcements"]));
     expect(registry.find((source) => source.name === "USAspending recent federal awards")?.status).toBe("PASS");
     expect(registry.every((source) => source.lastAttempt === "2026-08-24T12:00:00.000Z" || source.mode === "MANUAL_AUTHENTICATED")).toBe(true);
   });

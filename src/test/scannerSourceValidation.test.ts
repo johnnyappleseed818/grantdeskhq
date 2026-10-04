@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hunterFailureStopsValidation, hunterUsageAllowsDomainLookup, scannerEvidenceBackedIdentity, scannerValidationDue, sourceProvesOrganizationDomain } from "../../server/scannerSourceValidation.ts";
-import { nextScrapeGraphReservedCredits, prioritizeScannerValidationCandidates, selectScannerDirectRecoveryCohort } from "../../server/scannerScrapeGraphValidation.ts";
+import { extractedContactSourceForVerification, independentOfficialSourceCandidates, nextScrapeGraphReservedCredits, prioritizeScannerValidationCandidates, requiresIndependentPublicValidation, selectScannerDirectRecoveryCohort } from "../../server/scannerScrapeGraphValidation.ts";
 import type { ChannelSeedRecord } from "../lib/gtmChannelSeeds.ts";
 
 const seed = (hint: string, segment: "DIRECT" | "PARTNER" = "PARTNER"): ChannelSeedRecord => ({
@@ -70,6 +70,23 @@ describe("scanner validation recovery", () => {
   it("accumulates ScrapeGraphAI retry credits instead of resetting the durable budget", () => {
     expect(nextScrapeGraphReservedCredits(5, 5)).toBe(10);
     expect(nextScrapeGraphReservedCredits(10, 5)).toBe(15);
+  });
+
+  it("uses an independently supplied official domain before the optional ScrapeGraphAI fallback", () => {
+    const record = { ...seed("", "DIRECT"), scannerClaimedDomain: "example.org", sourceUrl: "https://public-funder.example/award/example" };
+    expect(requiresIndependentPublicValidation(record)).toBe(true);
+    expect(independentOfficialSourceCandidates(record).map((url) => url.hostname)).toEqual(["example.org"]);
+  });
+
+  it("accepts extracted contact evidence only from the resolved official domain, never the discovery source", () => {
+    expect(extractedContactSourceForVerification({ sourceUrl: "https://example.org/about/team" }, "example.org")?.hostname).toBe("example.org");
+    expect(extractedContactSourceForVerification({ sourceUrl: "https://public-funder.example/award" }, "example.org")).toBeNull();
+  });
+
+  it("does not route provider-discovered candidates through the scanner fallback", () => {
+    expect(requiresIndependentPublicValidation({ source: "gtm_public_discovery" })).toBe(false);
+    expect(requiresIndependentPublicValidation({ source: "usaspending_award" })).toBe(true);
+    expect(requiresIndependentPublicValidation({ source: "social_public_identified" })).toBe(true);
   });
 
   it("selects a deterministic Direct work-order from a committed batch without treating priority as qualification", () => {
