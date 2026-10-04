@@ -207,6 +207,9 @@ export function socialSignalToChannelSeed(signal: DailySocialSignal, importedAt 
     importedAt,
     lifecycle: "DISCOVERED",
     organizationDomain: null,
+    // This remains a claim, not an official domain: the independent public
+    // validator must fetch and match it before it can be used downstream.
+    scannerClaimedDomain: signal.organizationDomainHint || null,
     evidenceSummary: signal.evidenceSummary,
     qualificationReasons: ["A public community signal explicitly named this organization.", "Organization identity, ICP, current role, email, suppression, and campaign eligibility require independent validation before any outreach."],
     rejectionReason: null,

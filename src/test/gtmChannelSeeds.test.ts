@@ -220,7 +220,7 @@ it("routes a recent explicitly identified social organization only to DISCOVERED
     records: [{ source_record_key: "forum|identified", platform: "forum", source_url: "https://forums.techsoup.org/c/grants/grant-reporting/1", published_at: "2026-09-28", organization_name: "Example Community Nonprofit", organization_domain: "example.org", segment: "DIRECT", pain_category: "Manual post-award reporting" }]
   });
   expect(result.accepted[0]).toMatchObject({ status: "ACTIONABLE", identifiedOrganization: "Example Community Nonprofit", identifiedSegment: "DIRECT", scannerBatchId: "daily-social-current" });
-  expect(socialSignalToChannelSeed(result.accepted[0]!)).toMatchObject({ lifecycle: "DISCOVERED", source: "social_public_identified", organization: "Example Community Nonprofit" });
+  expect(socialSignalToChannelSeed(result.accepted[0]!)).toMatchObject({ lifecycle: "DISCOVERED", source: "social_public_identified", organization: "Example Community Nonprofit", scannerClaimedDomain: "example.org" });
 });
 
 it("keeps anonymous or stale social evidence out of canonical outreach candidates", () => {
