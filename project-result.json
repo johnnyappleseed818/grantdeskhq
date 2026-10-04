@@ -1,24 +1,26 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-10-04T06:22:26Z",
+  "updatedAt": "2026-10-04T06:35:52Z",
   "latestDirectRecovery": {
     "status": "PARTIAL",
     "effortAccounting": "Cumulative active duration before the 2026-10-04 credit interruption was not instrumented. This resumed segment used targeted repository, Cloud Run, Scheduler, provider, and receipt checks only; total remains under the authorized four-hour recovery cap.",
     "commits": [
       "e96151162a5410989d4a55deea7df8d91cf3a2dd fix(gtm): prioritize fixed scanner recovery cohort",
       "ae4fcd14cca6bf34030ea0e1329c042edd078a4a fix(gtm): honor cohort selection timestamp",
-      "eb3bfa622edfbecdd73e655837c802c70ce17658 fix(gtm): prioritize direct recovery enrichment"
+      "eb3bfa622edfbecdd73e655837c802c70ce17658 fix(gtm): prioritize direct recovery enrichment",
+      "fc3d6764666fab28b708ce0ec6907a6c77f77cfc fix(gtm): paginate contact enrichment readiness"
     ],
     "builds": [
       { "id": "88b633fe-9375-4691-a0a8-3f2693dd6bec", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00567-nob", "traffic": "replaced" },
       { "id": "8706e38d-8789-4f71-a495-c88b8f278e1e", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00569-lux", "traffic": "replaced" },
-      { "id": "98b3d98c-6b0e-43de-8f9c-335abb1d36f0", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00571-tom", "traffic": "100%" }
+      { "id": "98b3d98c-6b0e-43de-8f9c-335abb1d36f0", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00571-tom", "traffic": "replaced" },
+      { "id": "852eada3-d50f-4e82-b6b6-348b3e17c800", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00573-qik", "traffic": "100%" }
     ],
     "production": {
-      "revision": "grantdeskhq-prototype-00571-tom",
+      "revision": "grantdeskhq-prototype-00573-qik",
       "traffic": "100% verified by Cloud Run Admin API",
-      "customDomainHealth": "PASS — https://grantdeskhq.com/api/health returned HTTP 200 with deploymentRevision grantdeskhq-prototype-00571-tom",
+      "customDomainHealth": "PASS — https://grantdeskhq.com/api/health returned HTTP 200 with deploymentRevision grantdeskhq-prototype-00573-qik",
       "runtimeIdentity": "grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com"
     },
     "receipt": {
@@ -78,6 +80,13 @@
         "enrollments": 0,
         "sends": 0,
         "evidence": "The immutable cohort ordering selected the evidence-qualified Direct record. Instantly SuperSearch accepted one bounded search, then reconciliation found no matching role-fit provider-verified lead. The canonical seed moved to terminal ENRICHMENT_FAILED; no retry, reservation, campaign handoff, or email was created."
+      },
+      "canonicalPaginationRepair": {
+        "defect": "listGtmContactEnrichments stopped at Firestore's first 100-record page, even though canonical readiness depends on every persisted provider verification. Aggregate lifecycle evidence showed 13 Direct VERIFIED channel seeds while the pre-fix canonical projection had zero READY records.",
+        "fix": "Paginate the bounded contact-enrichment collection through all continuation pages, fail on repeated tokens, and keep malformed historical documents isolated.",
+        "test": "14 focused pagination/canonical/persistence tests passed, followed by TypeScript build, lint, and diff validation.",
+        "candidateValidation": "00573-qik authenticated, read-only projection returned Direct READY 6 and Partner READY 47. Direct READY safety aggregate: all 6 are provider-verified, suppression CLEAR, no prior contact, no provider enrollment, and no blockers.",
+        "productionValidation": "00573-qik at 100% returned the same Direct READY 6, Partner READY 47, Direct NEEDS_VERIFICATION 12, Partner NEEDS_VERIFICATION 88, AWAITING_REPLY 67, replies 1, positive replies 0. No provider call, reservation, enrollment, or email was made by the pagination repair."
       }
     },
     "providerReconciliation": {
@@ -94,10 +103,12 @@
       "firestoreReadAttempt": "The configured development credential received HTTP 403 PERMISSION_DENIED for a direct handoff collection read. No IAM change was made."
     },
     "currentFunnel": {
-      "directReady": 0,
-      "partnerReady": 0,
-      "directNeedsVerification": 4,
-      "partnerNeedsVerification": 31,
+      "directReady": 6,
+      "partnerReady": 47,
+      "directNeedsVerification": 12,
+      "partnerNeedsVerification": 88,
+      "awaitingReply": 67,
+      "replies": 1,
       "positiveReplies": 0,
       "currentDateProspectingSends": "NOT_CONFIRMED: the available scheduler-safe projection does not expose record-level send dates."
     },
@@ -105,7 +116,8 @@
       "validation": "2026-10-05 08:30 America/Detroit / 12:30 UTC / 15:30 Asia/Jerusalem",
       "directEnrichment": "2026-10-05 08:45 America/Detroit / 12:45 UTC / 15:45 Asia/Jerusalem",
       "dispatch": "2026-10-05 09:00 America/Detroit / 13:00 UTC / 16:00 Asia/Jerusalem",
-      "precondition": "ScrapeGraphAI must have at least the configured 100-credit headroom before public-evidence extraction can proceed."
+      "schedulerEvidence": "Direct and Partner controlled dispatch jobs are ENABLED, target the base production Cloud Run URL with scheduler OIDC identity, and have next attempts at 2026-10-05T13:00:04.356049Z and 2026-10-05T13:00:01.859955Z respectively. The Direct enrichment job is ENABLED for 2026-10-05T12:45:03.155381Z.",
+      "precondition": "The existing controller performs final provider/suppression/capacity checks. ScrapeGraphAI must have at least the configured 100-credit headroom before the deferred public-evidence records can resume extraction."
     },
     "remainingBlockers": [
       {
