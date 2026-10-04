@@ -1,7 +1,70 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-10-04T06:35:52Z",
+  "updatedAt": "2026-10-04T17:49:22.144Z",
+  "latestPostPromotionVerification": {
+    "status": "PARTIAL",
+    "production": {
+      "revision": "grantdeskhq-prototype-00575-but",
+      "traffic": "100%",
+      "runtimeIdentity": "grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com",
+      "customDomainHealth": "PASS — https://grantdeskhq.com/api/health returned HTTP 200 with deploymentRevision grantdeskhq-prototype-00575-but"
+    },
+    "repairsVerified": {
+      "paginationCommit": "fc3d6764666fab28b708ce0ec6907a6c77f77cfc",
+      "reconciliationSnapshotCommit": "cda441fd048d6b74443f1d4c997ad43fa37336aa",
+      "reconciliation": {
+        "checkedAt": "2026-10-04T17:47:14.056Z",
+        "result": "PASS",
+        "leadCount": 200,
+        "polledRecords": 61,
+        "matchedCanonicalContacts": 66,
+        "previouslyContactedExcluded": 54,
+        "duplicatesPrevented": 12,
+        "adoptedCleanMemberships": 35,
+        "stalePreSendRecords": 0,
+        "transitions": { "EMAIL_SENT": 35, "BOUNCE": 6 },
+        "errors": []
+      }
+    },
+    "october4FeedReceipt": {
+      "id": "scanner_import_27238a861457aaa33516ed9c4dd4a0e1",
+      "batchId": "2343495f-396a-4f7e-b4e0-9db19ef6ea1e",
+      "sourceFileId": "1h36YegALV2r2JxA0vPwB2XaF3MumNjIC",
+      "contentHash": "c3a1d6970a4c535e531565dc2ed93dc6f6760589bcc38d84450c47acb910656a",
+      "processedAt": "2026-10-04T17:49:22.144Z",
+      "rowsSeen": 30,
+      "accepted": 29,
+      "duplicate": 1,
+      "rejected": 4,
+      "pending": 29,
+      "socialEvidenceAdded": 4,
+      "rejectionReasons": { "MALFORMED_OR_UNSAFE_SOCIAL_RESEARCH": 4 },
+      "canonicalRecordIds": 29,
+      "canonicalRecordsPresent": 29,
+      "missingCanonicalRecordIds": 0,
+      "importSideEffects": { "providerCalls": 0, "sends": 0 },
+      "receiptMirror": "PENDING — Drive files.create returned 403 UNKNOWN storageQuotaExceeded; database receipt is authoritative and downstream processing remains unblocked."
+    },
+    "currentFunnel": {
+      "observedAt": "2026-10-04T17:49:22.144Z",
+      "directReady": 4,
+      "partnerReady": 47,
+      "directNeedsVerification": 12,
+      "partnerNeedsVerification": 88,
+      "replies": 1,
+      "positiveReplies": 0,
+      "currentDateProspectingSends": "NOT_CONFIRMED — the scheduler-safe aggregate projection has no record-level send dates."
+    },
+    "dispatchReadiness": {
+      "capacityPreflight": "PASS — provider capacity 30/day, one ready shared mailbox, Direct and Partner mapped Clean campaigns each at 30/day with the required one-step safety checks.",
+      "campaigns": "Both Clean campaigns currently provider status 3 (Completed); server-authoritative dispatch permits status 3 only for automatic evaluation and performs a safe read-back activation only when a canary/batch decision passes every gate. Legacy status 2 campaigns remain excluded.",
+      "nextDirectDispatch": "2026-10-05T13:00:04.356049Z (09:00:04 America/Detroit)",
+      "nextPartnerDispatch": "2026-10-05T13:00:01.859955Z (09:00:01 America/Detroit)",
+      "durableReconciliation": "grantdeskhq-instantly-reconciliation is ENABLED every 15 minutes UTC; persisted lastSuccessfulSync is 2026-10-04T17:47:14.056Z."
+    },
+    "remainingBlocker": "No current-window prospecting send can be truthfully confirmed on this Sunday. The deployed controller will evaluate the eligible inventory at the next America/Detroit business window; no manual dispatch was invoked."
+  },
   "latestDirectRecovery": {
     "status": "PARTIAL",
     "effortAccounting": "Cumulative active duration before the 2026-10-04 credit interruption was not instrumented. This resumed segment used targeted repository, Cloud Run, Scheduler, provider, and receipt checks only; total remains under the authorized four-hour recovery cap.",
