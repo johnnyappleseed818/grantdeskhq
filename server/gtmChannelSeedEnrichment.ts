@@ -1,5 +1,5 @@
 import { InstantlyApiError, InstantlyClient, instantlyConfig, redactedInstantlyDiagnostic } from "./instantly.ts";
-import { listGtmChannelSeeds, saveGtmChannelSeed } from "./persistence.ts";
+import { listGtmChannelSeeds, listGtmScannerRecoveryCohorts, saveGtmChannelSeed, type GtmScannerRecoveryCohort } from "./persistence.ts";
 import { recordInstantlyVerifiedGtmContact } from "./contactEnrichment.ts";
 import { scannerScrapeGraphPageLimit } from "./gtmScrapeGraphEnrichment.ts";
 import type { ChannelSeedRecord } from "../src/lib/gtmChannelSeeds.ts";
@@ -40,8 +40,9 @@ export function summarizeChannelSeedLifecycle(seeds: ReadonlyArray<Pick<ChannelS
 export async function enrichChannelSeedsWithInstantly(segment: ChannelSeedEnrichmentSegment, env: NodeJS.ProcessEnv = process.env): Promise<ChannelSeedEnrichmentResult> {
   const config = instantlyConfig(env);
   const allSeeds = await listGtmChannelSeeds();
+  const cohorts = await listGtmScannerRecoveryCohorts();
   const recoveryVersion = superSearchAccessRecoveryVersion(env);
-  const eligible = allSeeds.filter((seed) => seed.segment === segment && superSearchEligibleSeed(seed, recoveryVersion));
+  const eligible = prioritizeChannelSeedEnrichmentCandidates(allSeeds, cohorts, segment, recoveryVersion);
   const seeds = eligible.slice(0, superSearchBatchLimit(env));
   if (!config.integrationEnabled || !config.apiKeyConfigured) return { segment, selected: seeds.length, previewCount: null, submitted: 0, resourceId: null, providerStatus: null, blocked: "INSTANTLY_NOT_CONFIGURED" };
   const listId = segment === "DIRECT" ? config.directListId : config.partnerListId;
@@ -179,6 +180,22 @@ export function superSearchEligibleSeed(seed: { organizationDomain?: string | nu
     || seed.lifecycle === "ENRICHMENT_PENDING"
     || (seed.source === "chatgpt_scanner_drive" && seed.lifecycle === "ENRICHMENT_FAILED" && seed.rejectionReason === "NO_EXPLICIT_PUBLISHED_ROLE_FIT_EMAIL")
     || (seed.lifecycle === "ENRICHMENT_FAILED" && !seed.enrichmentTerminalAt && (seed.enrichmentAttemptCount || 0) < 3);
+}
+
+/** The fixed Direct recovery cohort is an immutable work-order audit record,
+ * not qualification or outreach authority. Reuse it here so a bounded
+ * SuperSearch probe cannot be consumed by unrelated older queue items before
+ * the one evidence-qualified cohort member gets its approved contact lookup. */
+export function prioritizeChannelSeedEnrichmentCandidates(seeds: readonly ChannelSeedRecord[], cohorts: readonly GtmScannerRecoveryCohort[], segment: ChannelSeedEnrichmentSegment, recoveryVersion = "v1") {
+  const eligible = seeds.filter((seed) => seed.segment === segment && superSearchEligibleSeed(seed, recoveryVersion));
+  if (segment !== "DIRECT") return eligible;
+  const cohortIds = new Set(cohorts
+    .filter((cohort) => cohort.segment === "DIRECT")
+    .sort((left, right) => right.selectedAt.localeCompare(left.selectedAt))
+    .flatMap((cohort) => cohort.canonicalRecordIds));
+  const priority = eligible.filter((seed) => cohortIds.has(seed.id));
+  const selected = new Set(priority.map((seed) => seed.id));
+  return [...priority, ...eligible.filter((seed) => !selected.has(seed.id))];
 }
 
 async function blockSuperSearchAccess(allSeeds: Awaited<ReturnType<typeof listGtmChannelSeeds>>, recoveryVersion: string, error: unknown, allowance: number | null, segment: ChannelSeedEnrichmentSegment): Promise<ChannelSeedEnrichmentResult> {

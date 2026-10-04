@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { backgroundJobFailed, backgroundJobProcessing, providerJobIsStale, providerLeadIsVerified, scannerSeedNeedsPublicContactScan, summarizeChannelSeedLifecycle, superSearchAccessRecoveryVersion, superSearchAvailableCredits, superSearchBatchLimit, superSearchEligibleSeed, superSearchProviderReferences } from "../../server/gtmChannelSeedEnrichment.ts";
+import { backgroundJobFailed, backgroundJobProcessing, prioritizeChannelSeedEnrichmentCandidates, providerJobIsStale, providerLeadIsVerified, scannerSeedNeedsPublicContactScan, summarizeChannelSeedLifecycle, superSearchAccessRecoveryVersion, superSearchAvailableCredits, superSearchBatchLimit, superSearchEligibleSeed, superSearchProviderReferences } from "../../server/gtmChannelSeedEnrichment.ts";
 
 describe("Instantly channel-seed enrichment reconciliation", () => {
   it("accepts Instantly's documented lead verification enum without creating a second verification job", () => {
@@ -42,6 +42,17 @@ describe("Instantly channel-seed enrichment reconciliation", () => {
     const blocked = { organizationDomain: "example.org", lifecycle: "ENRICHMENT_BLOCKED", rejectionReason: "INSTANTLY_SUPERSEARCH_ACCESS_BLOCKED_HTTP_402", enrichmentAccessRecoveryVersion: "v1" };
     expect(superSearchEligibleSeed(blocked, "v1")).toBe(false);
     expect(superSearchEligibleSeed(blocked, "v2")).toBe(true);
+  });
+
+  it("uses the immutable Direct recovery cohort as a contact-lookup work order without changing eligibility", () => {
+    const seeds = [
+      { id: "older", segment: "DIRECT", organizationDomain: "older.example", lifecycle: "EVIDENCE_QUALIFIED" },
+      { id: "cohort", segment: "DIRECT", organizationDomain: "cohort.example", lifecycle: "EVIDENCE_QUALIFIED" },
+      { id: "partner", segment: "PARTNER", organizationDomain: "partner.example", lifecycle: "EVIDENCE_QUALIFIED" }
+    ] as any;
+    const cohorts = [{ id: "c", batchId: "daily-grantdeskhq-test", sourceFileId: "file", contentHash: "hash", segment: "DIRECT", canonicalRecordIds: ["cohort"], selectedAt: "2026-09-30T00:00:00.000Z", selectionBasis: "test", creationSource: "scheduler_authenticated_recovery", stateVersion: 1 }] as any;
+    expect(prioritizeChannelSeedEnrichmentCandidates(seeds, cohorts, "DIRECT").map((seed) => seed.id)).toEqual(["cohort", "older"]);
+    expect(prioritizeChannelSeedEnrichmentCandidates(seeds, cohorts, "PARTNER").map((seed) => seed.id)).toEqual(["partner"]);
   });
 
   it("reports redacted lifecycle and terminal reason counts by segment", () => {
