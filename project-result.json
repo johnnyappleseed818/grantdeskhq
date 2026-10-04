@@ -1,7 +1,7 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-10-04T19:09:00.000Z",
+  "updatedAt": "2026-10-04T19:28:00.000Z",
   "latestSourceIndependentRelease": {
     "status": "PARTIAL",
     "commit": "44e5f299ef465d266ae1e9d113946aaef89f5ee7",
@@ -32,6 +32,44 @@
       "ScrapeGraphAI balance was last read as 80 credits while the immutable zero-overage guard requires 100 credits headroom; optional fallback calls remain deferred, while independent official-evidence and Instantly routes continue.",
       "Public ChatGPT plugin submission needs a standards-compatible OAuth authorization flow; existing Firebase bearer authentication intentionally remains private rather than being weakened.",
       "No provider-confirmed send from the newly deployed automatic source path exists yet; scheduled execution and provider reconciliation are pending the next business window."
+    ]
+  },
+  "latestSocialDomainRelease": {
+    "status": "PARTIAL",
+    "commits": [
+      "c77813a49b7a0dc1a715affa51c5939af51e667b fix(gtm): route identified scanner social signals",
+      "a7ac30a970ca60175c78addd9e6fb174ac43bead fix(gtm): retain social domain claims for validation"
+    ],
+    "build": {
+      "id": "db92fe62-c6f9-4e21-b3e9-3e67abed9538",
+      "status": "SUCCESS",
+      "imageDigest": "sha256:5e1412a4e5fd5370c197343b9a4052fd5051ac65cdffc2098c754ca20f1f6fd2"
+    },
+    "production": {
+      "revision": "grantdeskhq-prototype-00581-mug",
+      "traffic": "100%",
+      "health": "PASS — custom-domain /api/health returned HTTP 200 with deploymentRevision grantdeskhq-prototype-00581-mug",
+      "candidateSmoke": "PASS — zero-traffic candidate returned health 200 and unauthenticated POST /mcp returned HTTP 401",
+      "runtimeIdentity": "grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com"
+    },
+    "verifiedBehavior": {
+      "social": "Recent, source-safe Drive social records with an explicit organization and Direct/Partner segment create canonical DISCOVERED seeds with immutable batch/source-key provenance. Anonymous, stale, malformed, or unsupported records remain review-only or receive exact rejection reasons. A domain hint is a claim used only for independent official-page validation.",
+      "tests": "85 focused acquisition/feed/social/MCP/capacity/dispatch/enrichment tests passed; TypeScript, lint, and diff checks passed.",
+      "lastScheduledDailyBusinessAction": "2026-10-04T13:35:04Z on 00575-but: daily scanner HTTP 200; structured telemetry at 13:35:46Z recorded Direct channel-seed selected=1, Instantly enrichment submitted=1, reconciled=0, verified=0. This is provider enrichment activity, not a verified contact, enrollment, or send.",
+      "lastScheduledSeoAction": "2026-10-04T14:20:01Z on 00575-but: SEO reconciliation HTTP 200. Its structured log reported Search Console PASS, 12 pages, 11 queries, sitemap PASS, dataThrough 2026-10-01, errors=[]. Public robots references the sitemap; it contains 14 URLs, with latest lastmod 2026-08-30. Aggregate clicks/impressions remain unavailable from the scheduler-safe log."
+    },
+    "nextDurableExecution": {
+      "scannerImport": "2026-10-05 08:15 America/Detroit / 12:15 UTC / 15:15 Asia/Jerusalem",
+      "scannerValidation": "2026-10-05 08:30 America/Detroit / 12:30 UTC / 15:30 Asia/Jerusalem",
+      "directEnrichment": "2026-10-05 08:45 America/Detroit / 12:45 UTC / 15:45 Asia/Jerusalem",
+      "partnerEnrichment": "2026-10-05 08:50 America/Detroit / 12:50 UTC / 15:50 Asia/Jerusalem",
+      "dispatch": "2026-10-05 09:00 America/Detroit / 13:00 UTC / 16:00 Asia/Jerusalem",
+      "dailyAwardAndSocialScan": "2026-10-05 13:35 UTC / 09:35 America/Detroit / 16:35 Asia/Jerusalem"
+    },
+    "remainingBlockers": [
+      "ScrapeGraphAI optional fallback remains blocked at the existing zero-overage guard: last observed balance 80 credits versus required 100-credit headroom. Independent official-source and Instantly paths are unaffected.",
+      "Private MCP is code-complete and deployed, but public ChatGPT submission requires a standards-compatible OAuth authorization flow; Firebase bearer auth remains intentionally private.",
+      "No provider-confirmed send from the new scheduled source path has occurred yet. The next deployed weekday cycle must create/reject/defer records and reconciliation must supply authoritative provider outcomes; no manual provider replay is authorized."
     ]
   },
   "latestPostPromotionVerification": {
