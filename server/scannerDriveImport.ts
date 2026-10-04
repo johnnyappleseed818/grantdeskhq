@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { importGtmChannelSeeds, listGtmChannelSeeds, listGtmScannerImportReceipts, readGtmDailyScan, readGtmScannerImportReceipt, saveGtmDailyScan, saveGtmScannerImportReceipt, gcpToken, type GtmScannerImportReceipt } from "./persistence.ts";
-import { scannerLeadFeedToChannelSeeds, scannerSocialResearchToSignals, type ChannelSeedRecord, type ScannerLeadFeedRecord, type ScannerSocialResearchRecord } from "../src/lib/gtmChannelSeeds.ts";
+import { scannerLeadFeedToChannelSeeds, scannerSocialResearchToSignals, socialSignalToChannelSeed, type ChannelSeedRecord, type ScannerLeadFeedRecord, type ScannerSocialResearchRecord } from "../src/lib/gtmChannelSeeds.ts";
 
 export const SCANNER_DRIVE_FOLDER_ID = "1zfDj-tZGTLgVtlzn8isKRCNCyprIf_h2";
 const maxBatchBytes = 512_000;
@@ -25,6 +25,9 @@ export interface ScannerReceiptProjection {
   missingCanonicalRecordIds: string[];
   rejectionReasons: Record<string, number>;
   socialEvidenceAdded: number;
+  socialCandidatesCreated: number;
+  socialCandidateDuplicate: number;
+  socialCandidateRecordIds: string[];
   quarantined: boolean;
   quarantineReason: string | null;
 }
@@ -81,8 +84,11 @@ export async function importScannerDriveBatches(env: NodeJS.ProcessEnv = process
     const duplicate = parsed.accepted.length - fresh.length;
     const saved = await importGtmChannelSeeds(fresh);
     const socialEvidenceAdded = await preserveScannerSocialResearch(social.accepted);
+    const socialCandidates = social.accepted.map((signal) => socialSignalToChannelSeed(signal)).filter((seed): seed is ChannelSeedRecord => Boolean(seed));
+    const socialFresh = socialCandidates.filter((seed) => !existing.has(seed.deduplicationKey));
+    const socialSaved = socialFresh.length ? await importGtmChannelSeeds(socialFresh) : { imported: 0, duplicate: 0, upgraded: 0, total: 0 };
     const errors = [...parsed.rejected, ...social.rejected];
-    const receipt: GtmScannerImportReceipt = { id: receiptId, batchId: payload.batch_id, sourceFileId: item.id, contentHash, processedAt: new Date().toISOString(), rowsSeen: payload.records.length, accepted: saved.imported, duplicate: duplicate + saved.duplicate, rejected: errors.length, pending: saved.imported, canonicalRecordIds: fresh.map((seed) => seed.id), errors, rejectionReasons: groupRejectionReasons(errors), socialEvidenceAdded, receiptKind: "IMPORT", alreadyImported: false };
+    const receipt: GtmScannerImportReceipt = { id: receiptId, batchId: payload.batch_id, sourceFileId: item.id, contentHash, processedAt: new Date().toISOString(), rowsSeen: payload.records.length, accepted: saved.imported, duplicate: duplicate + saved.duplicate, rejected: errors.length, pending: saved.imported, canonicalRecordIds: fresh.map((seed) => seed.id), errors, rejectionReasons: groupRejectionReasons(errors), socialEvidenceAdded, socialCandidatesCreated: socialSaved.imported, socialCandidateDuplicate: socialCandidates.length - socialFresh.length + socialSaved.duplicate, socialCandidateRecordIds: socialFresh.map((seed) => seed.id), receiptKind: "IMPORT", alreadyImported: false };
     await saveGtmScannerImportReceipt(receipt);
     receiptByBatchId.set(payload.batch_id, receipt);
     receipts.push({ receipt, importedNow: true, mirror: await mirrorReceiptToDrive(receipt, folderId, token) });
@@ -138,6 +144,9 @@ export function scannerReceiptProjection(receipts: ReadonlyArray<GtmScannerImpor
         missingCanonicalRecordIds: ids.filter((id) => !canonicalIds.has(id)),
         rejectionReasons: receipt.rejectionReasons || groupRejectionReasons(receipt.errors || []),
         socialEvidenceAdded: receipt.socialEvidenceAdded || 0,
+        socialCandidatesCreated: receipt.socialCandidatesCreated || 0,
+        socialCandidateDuplicate: receipt.socialCandidateDuplicate || 0,
+        socialCandidateRecordIds: [...new Set(receipt.socialCandidateRecordIds || [])],
         quarantined: Boolean(receipt.quarantined),
         quarantineReason: receipt.quarantineReason || null
       };

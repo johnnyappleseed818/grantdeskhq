@@ -843,6 +843,11 @@ export interface GtmScannerImportReceipt {
   batchId: string;
   sourceFileId: string;
   socialEvidenceAdded?: number;
+  /** Separate from organization rows: explicitly identified, recent social
+   * organizations inserted only as DISCOVERED validation candidates. */
+  socialCandidatesCreated?: number;
+  socialCandidateDuplicate?: number;
+  socialCandidateRecordIds?: string[];
   contentHash: string;
   processedAt: string;
   accepted: number;

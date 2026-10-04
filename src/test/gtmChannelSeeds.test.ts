@@ -213,6 +213,26 @@ it("keeps a safely indexed LinkedIn source as anonymous REVIEW evidence", () => 
   expect(result.accepted[0]).toMatchObject({ platform: "linkedin", author: "anonymous", status: "SKIPPED" });
 });
 
+it("routes a recent explicitly identified social organization only to DISCOVERED validation", () => {
+  const result = scannerSocialResearchToSignals({
+    batchId: "daily-social-current",
+    observedAt: "2026-10-04T12:00:00.000Z",
+    records: [{ source_record_key: "forum|identified", platform: "forum", source_url: "https://forums.techsoup.org/c/grants/grant-reporting/1", published_at: "2026-09-28", organization_name: "Example Community Nonprofit", organization_domain: "example.org", segment: "DIRECT", pain_category: "Manual post-award reporting" }]
+  });
+  expect(result.accepted[0]).toMatchObject({ status: "ACTIONABLE", identifiedOrganization: "Example Community Nonprofit", identifiedSegment: "DIRECT", scannerBatchId: "daily-social-current" });
+  expect(socialSignalToChannelSeed(result.accepted[0]!)).toMatchObject({ lifecycle: "DISCOVERED", source: "social_public_identified", organization: "Example Community Nonprofit" });
+});
+
+it("keeps anonymous or stale social evidence out of canonical outreach candidates", () => {
+  const result = scannerSocialResearchToSignals({
+    batchId: "daily-social-stale",
+    observedAt: "2026-10-04T12:00:00.000Z",
+    records: [{ source_record_key: "forum|old", platform: "forum", source_url: "https://forums.techsoup.org/c/grants/grant-reporting/1", published_at: "2026-07-01", organization_name: "Example Community Nonprofit", segment: "DIRECT" }]
+  });
+  expect(result.accepted[0]).toMatchObject({ status: "SKIPPED", identifiedOrganization: null });
+  expect(socialSignalToChannelSeed(result.accepted[0]!)).toBeNull();
+});
+
 it("redacts Google Drive API errors to stable classification fields", () => {
   expect(
     safeDriveError("metadata request", 403, {

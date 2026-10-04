@@ -22,6 +22,11 @@ export interface DailySocialSignal {
    * validate it; anonymous authors never populate these fields. */
   identifiedOrganization?: string | null;
   identifiedSegment?: "DIRECT" | "PARTNER" | null;
+  /** Immutable scanner provenance is retained for a review signal that was
+   * imported from the private Drive feed. */
+  scannerBatchId?: string;
+  scannerSourceRecordKey?: string;
+  organizationDomainHint?: string | null;
   status: "ACTIONABLE" | "RESPONDED" | "SKIPPED";
 }
 

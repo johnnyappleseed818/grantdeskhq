@@ -188,6 +188,10 @@ export function discoveredPartnerToChannelSeed(opportunity: PartnerDiscoveryOppo
 export function socialSignalToChannelSeed(signal: DailySocialSignal, importedAt = new Date().toISOString()): ChannelSeedRecord | null {
   const organization = signal.identifiedOrganization?.normalize("NFKC").trim();
   const segment = signal.identifiedSegment;
+  // A scanner-imported record with a source-backed organization uses the
+  // explicit public-organization-signal marker below. Model-discovered
+  // anonymous authors remain research-only even if text happens to name an
+  // organization, preserving the existing anti-deanonymization guard.
   if (!organization || !segment || signal.author === "anonymous") return null;
   const id = `channel_seed_${createHash("sha256").update(`social:${signal.id}:${segment}:${organization.toLowerCase()}`).digest("hex").slice(0, 24)}`;
   return {
@@ -209,7 +213,15 @@ export function socialSignalToChannelSeed(signal: DailySocialSignal, importedAt 
     enrichmentProvider: null,
     enrichmentResult: null,
     deduplicationKey: `${segment}:${organization.toLowerCase()}`,
-    scannerUnknownFields: { socialSignalId: signal.id, platform: signal.platform, painThemes: signal.painThemes, attribution: "public_identified_organization" }
+    scannerUnknownFields: {
+      socialSignalId: signal.id,
+      platform: signal.platform,
+      painThemes: signal.painThemes,
+      attribution: "public_identified_organization",
+      scannerBatchId: signal.scannerBatchId || null,
+      scannerSourceRecordKey: signal.scannerSourceRecordKey || null,
+      organizationDomainHint: signal.organizationDomainHint || null
+    }
   };
 }
 
@@ -243,11 +255,16 @@ export interface ScannerSocialResearchRecord {
   next_action?: string | null;
   organization_name?: string | null;
   organization_domain?: string | null;
+  segment?: CanonicalSegment | null;
 }
 
 const scannerForumHosts = new Set(["community.npquarterly.org", "forums.techsoup.org", "grantprofessionals.org", "www.grantprofessionals.org", "nonprofitquarterly.org"]);
 
-/** Anonymous scanner research remains visible but cannot create an outbound seed. */
+/** Scanner social research is always retained for review. A source may create
+ * a DISCOVERED organization seed only when it explicitly names an org, gives
+ * an explicit segment, and is recent; it never identifies a person/contact or
+ * bypasses the standard organization, verification, suppression, or campaign
+ * gates. */
 export function scannerSocialResearchToSignals(input: { batchId: string; records: readonly ScannerSocialResearchRecord[]; observedAt?: string }) {
   const observedAt = input.observedAt || new Date().toISOString();
   const accepted: DailySocialSignal[] = [];
@@ -278,16 +295,41 @@ export function scannerSocialResearchToSignals(input: { batchId: string; records
     seen.add(id);
     const pain = scannerText(raw.pain_category, "Post-award reporting research");
     const evidence = scannerText(raw.evidence_excerpt, "Older anonymous public research evidence.");
+    const organization = scannerOrganization(raw.organization_name);
+    const segment = raw.segment === "DIRECT" || raw.segment === "PARTNER" ? raw.segment : null;
+    const publishedAt = scannerText(raw.published_at, "unknown");
+    const currentIdentifiedOrganization = Boolean(organization && segment && recentScannerSocialSignal(publishedAt, observedAt));
     accepted.push({
-      id, platform, title: `Historical ${platform} research: ${pain}`.slice(0, 180), url,
-      author: "anonymous", publishedAt: scannerText(raw.published_at, "unknown"), observedAt: scannerText(raw.observed_at, observedAt),
+      id, platform, title: `${currentIdentifiedOrganization ? "Public" : "Historical"} ${platform} research: ${pain}`.slice(0, 180), url,
+      author: currentIdentifiedOrganization ? "public-organization-signal" : "anonymous", publishedAt, observedAt: scannerText(raw.observed_at, observedAt),
       evidenceSummary: evidence, observedPain: pain, painThemes: [pain],
-      whyRelevant: scannerText(raw.fit_rationale, "Older anonymous research evidence only; no organization or buyer is identified."),
-      suggestedResponse: "RESEARCH_ONLY — preserve for content and product research; do not contact or engage this anonymous author.",
-      status: "SKIPPED"
+      whyRelevant: scannerText(raw.fit_rationale, currentIdentifiedOrganization ? "A named organization has a recent public post-award signal; standard validation is required." : "Older anonymous research evidence only; no organization or buyer is identified."),
+      suggestedResponse: "RESEARCH_ONLY — preserve for content and product research; do not contact or engage the social author.",
+      identifiedOrganization: currentIdentifiedOrganization ? organization : null,
+      identifiedSegment: currentIdentifiedOrganization ? segment : null,
+      scannerBatchId: input.batchId,
+      scannerSourceRecordKey: sourceRecordKey,
+      organizationDomainHint: currentIdentifiedOrganization ? scannerDomain(raw.organization_domain) : null,
+      status: currentIdentifiedOrganization ? "ACTIONABLE" : "SKIPPED"
     });
   }
   return { accepted, rejected };
+}
+
+function scannerOrganization(value: unknown) {
+  const organization = typeof value === "string" ? value.normalize("NFKC").trim().replace(/\s+/g, " ") : "";
+  return organization && organization.length <= 180 ? organization : null;
+}
+
+function scannerDomain(value: unknown) {
+  const domain = typeof value === "string" ? value.trim().toLowerCase().replace(/^www\./, "") : "";
+  return /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain) ? domain : null;
+}
+
+function recentScannerSocialSignal(publishedAt: string, observedAt: string) {
+  const published = Date.parse(publishedAt);
+  const observed = Date.parse(observedAt);
+  return Number.isFinite(published) && Number.isFinite(observed) && published <= observed && observed - published <= 30 * 24 * 60 * 60_000;
 }
 
 function scannerSocialPlatform(value: unknown): "reddit" | "forum" | "linkedin" | "g2" | null {
