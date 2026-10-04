@@ -1,7 +1,113 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-09-29T15:00:18Z",
+  "updatedAt": "2026-10-04T06:07:00Z",
+  "latestDirectRecovery": {
+    "status": "PARTIAL",
+    "effortAccounting": "Cumulative active duration before the 2026-10-04 credit interruption was not instrumented. This resumed segment used targeted repository, Cloud Run, Scheduler, provider, and receipt checks only; total remains under the authorized four-hour recovery cap.",
+    "commits": [
+      "e96151162a5410989d4a55deea7df8d91cf3a2dd fix(gtm): prioritize fixed scanner recovery cohort",
+      "ae4fcd14cca6bf34030ea0e1329c042edd078a4a fix(gtm): honor cohort selection timestamp"
+    ],
+    "builds": [
+      { "id": "88b633fe-9375-4691-a0a8-3f2693dd6bec", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00567-nob", "traffic": "replaced" },
+      { "id": "8706e38d-8789-4f71-a495-c88b8f278e1e", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00569-lux", "traffic": "100%" }
+    ],
+    "production": {
+      "revision": "grantdeskhq-prototype-00569-lux",
+      "traffic": "100% verified by Cloud Run Admin API",
+      "customDomainHealth": "PASS — https://grantdeskhq.com/api/health returned HTTP 200 with deploymentRevision grantdeskhq-prototype-00569-lux",
+      "runtimeIdentity": "grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com"
+    },
+    "receipt": {
+      "id": "scanner_import_reconciled_4c374b3441125b488966977344c0",
+      "batchId": "daily-grantdeskhq-2026-09-29-c556cfb9-edb4-4a00-a2c0-74af0be64427",
+      "sourceFileId": "1tgOiwICL6y2dNPtLaeEbObn2MTa11VFt",
+      "contentHash": "0bc3460f4698455165bcd89fa522545472c7d24e92199bb56630d329d7763c61",
+      "processedAt": "2026-09-29T12:15:37.396Z",
+      "accepted": 27,
+      "duplicate": 3,
+      "rejected": 4,
+      "socialResearchStored": 4,
+      "canonicalRecordsPresent": 27
+    },
+    "directRecoveryCohort": {
+      "id": "scanner_direct_recovery_daily-grantdeskhq-2026-09-29-c556cfb9-edb4-4a00-a2c0-74af0be64427",
+      "selectedAt": "2026-09-30T07:32:14.963Z",
+      "canonicalRecordIds": [
+        "channel_seed_162a20e45a98cb20fc4f1085",
+        "channel_seed_32bfc3d496e682579b2113d4",
+        "channel_seed_441fe1a347e0e8fa20106c76",
+        "channel_seed_483267b002ebd382467e3993",
+        "channel_seed_52a9c9907b644d92eb352002",
+        "channel_seed_6a61c45076338e2c00a9a16f",
+        "channel_seed_6ac606977c988be51cdf72f7",
+        "channel_seed_716f1abdda2703b1b6fee88d",
+        "channel_seed_7b9a29f6a05a018434a9d6a3",
+        "channel_seed_7dd608dea0942bc57988d36a"
+      ],
+      "firstValidation": {
+        "at": "2026-09-30T07:33:25.702659Z",
+        "qualified": 1,
+        "deferred": 3,
+        "rejected": 6,
+        "qualifiedReason": "EVIDENCE_QUALIFIED_CONTACT_UNRESOLVED",
+        "deferredReason": "OFFICIAL_DOMAIN_NOT_INDEPENDENTLY_VERIFIED",
+        "rejectedReason": "SOURCE_CLAIM_NOT_INDEPENDENTLY_VERIFIED"
+      },
+      "selectorCorrection": "00569-lux prioritizes one validation attempt after cohort selectedAt, rather than only records with no historical validation attempt. This fixes the observed ninth-cohort-plus-one-global selection while returning post-cohort retries to normal queue ordering.",
+      "currentValidation": {
+        "at": "2026-10-04T06:07:00Z",
+        "selected": 10,
+        "providerCalls": 0,
+        "sends": 0,
+        "blocked": "SCRAPEGRAPH_CREDIT_HEADROOM_REACHED",
+        "remainingCredits": 80,
+        "requiredHeadroom": 100
+      }
+    },
+    "providerReconciliation": {
+      "at": "2026-10-04T05:56:47.612Z",
+      "mode": "READ_ONLY",
+      "status": "PASS",
+      "polledRecords": 59,
+      "adoptedCleanMemberships": 31,
+      "providerTransitions": { "EMAIL_SENT": 31, "BOUNCE": 6 },
+      "duplicateIdentitiesPrevented": 12,
+      "stalePreSendRecords": 0,
+      "partnerDispatchAuditId": "6abbd27a000b0e509b159219",
+      "partnerDispatchOutcome": "NOT_CONFIRMED per individual reservation: the existing scheduler audit intentionally omits recipient/provider IDs and the current scheduler reporting surface returns only aggregate reconciliation telemetry. No replay was attempted.",
+      "firestoreReadAttempt": "The configured development credential received HTTP 403 PERMISSION_DENIED for a direct handoff collection read. No IAM change was made."
+    },
+    "currentFunnel": {
+      "directReady": 0,
+      "partnerReady": 0,
+      "directNeedsVerification": 4,
+      "partnerNeedsVerification": 31,
+      "positiveReplies": 0,
+      "currentDateProspectingSends": "NOT_CONFIRMED: the available scheduler-safe projection does not expose record-level send dates."
+    },
+    "durableNextAction": {
+      "validation": "2026-10-05 08:30 America/Detroit / 12:30 UTC / 15:30 Asia/Jerusalem",
+      "directEnrichment": "2026-10-05 08:45 America/Detroit / 12:45 UTC / 15:45 Asia/Jerusalem",
+      "dispatch": "2026-10-05 09:00 America/Detroit / 13:00 UTC / 16:00 Asia/Jerusalem",
+      "precondition": "ScrapeGraphAI must have at least the configured 100-credit headroom before public-evidence extraction can proceed."
+    },
+    "remainingBlockers": [
+      {
+        "component": "ScrapeGraphAI budget guard",
+        "operation": "public organization evidence extraction for the fixed Direct cohort",
+        "evidence": "Authenticated balance read returned 80 credits; the configured immutable safety rule requires 100 credits headroom. The deployed validator returned SCRAPEGRAPH_CREDIT_HEADROOM_REACHED with zero extraction calls.",
+        "smallestAction": "Restore the approved included-credit allowance to at least 100 remaining credits without enabling paid overage, then the deployed weekday validator will resume the fixed cohort automatically."
+      },
+      {
+        "component": "Partner handoff reporting",
+        "operation": "associate the 2026-09-29 audited Partner dispatch with its individual persisted provider membership",
+        "evidence": "Durable read-only reconciliation succeeds, but the scheduler-safe reporting projection is intentionally aggregate and the configured development credential lacks direct Firestore read permission (HTTP 403 PERMISSION_DENIED).",
+        "smallestAction": "Use the existing authenticated GTM-admin reporting identity to inspect the already-persisted opaque handoff/membership record; do not replay enrollment."
+      }
+    ]
+  },
   "commits": [
     "58294e9 fix(gtm): resolve provider lead campaign detail",
     "cfb39de fix(gtm): retain unresolved provider memberships",
