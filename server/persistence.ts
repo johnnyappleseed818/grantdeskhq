@@ -1114,18 +1114,37 @@ export async function readGtmContactEnrichment(id: string): Promise<ContactEnric
   catch { return null; }
 }
 
-/** Bounded read for the founder operating model; provider payloads remain private. */
-export async function listGtmContactEnrichments(limit = 100): Promise<ContactEnrichmentRecord[]> {
+/** The canonical readiness model must read every bounded persisted contact
+ * enrichment. Firestore pages at 100 records; stopping at page one could
+ * strand later provider-verified contacts outside READY while leaving them
+ * safely in the database. Provider payloads remain private. */
+export async function listGtmContactEnrichments(limit = 2_500): Promise<ContactEnrichmentRecord[]> {
   const accessToken = await gcpToken();
-  const response = await authorizedFetch(`${firestoreBase}/gtm/contact-enrichments/records?pageSize=${Math.min(Math.max(limit, 1), 100)}`, accessToken);
-  if (response.status === 404) return [];
-  if (!response.ok) throw new Error(`GTM contact enrichments could not be loaded (${response.status}).`);
-  const body = await response.json() as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> };
-  return (body.documents || []).flatMap((document) => {
-    const value = decodeFields(document.fields || {}).recordJson;
-    try { return value ? [JSON.parse(String(value)) as ContactEnrichmentRecord] : []; }
-    catch { return []; }
-  });
+  const maximum = Math.max(1, Math.min(Math.floor(limit), 2_500));
+  const records: ContactEnrichmentRecord[] = [];
+  const seenPageTokens = new Set<string>();
+  let pageToken = "";
+  do {
+    const remaining = maximum - records.length;
+    const query = new URLSearchParams({ pageSize: String(Math.min(remaining, 100)) });
+    if (pageToken) query.set("pageToken", pageToken);
+    const response = await authorizedFetch(`${firestoreBase}/gtm/contact-enrichments/records?${query}`, accessToken);
+    if (response.status === 404) return records;
+    if (!response.ok) throw new Error(`GTM contact enrichments could not be loaded (${response.status}).`);
+    const body = await response.json() as { documents?: Array<{ fields?: Record<string, FirestoreValue> }>; nextPageToken?: string };
+    for (const document of body.documents || []) {
+      if (records.length >= maximum) break;
+      const value = decodeFields(document.fields || {}).recordJson;
+      try { if (value) records.push(JSON.parse(String(value)) as ContactEnrichmentRecord); }
+      catch { /* A malformed historical record stays isolated from the canonical queue. */ }
+    }
+    const nextPageToken = String(body.nextPageToken || "");
+    if (!nextPageToken || records.length >= maximum) break;
+    if (seenPageTokens.has(nextPageToken)) throw new Error("GTM contact-enrichment pagination returned a repeated continuation token.");
+    seenPageTokens.add(nextPageToken);
+    pageToken = nextPageToken;
+  } while (records.length < maximum);
+  return records;
 }
 
 export async function saveGtmEnrichmentUsage(usage: EnrichmentUsage) {
