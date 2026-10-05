@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { awardDiscoveryCriteria, awardIsActiveOn, awardStartsAfter, awardTiming, toOpportunity } from "../../server/gtmAwardScanner";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { awardDiscoveryCriteria, awardIsActiveOn, awardStartsAfter, awardTiming, runDailyAwardScan, toOpportunity } from "../../server/gtmAwardScanner";
 import { assessOpportunityAccuracy } from "../lib/gtm";
 
 afterEach(() => {
@@ -11,6 +11,7 @@ afterEach(() => {
   delete process.env.GTM_AWARD_MAX_CANDIDATES;
   delete process.env.GTM_AWARD_ACTIVE_LOOKBACK_DAYS;
   delete process.env.GTM_AWARD_SPENDDOWN_WINDOW_DAYS;
+  vi.unstubAllGlobals();
 });
 
 describe("federal grant discovery criteria", () => {
@@ -98,5 +99,28 @@ describe("award candidate classification", () => {
     expect(awardTiming({ "Start Date": "2025-04-01", "End Date": "2026-11-10" }, "2026-10-05", 90)).toBe("SPENDDOWN");
     expect(awardTiming({ "Start Date": "2025-04-01", "End Date": "2027-04-01" }, "2026-10-05", 90)).toBe("ACTIVE");
     expect(awardTiming({ "Start Date": "2024-04-01", "End Date": "2025-04-01" }, "2026-10-05", 90)).toBe("RECENT");
+  });
+
+  it("combines recent and bounded active windows while excluding future and ended awards from the active pass", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(Response.json({ results: [base], page_metadata: { hasNext: false } }))
+      .mockResolvedValueOnce(Response.json({ results: [
+        { ...base, "Award ID": "ACTIVE-NEAR-END", generated_internal_id: "ASST_ACTIVE_NEAR_END", "Start Date": "2025-04-01", "End Date": "2026-11-10" },
+        { ...base, "Award ID": "ENDED", generated_internal_id: "ASST_ENDED", "Start Date": "2025-04-01", "End Date": "2026-10-04" },
+        { ...base, "Award ID": "FUTURE", generated_internal_id: "ASST_FUTURE", "Start Date": "2027-01-01", "End Date": "2028-01-01" }
+      ], page_metadata: { hasNext: false } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const scan = await runDailyAwardScan(new Date("2026-10-05T07:00:00.000Z"), null, {
+      GTM_AWARD_PAGE_SIZE: "100", GTM_AWARD_MAX_PAGES: "1", GTM_AWARD_MAX_CANDIDATES: "50", GTM_AWARD_SPENDDOWN_WINDOW_DAYS: "90"
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const recentRequest = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    const activeRequest = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(recentRequest.filters.time_period[0]).toEqual({ start_date: "2026-07-07", end_date: "2026-10-05" });
+    expect(activeRequest.filters.time_period[0]).toEqual({ start_date: "2024-10-05", end_date: "2026-10-05" });
+    expect(scan).toMatchObject({ recordsChecked: 4, newAwardCount: 2, activeAwardCount: 2, spenddownAwardCount: 1, inactiveAwardCount: 1, futureDatedCount: 1 });
+    expect(scan.opportunities.find((item) => item.id.includes("active-near-end"))?.headline).toMatch(/near-end reporting period/i);
   });
 });
