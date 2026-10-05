@@ -1576,7 +1576,7 @@ async function reconcileInstantlyPolling() {
   };
   await saveInstantlyStatus(snapshot);
   console.info(JSON.stringify({ event: "GTM_INSTANTLY_CAPACITY", checkedAt: snapshot.checkedAt, reconciliation: snapshot.reconciliation, providerCapacity, capacityCampaignReads }));
-  if (outcomeRecorded) await reconcileGtmOpportunityEngine();
+  if (outcomeRecorded) await reconcileGtmOpportunityEngineSafely("instantly_polling");
   return { mode: "READ_ONLY", status: snapshot };
 }
 
@@ -1625,7 +1625,7 @@ async function handleInstantlyWebhook(request: IncomingMessage, response: Server
     const updated = applyInstantlyEvent(record, event);
     await saveInstantlyRecord(updated);
     const outcomeRecorded = await saveInstantlyOutcome(updated, event.type, event.id);
-    if (outcomeRecorded) await reconcileGtmOpportunityEngine();
+    if (outcomeRecorded) await reconcileGtmOpportunityEngineSafely("instantly_webhook");
   }
   const suppressionReason = event.type === "BOUNCE" ? "hard_bounce" : event.type === "UNSUBSCRIBE" ? "unsubscribe" : instantlyStopReason(event.type);
   if (suppressionReason && event.email) await recordGtmContactSuppression(event.email, [suppressionReason], "instantly_webhook");
@@ -1927,6 +1927,18 @@ async function reconcileGtmOpportunityEngine() {
     readGtmAwardScan(), readGtmDirectDiscoveryScan(), readGtmPartnerDiscoveryScan(), readGtmDailyScan(), readCanonicalGtmModel(), readGtmOpportunityEngineState(), readGtmOutcomeEvents()
   ]);
   return saveGtmOpportunityEngineState(buildGtmOpportunityEngineState({ awards, direct, partners, social, canonical, prior, outcomes }));
+}
+
+/** Research/dashboard persistence must never turn a committed provider event
+ * into a failed webhook, reconciliation, or controlled-dispatch request. */
+async function reconcileGtmOpportunityEngineSafely(trigger: string) {
+  try {
+    return await reconcileGtmOpportunityEngine();
+  } catch (error) {
+    const message = error instanceof Error ? error.message.slice(0, 500) : "unknown_error";
+    console.error(JSON.stringify({ event: "GTM_OPPORTUNITY_ENGINE_DEFERRED", trigger, reason: message, at: new Date().toISOString() }));
+    return null;
+  }
 }
 
 async function reconcileAndSaveControlPlane(opportunities: GtmOpportunity[]) {

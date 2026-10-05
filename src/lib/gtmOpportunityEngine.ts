@@ -145,6 +145,74 @@ export interface GtmOpportunityEngineState {
   safeguards: { instantlyAutoHandoff: false; campaignExecution: "FOUNDER_APPROVAL_REQUIRED"; uploadedDocumentTargeting: "CONSENT_REQUIRED"; };
 }
 
+/**
+ * Firestore documents are capped at 1 MiB.  The opportunity engine retains
+ * source evidence, so a single serialized dashboard snapshot can legitimately
+ * exceed that limit without indicating an outbound-provider failure.  Keep a
+ * compact root snapshot and immutable, bounded array shards instead.
+ */
+export const GTM_OPPORTUNITY_ENGINE_SHARDED_FIELDS = ["signals", "clusters", "distributionNodes", "experiments", "outcomeEvents"] as const;
+export type GtmOpportunityEngineShardedField = typeof GTM_OPPORTUNITY_ENGINE_SHARDED_FIELDS[number];
+
+export interface GtmOpportunityEngineStateShard {
+  field: GtmOpportunityEngineShardedField;
+  index: number;
+  items: unknown[];
+}
+
+export interface GtmOpportunityEnginePersistencePlan {
+  root: GtmOpportunityEngineState;
+  shards: GtmOpportunityEngineStateShard[];
+  shardCounts: Record<GtmOpportunityEngineShardedField, number>;
+}
+
+const serializedBytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
+
+/** Plan bounded persistence shards without changing the in-memory state. */
+export function planGtmOpportunityEnginePersistence(state: GtmOpportunityEngineState, maximumShardBytes = 300_000): GtmOpportunityEnginePersistencePlan {
+  if (!Number.isInteger(maximumShardBytes) || maximumShardBytes < 4_096) throw new Error("GTM opportunity snapshot shard size is invalid.");
+  const root: GtmOpportunityEngineState = {
+    ...state,
+    signals: [],
+    clusters: [],
+    distributionNodes: [],
+    experiments: [],
+    outcomeEvents: []
+  };
+  const shards: GtmOpportunityEngineStateShard[] = [];
+  const shardCounts = Object.fromEntries(GTM_OPPORTUNITY_ENGINE_SHARDED_FIELDS.map((field) => [field, 0])) as Record<GtmOpportunityEngineShardedField, number>;
+  for (const field of GTM_OPPORTUNITY_ENGINE_SHARDED_FIELDS) {
+    const entries = state[field] as unknown[];
+    let current: unknown[] = [];
+    const flush = () => {
+      if (!current.length) return;
+      shards.push({ field, index: shardCounts[field], items: current });
+      shardCounts[field] += 1;
+      current = [];
+    };
+    for (const entry of entries) {
+      const candidate = [...current, entry];
+      if (current.length && serializedBytes({ items: candidate }) > maximumShardBytes) flush();
+      if (serializedBytes({ items: [entry] }) > maximumShardBytes) throw new Error(`GTM opportunity snapshot entry exceeds the bounded shard size (${field}).`);
+      current.push(entry);
+    }
+    flush();
+  }
+  return { root, shards, shardCounts };
+}
+
+/** Rebuild a complete state only when every expected immutable shard is present. */
+export function restoreGtmOpportunityEnginePersistence(root: GtmOpportunityEngineState, shards: GtmOpportunityEngineStateShard[], shardCounts: Record<GtmOpportunityEngineShardedField, number>): GtmOpportunityEngineState {
+  const restored = { ...root } as GtmOpportunityEngineState;
+  for (const field of GTM_OPPORTUNITY_ENGINE_SHARDED_FIELDS) {
+    const expected = Number(shardCounts[field] || 0);
+    const available = shards.filter((shard) => shard.field === field).sort((left, right) => left.index - right.index);
+    if (available.length !== expected || available.some((shard, index) => shard.index !== index)) throw new Error(`GTM opportunity snapshot is incomplete (${field}).`);
+    (restored as unknown as Record<GtmOpportunityEngineShardedField, unknown[]>)[field] = available.flatMap((shard) => shard.items);
+  }
+  return restored;
+}
+
 export interface PartnerDiscoveryLike {
   opportunities: Array<{
     id: string;

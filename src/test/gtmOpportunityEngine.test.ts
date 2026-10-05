@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, experimentRecommendation, founderOpportunityQueue, GTM_EXPERIMENT_EVIDENCE_POLICY, GTM_OPPORTUNITY_SCORING_POLICY, scoreDistributionLeverage, type GtmOutcomeEvent } from "../lib/gtmOpportunityEngine";
+import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, experimentRecommendation, founderOpportunityQueue, GTM_EXPERIMENT_EVIDENCE_POLICY, GTM_OPPORTUNITY_SCORING_POLICY, planGtmOpportunityEnginePersistence, restoreGtmOpportunityEnginePersistence, scoreDistributionLeverage, type GtmOutcomeEvent } from "../lib/gtmOpportunityEngine";
 import type { AwardDiscoveryScan, DailySocialScan } from "../lib/gtm";
 import type { CanonicalGtmModel } from "../lib/gtmCanonical";
 
@@ -71,5 +71,21 @@ describe("GTM opportunity cluster engine", () => {
     expect(experimentRecommendation({ delivered: GTM_EXPERIMENT_EVIDENCE_POLICY.minimumDelivered - 1, replies: 0, positiveReplies: 0, meetings: 0, analyzerActivations: 0, reportsGenerated: 0, paid: 0 }).recommendation).toBe("INSUFFICIENT_EVIDENCE");
     expect(experimentRecommendation({ delivered: 20, replies: 0, positiveReplies: 0, meetings: 0, analyzerActivations: 0, reportsGenerated: 0, paid: 0 }).recommendation).toBe("KILL");
     expect(experimentRecommendation({ delivered: 20, replies: 3, positiveReplies: 3, meetings: 0, analyzerActivations: 0, reportsGenerated: 0, paid: 0 }).recommendation).toBe("SCALE");
+  });
+
+  it("shards large research snapshots while preserving a complete state", () => {
+    const state = buildGtmOpportunityEngineState({ awards, direct: null, partners: null, social, canonical, now: "2026-08-25T12:00:00.000Z" });
+    state.signals = Array.from({ length: 40 }, (_, index) => ({ ...state.signals[0], id: `signal:large-${index}`, summary: "source-backed evidence ".repeat(80) }));
+    const plan = planGtmOpportunityEnginePersistence(state, 4_096);
+    expect(plan.shardCounts.signals).toBeGreaterThan(1);
+    expect(plan.shards.every((shard) => new TextEncoder().encode(JSON.stringify({ items: shard.items })).byteLength <= 4_096)).toBe(true);
+    expect(restoreGtmOpportunityEnginePersistence(plan.root, plan.shards, plan.shardCounts)).toEqual(state);
+  });
+
+  it("fails closed when an immutable opportunity snapshot shard is missing", () => {
+    const state = buildGtmOpportunityEngineState({ awards, direct: null, partners: null, social, canonical, now: "2026-08-25T12:00:00.000Z" });
+    state.signals = Array.from({ length: 12 }, (_, index) => ({ ...state.signals[0], id: `signal:missing-${index}`, summary: "evidence ".repeat(100) }));
+    const plan = planGtmOpportunityEnginePersistence(state, 4_096);
+    expect(() => restoreGtmOpportunityEnginePersistence(plan.root, plan.shards.slice(1), plan.shardCounts)).toThrow(/incomplete/i);
   });
 });

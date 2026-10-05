@@ -9,7 +9,7 @@ import type { ContactEnrichmentRecord, EnrichmentUsage, SuppressionCheck } from 
 import type { SearchConsoleState } from "./searchConsole.ts";
 import type { PartnerDiscoveryScan } from "./gtmPartnerDiscovery.ts";
 import type { InventoryAutopilotSnapshot } from "../src/lib/gtmInventoryPolicy.ts";
-import type { GtmOpportunityEngineState, GtmOutcomeEvent } from "../src/lib/gtmOpportunityEngine.ts";
+import { planGtmOpportunityEnginePersistence, restoreGtmOpportunityEnginePersistence, type GtmOpportunityEngineShardedField, type GtmOpportunityEngineState, type GtmOutcomeEvent } from "../src/lib/gtmOpportunityEngine.ts";
 import type { FeedbackSubmission } from "../src/lib/feedback.ts";
 import type { OutreachRecord } from "../src/lib/gtmOutreach.ts";
 import { mergeOutreachRecords } from "../src/lib/gtmOutreach.ts";
@@ -1168,11 +1168,26 @@ export async function readGtmInventoryAutopilot(): Promise<InventoryAutopilotSna
  * campaign, or uploaded-document execution path. */
 export async function saveGtmOpportunityEngineState(state: GtmOpportunityEngineState) {
   const accessToken = await gcpToken();
+  const plan = planGtmOpportunityEnginePersistence(state);
+  const stateJson = JSON.stringify(plan.root);
+  const snapshotFingerprint = createHash("sha256").update(JSON.stringify({ ...plan.root, generatedAt: "" })).update(JSON.stringify(plan.shards.map((shard) => [shard.field, shard.items]))).digest("hex").slice(0, 40);
+  const snapshotId = `snapshot_${snapshotFingerprint}`;
+  for (const shard of plan.shards) {
+    await writeDocument(accessToken, `gtm/opportunity-engine/snapshots/${snapshotId}/shards/${shard.field}_${shard.index}`, {
+      snapshotId,
+      field: shard.field,
+      index: shard.index,
+      itemsJson: JSON.stringify(shard.items)
+    }, "GTM opportunity snapshot shard");
+  }
   await writeDocument(accessToken, "gtm/opportunity-engine", {
     generatedAt: state.generatedAt,
     clusterCount: state.clusters.length,
     signalCount: state.signals.length,
-    stateJson: JSON.stringify(state)
+    stateJson,
+    persistenceVersion: 2,
+    snapshotId,
+    shardCountsJson: JSON.stringify(plan.shardCounts)
   });
   return state;
 }
@@ -1182,9 +1197,51 @@ export async function readGtmOpportunityEngineState(): Promise<GtmOpportunityEng
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`GTM opportunity-engine state could not be loaded (${response.status}).`);
   const record = decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {});
-  try { return record.stateJson ? JSON.parse(String(record.stateJson)) as GtmOpportunityEngineState : null; }
+  try {
+    const root = record.stateJson ? JSON.parse(String(record.stateJson)) as GtmOpportunityEngineState : null;
+    const snapshotId = String(record.snapshotId || "");
+    if (!root || !snapshotId || Number(record.persistenceVersion || 0) < 2) return root;
+    const shardCounts = JSON.parse(String(record.shardCountsJson || "{}")) as Record<GtmOpportunityEngineShardedField, number>;
+    const shards = await readGtmOpportunityEngineSnapshotShards(await gcpToken(), snapshotId);
+    return restoreGtmOpportunityEnginePersistence(root, shards, shardCounts);
+  }
   catch { return null; }
 }
+
+async function readGtmOpportunityEngineSnapshotShards(accessToken: string, snapshotId: string) {
+  const shards: Array<{ field: GtmOpportunityEngineShardedField; index: number; items: unknown[] }> = [];
+  let pageToken = "";
+  let hasNextPage = true;
+  const seenPageTokens = new Set<string>();
+  while (hasNextPage) {
+    const query = new URLSearchParams({ pageSize: "100" });
+    if (pageToken) query.set("pageToken", pageToken);
+    const response = await authorizedFetch(`${firestoreBase}/gtm/opportunity-engine/snapshots/${safeDocumentId(snapshotId)}/shards?${query}`, accessToken);
+    if (response.status === 404) throw new Error("GTM opportunity snapshot shards are unavailable.");
+    if (!response.ok) throw new Error(`GTM opportunity snapshot shards could not be loaded (${response.status}).`);
+    const body = await response.json() as { documents?: Array<{ fields?: Record<string, FirestoreValue> }>; nextPageToken?: string };
+    for (const document of body.documents || []) {
+      const value = decodeFields(document.fields || {});
+      const field = String(value.field || "") as GtmOpportunityEngineShardedField;
+      const index = Number(value.index);
+      if (!GTM_OPPORTUNITY_ENGINE_SHARDED_FIELD_SET.has(field) || !Number.isInteger(index) || index < 0) continue;
+      const items = JSON.parse(String(value.itemsJson || "[]"));
+      if (!Array.isArray(items)) throw new Error("GTM opportunity snapshot shard is malformed.");
+      shards.push({ field, index, items });
+    }
+    const nextPageToken = String(body.nextPageToken || "");
+    if (!nextPageToken) {
+      hasNextPage = false;
+      continue;
+    }
+    if (seenPageTokens.has(nextPageToken)) throw new Error("GTM opportunity snapshot shard pagination repeated a continuation token.");
+    seenPageTokens.add(nextPageToken);
+    pageToken = nextPageToken;
+  }
+  return shards;
+}
+
+const GTM_OPPORTUNITY_ENGINE_SHARDED_FIELD_SET = new Set<GtmOpportunityEngineShardedField>(["signals", "clusters", "distributionNodes", "experiments", "outcomeEvents"]);
 
 /** Outcome events are individually immutable so a poll retry, webhook retry,
  * or Cloud Run instance change cannot count an actual provider event twice. */
