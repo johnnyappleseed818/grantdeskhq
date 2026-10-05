@@ -1,16 +1,16 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-10-05T07:22:24Z",
+  "updatedAt": "2026-10-05T14:51:41Z",
   "currentSnapshot": {
     "status": "PARTIAL",
-    "asOf": "2026-10-05T07:22:24Z",
-    "servingRevision": "grantdeskhq-prototype-00589-kuc",
+    "asOf": "2026-10-05T14:51:41Z",
+    "servingRevision": "grantdeskhq-prototype-00591-yeb",
     "runtimeIdentity": "grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com",
     "implementedAndDeployed": {
       "replenishment": "Instantly SuperSearch normal processing is bounded by actual workspace allowance, a default batch of 10 (hard maximum 25), and a deterministic per-seed submission claim. Preview errors remain retryable; any post-claim ambiguous response is quarantined rather than replayed.",
       "awardDiscovery": "The USAspending adapter now runs bounded recent-start and active-award windows. It preserves a seven-day amendment overlap and canonical idempotency, defers future-start records, excludes ended records from the active pass, and labels near-end source periods without asserting a report deadline or purchase intent. The 30-day public-web award/foundation/nonprofit/hiring search remains an independent same-run fallback.",
-      "chatgptMcp": "OAuth 2.1 PKCE/DCR endpoints, tenant-bound opaque access tokens and rotating one-time refresh tokens, unauthenticated MCP discovery with seven per-tool OAuth schemes, document-text report intake, and a portable plugin package are deployed. The MCP surface excludes GTM administration and contact data.",
+      "chatgptMcp": "OAuth 2.1 PKCE/DCR endpoints, tenant-bound opaque access tokens and rotating one-time refresh tokens, unauthenticated MCP discovery with seven per-tool OAuth schemes, document-text report intake, and a portable plugin package are deployed. list_grant_reports now projects only its ten explicit summary fields and never returns persisted source, result, manifest, or audit JSON. The MCP surface excludes GTM administration and contact data.",
       "evidence": "scripts/gtm/normalize-project-result.mjs validates and rewrites this file through JSON.parse/JSON.stringify so current snapshot fields and historical evidence remain valid JSON."
     },
     "releaseEvidence": {
@@ -19,16 +19,18 @@
         "eaf71bdebeb9bdea4e3c5470bb6ffd05e8d53df3",
         "dedfc5e OAuth refresh-token rotation",
         "704066a active-award and spenddown discovery",
-        "59569bb dual-window scanner regression"
+        "59569bb dual-window scanner regression",
+        "e5a6358 summary-only MCP report list"
       ],
       "builds": [
         "bc05afd4-5c99-46b8-a5dd-323ba5ef21fc SUCCESS",
         "3932779e-ee29-4a58-b8d6-9dde36c5793b SUCCESS",
         "225a320d-7f76-4bc9-b287-f49c1e2f1cfd SUCCESS (OAuth refresh)",
-        "7ea6f1e6-dde3-4435-aaad-9aca76a5d2fc SUCCESS (active awards)"
+        "7ea6f1e6-dde3-4435-aaad-9aca76a5d2fc SUCCESS (active awards)",
+        "a29518db-e35b-47ef-8b1a-c5277416000d SUCCESS (MCP report summaries)"
       ],
-      "candidateValidation": "00587-qas added OAuth refresh-token metadata and passed health, seven-tool discovery, and protected-call challenge checks. 00589-kuc matched active-award image digest sha256:38ba94145754db800a4b82b443d58432ff7e7da678df79e44fb043dcdeef9f93, used the expected runtime identity, and passed health and protected-call checks.",
-      "productionTraffic": "Cloud Run service describes grantdeskhq-prototype-00589-kuc at 100% traffic; custom-domain health returned HTTP 200. Legacy applicationRevision environment metadata remains stale and is not used as source provenance."
+      "candidateValidation": "00587-qas added OAuth refresh-token metadata and passed health, seven-tool discovery, and protected-call challenge checks. 00589-kuc matched active-award image digest sha256:38ba94145754db800a4b82b443d58432ff7e7da678df79e44fb043dcdeef9f93, used the expected runtime identity, and passed health and protected-call checks. 00591-yeb advertised the strict ten-field list_grant_reports output schema, returned the OAuth challenge for an unauthenticated protected call, and used the expected runtime identity.",
+      "productionTraffic": "Cloud Run service describes grantdeskhq-prototype-00591-yeb at 100% traffic; custom-domain health returned HTTP 200 and production MCP discovery reported only id, organizationName, grantName, reportingPeriod, status, createdAt, updatedAt, sourceCount, evidenceCoveragePercent, and unresolvedItems for list_grant_reports. Legacy applicationRevision environment metadata remains stale and is not used as source provenance."
     },
     "durableScheduleOrder": {
       "awardAndSocial": "08:00 weekdays America/Detroit",
