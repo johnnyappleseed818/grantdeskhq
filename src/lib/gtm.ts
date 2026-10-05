@@ -136,6 +136,9 @@ export interface AwardDiscoveryScan {
   pagesChecked: number;
   newAwardCount: number;
   duplicateCount: number;
+  /** Source records may be announced before their award period starts. They
+   * are measured separately and never become current post-award candidates. */
+  futureDatedCount?: number;
   errorCount: number;
   coverage: string;
   opportunities: GtmOpportunity[];

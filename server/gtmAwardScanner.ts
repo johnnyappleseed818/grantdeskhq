@@ -62,8 +62,14 @@ export async function runDailyAwardScan(now = new Date(), priorSuccessfulScanAt:
 
   const seen = new Set<string>();
   let duplicateCount = 0;
+  let futureDatedCount = 0;
   const opportunities = records
     .filter((award) => isUsableAward(award, criteria.minimumAward))
+    .filter((award) => {
+      if (!awardStartsAfter(award, criteria.endDate)) return true;
+      futureDatedCount += 1;
+      return false;
+    })
     .filter((award) => {
       const key = String(award.generated_internal_id);
       if (seen.has(key)) { duplicateCount += 1; return false; }
@@ -85,12 +91,14 @@ export async function runDailyAwardScan(now = new Date(), priorSuccessfulScanAt:
     pagesChecked,
     newAwardCount: opportunities.length,
     duplicateCount,
+    futureDatedCount,
     errorCount: 0,
-    coverage: records.length + " recent federal grant records were checked across " + pagesChecked + " page(s); " + opportunities.length + " new nonprofit candidates passed the research criteria and " + duplicateCount + " duplicates were excluded. " + (opportunities.length ? "Candidates still require contact and workflow verification before outreach." : "No new awards matched; this was a successful empty scan, not a scanner failure."),
+    coverage: records.length + " federal assistance records were checked across " + pagesChecked + " page(s); " + opportunities.length + " current or past-start nonprofit candidates passed the research criteria, " + futureDatedCount + " future-start award" + (futureDatedCount === 1 ? " was" : "s were") + " deferred, and " + duplicateCount + " duplicates were excluded. " + (opportunities.length ? "Candidates still require contact and workflow verification before outreach." : "No current or past-start awards matched; this was a successful empty scan, not a scanner failure."),
     opportunities,
     limitations: [
       "USAspending covers federal assistance, not private-foundation or state and local awards that are not reported there.",
       "An award record establishes timing and funding, but it does not prove reporting pain, software use, report cadence, or willingness to buy.",
+      "Observed-at is the scanner timestamp; the source award start and end dates are retained separately. Future-start awards are deferred rather than treated as current post-award work.",
       "Education, research, healthcare, and very large recipients are kept as adjacent candidates rather than silently excluded.",
       "No contact is discovered and no message is sent by this scanner."
     ]
@@ -182,6 +190,15 @@ function isUsableAward(award: AwardRecord, minimumAward: number) {
     && typeof award.generated_internal_id === "string"
     && award.generated_internal_id.trim()
   );
+}
+
+/** USAspending can surface announced assistance whose displayed start date is
+ * beyond the query end date. It is useful research, but cannot substantiate a
+ * present post-award reporting workflow. Keep that count visible and defer it
+ * rather than allowing a source API quirk to create current candidates. */
+export function awardStartsAfter(award: Pick<AwardRecord, "Start Date">, endDate: string) {
+  const start = dateOnly(award["Start Date"] || null);
+  return Boolean(start && start > endDate);
 }
 
 function classifyTargetTier(organization: string, amount: number): TargetTier {

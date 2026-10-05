@@ -706,6 +706,7 @@ export async function saveGtmAwardScan(scan: AwardDiscoveryScan) {
     source: scan.source,
     newAwardCount: scan.newAwardCount,
     duplicateCount: scan.duplicateCount,
+    futureDatedCount: scan.futureDatedCount || 0,
     errorCount: scan.errorCount,
     scanJson: JSON.stringify(scan)
   });

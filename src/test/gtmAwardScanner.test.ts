@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { awardDiscoveryCriteria, toOpportunity } from "../../server/gtmAwardScanner";
+import { awardDiscoveryCriteria, awardStartsAfter, toOpportunity } from "../../server/gtmAwardScanner";
 import { assessOpportunityAccuracy } from "../lib/gtm";
 
 afterEach(() => {
@@ -78,5 +78,11 @@ describe("award candidate classification", () => {
 
   it("classifies established nonprofit awards as core targets", () => {
     expect(toOpportunity({ ...base, "Award Amount": 250_000 }, "2026-08-10").targetTier).toBe("core");
+  });
+
+  it("defers a source response whose displayed award start is after the scan end date", () => {
+    expect(awardStartsAfter({ "Start Date": "2027-06-01" }, "2026-10-05")).toBe(true);
+    expect(awardStartsAfter({ "Start Date": "2026-10-05" }, "2026-10-05")).toBe(false);
+    expect(awardStartsAfter({ "Start Date": undefined }, "2026-10-05")).toBe(false);
   });
 });
