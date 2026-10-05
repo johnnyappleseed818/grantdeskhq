@@ -1,29 +1,34 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-10-05T06:33:15.000Z",
+  "updatedAt": "2026-10-05T07:22:24Z",
   "currentSnapshot": {
     "status": "PARTIAL",
-    "asOf": "2026-10-05T06:33:15.000Z",
-    "servingRevision": "grantdeskhq-prototype-00585-keb",
+    "asOf": "2026-10-05T07:22:24Z",
+    "servingRevision": "grantdeskhq-prototype-00589-kuc",
     "runtimeIdentity": "grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com",
     "implementedAndDeployed": {
       "replenishment": "Instantly SuperSearch normal processing is bounded by actual workspace allowance, a default batch of 10 (hard maximum 25), and a deterministic per-seed submission claim. Preview errors remain retryable; any post-claim ambiguous response is quarantined rather than replayed.",
-      "awardDiscovery": "The USAspending adapter remains the official structured-award source. A successful source checkpoint makes later scans incremental with a seven-day amendment overlap, canonical seed idempotency absorbs overlap duplicates, and award records whose start date is after the scan date are deferred rather than treated as current post-award candidates.",
-      "chatgptMcp": "OAuth 2.1 PKCE/DCR endpoints, tenant-bound opaque-token storage, unauthenticated MCP discovery with per-tool OAuth schemes, document-text report intake, and a portable plugin package are deployed. The MCP surface excludes GTM administration and contact data.",
+      "awardDiscovery": "The USAspending adapter now runs bounded recent-start and active-award windows. It preserves a seven-day amendment overlap and canonical idempotency, defers future-start records, excludes ended records from the active pass, and labels near-end source periods without asserting a report deadline or purchase intent. The 30-day public-web award/foundation/nonprofit/hiring search remains an independent same-run fallback.",
+      "chatgptMcp": "OAuth 2.1 PKCE/DCR endpoints, tenant-bound opaque access tokens and rotating one-time refresh tokens, unauthenticated MCP discovery with seven per-tool OAuth schemes, document-text report intake, and a portable plugin package are deployed. The MCP surface excludes GTM administration and contact data.",
       "evidence": "scripts/gtm/normalize-project-result.mjs validates and rewrites this file through JSON.parse/JSON.stringify so current snapshot fields and historical evidence remain valid JSON."
     },
     "releaseEvidence": {
       "commits": [
         "9e887e63a991b4479561a7a7ba55b929bf806e5b",
-        "eaf71bdebeb9bdea4e3c5470bb6ffd05e8d53df3"
+        "eaf71bdebeb9bdea4e3c5470bb6ffd05e8d53df3",
+        "dedfc5e OAuth refresh-token rotation",
+        "704066a active-award and spenddown discovery",
+        "59569bb dual-window scanner regression"
       ],
       "builds": [
         "bc05afd4-5c99-46b8-a5dd-323ba5ef21fc SUCCESS",
-        "3932779e-ee29-4a58-b8d6-9dde36c5793b SUCCESS"
+        "3932779e-ee29-4a58-b8d6-9dde36c5793b SUCCESS",
+        "225a320d-7f76-4bc9-b287-f49c1e2f1cfd SUCCESS (OAuth refresh)",
+        "7ea6f1e6-dde3-4435-aaad-9aca76a5d2fc SUCCESS (active awards)"
       ],
-      "candidateValidation": "00583-lac and 00585-keb returned health 200, published OAuth metadata and seven per-tool OAuth-protected MCP tools, and returned an HTTP/MCP OAuth challenge for an unauthenticated protected request.",
-      "productionTraffic": "Cloud Run service describes grantdeskhq-prototype-00585-keb at 100% traffic; custom-domain health returned HTTP 200. Legacy applicationRevision environment metadata remains stale and is not used as source provenance."
+      "candidateValidation": "00587-qas added OAuth refresh-token metadata and passed health, seven-tool discovery, and protected-call challenge checks. 00589-kuc matched active-award image digest sha256:38ba94145754db800a4b82b443d58432ff7e7da678df79e44fb043dcdeef9f93, used the expected runtime identity, and passed health and protected-call checks.",
+      "productionTraffic": "Cloud Run service describes grantdeskhq-prototype-00589-kuc at 100% traffic; custom-domain health returned HTTP 200. Legacy applicationRevision environment metadata remains stale and is not used as source provenance."
     },
     "durableScheduleOrder": {
       "awardAndSocial": "08:00 weekdays America/Detroit",
@@ -42,12 +47,12 @@
     },
     "currentBusinessEvidence": {
       "providerConfirmedNewProspectingSends": "NOT_CONFIRMED",
-      "reason": "The next weekday durable cycle had not started at this snapshot. No manual provider send, enrollment replay, or paid extraction was used to manufacture evidence.",
+      "reason": "The next weekday durable cycle had not started at this snapshot. A read-only dual-window USAspending probe checked 50 source records and deferred 50 future-start records; it made no import, provider, reservation, enrollment, or send. No manual provider send, enrollment replay, or paid extraction was used to manufacture evidence.",
       "scrapeGraph": "Optional per-record fallback remains deferred by the zero-overage headroom policy when the last observed balance was 80 credits against required 100-credit headroom; structured official evidence and Instantly routes remain independent."
     },
     "remainingExternalDependencies": [
       "Instantly must expose or resolve the two status=2/warmup-disabled mailboxes through existing account settings or support before their capacity can be counted.",
-      "A GrantDeskHQ owner must complete the interactive ChatGPT Developer-mode OAuth consent with synthetic or consented documents before a live ChatGPT user-session test and public plugin submission can be claimed."
+      "A GrantDeskHQ owner must complete the interactive ChatGPT Developer-mode OAuth consent with a synthetic tenant before a live ChatGPT user-session test and public plugin submission can be claimed."
     ]
   },
   "latestSourceIndependentRelease": {
