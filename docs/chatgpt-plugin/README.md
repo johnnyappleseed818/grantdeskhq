@@ -85,3 +85,8 @@ three negative review cases, provide a consented demo recording, then use
 **With MCP → Scan Tools** in the plugin submission portal. Those portal and
 identity steps are external to the codebase; no secret or reviewer credential
 belongs in this repository. Refer to [Build an MCP server](https://developers.openai.com/plugins/build/mcp-server) and [plugin submission](https://developers.openai.com/plugins/deploy/submission).
+
+`package/submission-inputs.json` is the reviewed source for the listing,
+endpoint, OAuth, support, privacy, and reviewer-test fields. Its explicit
+`termsOfServiceUrl: null` is intentional: an approved public Terms URL is the
+remaining legal metadata prerequisite, not a field this repository may invent.

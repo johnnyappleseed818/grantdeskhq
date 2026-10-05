@@ -1,0 +1,50 @@
+{
+  "status": "PARTIAL — do not submit until every owner-controlled field and the authenticated ChatGPT test are complete.",
+  "listing": {
+    "name": "GrantDeskHQ Grant Reporting",
+    "shortDescription": "Create and review source-linked post-award grant-report drafts in your GrantDeskHQ tenant.",
+    "longDescription": "GrantDeskHQ turns an award agreement, approved budget, accounting ledger, and program update into a reviewable, source-linked post-award report draft. It flags missing inputs and calculates budget-versus-actual deterministically. It never submits reports to funders and it cannot access GTM contacts, campaigns, or delivery data.",
+    "category": "Productivity",
+    "supportUrl": "https://grantdeskhq.com/contact",
+    "privacyPolicyUrl": "https://grantdeskhq.com/privacy",
+    "termsOfServiceUrl": null,
+    "termsOwnerAction": "Provide an approved public GrantDeskHQ Terms URL. Do not invent or substitute a privacy-policy URL."
+  },
+  "mcp": {
+    "endpoint": "https://grantdeskhq.com/mcp",
+    "transport": "streamable-http",
+    "tools": [
+      "get_grantdeskhq_profile",
+      "list_grant_reports",
+      "get_agreement_analysis",
+      "get_budget_vs_actual",
+      "get_missing_report_inputs",
+      "get_reviewable_report_draft",
+      "create_report_from_document_text"
+    ]
+  },
+  "oauth": {
+    "protectedResource": "https://grantdeskhq.com/mcp",
+    "resourceMetadata": "https://grantdeskhq.com/.well-known/oauth-protected-resource",
+    "authorizationServerMetadata": "https://grantdeskhq.com/.well-known/oauth-authorization-server",
+    "authorizationEndpoint": "https://grantdeskhq.com/oauth/authorize",
+    "tokenEndpoint": "https://grantdeskhq.com/oauth/token",
+    "dynamicClientRegistration": "https://grantdeskhq.com/oauth/register",
+    "redirectUri": "https://chatgpt.com/connector_platform_oauth_redirect",
+    "pkce": "S256",
+    "scopes": [
+      "grantdeskhq.reports.read",
+      "grantdeskhq.reports.write"
+    ],
+    "accessTokenLifetime": "1 hour",
+    "refreshToken": "opaque, hash-stored, resource/client/tenant-bound, rotates on one-time use, 30 days"
+  },
+  "reviewEvidence": {
+    "positiveCasesRequired": 5,
+    "negativeCasesRequired": 3,
+    "syntheticTenantRequired": true,
+    "noMfaReviewerAccountRequired": true,
+    "consentedDemoRecordingRequired": true,
+    "ownerTestScript": "../OWNER_CHECKLIST.md"
+  }
+}
