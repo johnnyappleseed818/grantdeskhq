@@ -22,9 +22,19 @@ interface AwardPage {
   page_metadata?: { hasNext?: boolean };
 }
 
+export type AwardTiming = "RECENT" | "ACTIVE" | "SPENDDOWN";
+
+interface AwardQuery {
+  kind: "RECENT" | "ACTIVE";
+  startDate: string;
+  endDate: string;
+}
+
 export function awardDiscoveryCriteria(scanDate: string, environment: NodeJS.ProcessEnv = process.env, priorSuccessfulScanAt: string | null = null): AwardDiscoveryCriteria {
   const windowDays = boundedInteger(environment.GTM_AWARD_WINDOW_DAYS, 90, 14, 365);
   const overlapDays = boundedInteger(environment.GTM_AWARD_INCREMENTAL_OVERLAP_DAYS, 7, 1, 30);
+  const activeLookbackDays = boundedInteger(environment.GTM_AWARD_ACTIVE_LOOKBACK_DAYS, 730, 90, 1_825);
+  const spenddownWindowDays = boundedInteger(environment.GTM_AWARD_SPENDDOWN_WINDOW_DAYS, 120, 30, 365);
   const checkpointStartDate = dateOnly(priorSuccessfulScanAt);
   const configuredStart = dateOnly(environment.GTM_SCAN_START_DATE || null);
   // A source scan is incremental after its first successful checkpoint.  The
@@ -34,6 +44,9 @@ export function awardDiscoveryCriteria(scanDate: string, environment: NodeJS.Pro
   return {
     startDate,
     endDate: scanDate,
+    activeStartDate: offsetDate(scanDate, -activeLookbackDays),
+    activeLookbackDays,
+    spenddownWindowDays,
     checkpointStartDate,
     incremental: Boolean(checkpointStartDate && !configuredStart),
     overlapDays,
@@ -41,42 +54,62 @@ export function awardDiscoveryCriteria(scanDate: string, environment: NodeJS.Pro
     recipientTypes: RECIPIENT_TYPES,
     awardTypes: AWARD_TYPES,
     pageSize: boundedInteger(environment.GTM_AWARD_PAGE_SIZE, 100, 10, 100),
-    maxPages: boundedInteger(environment.GTM_AWARD_MAX_PAGES, 4, 1, 10),
-    maxCandidates: boundedInteger(environment.GTM_AWARD_MAX_CANDIDATES, 100, 10, 500)
+    maxPages: boundedInteger(environment.GTM_AWARD_MAX_PAGES, 5, 1, 10),
+    maxCandidates: boundedInteger(environment.GTM_AWARD_MAX_CANDIDATES, 500, 10, 500)
   };
 }
 
 export async function runDailyAwardScan(now = new Date(), priorSuccessfulScanAt: string | null = null, environment: NodeJS.ProcessEnv = process.env): Promise<AwardDiscoveryScan> {
   const scanDate = now.toISOString().slice(0, 10);
   const criteria = awardDiscoveryCriteria(scanDate, environment, priorSuccessfulScanAt);
-  const records: AwardRecord[] = [];
+  const records: Array<{ award: AwardRecord; query: AwardQuery }> = [];
   let pagesChecked = 0;
+  let activeRecordsChecked = 0;
+  const queries: AwardQuery[] = [
+    { kind: "RECENT", startDate: criteria.startDate, endDate: criteria.endDate },
+    { kind: "ACTIVE", startDate: criteria.activeStartDate || criteria.startDate, endDate: criteria.endDate }
+  ];
 
-  for (let page = 1; page <= criteria.maxPages; page += 1) {
-    const body = await fetchAwardPage(criteria, page);
-    const results = Array.isArray(body.results) ? body.results : [];
-    records.push(...results);
-    pagesChecked = page;
-    if (!results.length || body.page_metadata?.hasNext === false || results.length < criteria.pageSize) break;
+  for (const query of queries) {
+    for (let page = 1; page <= criteria.maxPages; page += 1) {
+      const body = await fetchAwardPage(criteria, page, query);
+      const results = Array.isArray(body.results) ? body.results : [];
+      records.push(...results.map((award) => ({ award, query })));
+      if (query.kind === "ACTIVE") activeRecordsChecked += results.length;
+      pagesChecked += 1;
+      if (!results.length || body.page_metadata?.hasNext === false || results.length < criteria.pageSize) break;
+    }
   }
 
-  const seen = new Set<string>();
+  const seen = new Map<string, { award: AwardRecord; timing: AwardTiming }>();
   let duplicateCount = 0;
   let futureDatedCount = 0;
-  const opportunities = records
-    .filter((award) => isUsableAward(award, criteria.minimumAward))
-    .filter((award) => {
-      if (!awardStartsAfter(award, criteria.endDate)) return true;
+  let inactiveAwardCount = 0;
+  for (const { award, query } of records) {
+    if (!isUsableAward(award, criteria.minimumAward)) continue;
+    if (awardStartsAfter(award, criteria.endDate)) {
       futureDatedCount += 1;
-      return false;
-    })
-    .filter((award) => {
-      const key = String(award.generated_internal_id);
-      if (seen.has(key)) { duplicateCount += 1; return false; }
-      seen.add(key);
-      return true;
-    })
-    .map((award) => toOpportunity(award, scanDate))
+      continue;
+    }
+    if (query.kind === "ACTIVE" && !awardIsActiveOn(award, criteria.endDate)) {
+      inactiveAwardCount += 1;
+      continue;
+    }
+    const key = String(award.generated_internal_id);
+    const timing = awardTiming(award, criteria.endDate, criteria.spenddownWindowDays || 120);
+    const existing = seen.get(key);
+    if (existing) {
+      duplicateCount += 1;
+      if (timingPriority(timing) > timingPriority(existing.timing)) seen.set(key, { award, timing });
+      continue;
+    }
+    seen.set(key, { award, timing });
+  }
+  const selected = [...seen.values()];
+  const activeAwardCount = selected.filter((item) => item.timing === "ACTIVE" || item.timing === "SPENDDOWN").length;
+  const spenddownAwardCount = selected.filter((item) => item.timing === "SPENDDOWN").length;
+  const opportunities = selected
+    .map(({ award, timing }) => toOpportunity(award, scanDate, timing))
     .sort(compareOpportunityResearchValue)
     .slice(0, criteria.maxCandidates);
 
@@ -92,8 +125,11 @@ export async function runDailyAwardScan(now = new Date(), priorSuccessfulScanAt:
     newAwardCount: opportunities.length,
     duplicateCount,
     futureDatedCount,
+    activeAwardCount,
+    spenddownAwardCount,
+    inactiveAwardCount,
     errorCount: 0,
-    coverage: records.length + " federal assistance records were checked across " + pagesChecked + " page(s); " + opportunities.length + " current or past-start nonprofit candidates passed the research criteria, " + futureDatedCount + " future-start award" + (futureDatedCount === 1 ? " was" : "s were") + " deferred, and " + duplicateCount + " duplicates were excluded. " + (opportunities.length ? "Candidates still require contact and workflow verification before outreach." : "No current or past-start awards matched; this was a successful empty scan, not a scanner failure."),
+    coverage: records.length + " federal assistance records were checked across " + pagesChecked + " page(s), including " + activeRecordsChecked + " record(s) from the bounded active-award lookback; " + opportunities.length + " current or past-start nonprofit candidates passed the research criteria, including " + activeAwardCount + " active and " + spenddownAwardCount + " near-end award(s). " + futureDatedCount + " future-start award" + (futureDatedCount === 1 ? " was" : "s were") + " deferred, " + inactiveAwardCount + " inactive historical award" + (inactiveAwardCount === 1 ? " was" : "s were") + " excluded from the active scan, and " + duplicateCount + " duplicates were excluded. " + (opportunities.length ? "Candidates still require contact and workflow verification before outreach." : "No current, active, or near-end awards matched; this was a successful empty scan, not a scanner failure."),
     opportunities,
     limitations: [
       "USAspending covers federal assistance, not private-foundation or state and local awards that are not reported there.",
@@ -105,7 +141,7 @@ export async function runDailyAwardScan(now = new Date(), priorSuccessfulScanAt:
   };
 }
 
-export function toOpportunity(award: AwardRecord, observedAt: string): GtmOpportunity {
+export function toOpportunity(award: AwardRecord, observedAt: string, timing: AwardTiming = "RECENT"): GtmOpportunity {
   const organization = titleCase(String(award["Recipient Name"]));
   const amount = Number(award["Award Amount"]);
   const description = compact(award.Description || "Federal assistance award record.", 300);
@@ -117,7 +153,7 @@ export function toOpportunity(award: AwardRecord, observedAt: string): GtmOpport
   const sourceUrl = `https://www.usaspending.gov/award/${encodeURIComponent(generatedId)}/`;
   const score = {
     pain: 16 + Math.min(4, fitSignals.length),
-    timing: 25,
+    timing: timing === "SPENDDOWN" ? 25 : timing === "ACTIVE" ? 22 : 20,
     fit: targetTier === "core" ? 23 : targetTier === "emerging" ? 20 : 16,
     value: valueScore(amount)
   };
@@ -126,7 +162,7 @@ export function toOpportunity(award: AwardRecord, observedAt: string): GtmOpport
     id: `usaspending-${String(awardId).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
     organization,
     signalKind: "grant_award",
-    headline: "Recent federal grant record detected",
+    headline: timing === "SPENDDOWN" ? "Federal award entering a near-end reporting period" : timing === "ACTIVE" ? "Active federal award record detected" : "Recent federal grant record detected",
     observedAt,
     amount,
     awardStartDate: award["Start Date"] || undefined,
@@ -150,20 +186,24 @@ export function toOpportunity(award: AwardRecord, observedAt: string): GtmOpport
     conflicts: [],
     unknowns: ["The award record does not establish report cadence, current software, reporting pain, or a contact person."],
     recommendedRoles: ["Chief financial officer", "Controller", "Finance director", "Grants manager", "Director of compliance"],
-    whyNow: "A recent federal award creates a timely reason to verify the post-award reporting requirements before implementation work accelerates.",
+    whyNow: timing === "SPENDDOWN"
+      ? "The public award period is near its recorded end date, which is a timely reason to verify post-award reporting inputs without asserting that a deadline is due."
+      : timing === "ACTIVE"
+        ? "A public award period is currently active, which is a timely reason to verify post-award reporting inputs without asserting that a report is due."
+        : "A recent federal award creates a timely reason to verify the post-award reporting requirements before implementation work accelerates.",
     recommendedAngle: "Offer a free readiness audit of the award agreement. Ask about the reporting workflow instead of asserting that the organization has a problem.",
     emailSubject: `Reporting-readiness analysis for ${organization}`,
-    draftMessage: `I noticed the recent federal award record for ${organization.replace(/[.,]+$/, "")}. If your team is translating the agreement into reporting deadlines, financial schedules, program metrics, and an evidence checklist, GrantDeskHQ can prepare a free source-linked readiness audit for professional review.`
+    draftMessage: `I noticed the public federal award record for ${organization.replace(/[.,]+$/, "")}. If your team is translating the agreement into reporting deadlines, financial schedules, program metrics, and an evidence checklist, GrantDeskHQ can prepare a free source-linked readiness audit for professional review.`
   };
 }
 
-function fetchAwardPage(criteria: AwardDiscoveryCriteria, page: number) {
+function fetchAwardPage(criteria: AwardDiscoveryCriteria, page: number, query: AwardQuery) {
   return fetch(ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json", "User-Agent": "GrantDeskHQ-GTM/2.0 (source-backed nonprofit award monitor)" },
     body: JSON.stringify({
       filters: {
-        time_period: [{ start_date: criteria.startDate, end_date: criteria.endDate }],
+        time_period: [{ start_date: query.startDate, end_date: query.endDate }],
         award_type_codes: criteria.awardTypes,
         recipient_type_names: criteria.recipientTypes,
         award_amounts: [{ lower_bound: criteria.minimumAward }]
@@ -199,6 +239,25 @@ function isUsableAward(award: AwardRecord, minimumAward: number) {
 export function awardStartsAfter(award: Pick<AwardRecord, "Start Date">, endDate: string) {
   const start = dateOnly(award["Start Date"] || null);
   return Boolean(start && start > endDate);
+}
+
+/** An active candidate has demonstrably started and has no recorded end date
+ * in the past. This is source timing only; it never proves an upcoming report
+ * deadline, buyer identity, or intent. */
+export function awardIsActiveOn(award: Pick<AwardRecord, "Start Date" | "End Date">, scanDate: string) {
+  const start = dateOnly(award["Start Date"] || null);
+  const end = dateOnly(award["End Date"] || null);
+  return Boolean(start && start <= scanDate && (!end || end >= scanDate));
+}
+
+export function awardTiming(award: Pick<AwardRecord, "Start Date" | "End Date">, scanDate: string, spenddownWindowDays = 120): AwardTiming {
+  if (!awardIsActiveOn(award, scanDate)) return "RECENT";
+  const end = dateOnly(award["End Date"] || null);
+  return end && end <= offsetDate(scanDate, spenddownWindowDays) ? "SPENDDOWN" : "ACTIVE";
+}
+
+function timingPriority(timing: AwardTiming) {
+  return timing === "SPENDDOWN" ? 3 : timing === "ACTIVE" ? 2 : 1;
 }
 
 function classifyTargetTier(organization: string, amount: number): TargetTier {

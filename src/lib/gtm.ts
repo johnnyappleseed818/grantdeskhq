@@ -113,6 +113,11 @@ export interface DirectDiscoveryScan {
 export interface AwardDiscoveryCriteria {
   startDate: string;
   endDate: string;
+  /** Active awards are independently scanned so a long-running grant does
+   * not disappear merely because its start date is no longer recent. */
+  activeStartDate?: string;
+  activeLookbackDays?: number;
+  spenddownWindowDays?: number;
   /** First scan performs the bounded historical backfill; later scans resume
    * from the persisted success checkpoint with a small amendment overlap. */
   checkpointStartDate?: string | null;
@@ -139,6 +144,11 @@ export interface AwardDiscoveryScan {
   /** Source records may be announced before their award period starts. They
    * are measured separately and never become current post-award candidates. */
   futureDatedCount?: number;
+  /** Active and near-end awards are source classifications, not a claim that
+   * the recipient has a reporting problem or a contact. */
+  activeAwardCount?: number;
+  spenddownAwardCount?: number;
+  inactiveAwardCount?: number;
   errorCount: number;
   coverage: string;
   opportunities: GtmOpportunity[];

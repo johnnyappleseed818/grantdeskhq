@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { awardDiscoveryCriteria, awardStartsAfter, toOpportunity } from "../../server/gtmAwardScanner";
+import { awardDiscoveryCriteria, awardIsActiveOn, awardStartsAfter, awardTiming, toOpportunity } from "../../server/gtmAwardScanner";
 import { assessOpportunityAccuracy } from "../lib/gtm";
 
 afterEach(() => {
@@ -9,6 +9,8 @@ afterEach(() => {
   delete process.env.GTM_AWARD_PAGE_SIZE;
   delete process.env.GTM_AWARD_MAX_PAGES;
   delete process.env.GTM_AWARD_MAX_CANDIDATES;
+  delete process.env.GTM_AWARD_ACTIVE_LOOKBACK_DAYS;
+  delete process.env.GTM_AWARD_SPENDDOWN_WINDOW_DAYS;
 });
 
 describe("federal grant discovery criteria", () => {
@@ -16,6 +18,9 @@ describe("federal grant discovery criteria", () => {
     expect(awardDiscoveryCriteria("2026-08-10", {})).toEqual({
       startDate: "2026-05-12",
       endDate: "2026-08-10",
+      activeStartDate: "2024-08-10",
+      activeLookbackDays: 730,
+      spenddownWindowDays: 120,
       checkpointStartDate: null,
       incremental: false,
       overlapDays: 7,
@@ -23,8 +28,8 @@ describe("federal grant discovery criteria", () => {
       recipientTypes: ["Nonprofit Organization"],
       awardTypes: ["02", "03", "04", "05"],
       pageSize: 100,
-      maxPages: 4,
-      maxCandidates: 100
+      maxPages: 5,
+      maxCandidates: 500
     });
   });
 
@@ -34,8 +39,9 @@ describe("federal grant discovery criteria", () => {
       GTM_MINIMUM_AWARD: "10",
       GTM_AWARD_PAGE_SIZE: "1000",
       GTM_AWARD_MAX_PAGES: "100",
-      GTM_AWARD_MAX_CANDIDATES: "9999"
-    })).toMatchObject({ startDate: "2025-08-10", minimumAward: 1_000, pageSize: 100, maxPages: 10, maxCandidates: 500 });
+      GTM_AWARD_MAX_CANDIDATES: "9999",
+      GTM_AWARD_ACTIVE_LOOKBACK_DAYS: "9999"
+    })).toMatchObject({ startDate: "2025-08-10", activeStartDate: "2021-08-11", activeLookbackDays: 1825, minimumAward: 1_000, pageSize: 100, maxPages: 10, maxCandidates: 500 });
   });
 
   it("resumes from the persisted scan checkpoint with a bounded amendment overlap", () => {
@@ -84,5 +90,13 @@ describe("award candidate classification", () => {
     expect(awardStartsAfter({ "Start Date": "2027-06-01" }, "2026-10-05")).toBe(true);
     expect(awardStartsAfter({ "Start Date": "2026-10-05" }, "2026-10-05")).toBe(false);
     expect(awardStartsAfter({ "Start Date": undefined }, "2026-10-05")).toBe(false);
+  });
+
+  it("retains active and near-end awards without treating a date as a reporting deadline", () => {
+    expect(awardIsActiveOn({ "Start Date": "2025-04-01", "End Date": "2027-04-01" }, "2026-10-05")).toBe(true);
+    expect(awardIsActiveOn({ "Start Date": "2025-04-01", "End Date": "2026-10-04" }, "2026-10-05")).toBe(false);
+    expect(awardTiming({ "Start Date": "2025-04-01", "End Date": "2026-11-10" }, "2026-10-05", 90)).toBe("SPENDDOWN");
+    expect(awardTiming({ "Start Date": "2025-04-01", "End Date": "2027-04-01" }, "2026-10-05", 90)).toBe("ACTIVE");
+    expect(awardTiming({ "Start Date": "2024-04-01", "End Date": "2025-04-01" }, "2026-10-05", 90)).toBe("RECENT");
   });
 });
