@@ -1,17 +1,29 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-10-05T05:22:00.000Z",
+  "updatedAt": "2026-10-05T06:33:15.000Z",
   "currentSnapshot": {
     "status": "PARTIAL",
-    "asOf": "2026-10-05T05:22:00.000Z",
-    "servingRevisionBeforeThisRelease": "grantdeskhq-prototype-00581-mug",
+    "asOf": "2026-10-05T06:33:15.000Z",
+    "servingRevision": "grantdeskhq-prototype-00585-keb",
     "runtimeIdentity": "grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com",
-    "implementedNotYetDeployed": {
+    "implementedAndDeployed": {
       "replenishment": "Instantly SuperSearch normal processing is bounded by actual workspace allowance, a default batch of 10 (hard maximum 25), and a deterministic per-seed submission claim. Preview errors remain retryable; any post-claim ambiguous response is quarantined rather than replayed.",
-      "awardDiscovery": "The USAspending adapter remains the official structured-award source. A successful source checkpoint now makes later scans incremental with a seven-day amendment overlap; canonical seed idempotency absorbs overlap duplicates.",
-      "chatgptMcp": "OAuth 2.1 PKCE/DCR endpoints, tenant-bound opaque-token storage, unauthenticated MCP discovery with per-tool OAuth schemes, document-text report intake, and a portable plugin package are ready for the next zero-traffic candidate. The MCP surface excludes GTM administration and contact data.",
+      "awardDiscovery": "The USAspending adapter remains the official structured-award source. A successful source checkpoint makes later scans incremental with a seven-day amendment overlap, canonical seed idempotency absorbs overlap duplicates, and award records whose start date is after the scan date are deferred rather than treated as current post-award candidates.",
+      "chatgptMcp": "OAuth 2.1 PKCE/DCR endpoints, tenant-bound opaque-token storage, unauthenticated MCP discovery with per-tool OAuth schemes, document-text report intake, and a portable plugin package are deployed. The MCP surface excludes GTM administration and contact data.",
       "evidence": "scripts/gtm/normalize-project-result.mjs validates and rewrites this file through JSON.parse/JSON.stringify so current snapshot fields and historical evidence remain valid JSON."
+    },
+    "releaseEvidence": {
+      "commits": [
+        "9e887e63a991b4479561a7a7ba55b929bf806e5b",
+        "eaf71bdebeb9bdea4e3c5470bb6ffd05e8d53df3"
+      ],
+      "builds": [
+        "bc05afd4-5c99-46b8-a5dd-323ba5ef21fc SUCCESS",
+        "3932779e-ee29-4a58-b8d6-9dde36c5793b SUCCESS"
+      ],
+      "candidateValidation": "00583-lac and 00585-keb returned health 200, published OAuth metadata and seven per-tool OAuth-protected MCP tools, and returned an HTTP/MCP OAuth challenge for an unauthenticated protected request.",
+      "productionTraffic": "Cloud Run service describes grantdeskhq-prototype-00585-keb at 100% traffic; custom-domain health returned HTTP 200. Legacy applicationRevision environment metadata remains stale and is not used as source provenance."
     },
     "durableScheduleOrder": {
       "awardAndSocial": "08:00 weekdays America/Detroit",
@@ -30,7 +42,7 @@
     },
     "currentBusinessEvidence": {
       "providerConfirmedNewProspectingSends": "NOT_CONFIRMED",
-      "reason": "The current weekday durable cycle had not started at this snapshot. No manual provider send, enrollment replay, or paid extraction was used to manufacture evidence.",
+      "reason": "The next weekday durable cycle had not started at this snapshot. No manual provider send, enrollment replay, or paid extraction was used to manufacture evidence.",
       "scrapeGraph": "Optional per-record fallback remains deferred by the zero-overage headroom policy when the last observed balance was 80 credits against required 100-credit headroom; structured official evidence and Instantly routes remain independent."
     },
     "remainingExternalDependencies": [

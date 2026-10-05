@@ -506,18 +506,22 @@ instances. Record the verified revision after each deployment and test
 `/api/health`, `/gtm`, `/readiness`, and the private API authorization gates.
 Domain mapping and DNS changes are deliberately separate release steps.
 
-The `grantdeskhq-daily-social-scan` Cloud Scheduler job runs at 13:35 UTC.
+The `grantdeskhq-daily-social-scan` Cloud Scheduler job runs at 08:00 on
+weekdays in `America/Detroit` (12:00 UTC while Eastern Daylight Time applies),
+before the 08:15 Drive import and the validation/enrichment jobs.
 It invokes `/api/gtm/daily-scan` with the dedicated
 `grantdeskhq-gtm-scheduler` identity. The endpoint runs the bounded Reddit and
 LinkedIn search and the official USAspending award scan independently, saves
 successful results to separate private Firestore records, and preserves the
-last good result if one source is delayed. Social results stay research-only;
-award candidates stay blocked until a named recipient and authoritative role
-and email sources are attached. The same scheduled cycle also writes a private
+last good result if one source is delayed. Anonymous or unsupported social
+results stay research-only; source-safe identified organizations enter the
+normal `DISCOVERED` validation path. Award candidates stay blocked until a
+named recipient and authoritative role and email sources are attached. The same scheduled cycle also writes a private
 `gtm/shadow-status` record: it deduplicates source-backed candidates, exposes
 explainable scoring and suppression counts, proposes source-gated content topics
-on Tuesday and Thursday, and keeps `outboundEnabled` permanently false. No email
-is sent, and live delivery has no enabled code path.
+on Tuesday and Thursday. This discovery job never sends email itself; any
+outbound activity remains subject to the separate server-authoritative
+eligibility, capacity, suppression, and campaign gates.
 
 ## Reliability canary and self-health operations
 
