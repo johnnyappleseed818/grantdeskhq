@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { describe, expect, it } from "vitest";
 import { agreementAnalysisProjection, budgetVsActualProjection, documentTextCompilationRequest, grantReportingMcpToolDefinitions, handleGrantReportingMcp, missingInputsProjection, reviewableDraftProjection } from "../../server/chatgptGrantReportingMcp.ts";
-import { grantReportingMcpAuthorizationMetadata, grantReportingMcpResourceMetadata } from "../../server/chatgptGrantReportingOAuth.ts";
+import { allowedGrantReportingMcpRedirectUri, grantReportingMcpAuthorizationMetadata, grantReportingMcpResourceMetadata } from "../../server/chatgptGrantReportingOAuth.ts";
 import type { PersistedCompilationResponse } from "../types/prototype.ts";
 
 const saved = {
@@ -44,7 +44,9 @@ describe("private ChatGPT grant-reporting tool projections", () => {
 
   it("publishes OAuth 2.1 metadata with resource binding, PKCE S256, and dynamic client registration", () => {
     expect(grantReportingMcpResourceMetadata()).toMatchObject({ resource: "https://grantdeskhq.com/mcp", authorization_servers: ["https://grantdeskhq.com"] });
-    expect(grantReportingMcpAuthorizationMetadata()).toMatchObject({ issuer: "https://grantdeskhq.com", code_challenge_methods_supported: ["S256"], token_endpoint_auth_methods_supported: ["none"], registration_endpoint: "https://grantdeskhq.com/oauth/register" });
+    expect(grantReportingMcpAuthorizationMetadata()).toMatchObject({ issuer: "https://grantdeskhq.com", authorization_response_iss_parameter_supported: true, code_challenge_methods_supported: ["S256"], token_endpoint_auth_methods_supported: ["none"], grant_types_supported: ["authorization_code", "refresh_token"], registration_endpoint: "https://grantdeskhq.com/oauth/register" });
+    expect(allowedGrantReportingMcpRedirectUri("https://chatgpt.com/connector_platform_oauth_redirect")).toBe(true);
+    expect(allowedGrantReportingMcpRedirectUri("https://example.invalid/callback")).toBe(false);
   });
 
   it("publishes per-tool OAuth schemes instead of relying on an SDK-only type cast", () => {

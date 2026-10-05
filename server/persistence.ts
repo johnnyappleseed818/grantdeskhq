@@ -861,6 +861,19 @@ export interface McpOauthAccessTokenRecord {
   expiresAt: string;
 }
 
+/** Refresh tokens are opaque, hashed at rest, audience-bound, and single-use
+ * on rotation. They deliberately retain the OAuth user snapshot so a refresh
+ * never needs to recover a Firebase bearer token. */
+export interface McpOauthRefreshTokenRecord {
+  tokenHash: string;
+  clientId: string;
+  resource: string;
+  scopes: string[];
+  user: AuthenticatedUser;
+  createdAt: string;
+  expiresAt: string;
+}
+
 export async function saveMcpOauthClient(record: McpOauthClientRecord) {
   const accessToken = await gcpToken();
   const created = await writeDocumentIfAbsent(accessToken, `mcp/oauth-clients/records/${safeDocumentId(record.clientId)}`, { clientJson: JSON.stringify(record), createdAt: record.createdAt });
@@ -913,6 +926,27 @@ export async function readMcpOauthAccessToken(tokenHash: string): Promise<McpOau
     const parsed = JSON.parse(String(decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}).tokenJson || "")) as McpOauthAccessTokenRecord;
     return parsed?.tokenHash && Date.parse(parsed.expiresAt) > Date.now() ? parsed : null;
   } catch { return null; }
+}
+
+export async function saveMcpOauthRefreshToken(record: McpOauthRefreshTokenRecord) {
+  const accessToken = await gcpToken();
+  await writeDocument(accessToken, `mcp/oauth-refresh-tokens/records/${safeDocumentId(record.tokenHash)}`, { tokenJson: JSON.stringify(record), expiresAt: record.expiresAt, createdAt: record.createdAt });
+}
+
+export async function consumeMcpOauthRefreshToken(tokenHash: string): Promise<McpOauthRefreshTokenRecord | null> {
+  const accessToken = await gcpToken();
+  const path = `mcp/oauth-refresh-tokens/records/${safeDocumentId(tokenHash)}`;
+  const response = await authorizedFetch(`${firestoreBase}/${path}`, accessToken);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`MCP OAuth refresh token could not be loaded (${response.status}).`);
+  let record: McpOauthRefreshTokenRecord;
+  try { record = JSON.parse(String(decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}).tokenJson || "")) as McpOauthRefreshTokenRecord; }
+  catch { return null; }
+  if (!record?.tokenHash || Date.parse(record.expiresAt) <= Date.now()) return null;
+  // Rotation is an immutable compare-and-set boundary: a retry of an already
+  // redeemed refresh token must reauthorize rather than mint a second pair.
+  const redeemed = await writeDocumentIfAbsent(accessToken, `mcp/oauth-refresh-redemptions/records/${safeDocumentId(tokenHash)}`, { tokenHash, redeemedAt: new Date().toISOString(), clientId: record.clientId });
+  return redeemed ? record : null;
 }
 
 /**

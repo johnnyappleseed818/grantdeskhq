@@ -1,13 +1,15 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { HttpError, requireUser, type AuthenticatedUser } from "./auth.ts";
-import { consumeMcpOauthAuthorization, readMcpOauthAccessToken, readMcpOauthClient, saveMcpOauthAccessToken, saveMcpOauthAuthorization, saveMcpOauthClient } from "./persistence.ts";
+import { consumeMcpOauthAuthorization, consumeMcpOauthRefreshToken, readMcpOauthAccessToken, readMcpOauthClient, saveMcpOauthAccessToken, saveMcpOauthAuthorization, saveMcpOauthClient, saveMcpOauthRefreshToken, type McpOauthRefreshTokenRecord } from "./persistence.ts";
 
 const readScope = "grantdeskhq.reports.read";
 const writeScope = "grantdeskhq.reports.write";
 const allowedScopes = new Set([readScope, writeScope]);
 const authorizationLifetimeMs = 5 * 60_000;
 const accessTokenLifetimeMs = 60 * 60_000;
+const refreshTokenLifetimeMs = 30 * 24 * 60 * 60_000;
+const chatGptStableConnectorRedirectUri = "https://chatgpt.com/connector_platform_oauth_redirect";
 
 export function grantReportingMcpOrigin(environment: NodeJS.ProcessEnv = process.env) {
   const configured = String(environment.GRANTDESK_PUBLIC_ORIGIN || "https://grantdeskhq.com").trim().replace(/\/+$/, "");
@@ -32,15 +34,25 @@ export function grantReportingMcpAuthorizationMetadata(environment: NodeJS.Proce
     userinfo_endpoint: `${origin}/oauth/userinfo`,
     token_endpoint_auth_methods_supported: ["none"],
     code_challenge_methods_supported: ["S256"],
+    grant_types_supported: ["authorization_code", "refresh_token"],
+    response_types_supported: ["code"],
     scopes_supported: [readScope, writeScope]
   };
+}
+
+/** This OAuth server advertises issuer identification, so ChatGPT uses its
+ * stable production connector callback. Restrict DCR to that callback: an
+ * arbitrary HTTPS URI would let an untrusted client receive a user code. */
+export function allowedGrantReportingMcpRedirectUri(value: string) {
+  return value === chatGptStableConnectorRedirectUri;
 }
 
 export async function registerGrantReportingMcpClient(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return oauthJson(response, 405, { error: "invalid_request", error_description: "POST is required." });
   const body = await readJson(request, 16_000) as { redirect_uris?: unknown };
-  const redirectUris = Array.isArray(body?.redirect_uris) ? body.redirect_uris.map((value) => String(value)).filter(validRedirectUri) : [];
-  if (!redirectUris.length || redirectUris.length !== new Set(redirectUris).size) return oauthJson(response, 400, { error: "invalid_redirect_uri", error_description: "At least one unique HTTPS redirect URI is required." });
+  const requestedRedirectUris = Array.isArray(body?.redirect_uris) ? body.redirect_uris.map((value) => String(value)) : [];
+  const redirectUris = requestedRedirectUris.filter(allowedGrantReportingMcpRedirectUri);
+  if (!redirectUris.length || redirectUris.length !== requestedRedirectUris.length || redirectUris.length !== new Set(redirectUris).size) return oauthJson(response, 400, { error: "invalid_redirect_uri", error_description: "The ChatGPT stable connector redirect URI is required." });
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const clientId = `gdhq_mcp_${randomUUID().replaceAll("-", "")}`;
     const created = await saveMcpOauthClient({ clientId, redirectUris, createdAt: new Date().toISOString() });
@@ -74,7 +86,8 @@ export async function approveGrantReportingMcpAuthorization(request: IncomingMes
 export async function exchangeGrantReportingMcpToken(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "POST") return oauthJson(response, 405, { error: "invalid_request", error_description: "POST is required." });
   const form = await readForm(request, 16_000);
-  if (form.get("grant_type") !== "authorization_code") return oauthJson(response, 400, { error: "unsupported_grant_type", error_description: "Only authorization_code is supported." });
+  if (form.get("grant_type") === "refresh_token") return exchangeGrantReportingMcpRefreshToken(form, response);
+  if (form.get("grant_type") !== "authorization_code") return oauthJson(response, 400, { error: "unsupported_grant_type", error_description: "Only authorization_code and refresh_token are supported." });
   const code = String(form.get("code") || "");
   const clientId = String(form.get("client_id") || "");
   const redirectUri = String(form.get("redirect_uri") || "");
@@ -83,10 +96,30 @@ export async function exchangeGrantReportingMcpToken(request: IncomingMessage, r
   if (!code || !clientId || !redirectUri || !verifier || !resource) return oauthJson(response, 400, { error: "invalid_request", error_description: "code, client_id, redirect_uri, code_verifier, and resource are required." });
   const authorization = await consumeMcpOauthAuthorization(tokenHash(code));
   if (!authorization || authorization.clientId !== clientId || authorization.redirectUri !== redirectUri || authorization.resource !== resource || pkceChallenge(verifier) !== authorization.codeChallenge) return oauthJson(response, 400, { error: "invalid_grant", error_description: "The authorization code is invalid, expired, already used, or does not match this PKCE request." });
+  return oauthJson(response, 200, await issueGrantReportingMcpTokenPair({ clientId, resource, scopes: authorization.scopes, user: authorization.user }));
+}
+
+async function exchangeGrantReportingMcpRefreshToken(form: URLSearchParams, response: ServerResponse) {
+  const refreshToken = String(form.get("refresh_token") || "");
+  const clientId = String(form.get("client_id") || "");
+  const resource = String(form.get("resource") || "");
+  if (!refreshToken || !clientId || !resource) return oauthJson(response, 400, { error: "invalid_request", error_description: "refresh_token, client_id, and resource are required." });
+  const prior = await consumeMcpOauthRefreshToken(tokenHash(refreshToken));
+  if (!prior || prior.clientId !== clientId || prior.resource !== resource) return oauthJson(response, 400, { error: "invalid_grant", error_description: "The refresh token is invalid, expired, already used, or does not match this OAuth client and resource." });
+  return oauthJson(response, 200, await issueGrantReportingMcpTokenPair({ clientId, resource, scopes: prior.scopes, user: prior.user }));
+}
+
+async function issueGrantReportingMcpTokenPair(input: Omit<McpOauthRefreshTokenRecord, "tokenHash" | "createdAt" | "expiresAt">) {
+  const createdAt = new Date().toISOString();
   const accessToken = `gdhq_at_${randomBytes(32).toString("base64url")}`;
-  const expiresAt = new Date(Date.now() + accessTokenLifetimeMs).toISOString();
-  await saveMcpOauthAccessToken({ tokenHash: tokenHash(accessToken), clientId, resource, scopes: authorization.scopes, user: authorization.user, createdAt: new Date().toISOString(), expiresAt });
-  return oauthJson(response, 200, { access_token: accessToken, token_type: "Bearer", expires_in: Math.floor(accessTokenLifetimeMs / 1000), scope: authorization.scopes.join(" ") });
+  const refreshToken = `gdhq_rt_${randomBytes(32).toString("base64url")}`;
+  const accessExpiresAt = new Date(Date.now() + accessTokenLifetimeMs).toISOString();
+  const refreshExpiresAt = new Date(Date.now() + refreshTokenLifetimeMs).toISOString();
+  await Promise.all([
+    saveMcpOauthAccessToken({ tokenHash: tokenHash(accessToken), ...input, createdAt, expiresAt: accessExpiresAt }),
+    saveMcpOauthRefreshToken({ tokenHash: tokenHash(refreshToken), ...input, createdAt, expiresAt: refreshExpiresAt })
+  ]);
+  return { access_token: accessToken, token_type: "Bearer", expires_in: Math.floor(accessTokenLifetimeMs / 1000), refresh_token: refreshToken, refresh_expires_in: Math.floor(refreshTokenLifetimeMs / 1000), scope: input.scopes.join(" ") };
 }
 
 export async function grantReportingMcpUserInfo(request: IncomingMessage, response: ServerResponse) {
@@ -120,7 +153,7 @@ async function validateAuthorizationRequest(query: URLSearchParams): Promise<{ c
   const codeChallenge = String(query.get("code_challenge") || "");
   const resource = String(query.get("resource") || "");
   const state = String(query.get("state") || "");
-  if (!clientId || !validRedirectUri(redirectUri) || !codeChallenge || query.get("code_challenge_method") !== "S256" || resource !== `${grantReportingMcpOrigin()}/mcp` || state.length > 2048) return { error: "invalid_request", error_description: "The OAuth client, redirect URI, PKCE S256 challenge, resource, or state is invalid." };
+  if (!clientId || !allowedGrantReportingMcpRedirectUri(redirectUri) || !codeChallenge || query.get("code_challenge_method") !== "S256" || resource !== `${grantReportingMcpOrigin()}/mcp` || state.length > 2048) return { error: "invalid_request", error_description: "The OAuth client, ChatGPT redirect URI, PKCE S256 challenge, resource, or state is invalid." };
   const client = await readMcpOauthClient(clientId);
   if (!client || !client.redirectUris.includes(redirectUri)) return { error: "invalid_client", error_description: "The OAuth client or redirect URI is not registered." };
   const scopes = String(query.get("scope") || readScope).split(/\s+/).filter(Boolean);
@@ -135,7 +168,6 @@ async function authenticatedOauthToken(request: IncomingMessage) {
 
 function tokenHash(value: string) { return createHash("sha256").update(value).digest("hex"); }
 function pkceChallenge(verifier: string) { return createHash("sha256").update(verifier).digest("base64url"); }
-function validRedirectUri(value: string) { try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password; } catch { return false; } }
 
 async function readJson(request: IncomingMessage, maximum: number): Promise<unknown> {
   const raw = await readBody(request, maximum);

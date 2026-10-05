@@ -15,6 +15,12 @@ The server uses OAuth 2.1 authorization-code flow with PKCE S256:
 - token exchange: `POST /oauth/token`
 - tenant profile: `GET /oauth/userinfo`
 
+The authorization server advertises issuer identification, so dynamic
+registration accepts only ChatGPT's stable connector redirect URI:
+`https://chatgpt.com/connector_platform_oauth_redirect`. It rejects arbitrary
+HTTPS callbacks. Access tokens expire after one hour. Refresh tokens are opaque,
+hashed at rest, resource-bound, rotate on use, and expire after 30 days.
+
 `grantdeskhq.reports.read` permits the read-only report tools.
 `grantdeskhq.reports.write` is required only for the idempotent
 `create_report_from_document_text` tool. OAuth access tokens are opaque,
@@ -54,8 +60,8 @@ or customer data.
 1. Deploy a revision containing the OAuth endpoints.
 2. In ChatGPT, enable **Developer mode** under **Settings → Security and
    login**, then add `https://grantdeskhq.com/mcp` in **Plugins**.
-3. Complete GrantDeskHQ sign-in and consent. ChatGPT will use DCR and PKCE;
-   do not manually create a client secret.
+3. Complete GrantDeskHQ sign-in and consent. ChatGPT will use DCR, PKCE S256,
+   and the stable connector callback; do not manually create a client secret.
 4. With synthetic or consented documents, call the create tool, then the
    analysis, budget-versus-actual, missing-input, and draft tools using the
    returned report ID.
@@ -65,7 +71,9 @@ or customer data.
 
 This interactive ChatGPT connection is the remaining user-session test; it
 cannot be performed by Cloud Run or a Codex terminal because it requires the
-user's ChatGPT account and GrantDeskHQ sign-in consent.
+user's ChatGPT account and GrantDeskHQ sign-in consent. The precise owner test
+script and submission readiness state are in
+[`OWNER_CHECKLIST.md`](./OWNER_CHECKLIST.md).
 
 ## Submission package and remaining portal actions
 
