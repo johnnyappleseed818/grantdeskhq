@@ -15,6 +15,12 @@ const readOnlyAnnotations = { readOnlyHint: true, destructiveHint: false, idempo
 const readSecurity = [{ type: "oauth2" as const, scopes: [grantReportingMcpScopes.read] }];
 const writeSecurity = [{ type: "oauth2" as const, scopes: [grantReportingMcpScopes.read, grantReportingMcpScopes.write] }];
 const documentTextSchema = z.string().trim().min(1).max(40_000);
+const reportSummarySchema = z.object({
+  id: z.string(), organizationName: z.string(), grantName: z.string(), reportingPeriod: z.string(),
+  status: z.enum(["review_required", "ready"]), createdAt: z.string(), updatedAt: z.string(),
+  sourceCount: z.number(), evidenceCoveragePercent: z.number(), unresolvedItems: z.number()
+});
+const reportListOutputSchema = z.object({ reports: z.array(reportSummarySchema) });
 const reportInputSchema = {
   requestId: z.string().regex(/^mcp_[a-zA-Z0-9_-]{12,100}$/),
   organizationName: z.string().trim().min(2).max(200),
@@ -36,6 +42,7 @@ type McpToolDefinition = {
   inputSchema: Record<string, unknown>;
   annotations: Record<string, boolean>;
   securitySchemes: Array<{ type: "oauth2"; scopes: string[] }>;
+  outputSchema?: Record<string, unknown>;
   _meta?: Record<string, unknown>;
 };
 
@@ -51,7 +58,7 @@ export function grantReportingMcpToolDefinitions(): McpToolDefinition[] {
   const text = { type: "string", minLength: 1, maxLength: 40_000 };
   const tools: McpToolDefinition[] = [
     { name: "get_grantdeskhq_profile", title: "Get linked GrantDeskHQ profile", description: "Returns the stable profile for the linked GrantDeskHQ tenant.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: readOnlyAnnotations, securitySchemes: readSecurity, _meta: { "openai/profile": true } },
-    { name: "list_grant_reports", title: "List GrantDeskHQ reports", description: "Lists report summaries belonging only to the authenticated GrantDeskHQ tenant.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: readOnlyAnnotations, securitySchemes: readSecurity },
+    { name: "list_grant_reports", title: "List GrantDeskHQ reports", description: "Lists only summary fields for reports belonging to the authenticated GrantDeskHQ tenant. Use a report-specific tool for analysis or draft content.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, outputSchema: { type: "object", properties: { reports: { type: "array", items: { type: "object", properties: { id: { type: "string" }, organizationName: { type: "string" }, grantName: { type: "string" }, reportingPeriod: { type: "string" }, status: { enum: ["review_required", "ready"] }, createdAt: { type: "string" }, updatedAt: { type: "string" }, sourceCount: { type: "number" }, evidenceCoveragePercent: { type: "number" }, unresolvedItems: { type: "number" } }, required: ["id", "organizationName", "grantName", "reportingPeriod", "status", "createdAt", "updatedAt", "sourceCount", "evidenceCoveragePercent", "unresolvedItems"], additionalProperties: false } } }, required: ["reports"], additionalProperties: false }, annotations: readOnlyAnnotations, securitySchemes: readSecurity },
     { name: "get_agreement_analysis", title: "Get source-linked agreement analysis", description: "Returns the persisted grant profile and source-cited obligations for one report owned by the authenticated tenant.", inputSchema: { type: "object", properties: { reportId }, required: ["reportId"], additionalProperties: false }, annotations: readOnlyAnnotations, securitySchemes: readSecurity },
     { name: "get_budget_vs_actual", title: "Get deterministic budget versus actual", description: "Returns persisted deterministic budget-to-actual calculations and financial controls for one tenant-owned report.", inputSchema: { type: "object", properties: { reportId }, required: ["reportId"], additionalProperties: false }, annotations: readOnlyAnnotations, securitySchemes: readSecurity },
     { name: "get_missing_report_inputs", title: "Get missing inputs and review items", description: "Returns persisted missing-input questions and source-cited review items for one tenant-owned report.", inputSchema: { type: "object", properties: { reportId }, required: ["reportId"], additionalProperties: false }, annotations: readOnlyAnnotations, securitySchemes: readSecurity },
@@ -138,8 +145,8 @@ export function createGrantReportingMcpServer(user: AuthenticatedUser, scopes: r
   } as never, (async () => toolContent({ id: user.uid, name: user.name || undefined, email: user.email || undefined })) as never);
   server.registerTool("list_grant_reports", {
     title: "List GrantDeskHQ reports",
-    description: "Lists report summaries belonging only to the authenticated GrantDeskHQ tenant.",
-    inputSchema: {},
+    description: "Lists only summary fields for reports belonging to the authenticated GrantDeskHQ tenant. Use a report-specific tool for analysis or draft content.",
+    inputSchema: {}, outputSchema: reportListOutputSchema,
     annotations: readOnlyAnnotations, _meta: { securitySchemes: readSecurity }
   } as never, (async () => { requireRead(); return toolContent({ reports: await listReports(user) }); }) as never);
   server.registerTool("get_agreement_analysis", {

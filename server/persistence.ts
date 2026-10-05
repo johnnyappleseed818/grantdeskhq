@@ -304,7 +304,29 @@ export async function listReports(user: AuthenticatedUser): Promise<SavedReportS
   if (response.status === 404) return [];
   if (!response.ok) throw new Error(`Saved reports could not be loaded (${response.status}).`);
   const body = await response.json() as { documents?: Array<{ fields?: Record<string, FirestoreValue> }> };
-  return (body.documents || []).map((document) => decodeFields(document.fields || {}) as unknown as SavedReportSummary);
+  // Firestore report documents intentionally retain source, result, manifest,
+  // and audit payloads for the owned-report workflow. A list response is not
+  // an owned-report read: expose only the stable summary contract so an MCP
+  // discovery call can never fan out full document contents.
+  return (body.documents || []).map((document) => projectSavedReportSummary(decodeFields(document.fields || {})));
+}
+
+/** A strict allowlist used by every report-list caller. Keep it separate from
+ * owned-report reads: source/result/audit JSON belongs only on the single
+ * report endpoints after ownership has been checked. */
+export function projectSavedReportSummary(record: Record<string, unknown>): SavedReportSummary {
+  return {
+    id: String(record.id || ""),
+    organizationName: String(record.organizationName || ""),
+    grantName: String(record.grantName || ""),
+    reportingPeriod: String(record.reportingPeriod || ""),
+    status: record.status === "ready" ? "ready" : "review_required",
+    createdAt: String(record.createdAt || ""),
+    updatedAt: String(record.updatedAt || ""),
+    sourceCount: finiteNumber(record.sourceCount),
+    evidenceCoveragePercent: finiteNumber(record.evidenceCoveragePercent),
+    unresolvedItems: finiteNumber(record.unresolvedItems)
+  };
 }
 
 export async function deleteReport(user: AuthenticatedUser, reportId: string) {
@@ -2626,6 +2648,7 @@ function encodeFields(record: Record<string, unknown>) {
 function decodeFields(fields: Record<string, FirestoreValue>) {
   return Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, value.stringValue ?? (value.integerValue !== undefined ? Number(value.integerValue) : value.doubleValue ?? value.booleanValue ?? "")]));
 }
+function finiteNumber(value: unknown) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : 0; }
 function safeName(name: string) { return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120); }
 function safeDocumentId(value: string) {
   const safe = value.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 140);

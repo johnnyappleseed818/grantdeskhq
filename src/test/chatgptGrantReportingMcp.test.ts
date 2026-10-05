@@ -54,6 +54,7 @@ describe("private ChatGPT grant-reporting tool projections", () => {
     expect(tools).toHaveLength(7);
     expect(tools.find((tool) => tool.name === "get_grantdeskhq_profile")).toMatchObject({ securitySchemes: [{ type: "oauth2", scopes: ["grantdeskhq.reports.read"] }] });
     expect(tools.find((tool) => tool.name === "create_report_from_document_text")).toMatchObject({ securitySchemes: [{ type: "oauth2", scopes: ["grantdeskhq.reports.read", "grantdeskhq.reports.write"] }] });
+    expect(tools.find((tool) => tool.name === "list_grant_reports")?.outputSchema).toMatchObject({ properties: { reports: { type: "array" } } });
   });
 
   it("supports unauthenticated MCP discovery and returns the OAuth challenge for a protected tool call", async () => {
