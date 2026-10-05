@@ -1,5 +1,5 @@
 import { InstantlyApiError, InstantlyClient, instantlyConfig, redactedInstantlyDiagnostic } from "./instantly.ts";
-import { listGtmChannelSeeds, listGtmScannerRecoveryCohorts, saveGtmChannelSeed, type GtmScannerRecoveryCohort } from "./persistence.ts";
+import { listGtmChannelSeeds, listGtmScannerRecoveryCohorts, reserveGtmChannelSeedEnrichmentSubmission, saveGtmChannelSeed, type GtmScannerRecoveryCohort } from "./persistence.ts";
 import { recordInstantlyVerifiedGtmContact } from "./contactEnrichment.ts";
 import { scannerScrapeGraphPageLimit } from "./gtmScrapeGraphEnrichment.ts";
 import type { ChannelSeedRecord } from "../src/lib/gtmChannelSeeds.ts";
@@ -56,16 +56,35 @@ export async function enrichChannelSeedsWithInstantly(segment: ChannelSeedEnrich
     throw error;
   }
   if (allowance === null || allowance < 1) return blockSuperSearchAccess(allSeeds, recoveryVersion, null, allowance, segment);
-  const limitedSeeds = seeds.slice(0, Math.max(1, Math.min(seeds.length, Math.floor(allowance))));
-  const names = limitedSeeds.map((seed) => seed.organization);
+  const permitted = superSearchSubmissionLimit(seeds.length, allowance, env);
+  const previewSeeds = seeds.slice(0, permitted);
+  const previewNames = previewSeeds.map((seed) => seed.organization);
   let preview: { number_of_leads?: number; number_of_redacted_results?: number };
-  let response: { id?: string; resource_id?: string; background_job_id?: string | null; status?: string };
   try {
-    preview = await client.previewSuperSearch({ companyNames: names, titles: titles[segment], limit: names.length });
-    response = await client.enrichSuperSearch({ companyNames: names, titles: titles[segment], listId, limit: names.length, searchName: `GrantDeskHQ ${segment} channel seeds 2026-08-28` });
+    // Preview is read-only, so a transient failure here never creates an
+    // immutable provider-submission claim and can use the normal scheduler
+    // retry path.
+    preview = await client.previewSuperSearch({ companyNames: previewNames, titles: titles[segment], limit: previewNames.length });
   } catch (error) {
     if (superSearchAccessDenied(error)) return blockSuperSearchAccess(allSeeds, recoveryVersion, error, allowance, segment);
     throw error;
+  }
+  const limitedSeeds: typeof seeds = [];
+  for (const seed of previewSeeds) {
+    const claim = await reserveGtmChannelSeedEnrichmentSubmission({ seedId: seed.id, segment, recoveryVersion, provider: "instantly_supersearch" });
+    if (claim.acquired) limitedSeeds.push(seed);
+  }
+  if (!limitedSeeds.length) return { segment, selected: 0, previewCount: Number(preview.number_of_leads || 0), submitted: 0, resourceId: null, providerStatus: "ALREADY_CLAIMED", blocked: null };
+  const names = limitedSeeds.map((seed) => seed.organization);
+  let response: { id?: string; resource_id?: string; background_job_id?: string | null; status?: string };
+  try {
+    response = await client.enrichSuperSearch({ companyNames: names, titles: titles[segment], listId, limit: names.length, searchName: `GrantDeskHQ ${segment} channel seeds 2026-08-28` });
+  } catch (error) {
+    if (superSearchAccessDenied(error)) return blockSuperSearchAccess(allSeeds, recoveryVersion, error, allowance, segment);
+    const now = new Date().toISOString();
+    const detail = redactedInstantlyDiagnostic(error instanceof Error ? error.message : "Instantly SuperSearch submission response was unavailable.");
+    await Promise.all(limitedSeeds.map((seed) => saveGtmChannelSeed({ ...seed, lifecycle: "ENRICHMENT_BLOCKED", rejectionReason: "INSTANTLY_SUPERSEARCH_AMBIGUOUS_SUBMISSION", enrichmentProvider: "instantly_supersearch", enrichmentProviderStatus: "BLOCKED", enrichmentResult: "The provider submission response was ambiguous. The immutable submission claim prevents a duplicate request; reconcile provider evidence or use a reviewed new recovery generation before retrying.", enrichmentLastCheckedAt: now, enrichmentLastProviderError: detail, enrichmentAccessRecoveryVersion: recoveryVersion, enrichmentUpdatedAt: now })));
+    return { segment, selected: limitedSeeds.length, previewCount: null, submitted: 0, resourceId: null, providerStatus: "AMBIGUOUS", blocked: "INSTANTLY_SUPERSEARCH_AMBIGUOUS_SUBMISSION" };
   }
   const enrichmentOperationId = String(response.id || "").trim() || null;
   const enrichmentBackgroundJobId = String(response.background_job_id || "").trim() || null;
@@ -153,7 +172,15 @@ function norm(value: string) { return value.normalize("NFKC").trim().toLowerCase
  * 43/50-record request against a workspace with a bounded credit allowance.
  * Operators may raise it only through the deployed configuration after a
  * successful provider result and capacity review. */
-export function superSearchBatchLimit(env: NodeJS.ProcessEnv) { const configured = Number(env.GTM_SUPERSEARCH_MAX_PER_RUN || 1); return Number.isInteger(configured) && configured > 0 ? Math.min(100, configured) : 1; }
+/**
+ * The former default of one was a one-off recovery probe.  Normal durable
+ * processing remains deliberately bounded, but lets the configured provider
+ * allowance determine how many independent organizations can be submitted.
+ */
+export function superSearchBatchLimit(env: NodeJS.ProcessEnv) { const configured = Number(env.GTM_SUPERSEARCH_MAX_PER_RUN || 10); return Number.isInteger(configured) && configured > 0 ? Math.min(25, configured) : 10; }
+export function superSearchSubmissionLimit(candidateCount: number, allowance: number, env: NodeJS.ProcessEnv) {
+  return Math.max(0, Math.min(Math.max(0, Math.floor(candidateCount)), superSearchBatchLimit(env), Math.max(0, Math.floor(allowance))));
+}
 export function superSearchAccessRecoveryVersion(env: NodeJS.ProcessEnv) { return String(env.GTM_SUPERSEARCH_ACCESS_RECOVERY_VERSION || "v1").trim().slice(0, 80) || "v1"; }
 export function superSearchAvailableCredits(plan: unknown): number | null {
   if (!plan || typeof plan !== "object" || Array.isArray(plan)) return null;

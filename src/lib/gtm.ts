@@ -113,6 +113,11 @@ export interface DirectDiscoveryScan {
 export interface AwardDiscoveryCriteria {
   startDate: string;
   endDate: string;
+  /** First scan performs the bounded historical backfill; later scans resume
+   * from the persisted success checkpoint with a small amendment overlap. */
+  checkpointStartDate?: string | null;
+  incremental?: boolean;
+  overlapDays?: number;
   minimumAward: number;
   recipientTypes: string[];
   awardTypes: string[];

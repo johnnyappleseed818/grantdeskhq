@@ -1,37 +1,79 @@
-# GrantDeskHQ private ChatGPT MCP package
+# GrantDeskHQ Grant Reporting MCP
 
-The deployed endpoint is `POST /mcp`. It exposes five read-only tools:
+`https://grantdeskhq.com/mcp` is a tenant-isolated Streamable HTTP MCP
+server for the GrantDeskHQ reporting workflow. It is deliberately separate
+from GTM: it cannot view contacts, campaigns, delivery data, or GTM controls.
 
-- `list_grant_reports`
-- `get_agreement_analysis`
-- `get_budget_vs_actual`
-- `get_missing_report_inputs`
-- `get_reviewable_report_draft`
+## Authentication and scopes
 
-Every request requires the existing GrantDeskHQ Firebase bearer token. The server derives the tenant solely from that verified token and reads only `organizations/org_<uid>/reports/*`; no tool accepts an organization ID, file path, GTM identifier, or outbound action.
+The server uses OAuth 2.1 authorization-code flow with PKCE S256:
 
-The endpoint uses stateless Streamable HTTP so it does not rely on Cloud Run instance memory. It exposes persisted, source-linked report results and deterministic financial calculations only. It does not expose raw uploaded-file contents, campaign controls, contact data, GTM administration, report submission, or write actions.
+- protected-resource metadata: `/.well-known/oauth-protected-resource`
+- authorization-server metadata: `/.well-known/oauth-authorization-server`
+- dynamic client registration: `POST /oauth/register`
+- authorization UI: `GET /oauth/authorize`
+- token exchange: `POST /oauth/token`
+- tenant profile: `GET /oauth/userinfo`
 
-## Private test status
+`grantdeskhq.reports.read` permits the read-only report tools.
+`grantdeskhq.reports.write` is required only for the idempotent
+`create_report_from_document_text` tool. OAuth access tokens are opaque,
+short-lived, resource-bound, and stored only as hashes. The browser uses the
+existing GrantDeskHQ sign-in flow; its Firebase ID token is never sent to
+ChatGPT or used as an MCP token.
 
-The implementation is testable with an existing GrantDeskHQ Firebase ID token against a private candidate. It is **not ready for public ChatGPT submission** until GrantDeskHQ provides a standards-compatible OAuth authorization flow that can mint and refresh the same scoped tenant identity for ChatGPT. Existing Firebase bearer authentication is intentionally not weakened to make the endpoint public.
+The endpoint publishes `securitySchemes` on every tool and sends both the
+HTTP `WWW-Authenticate` challenge and MCP `mcp/www_authenticate` metadata for
+an unauthenticated tool call. This is required for ChatGPT to surface account
+linking. See the current [OpenAI OAuth guidance](https://developers.openai.com/plugins/build/auth).
 
-## Submission package checklist
+## Tools
 
-The current Apps SDK submission guidance requires a verified domain, a remote MCP endpoint, accurate read-only annotations, authentication documentation/demo access, and both positive and negative tool tests. Before submission, record the resulting OAuth issuer/client metadata outside this repository and complete:
+1. `get_grantdeskhq_profile`
+2. `list_grant_reports`
+3. `get_agreement_analysis`
+4. `get_budget_vs_actual`
+5. `get_missing_report_inputs`
+6. `get_reviewable_report_draft`
+7. `create_report_from_document_text`
 
-Positive tests:
+The create tool accepts typed user-provided plain text for an award agreement
+and optional budget, ledger, funder-template, and program-update inputs. It
+uses the same existing source normalization, deterministic financial analysis,
+tenant ownership, and idempotent compilation persistence as the product UI.
+It returns a human-review draft; it never submits anything to a funder. Large
+or native files stay in the authenticated product upload path and are never
+silently truncated through MCP.
 
-1. List reports for a tenant with two reports.
-2. Read source-linked agreement analysis for an owned report.
-3. Read deterministic budget-versus-actual for an owned report.
-4. Read missing inputs and review checks for an owned report.
-5. Read a reviewable draft and confirm it is labelled human-review only.
+## Package and developer-mode test
 
-Negative tests:
+The portable package is in [`package`](./package), with a remote
+`mcp.json` pointing only to the production MCP URL. It contains no credentials
+or customer data.
 
-1. No bearer token returns 401.
-2. A tenant attempts another tenant's report ID and receives no report data.
-3. An invalid report ID is rejected before persistence access.
+1. Deploy a revision containing the OAuth endpoints.
+2. In ChatGPT, enable **Developer mode** under **Settings → Security and
+   login**, then add `https://grantdeskhq.com/mcp` in **Plugins**.
+3. Complete GrantDeskHQ sign-in and consent. ChatGPT will use DCR and PKCE;
+   do not manually create a client secret.
+4. With synthetic or consented documents, call the create tool, then the
+   analysis, budget-versus-actual, missing-input, and draft tools using the
+   returned report ID.
+5. Verify a second tenant cannot read that ID, an unauthenticated tool call
+   starts linking, a used authorization code cannot be exchanged again, and a
+   write tool without the write scope is rejected.
 
-The submission demo must use synthetic or consented data only. Do not include credentials, real customer files, customer tokens, or GTM information.
+This interactive ChatGPT connection is the remaining user-session test; it
+cannot be performed by Cloud Run or a Codex terminal because it requires the
+user's ChatGPT account and GrantDeskHQ sign-in consent.
+
+## Submission package and remaining portal actions
+
+The package follows OpenAI's portable plugin layout (`plugin.json` plus
+`mcp.json`). Before public submission, the owner must complete identity/domain
+verification, add the real support/privacy/terms URLs and approved brand
+assets, host the OpenAI domain challenge, record exactly five positive and
+three negative review cases, provide a consented demo recording, then use
+**With MCP → Scan Tools** in the plugin submission portal. Those portal and
+identity steps are external to the codebase; no secret or reviewer credential
+belongs in this repository. Refer to [Build an MCP server](https://developers.openai.com/plugins/build/mcp-server) and [plugin submission](https://developers.openai.com/plugins/deploy/submission).

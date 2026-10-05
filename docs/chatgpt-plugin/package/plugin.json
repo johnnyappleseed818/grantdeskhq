@@ -1,0 +1,6 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "grantdeskhq-grant-reporting",
+  "version": "0.2.0",
+  "description": "Create and review tenant-isolated, source-linked post-award grant reporting drafts."
+}

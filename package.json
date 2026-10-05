@@ -28,6 +28,7 @@
     "gtm:test": "node scripts/gtm/gtm.test.mjs",
     "gtm:reddit": "node scripts/gtm/scan-reddit-api.mjs",
     "gtm:awards": "node --experimental-strip-types scripts/gtm/scan-usaspending-awards.mjs",
+    "gtm:project-result": "node scripts/gtm/normalize-project-result.mjs project-result.json",
     "stripe:configure": "node --experimental-strip-types scripts/configure-stripe-pricing.mjs",
     "codex:queue:status": "node scripts/codex-project-runner/queue.mjs status",
     "codex:queue:run": "node scripts/codex-project-runner/queue.mjs run",

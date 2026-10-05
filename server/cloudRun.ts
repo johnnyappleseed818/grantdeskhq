@@ -54,6 +54,7 @@ import { importScannerDriveBatches, retryScannerDriveReceiptMirrors, scannerRece
 import { createOrReadScannerDirectRecoveryCohort, validateScannerSourceSeedsWithScrapeGraph } from "./scannerScrapeGraphValidation.ts";
 import { listGtmScannerImportReceipts } from "./persistence.ts";
 import { handleGrantReportingMcp } from "./chatgptGrantReportingMcp.ts";
+import { approveGrantReportingMcpAuthorization, exchangeGrantReportingMcpToken, grantReportingMcpAuthorizationMetadata, grantReportingMcpResourceMetadata, grantReportingMcpUserInfo, registerGrantReportingMcpClient } from "./chatgptGrantReportingOAuth.ts";
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
@@ -83,6 +84,7 @@ const clientApplicationRoutes = new Set([
   "/gtm/feedback",
   "/internal/reliability",
   "/login",
+  "/oauth/authorize",
   "/pilot",
   "/privacy",
   "/readiness",
@@ -131,6 +133,12 @@ createServer(async (request, response) => {
         buildTimestampUtc: process.env.BUILD_TIMESTAMP_UTC?.trim() || "unknown"
       });
     }
+    if (url.pathname === "/.well-known/oauth-protected-resource") return json(response, 200, grantReportingMcpResourceMetadata());
+    if (url.pathname === "/.well-known/oauth-authorization-server") return json(response, 200, grantReportingMcpAuthorizationMetadata());
+    if (url.pathname === "/oauth/register") return await registerGrantReportingMcpClient(request, response);
+    if (url.pathname === "/oauth/token") return await exchangeGrantReportingMcpToken(request, response);
+    if (url.pathname === "/oauth/userinfo") return await grantReportingMcpUserInfo(request, response);
+    if (url.pathname === "/api/mcp/oauth/authorize/approve") return await approveGrantReportingMcpAuthorization(request, response, url.searchParams);
     if (url.pathname === "/api/config") return handleConfig(request, response);
     if (url.pathname === "/api/billing/checkout") return await handleBillingCheckout(request, response);
     if (url.pathname === "/api/billing/change-plan") return await handleBillingPlanChange(request, response);
@@ -1780,7 +1788,10 @@ async function handleGtmDailyScan(request: IncomingMessage, response: ServerResp
   const shouldDiscoverDirect = directEvidenceQualified < 500 || before.metrics.directReady < GTM_INVENTORY_POLICY.direct.target;
   let awardScan;
   if (shouldDiscoverDirect) {
-    try { awardScan = await runDailyAwardScan().then(saveGtmAwardScan); }
+    try {
+      const priorAwardScan = await readGtmAwardScan();
+      awardScan = await runDailyAwardScan(new Date(), priorAwardScan?.lastSuccessfulScanAt || null).then(saveGtmAwardScan);
+    }
     catch (error) { errors.push(error instanceof Error ? error.message : "Award scan failed."); }
   }
   const opportunities = awardScan?.opportunities || [];

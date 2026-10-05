@@ -1,5 +1,7 @@
+import { createServer } from "node:http";
 import { describe, expect, it } from "vitest";
-import { agreementAnalysisProjection, budgetVsActualProjection, missingInputsProjection, reviewableDraftProjection } from "../../server/chatgptGrantReportingMcp.ts";
+import { agreementAnalysisProjection, budgetVsActualProjection, documentTextCompilationRequest, grantReportingMcpToolDefinitions, handleGrantReportingMcp, missingInputsProjection, reviewableDraftProjection } from "../../server/chatgptGrantReportingMcp.ts";
+import { grantReportingMcpAuthorizationMetadata, grantReportingMcpResourceMetadata } from "../../server/chatgptGrantReportingOAuth.ts";
 import type { PersistedCompilationResponse } from "../types/prototype.ts";
 
 const saved = {
@@ -32,5 +34,46 @@ describe("private ChatGPT grant-reporting tool projections", () => {
   it("keeps missing inputs and reviewable drafts explicitly source-supported", () => {
     expect(missingInputsProjection(saved.result)).toMatchObject({ missingInputs: [{ id: "input-1", status: "open" }], openProgramChecks: [{ id: "program-1", sources: [{ sourceName: "agreement.pdf" }] }] });
     expect(reviewableDraftProjection(saved.result)).toMatchObject({ reviewRequired: true, narrative: [{ id: "draft-1", source: { sourceName: "agreement.pdf" } }] });
+  });
+
+  it("accepts typed user-provided document text as the existing tenant-bound compilation input format", () => {
+    const request = documentTextCompilationRequest({ requestId: "mcp_document_input_20261005", organizationName: "Example Nonprofit", grantName: "Community Grant", reportingPeriod: "Q3 2026", awardAgreementText: "Agreement terms", approvedBudgetText: "Program,1000", ledgerExportText: "Program,900" });
+    expect(request.files.map((file) => file.role)).toEqual(["awardAgreement", "approvedBudget", "ledgerExport"]);
+    expect(request.files.every((file) => file.data.startsWith("data:text/plain;base64,"))).toBe(true);
+  });
+
+  it("publishes OAuth 2.1 metadata with resource binding, PKCE S256, and dynamic client registration", () => {
+    expect(grantReportingMcpResourceMetadata()).toMatchObject({ resource: "https://grantdeskhq.com/mcp", authorization_servers: ["https://grantdeskhq.com"] });
+    expect(grantReportingMcpAuthorizationMetadata()).toMatchObject({ issuer: "https://grantdeskhq.com", code_challenge_methods_supported: ["S256"], token_endpoint_auth_methods_supported: ["none"], registration_endpoint: "https://grantdeskhq.com/oauth/register" });
+  });
+
+  it("publishes per-tool OAuth schemes instead of relying on an SDK-only type cast", () => {
+    const tools = grantReportingMcpToolDefinitions();
+    expect(tools).toHaveLength(7);
+    expect(tools.find((tool) => tool.name === "get_grantdeskhq_profile")).toMatchObject({ securitySchemes: [{ type: "oauth2", scopes: ["grantdeskhq.reports.read"] }] });
+    expect(tools.find((tool) => tool.name === "create_report_from_document_text")).toMatchObject({ securitySchemes: [{ type: "oauth2", scopes: ["grantdeskhq.reports.read", "grantdeskhq.reports.write"] }] });
+  });
+
+  it("supports unauthenticated MCP discovery and returns the OAuth challenge for a protected tool call", async () => {
+    const server = createServer((request, response) => { void handleGrantReportingMcp(request, response); });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("The MCP fixture did not bind a test port.");
+    const endpoint = `http://127.0.0.1:${address.port}`;
+    try {
+      const initialize = await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "test", version: "1" } } }) });
+      expect(initialize.status).toBe(200);
+      expect(await initialize.json()).toMatchObject({ result: { protocolVersion: "2025-11-25", capabilities: { tools: { listChanged: false } } } });
+      const listed = await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }) });
+      const manifest = await listed.json() as { result: { tools: Array<{ name: string; securitySchemes: unknown }> } };
+      expect(manifest.result.tools.find((tool) => tool.name === "list_grant_reports")?.securitySchemes).toEqual([{ type: "oauth2", scopes: ["grantdeskhq.reports.read"] }]);
+      const protectedCall = await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "list_grant_reports", arguments: {} } }) });
+      const protectedBody = await protectedCall.json() as { _meta?: Record<string, string> };
+      expect(protectedCall.status).toBe(401);
+      expect(protectedCall.headers.get("www-authenticate")).toContain("resource_metadata=");
+      expect(protectedBody._meta?.["mcp/www_authenticate"]).toContain("resource_metadata=");
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
   });
 });

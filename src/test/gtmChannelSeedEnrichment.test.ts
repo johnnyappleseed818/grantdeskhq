@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { backgroundJobFailed, backgroundJobProcessing, prioritizeChannelSeedEnrichmentCandidates, providerJobIsStale, providerLeadIsVerified, scannerSeedNeedsPublicContactScan, summarizeChannelSeedLifecycle, superSearchAccessRecoveryVersion, superSearchAvailableCredits, superSearchBatchLimit, superSearchEligibleSeed, superSearchProviderReferences } from "../../server/gtmChannelSeedEnrichment.ts";
+import { backgroundJobFailed, backgroundJobProcessing, prioritizeChannelSeedEnrichmentCandidates, providerJobIsStale, providerLeadIsVerified, scannerSeedNeedsPublicContactScan, summarizeChannelSeedLifecycle, superSearchAccessRecoveryVersion, superSearchAvailableCredits, superSearchBatchLimit, superSearchEligibleSeed, superSearchProviderReferences, superSearchSubmissionLimit } from "../../server/gtmChannelSeedEnrichment.ts";
 import type { GtmScannerRecoveryCohort } from "../../server/persistence.ts";
 import type { ChannelSeedRecord } from "../lib/gtmChannelSeeds.ts";
 
@@ -33,8 +33,10 @@ describe("Instantly channel-seed enrichment reconciliation", () => {
     expect(superSearchEligibleSeed({ organizationDomain: "example.org", source: "chatgpt_scanner_drive", lifecycle: "EVIDENCE_QUALIFIED" })).toBe(true);
     expect(superSearchEligibleSeed({ organizationDomain: "example.org", source: "chatgpt_scanner_drive", lifecycle: "ENRICHMENT_FAILED", rejectionReason: "NO_EXPLICIT_PUBLISHED_ROLE_FIT_EMAIL", enrichmentTerminalAt: "2026-09-16T00:00:00.000Z" })).toBe(true);
     expect(superSearchEligibleSeed({ organizationDomain: "", source: "chatgpt_scanner_drive", lifecycle: "EVIDENCE_QUALIFIED" })).toBe(false);
-    expect(superSearchBatchLimit({})).toBe(1);
-    expect(superSearchBatchLimit({ GTM_SUPERSEARCH_MAX_PER_RUN: "999" })).toBe(100);
+    expect(superSearchBatchLimit({})).toBe(10);
+    expect(superSearchBatchLimit({ GTM_SUPERSEARCH_MAX_PER_RUN: "999" })).toBe(25);
+    expect(superSearchSubmissionLimit(30, 7.9, {})).toBe(7);
+    expect(superSearchSubmissionLimit(30, 100, { GTM_SUPERSEARCH_MAX_PER_RUN: "3" })).toBe(3);
   });
 
   it("uses the lead-finder allowance for a bounded recovery and does not retry a blocked generation", () => {

@@ -10,6 +10,7 @@ import { PricingPage } from "./pages/PricingPage";
 import { CompilePage } from "./pages/CompilePage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { LoginPage } from "./pages/LoginPage";
+import { OAuthAuthorizePage } from "./pages/OAuthAuthorizePage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { GtmDashboardPage } from "./pages/GtmDashboardPage";
 import { GtmContentReviewPage } from "./pages/GtmContentReviewPage";
@@ -57,6 +58,7 @@ export default function App() {
           <Route path="blog/:slug" element={<BlogPostPage />} />
           <Route path="compile" element={<CompilePage />} />
           <Route path="login" element={<LoginPage />} />
+          <Route path="oauth/authorize" element={<OAuthAuthorizePage />} />
           <Route path="workspace" element={<WorkspacePage />} />
           <Route path="account" element={<AccountPage />} />
           <Route path="gtm" element={<GtmDashboardPage />} />

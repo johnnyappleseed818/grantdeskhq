@@ -1,7 +1,43 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-10-04T19:28:00.000Z",
+  "updatedAt": "2026-10-05T05:22:00.000Z",
+  "currentSnapshot": {
+    "status": "PARTIAL",
+    "asOf": "2026-10-05T05:22:00.000Z",
+    "servingRevisionBeforeThisRelease": "grantdeskhq-prototype-00581-mug",
+    "runtimeIdentity": "grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com",
+    "implementedNotYetDeployed": {
+      "replenishment": "Instantly SuperSearch normal processing is bounded by actual workspace allowance, a default batch of 10 (hard maximum 25), and a deterministic per-seed submission claim. Preview errors remain retryable; any post-claim ambiguous response is quarantined rather than replayed.",
+      "awardDiscovery": "The USAspending adapter remains the official structured-award source. A successful source checkpoint now makes later scans incremental with a seven-day amendment overlap; canonical seed idempotency absorbs overlap duplicates.",
+      "chatgptMcp": "OAuth 2.1 PKCE/DCR endpoints, tenant-bound opaque-token storage, unauthenticated MCP discovery with per-tool OAuth schemes, document-text report intake, and a portable plugin package are ready for the next zero-traffic candidate. The MCP surface excludes GTM administration and contact data.",
+      "evidence": "scripts/gtm/normalize-project-result.mjs validates and rewrites this file through JSON.parse/JSON.stringify so current snapshot fields and historical evidence remain valid JSON."
+    },
+    "durableScheduleOrder": {
+      "awardAndSocial": "08:00 weekdays America/Detroit",
+      "driveImport": "08:15 weekdays America/Detroit",
+      "validation": "08:30 weekdays America/Detroit",
+      "directEnrichment": "08:45 weekdays America/Detroit",
+      "partnerEnrichment": "08:50 weekdays America/Detroit",
+      "dispatch": "09:00-16:59 every 15 minutes on weekdays America/Detroit",
+      "reconciliation": "every 15 minutes UTC"
+    },
+    "currentCapacityEvidence": {
+      "healthyProviderCapacity": "30 unique initial emails per approved business day from one active warmed mailbox with provider daily_limit=30.",
+      "unreadyMailboxes": "Two additional configured mailboxes report provider status=2 and warmup_status=0. Read-only account diagnostics returned no remediation reason, so they were not force-resumed or warmed.",
+      "targetGap": "270 healthy unique daily sender slots remain to reach 300/day. With provider daily_limit=30 per mailbox, 9 further healthy 30/day slots are needed if shared capacity and sending policy allow; existing two unready mailboxes would recover 60/day only after provider-approved remediation.",
+      "cost": "UNKNOWN: the authenticated plan-details response did not expose pricing, provider credits, or mailbox entitlements. No purchase or paid overage was enabled."
+    },
+    "currentBusinessEvidence": {
+      "providerConfirmedNewProspectingSends": "NOT_CONFIRMED",
+      "reason": "The current weekday durable cycle had not started at this snapshot. No manual provider send, enrollment replay, or paid extraction was used to manufacture evidence.",
+      "scrapeGraph": "Optional per-record fallback remains deferred by the zero-overage headroom policy when the last observed balance was 80 credits against required 100-credit headroom; structured official evidence and Instantly routes remain independent."
+    },
+    "remainingExternalDependencies": [
+      "Instantly must expose or resolve the two status=2/warmup-disabled mailboxes through existing account settings or support before their capacity can be counted.",
+      "A GrantDeskHQ owner must complete the interactive ChatGPT Developer-mode OAuth consent with synthetic or consented documents before a live ChatGPT user-session test and public plugin submission can be claimed."
+    ]
+  },
   "latestSourceIndependentRelease": {
     "status": "PARTIAL",
     "commit": "44e5f299ef465d266ae1e9d113946aaef89f5ee7",
@@ -75,12 +111,8 @@
     },
     "remainingBlockers": [
       "Private MCP is code-complete and deployed, but public ChatGPT submission requires a standards-compatible OAuth authorization flow; Firebase bearer auth remains intentionally private.",
-      "No provider-confirmed send from the new scheduled source path has occurred yet. The next deployed weekday cycle must create/reject/defer records and reconciliation must supply authoritative provider outcomes; no manual provider replay is authorized."
-      "ScrapeGraphAI optional fallback remains blocked at the existing zero-overage guard: last runtime-observed balance was 80 credits versus required 100-credit headroom. The development runtime grantdeskhq-dev-vm@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com was denied secretmanager.versions.access on grantdeskhq-scrapegraph-api-key, so no newer local balance is claimed. Independent official-source and Instantly paths are unaffected.",
-      "Private MCP is code-complete and deployed, but public ChatGPT submission requires a standards-compatible OAuth authorization flow; Firebase bearer auth remains intentionally private.",
-      "No provider-confirmed send from the new scheduled source path has occurred yet. The next deployed weekday cycle must create/reject/defer records and reconciliation must supply authoritative provider outcomes; no manual provider replay is authorized."
-      "Private MCP is code-complete and deployed, but public ChatGPT submission requires a standards-compatible OAuth authorization flow; Firebase bearer auth remains intentionally private.",
-      "No provider-confirmed send from the new scheduled source path has occurred yet. The next deployed weekday cycle must create/reject/defer records and reconciliation must supply authoritative provider outcomes; no manual provider replay is authorized."
+      "No provider-confirmed send from the new scheduled source path has occurred yet. The next deployed weekday cycle must create/reject/defer records and reconciliation must supply authoritative provider outcomes; no manual provider replay is authorized.",
+      "ScrapeGraphAI optional fallback remains blocked at the existing zero-overage guard: last runtime-observed balance was 80 credits versus required 100-credit headroom. The development runtime grantdeskhq-dev-vm@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com was denied secretmanager.versions.access on grantdeskhq-scrapegraph-api-key, so no newer local balance is claimed. Independent official-source and Instantly paths are unaffected."
     ]
   },
   "latestPostPromotionVerification": {
@@ -104,7 +136,10 @@
         "duplicatesPrevented": 12,
         "adoptedCleanMemberships": 35,
         "stalePreSendRecords": 0,
-        "transitions": { "EMAIL_SENT": 35, "BOUNCE": 6 },
+        "transitions": {
+          "EMAIL_SENT": 35,
+          "BOUNCE": 6
+        },
         "errors": []
       }
     },
@@ -120,11 +155,16 @@
       "rejected": 4,
       "pending": 29,
       "socialEvidenceAdded": 4,
-      "rejectionReasons": { "MALFORMED_OR_UNSAFE_SOCIAL_RESEARCH": 4 },
+      "rejectionReasons": {
+        "MALFORMED_OR_UNSAFE_SOCIAL_RESEARCH": 4
+      },
       "canonicalRecordIds": 29,
       "canonicalRecordsPresent": 29,
       "missingCanonicalRecordIds": 0,
-      "importSideEffects": { "providerCalls": 0, "sends": 0 },
+      "importSideEffects": {
+        "providerCalls": 0,
+        "sends": 0
+      },
       "receiptMirror": "PENDING — Drive files.create returned 403 UNKNOWN storageQuotaExceeded; database receipt is authoritative and downstream processing remains unblocked."
     },
     "currentFunnel": {
@@ -156,10 +196,30 @@
       "fc3d6764666fab28b708ce0ec6907a6c77f77cfc fix(gtm): paginate contact enrichment readiness"
     ],
     "builds": [
-      { "id": "88b633fe-9375-4691-a0a8-3f2693dd6bec", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00567-nob", "traffic": "replaced" },
-      { "id": "8706e38d-8789-4f71-a495-c88b8f278e1e", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00569-lux", "traffic": "replaced" },
-      { "id": "98b3d98c-6b0e-43de-8f9c-335abb1d36f0", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00571-tom", "traffic": "replaced" },
-      { "id": "852eada3-d50f-4e82-b6b6-348b3e17c800", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00573-qik", "traffic": "100%" }
+      {
+        "id": "88b633fe-9375-4691-a0a8-3f2693dd6bec",
+        "status": "SUCCESS",
+        "revision": "grantdeskhq-prototype-00567-nob",
+        "traffic": "replaced"
+      },
+      {
+        "id": "8706e38d-8789-4f71-a495-c88b8f278e1e",
+        "status": "SUCCESS",
+        "revision": "grantdeskhq-prototype-00569-lux",
+        "traffic": "replaced"
+      },
+      {
+        "id": "98b3d98c-6b0e-43de-8f9c-335abb1d36f0",
+        "status": "SUCCESS",
+        "revision": "grantdeskhq-prototype-00571-tom",
+        "traffic": "replaced"
+      },
+      {
+        "id": "852eada3-d50f-4e82-b6b6-348b3e17c800",
+        "status": "SUCCESS",
+        "revision": "grantdeskhq-prototype-00573-qik",
+        "traffic": "100%"
+      }
     ],
     "production": {
       "revision": "grantdeskhq-prototype-00573-qik",
@@ -239,7 +299,10 @@
       "status": "PASS",
       "polledRecords": 59,
       "adoptedCleanMemberships": 31,
-      "providerTransitions": { "EMAIL_SENT": 31, "BOUNCE": 6 },
+      "providerTransitions": {
+        "EMAIL_SENT": 31,
+        "BOUNCE": 6
+      },
       "duplicateIdentitiesPrevented": 12,
       "stalePreSendRecords": 0,
       "partnerDispatchAuditId": "6abbd27a000b0e509b159219",
@@ -303,20 +366,90 @@
     "6f9137cb5f1910e241bd0229f198527f31ba99e7 chore(deploy): exclude local coding cache from builds"
   ],
   "builds": [
-    { "id": "7ec7abaa-90e2-415d-8adb-7789073de95a", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00523-dir", "traffic": "0%" },
-    { "id": "2d58b770-9857-4fa8-a708-80558de83fe6", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00524-hey", "traffic": "replaced" },
-    { "id": "8c183c2d-f150-4e55-99ce-b45c9b330e18", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00526-fuz", "traffic": "replaced" },
-    { "id": "4e2fba10-6519-48b9-8003-830000c5b7f3", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00545-taj", "traffic": "replaced" },
-    { "id": "417d94df-08e1-4d38-a8dd-1b81960ff68b", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00547-gum", "traffic": "replaced" },
-    { "id": "253794b7-87ec-4497-804c-c93fc8acd7b5", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00549-juf", "traffic": "replaced" },
-    { "id": "6b79cc7b-2d01-47aa-a634-1ab8f1994540", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00552-duk", "traffic": "100%" },
-    { "id": "363ad388-f037-4098-ae4d-0b478f16d56a", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00554-naw", "traffic": "0%" },
-    { "id": "c1ce66ce-87ac-4488-b6c2-c2d152b9a007", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00555-jaq", "traffic": "0%" },
-    { "id": "3aedcd3c-9e44-480f-ad57-8cdeaf6c1083", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00556-suw", "traffic": "0%" },
-    { "id": "ac63300d-7514-4a92-aae5-71c7fb83b885", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00557-piy", "traffic": "0%" },
-    { "id": "0b868d74-e071-410b-88ec-662d13cefbe3", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00558-xuw", "traffic": "replaced" },
-    { "id": "b56831f1-b5fa-428b-8659-fb50c14e5609", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00560-giv", "traffic": "100%" },
-    { "id": "4d2d7295-b7f0-4a3b-bf67-3b49ccff0b40", "status": "SUCCESS", "revision": "grantdeskhq-prototype-00562-maw", "traffic": "promoted before the post-window observation" }
+    {
+      "id": "7ec7abaa-90e2-415d-8adb-7789073de95a",
+      "status": "SUCCESS",
+      "revision": "grantdeskhq-prototype-00523-dir",
+      "traffic": "0%"
+    },
+    {
+      "id": "2d58b770-9857-4fa8-a708-80558de83fe6",
+      "status": "SUCCESS",
+      "revision": "grantdeskhq-prototype-00524-hey",
+      "traffic": "replaced"
+    },
+    {
+      "id": "8c183c2d-f150-4e55-99ce-b45c9b330e18",
+      "status": "SUCCESS",
+      "revision": "grantdeskhq-prototype-00526-fuz",
+      "traffic": "replaced"
+    },
+    {
+      "id": "4e2fba10-6519-48b9-8003-830000c5b7f3",
+      "status": "SUCCESS",
+      "revision": "grantdeskhq-prototype-00545-taj",
+      "traffic": "replaced"
+    },
+    {
+      "id": "417d94df-08e1-4d38-a8dd-1b81960ff68b",
+      "status": "SUCCESS",
+      "revision": "grantdeskhq-prototype-00547-gum",
+      "traffic": "replaced"
+    },
+    {
+      "id": "253794b7-87ec-4497-804c-c93fc8acd7b5",
+      "status": "SUCCESS",
+      "revision": "grantdeskhq-prototype-00549-juf",
+      "traffic": "replaced"
+    },
+    {
+      "id": "6b79cc7b-2d01-47aa-a634-1ab8f1994540",
+      "status": "SUCCESS",
+      "revision": "grantdeskhq-prototype-00552-duk",
+      "traffic": "100%"
+    },
+    {
+      "id": "363ad388-f037-4098-ae4d-0b478f16d56a",
+      "status": "SUCCESS",
+      "revision": "grantdeskhq-prototype-00554-naw",
+      "traffic": "0%"
+    },
+    {
+      "id": "c1ce66ce-87ac-4488-b6c2-c2d152b9a007",
+      "status": "SUCCESS",
+      "revision": "grantdeskhq-prototype-00555-jaq",
+      "traffic": "0%"
+    },
+    {
+      "id": "3aedcd3c-9e44-480f-ad57-8cdeaf6c1083",
+      "status": "SUCCESS",
+      "revision": "grantdeskhq-prototype-00556-suw",
+      "traffic": "0%"
+    },
+    {
+      "id": "ac63300d-7514-4a92-aae5-71c7fb83b885",
+      "status": "SUCCESS",
+      "revision": "grantdeskhq-prototype-00557-piy",
+      "traffic": "0%"
+    },
+    {
+      "id": "0b868d74-e071-410b-88ec-662d13cefbe3",
+      "status": "SUCCESS",
+      "revision": "grantdeskhq-prototype-00558-xuw",
+      "traffic": "replaced"
+    },
+    {
+      "id": "b56831f1-b5fa-428b-8659-fb50c14e5609",
+      "status": "SUCCESS",
+      "revision": "grantdeskhq-prototype-00560-giv",
+      "traffic": "100%"
+    },
+    {
+      "id": "4d2d7295-b7f0-4a3b-bf67-3b49ccff0b40",
+      "status": "SUCCESS",
+      "revision": "grantdeskhq-prototype-00562-maw",
+      "traffic": "promoted before the post-window observation"
+    }
   ],
   "production": {
     "revision": "grantdeskhq-prototype-00565-mow",
@@ -352,23 +485,84 @@
   ],
   "currentFunnel": {
     "observedAt": "2026-09-28T11:47:40Z",
-    "breaker": { "tripped": false, "generation": 4, "version": 6 },
-    "canonical": { "directReady": 1, "partnerReady": 22, "directNeedsVerification": 4, "partnerNeedsVerification": 31, "replies": 1, "positiveReplies": 0, "trials": 0, "paid": 0, "mrr": 0 },
-    "channelSeeds": { "directTotal": 356, "partnerTotal": 336, "directVerified": 13, "partnerVerified": 15, "directPending": 43, "partnerPending": 128 }
+    "breaker": {
+      "tripped": false,
+      "generation": 4,
+      "version": 6
+    },
+    "canonical": {
+      "directReady": 1,
+      "partnerReady": 22,
+      "directNeedsVerification": 4,
+      "partnerNeedsVerification": 31,
+      "replies": 1,
+      "positiveReplies": 0,
+      "trials": 0,
+      "paid": 0,
+      "mrr": 0
+    },
+    "channelSeeds": {
+      "directTotal": 356,
+      "partnerTotal": 336,
+      "directVerified": 13,
+      "partnerVerified": 15,
+      "directPending": 43,
+      "partnerPending": 128
+    }
   },
   "currentFunnelReadOnly": {
     "observedAt": "2026-09-29T14:45:20Z",
-    "canonical": { "directReady": 0, "partnerReady": 1, "directNeedsVerification": 4, "partnerNeedsVerification": 31, "replies": 1, "positiveReplies": 0 },
-    "channelSeeds": {
-      "direct": { "total": 383, "verified": 13, "discovered": 195, "evidenceQualified": 2, "enrichmentPending": 50, "enrichmentFailed": 79 },
-      "partner": { "total": 348, "verified": 16, "discovered": 97, "evidenceQualified": 0, "enrichmentPending": 130, "enrichmentFailed": 97 }
+    "canonical": {
+      "directReady": 0,
+      "partnerReady": 1,
+      "directNeedsVerification": 4,
+      "partnerNeedsVerification": 31,
+      "replies": 1,
+      "positiveReplies": 0
     },
-    "provider": { "reconciliation": "PASS", "dailyCapacity": 30, "readyMailboxCount": 1, "sharedMailboxCount": 1, "directCleanCampaignStatus": 3, "partnerCleanCampaignStatus": 3, "activeReservations": "NOT_CONFIRMED: the authenticated aggregate response intentionally excludes record-level reservation identities", "postWindowGlobalRemainingCapacity": 28 }
+    "channelSeeds": {
+      "direct": {
+        "total": 383,
+        "verified": 13,
+        "discovered": 195,
+        "evidenceQualified": 2,
+        "enrichmentPending": 50,
+        "enrichmentFailed": 79
+      },
+      "partner": {
+        "total": 348,
+        "verified": 16,
+        "discovered": 97,
+        "evidenceQualified": 0,
+        "enrichmentPending": 130,
+        "enrichmentFailed": 97
+      }
+    },
+    "provider": {
+      "reconciliation": "PASS",
+      "dailyCapacity": 30,
+      "readyMailboxCount": 1,
+      "sharedMailboxCount": 1,
+      "directCleanCampaignStatus": 3,
+      "partnerCleanCampaignStatus": 3,
+      "activeReservations": "NOT_CONFIRMED: the authenticated aggregate response intentionally excludes record-level reservation identities",
+      "postWindowGlobalRemainingCapacity": 28
+    }
   },
   "dispatchDryRun": {
     "observedAt": "2026-09-28T11:47:40Z",
-    "direct": { "eligible": 1, "action": "NOOP", "reason": "OUTSIDE_SENDING_WINDOW", "sentToday": 0 },
-    "partner": { "eligible": 22, "action": "NOOP", "reason": "OUTSIDE_SENDING_WINDOW", "sentToday": 0 },
+    "direct": {
+      "eligible": 1,
+      "action": "NOOP",
+      "reason": "OUTSIDE_SENDING_WINDOW",
+      "sentToday": 0
+    },
+    "partner": {
+      "eligible": 22,
+      "action": "NOOP",
+      "reason": "OUTSIDE_SENDING_WINDOW",
+      "sentToday": 0
+    },
     "globalOutstanding": 2,
     "providerDailyCapacity": 30,
     "remainingCapacity": 28,
@@ -413,7 +607,12 @@
     "accepted": 27,
     "duplicate": 3,
     "organizationRejected": 0,
-    "socialSignals": { "rows": 8, "reviewStored": 4, "rejected": 4, "rejectionReason": "MALFORMED_OR_UNSAFE_SOCIAL_RESEARCH" },
+    "socialSignals": {
+      "rows": 8,
+      "reviewStored": 4,
+      "rejected": 4,
+      "rejectionReason": "MALFORMED_OR_UNSAFE_SOCIAL_RESEARCH"
+    },
     "canonicalRecordIdsPresent": 27,
     "missingCanonicalRecordIds": 0,
     "providerCalls": 0,
@@ -422,16 +621,67 @@
   },
   "boundedCycle": {
     "observedAt": "2026-09-28T11:55:49Z",
-    "import": { "httpStatus": 200, "lifecycle": "DISCOVERED", "providerCalls": 0, "sends": 0, "receiptMirrorPending": true, "newImports": 0 },
-    "enrichment": {
-      "direct": { "httpStatus": 500, "provider": "Instantly", "providerHttpStatus": 402, "providerRequestId": "2294914806639929328" },
-      "partner": { "httpStatus": 500, "provider": "Instantly", "providerHttpStatus": 402, "providerRequestId": "5715684821413718830" },
-      "reconciliation": { "direct": { "httpStatus": 200, "reconciled": 0, "pending": 0, "failed": 0 }, "partner": { "httpStatus": 200, "reconciled": 0, "pending": 0, "failed": 0 } }
+    "import": {
+      "httpStatus": 200,
+      "lifecycle": "DISCOVERED",
+      "providerCalls": 0,
+      "sends": 0,
+      "receiptMirrorPending": true,
+      "newImports": 0
     },
-    "providerPolling": { "httpStatus": 200, "mode": "READ_ONLY", "reconciliation": "PASS", "lastSuccessfulSync": "2026-09-28T11:59:13.252Z", "newEnrollments": 0, "newSends": 0 },
+    "enrichment": {
+      "direct": {
+        "httpStatus": 500,
+        "provider": "Instantly",
+        "providerHttpStatus": 402,
+        "providerRequestId": "2294914806639929328"
+      },
+      "partner": {
+        "httpStatus": 500,
+        "provider": "Instantly",
+        "providerHttpStatus": 402,
+        "providerRequestId": "5715684821413718830"
+      },
+      "reconciliation": {
+        "direct": {
+          "httpStatus": 200,
+          "reconciled": 0,
+          "pending": 0,
+          "failed": 0
+        },
+        "partner": {
+          "httpStatus": 200,
+          "reconciled": 0,
+          "pending": 0,
+          "failed": 0
+        }
+      }
+    },
+    "providerPolling": {
+      "httpStatus": 200,
+      "mode": "READ_ONLY",
+      "reconciliation": "PASS",
+      "lastSuccessfulSync": "2026-09-28T11:59:13.252Z",
+      "newEnrollments": 0,
+      "newSends": 0
+    },
     "dispatch": {
-      "direct": { "action": "NOOP", "reason": "OUTSIDE_SENDING_WINDOW", "eligible": 1, "outstanding": 0, "campaignStatus": 3, "campaignNeedsActivation": true },
-      "partner": { "action": "NOOP", "reason": "OUTSIDE_SENDING_WINDOW", "eligible": 22, "outstanding": 0, "campaignStatus": 3, "campaignNeedsActivation": true }
+      "direct": {
+        "action": "NOOP",
+        "reason": "OUTSIDE_SENDING_WINDOW",
+        "eligible": 1,
+        "outstanding": 0,
+        "campaignStatus": 3,
+        "campaignNeedsActivation": true
+      },
+      "partner": {
+        "action": "NOOP",
+        "reason": "OUTSIDE_SENDING_WINDOW",
+        "eligible": 22,
+        "outstanding": 0,
+        "campaignStatus": 3,
+        "campaignNeedsActivation": true
+      }
     }
   },
   "superSearchAccessRecovery": {
@@ -440,10 +690,33 @@
     "leadFinderProduct": "pid_free",
     "availableCreditsBeforeProbe": 21.5,
     "availableCreditsAfterBoundedSubmissions": 19.5,
-    "previousRejectedBatchSizes": { "direct": 43, "partner": 50 },
-    "direct": { "schedulerAt": "2026-09-28T18:11:44.058Z", "selected": 1, "previewCount": 15, "submitted": 1, "providerCalls": 1, "sends": 0 },
-    "partner": { "schedulerAt": "2026-09-28T18:13:05.992Z", "selected": 1, "previewCount": 3, "submitted": 1, "providerCalls": 1, "sends": 0 },
-    "socialReplenishment": { "schedulerAt": "2026-09-28T18:16:36.993Z", "segment": "DIRECT", "selected": 1, "submitted": 1, "sends": 0 },
+    "previousRejectedBatchSizes": {
+      "direct": 43,
+      "partner": 50
+    },
+    "direct": {
+      "schedulerAt": "2026-09-28T18:11:44.058Z",
+      "selected": 1,
+      "previewCount": 15,
+      "submitted": 1,
+      "providerCalls": 1,
+      "sends": 0
+    },
+    "partner": {
+      "schedulerAt": "2026-09-28T18:13:05.992Z",
+      "selected": 1,
+      "previewCount": 3,
+      "submitted": 1,
+      "providerCalls": 1,
+      "sends": 0
+    },
+    "socialReplenishment": {
+      "schedulerAt": "2026-09-28T18:16:36.993Z",
+      "segment": "DIRECT",
+      "selected": 1,
+      "submitted": 1,
+      "sends": 0
+    },
     "reconciliation": "The existing Direct and Partner channel-seed reconciliation schedulers automatically ran at 2026-09-28T18:30:20.144978Z and 2026-09-28T18:30:25.217997Z, respectively, against revision 00560-giv. Both authenticated responses were HTTP 200. Submitted contacts remain provider-pending until a later terminal provider result; the endpoint intentionally does not log response bodies."
   },
   "seoExecution": {
@@ -506,21 +779,82 @@
       "providerConfirmedProspectingSends": "NOT_CONFIRMED"
     },
     "schedulerAttempts": {
-      "validation": { "id": "1iodadwf3ffrdr", "finishedAt": "2026-09-29T12:32:36.286057970Z", "httpStatus": 200 },
-      "directEnrichment": { "id": "17v0itdf4yzwg3", "finishedAt": "2026-09-29T12:45:17.965711436Z", "httpStatus": 200, "selected": 1, "submitted": 1 },
-      "partnerEnrichment": { "id": "ehb98vf52u8sv", "finishedAt": "2026-09-29T12:50:16.768797299Z", "httpStatus": 200, "selected": 1, "submitted": 1 },
-      "directDispatch": { "id": "vohs82exjg6i", "finishedAt": "2026-09-29T13:00:17.425323093Z", "httpStatus": 200 },
-      "partnerDispatch": { "id": "y551f3f4g5oa8", "finishedAt": "2026-09-29T13:00:17.721080815Z", "httpStatus": 200 },
-      "reconciliation": { "id": "kyceif4rlx1r", "finishedAt": "2026-09-29T13:00:23.235185474Z", "httpStatus": 200 }
+      "validation": {
+        "id": "1iodadwf3ffrdr",
+        "finishedAt": "2026-09-29T12:32:36.286057970Z",
+        "httpStatus": 200
+      },
+      "directEnrichment": {
+        "id": "17v0itdf4yzwg3",
+        "finishedAt": "2026-09-29T12:45:17.965711436Z",
+        "httpStatus": 200,
+        "selected": 1,
+        "submitted": 1
+      },
+      "partnerEnrichment": {
+        "id": "ehb98vf52u8sv",
+        "finishedAt": "2026-09-29T12:50:16.768797299Z",
+        "httpStatus": 200,
+        "selected": 1,
+        "submitted": 1
+      },
+      "directDispatch": {
+        "id": "vohs82exjg6i",
+        "finishedAt": "2026-09-29T13:00:17.425323093Z",
+        "httpStatus": 200
+      },
+      "partnerDispatch": {
+        "id": "y551f3f4g5oa8",
+        "finishedAt": "2026-09-29T13:00:17.721080815Z",
+        "httpStatus": 200
+      },
+      "reconciliation": {
+        "id": "kyceif4rlx1r",
+        "finishedAt": "2026-09-29T13:00:23.235185474Z",
+        "httpStatus": 200
+      }
     },
     "dispatchAudit": {
-      "direct": { "id": "6abbcef90008e73bb43879f5", "occurredAt": "2026-09-29T14:45:13.583483Z", "action": "NOOP", "reason": "NO_ELIGIBLE_RECIPIENT", "eligible": 0, "outstanding": 0, "globalRemaining": 28 },
-      "partner": { "id": "6abbcef9000a2b4d5d10c5a6", "occurredAt": "2026-09-29T14:45:13.666445Z", "action": "NOOP", "reason": "CRITICAL_SAFETY_FAILURE", "eligible": 1, "outstanding": 0, "globalRemaining": 28, "falsePredicate": "criticalFailure" }
+      "direct": {
+        "id": "6abbcef90008e73bb43879f5",
+        "occurredAt": "2026-09-29T14:45:13.583483Z",
+        "action": "NOOP",
+        "reason": "NO_ELIGIBLE_RECIPIENT",
+        "eligible": 0,
+        "outstanding": 0,
+        "globalRemaining": 28
+      },
+      "partner": {
+        "id": "6abbcef9000a2b4d5d10c5a6",
+        "occurredAt": "2026-09-29T14:45:13.666445Z",
+        "action": "NOOP",
+        "reason": "CRITICAL_SAFETY_FAILURE",
+        "eligible": 1,
+        "outstanding": 0,
+        "globalRemaining": 28,
+        "falsePredicate": "criticalFailure"
+      }
     },
     "postPromotionAutonomousDispatch": {
       "revision": "grantdeskhq-prototype-00565-mow",
-      "partner": { "auditId": "6abbd27a000b0e509b159219", "occurredAt": "2026-09-29T15:00:10.724560Z", "action": "DISPATCH", "reason": "CANARY_CONFIRMED", "count": 1, "eligible": 1, "outstandingBefore": 0, "globalRemainingBefore": 28, "schedulerAttemptId": "nd147vf5glwfj", "schedulerHttpStatus": 200 },
-      "direct": { "action": "NOOP", "reason": "NO_ELIGIBLE_RECIPIENT", "eligible": 0, "outstanding": 0 },
+      "partner": {
+        "auditId": "6abbd27a000b0e509b159219",
+        "occurredAt": "2026-09-29T15:00:10.724560Z",
+        "action": "DISPATCH",
+        "reason": "CANARY_CONFIRMED",
+        "count": 1,
+        "eligible": 1,
+        "outstandingBefore": 0,
+        "globalRemainingBefore": 28,
+        "schedulerAttemptId": "nd147vf5glwfj",
+        "schedulerHttpStatus": 200
+      },
+      "direct": {
+        "action": "NOOP",
+        "reason": "NO_ELIGIBLE_RECIPIENT",
+        "eligible": 0,
+        "outstanding": 0
+      },
       "providerOutcome": "NOT_CONFIRMED: the scheduler discards the controller response body and the redacted audit deliberately omits recipient and provider identifiers. A durable reconciliation job ran at 2026-09-29T15:00:12.256009620Z; no provider-confirmed send is asserted."
     },
     "remainingBusinessEvidence": "The earlier Partner criticalFailure predicate cleared through ordinary reconciliation and did not require a safety bypass. The current non-terminal states are: Direct has zero canonical READY recipients; the one autonomous Partner handoff awaits its normal provider reconciliation. These are not evidence for a retry, new enrollment, or a provider-confirmed send.",

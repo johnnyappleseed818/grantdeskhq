@@ -16,6 +16,9 @@ describe("federal grant discovery criteria", () => {
     expect(awardDiscoveryCriteria("2026-08-10", {})).toEqual({
       startDate: "2026-05-12",
       endDate: "2026-08-10",
+      checkpointStartDate: null,
+      incremental: false,
+      overlapDays: 7,
       minimumAward: 25_000,
       recipientTypes: ["Nonprofit Organization"],
       awardTypes: ["02", "03", "04", "05"],
@@ -33,6 +36,16 @@ describe("federal grant discovery criteria", () => {
       GTM_AWARD_MAX_PAGES: "100",
       GTM_AWARD_MAX_CANDIDATES: "9999"
     })).toMatchObject({ startDate: "2025-08-10", minimumAward: 1_000, pageSize: 100, maxPages: 10, maxCandidates: 500 });
+  });
+
+  it("resumes from the persisted scan checkpoint with a bounded amendment overlap", () => {
+    expect(awardDiscoveryCriteria("2026-08-10", {}, "2026-08-07T15:00:00.000Z")).toMatchObject({
+      startDate: "2026-07-31",
+      endDate: "2026-08-10",
+      checkpointStartDate: "2026-08-07",
+      incremental: true,
+      overlapDays: 7
+    });
   });
 });
 

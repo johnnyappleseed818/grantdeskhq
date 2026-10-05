@@ -22,11 +22,21 @@ interface AwardPage {
   page_metadata?: { hasNext?: boolean };
 }
 
-export function awardDiscoveryCriteria(scanDate: string, environment: NodeJS.ProcessEnv = process.env): AwardDiscoveryCriteria {
+export function awardDiscoveryCriteria(scanDate: string, environment: NodeJS.ProcessEnv = process.env, priorSuccessfulScanAt: string | null = null): AwardDiscoveryCriteria {
   const windowDays = boundedInteger(environment.GTM_AWARD_WINDOW_DAYS, 90, 14, 365);
+  const overlapDays = boundedInteger(environment.GTM_AWARD_INCREMENTAL_OVERLAP_DAYS, 7, 1, 30);
+  const checkpointStartDate = dateOnly(priorSuccessfulScanAt);
+  const configuredStart = dateOnly(environment.GTM_SCAN_START_DATE || null);
+  // A source scan is incremental after its first successful checkpoint.  The
+  // short overlap catches late amendments while canonical seed idempotency
+  // prevents those records from becoming duplicate organizations.
+  const startDate = configuredStart || (checkpointStartDate ? offsetDate(checkpointStartDate, -overlapDays) : offsetDate(scanDate, -windowDays));
   return {
-    startDate: environment.GTM_SCAN_START_DATE || offsetDate(scanDate, -windowDays),
+    startDate,
     endDate: scanDate,
+    checkpointStartDate,
+    incremental: Boolean(checkpointStartDate && !configuredStart),
+    overlapDays,
     minimumAward: boundedNumber(environment.GTM_MINIMUM_AWARD, 25_000, 1_000, 10_000_000),
     recipientTypes: RECIPIENT_TYPES,
     awardTypes: AWARD_TYPES,
@@ -36,9 +46,9 @@ export function awardDiscoveryCriteria(scanDate: string, environment: NodeJS.Pro
   };
 }
 
-export async function runDailyAwardScan(now = new Date()): Promise<AwardDiscoveryScan> {
+export async function runDailyAwardScan(now = new Date(), priorSuccessfulScanAt: string | null = null, environment: NodeJS.ProcessEnv = process.env): Promise<AwardDiscoveryScan> {
   const scanDate = now.toISOString().slice(0, 10);
-  const criteria = awardDiscoveryCriteria(scanDate);
+  const criteria = awardDiscoveryCriteria(scanDate, environment, priorSuccessfulScanAt);
   const records: AwardRecord[] = [];
   let pagesChecked = 0;
 
@@ -240,4 +250,9 @@ function offsetDate(date: string, days: number) {
   const value = new Date(`${date}T00:00:00Z`);
   value.setUTCDate(value.getUTCDate() + days);
   return value.toISOString().slice(0, 10);
+}
+
+function dateOnly(value: string | null) {
+  const parsed = Date.parse(value || "");
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString().slice(0, 10) : null;
 }

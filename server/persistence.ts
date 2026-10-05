@@ -832,6 +832,110 @@ export async function saveGtmChannelSeed(seed: ChannelSeedRecord): Promise<Chann
   return seed;
 }
 
+export interface McpOauthClientRecord {
+  clientId: string;
+  redirectUris: string[];
+  createdAt: string;
+}
+
+export interface McpOauthAuthorizationRecord {
+  codeHash: string;
+  clientId: string;
+  redirectUri: string;
+  codeChallenge: string;
+  resource: string;
+  scopes: string[];
+  user: AuthenticatedUser;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface McpOauthAccessTokenRecord {
+  tokenHash: string;
+  clientId: string;
+  resource: string;
+  scopes: string[];
+  user: AuthenticatedUser;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export async function saveMcpOauthClient(record: McpOauthClientRecord) {
+  const accessToken = await gcpToken();
+  const created = await writeDocumentIfAbsent(accessToken, `mcp/oauth-clients/records/${safeDocumentId(record.clientId)}`, { clientJson: JSON.stringify(record), createdAt: record.createdAt });
+  return created;
+}
+
+export async function readMcpOauthClient(clientId: string): Promise<McpOauthClientRecord | null> {
+  const accessToken = await gcpToken();
+  const response = await authorizedFetch(`${firestoreBase}/mcp/oauth-clients/records/${safeDocumentId(clientId)}`, accessToken);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`MCP OAuth client could not be loaded (${response.status}).`);
+  try {
+    const parsed = JSON.parse(String(decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}).clientJson || "")) as McpOauthClientRecord;
+    return typeof parsed.clientId === "string" && Array.isArray(parsed.redirectUris) ? parsed : null;
+  } catch { return null; }
+}
+
+export async function saveMcpOauthAuthorization(record: McpOauthAuthorizationRecord) {
+  const accessToken = await gcpToken();
+  await writeDocument(accessToken, `mcp/oauth-authorizations/records/${safeDocumentId(record.codeHash)}`, { authorizationJson: JSON.stringify(record), expiresAt: record.expiresAt, createdAt: record.createdAt });
+}
+
+export async function consumeMcpOauthAuthorization(codeHash: string): Promise<McpOauthAuthorizationRecord | null> {
+  const accessToken = await gcpToken();
+  const path = `mcp/oauth-authorizations/records/${safeDocumentId(codeHash)}`;
+  const response = await authorizedFetch(`${firestoreBase}/${path}`, accessToken);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`MCP OAuth authorization could not be loaded (${response.status}).`);
+  let record: McpOauthAuthorizationRecord;
+  try { record = JSON.parse(String(decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}).authorizationJson || "")) as McpOauthAuthorizationRecord; }
+  catch { return null; }
+  if (!record?.codeHash || Date.parse(record.expiresAt) <= Date.now()) return null;
+  // Firestore's create precondition makes an authorization code single-use
+  // across Cloud Run instances without deleting immutable auth evidence.
+  const redeemed = await writeDocumentIfAbsent(accessToken, `mcp/oauth-redemptions/records/${safeDocumentId(codeHash)}`, { codeHash, redeemedAt: new Date().toISOString(), clientId: record.clientId });
+  return redeemed ? record : null;
+}
+
+export async function saveMcpOauthAccessToken(record: McpOauthAccessTokenRecord) {
+  const accessToken = await gcpToken();
+  await writeDocument(accessToken, `mcp/oauth-tokens/records/${safeDocumentId(record.tokenHash)}`, { tokenJson: JSON.stringify(record), expiresAt: record.expiresAt, createdAt: record.createdAt });
+}
+
+export async function readMcpOauthAccessToken(tokenHash: string): Promise<McpOauthAccessTokenRecord | null> {
+  const accessToken = await gcpToken();
+  const response = await authorizedFetch(`${firestoreBase}/mcp/oauth-tokens/records/${safeDocumentId(tokenHash)}`, accessToken);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`MCP OAuth token could not be loaded (${response.status}).`);
+  try {
+    const parsed = JSON.parse(String(decodeFields(((await response.json()) as { fields?: Record<string, FirestoreValue> }).fields || {}).tokenJson || "")) as McpOauthAccessTokenRecord;
+    return parsed?.tokenHash && Date.parse(parsed.expiresAt) > Date.now() ? parsed : null;
+  } catch { return null; }
+}
+
+/**
+ * A SuperSearch request can create provider-side work even when the HTTP
+ * response is lost.  This immutable, seed-and-generation scoped claim is the
+ * pre-write boundary for that operation: a scheduler replay must reconcile or
+ * advance the configured recovery generation, never submit the same
+ * organization a second time just because a prior response was ambiguous.
+ */
+export async function reserveGtmChannelSeedEnrichmentSubmission(input: { seedId: string; segment: "DIRECT" | "PARTNER"; recoveryVersion: string; provider: "instantly_supersearch" }) {
+  const accessToken = await gcpToken();
+  const id = `seed_enrichment_${createHash("sha256").update(`${input.seedId}:${input.recoveryVersion}:${input.provider}`).digest("hex").slice(0, 40)}`;
+  const createdAt = new Date().toISOString();
+  const created = await writeDocumentIfAbsent(accessToken, `gtm/channel-seed-enrichment-submissions/records/${safeDocumentId(id)}`, {
+    id,
+    seedId: input.seedId,
+    segment: input.segment,
+    recoveryVersion: input.recoveryVersion,
+    provider: input.provider,
+    createdAt
+  });
+  return { acquired: created, id, createdAt };
+}
+
 export async function saveGtmInventoryAutopilot(snapshot: InventoryAutopilotSnapshot) {
   const accessToken = await gcpToken();
   await writeDocument(accessToken, "gtm/inventory-autopilot", { generatedAt: snapshot.generatedAt, stateJson: JSON.stringify(snapshot) });
