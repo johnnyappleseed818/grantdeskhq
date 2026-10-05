@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { describe, expect, it } from "vitest";
 import { agreementAnalysisProjection, budgetVsActualProjection, documentTextCompilationRequest, grantReportingMcpToolDefinitions, handleGrantReportingMcp, missingInputsProjection, reviewableDraftProjection } from "../../server/chatgptGrantReportingMcp.ts";
 import { allowedGrantReportingMcpRedirectUri, grantReportingMcpAuthorizationMetadata, grantReportingMcpResourceMetadata } from "../../server/chatgptGrantReportingOAuth.ts";
+import { MCP_COMPILATION_REQUEST_ID_PATTERN } from "../lib/prototype.ts";
 import type { PersistedCompilationResponse } from "../types/prototype.ts";
 
 const saved = {
@@ -40,6 +41,11 @@ describe("private ChatGPT grant-reporting tool projections", () => {
     const request = documentTextCompilationRequest({ requestId: "mcp_document_input_20261005", organizationName: "Example Nonprofit", grantName: "Community Grant", reportingPeriod: "Q3 2026", awardAgreementText: "Agreement terms", approvedBudgetText: "Program,1000", ledgerExportText: "Program,900" });
     expect(request.files.map((file) => file.role)).toEqual(["awardAgreement", "approvedBudget", "ledgerExport"]);
     expect(request.files.every((file) => file.data.startsWith("data:text/plain;base64,"))).toBe(true);
+  });
+
+  it("advertises the same MCP request identifier contract used by shared validation", () => {
+    const create = grantReportingMcpToolDefinitions().find((tool) => tool.name === "create_report_from_document_text");
+    expect(create?.inputSchema).toMatchObject({ properties: { requestId: { pattern: `^${MCP_COMPILATION_REQUEST_ID_PATTERN}$` } } });
   });
 
   it("publishes OAuth 2.1 metadata with resource binding, PKCE S256, and dynamic client registration", () => {

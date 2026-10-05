@@ -17,6 +17,14 @@ describe("report compilation idempotency", () => {
     expect(first).toMatch(/^report_[a-f0-9]{32}$/);
   });
 
+  it("uses the same tenant-scoped report ID for a valid MCP request retry", () => {
+    const requestId = "mcp_browser_test_20261005_165341";
+    const first = compilationReportId("user-a", requestId);
+    expect(compilationReportId("user-a", requestId)).toBe(first);
+    expect(compilationReportId("user-b", requestId)).not.toBe(first);
+    expect(first).toMatch(/^report_[a-f0-9]{32}$/);
+  });
+
   it("retries a transient 429 workspace save without changing the deterministic report id", async () => {
     vi.stubEnv("PERSISTENCE_RETRY_BASE_MS", "1");
     let firestoreWrites = 0;

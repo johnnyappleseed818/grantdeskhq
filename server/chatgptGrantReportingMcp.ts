@@ -6,7 +6,7 @@ import type { AuthenticatedUser } from "./auth.ts";
 import { beginFreeFirstAward, finalizeCompilationAnalysisCache, listReports, readBillingAttribution, readCompilationAnalysisCache, readCompilationById, readCompilationByRequest, saveCompilation } from "./persistence.ts";
 import type { CompilationRequest, CompilationResult, PersistedCompilationResponse, SourceRole } from "../src/types/prototype.ts";
 import { McpOauthAuthenticationError, grantReportingMcpScopes, hasMcpScope, oauthChallenge, requireGrantReportingMcpUser } from "./chatgptGrantReportingOAuth.ts";
-import { validateCompilationRequest } from "../src/lib/prototype.ts";
+import { MCP_COMPILATION_REQUEST_ID_PATTERN, MCP_COMPILATION_REQUEST_ID_REGEX, validateCompilationRequest } from "../src/lib/prototype.ts";
 import { normalizeCompilationSources } from "./sourceNormalization.ts";
 import { compileGrantReport } from "./reportCompiler.ts";
 
@@ -22,7 +22,7 @@ const reportSummarySchema = z.object({
 });
 const reportListOutputSchema = z.object({ reports: z.array(reportSummarySchema) });
 const reportInputSchema = {
-  requestId: z.string().regex(/^mcp_[a-zA-Z0-9_-]{12,100}$/),
+  requestId: z.string().regex(MCP_COMPILATION_REQUEST_ID_REGEX),
   organizationName: z.string().trim().min(2).max(200),
   grantName: z.string().trim().min(2).max(200),
   reportingPeriod: z.string().trim().min(2).max(200),
@@ -63,7 +63,7 @@ export function grantReportingMcpToolDefinitions(): McpToolDefinition[] {
     { name: "get_budget_vs_actual", title: "Get deterministic budget versus actual", description: "Returns persisted deterministic budget-to-actual calculations and financial controls for one tenant-owned report.", inputSchema: { type: "object", properties: { reportId }, required: ["reportId"], additionalProperties: false }, annotations: readOnlyAnnotations, securitySchemes: readSecurity },
     { name: "get_missing_report_inputs", title: "Get missing inputs and review items", description: "Returns persisted missing-input questions and source-cited review items for one tenant-owned report.", inputSchema: { type: "object", properties: { reportId }, required: ["reportId"], additionalProperties: false }, annotations: readOnlyAnnotations, securitySchemes: readSecurity },
     { name: "get_reviewable_report_draft", title: "Get a reviewable draft", description: "Returns the persisted source-linked draft narrative for one tenant-owned report. It cannot submit a report.", inputSchema: { type: "object", properties: { reportId }, required: ["reportId"], additionalProperties: false }, annotations: readOnlyAnnotations, securitySchemes: readSecurity },
-    { name: "create_report_from_document_text", title: "Create a source-linked GrantDeskHQ report from document text", description: "Creates one tenant-owned report from user-provided agreement, budget, ledger, template, or program-update text. It never submits to a funder.", inputSchema: { type: "object", properties: { requestId: { type: "string", pattern: "^mcp_[a-zA-Z0-9_-]{12,100}$" }, organizationName: { type: "string", minLength: 2, maxLength: 200 }, grantName: { type: "string", minLength: 2, maxLength: 200 }, reportingPeriod: { type: "string", minLength: 2, maxLength: 200 }, awardAgreementText: text, approvedBudgetText: text, ledgerExportText: text, funderTemplateText: text, programUpdateText: text }, required: ["requestId", "organizationName", "grantName", "reportingPeriod", "awardAgreementText"], additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }, securitySchemes: writeSecurity }
+    { name: "create_report_from_document_text", title: "Create a source-linked GrantDeskHQ report from document text", description: "Creates one tenant-owned report from user-provided agreement, budget, ledger, template, or program-update text. It never submits to a funder.", inputSchema: { type: "object", properties: { requestId: { type: "string", pattern: `^${MCP_COMPILATION_REQUEST_ID_PATTERN}$` }, organizationName: { type: "string", minLength: 2, maxLength: 200 }, grantName: { type: "string", minLength: 2, maxLength: 200 }, reportingPeriod: { type: "string", minLength: 2, maxLength: 200 }, awardAgreementText: text, approvedBudgetText: text, ledgerExportText: text, funderTemplateText: text, programUpdateText: text }, required: ["requestId", "organizationName", "grantName", "reportingPeriod", "awardAgreementText"], additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }, securitySchemes: writeSecurity }
   ];
   return tools.map((tool) => ({ ...tool, securitySchemes: tool.securitySchemes.map((scheme) => ({ ...scheme, scopes: [...scheme.scopes] })) }));
 }

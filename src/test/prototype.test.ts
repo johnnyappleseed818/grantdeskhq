@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { prototypeFixture } from "../data/prototypeFixture";
-import { canGenerateReviewPackage, validateCompilationRequest, validateReadinessRequest } from "../lib/prototype";
+import { canGenerateReviewPackage, isValidCompilationRequestId, validateCompilationRequest, validateReadinessRequest } from "../lib/prototype";
 import type { CompilationRequest, CompilationResult, ReadinessRequest, SourceRole } from "../types/prototype";
 
 const requiredRoles: SourceRole[] = ["awardAgreement", "approvedBudget", "ledgerExport", "funderTemplate", "programUpdate"];
@@ -31,10 +31,18 @@ describe("prototype request validation", () => {
     expect(validateCompilationRequest(input)).toContain("Missing required source: awardAgreement.");
   });
 
-  it("accepts a UUID request identifier and rejects malformed retry identifiers", () => {
+  it("accepts UUID and MCP request identifiers and rejects malformed retry identifiers", () => {
     const valid = request();
     valid.requestId = "3dd8a462-480c-4ed7-a4a3-6fcb92d1427a";
     expect(validateCompilationRequest(valid)).toEqual([]);
+    for (const requestId of ["mcp_browser_test_20261005_165341", "mcp_70dd5d2ed5bcd135f41122dd3a96ec9f"]) {
+      expect(isValidCompilationRequestId(requestId)).toBe(true);
+      expect(validateCompilationRequest({ ...valid, requestId })).toEqual([]);
+    }
+    for (const requestId of ["mcp_short", "mcp_browser.test_20261005", "mcp_", `mcp_${"a".repeat(101)}`]) {
+      expect(isValidCompilationRequestId(requestId)).toBe(false);
+      expect(validateCompilationRequest({ ...valid, requestId })).toContain("The report request identifier is invalid.");
+    }
     expect(validateCompilationRequest({ ...valid, requestId: "retry-this-report" })).toContain("The report request identifier is invalid.");
   });
 

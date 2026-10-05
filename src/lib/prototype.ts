@@ -16,6 +16,15 @@ export interface CompilationUploadLimits {
   maxEvidenceTotalBytes?: number;
 }
 
+/**
+ * ChatGPT MCP calls need a stable idempotency key that survives a tool retry.
+ * Keep this contract shared by the advertised MCP schema, compilation
+ * validation, and persistence so an accepted tool input never becomes an
+ * invalid persistence key later in the request.
+ */
+export const MCP_COMPILATION_REQUEST_ID_PATTERN = "mcp_[a-zA-Z0-9_-]{12,100}";
+export const MCP_COMPILATION_REQUEST_ID_REGEX = new RegExp(`^${MCP_COMPILATION_REQUEST_ID_PATTERN}$`);
+
 export function validateCompilationRequest(input: CompilationRequest, limits: CompilationUploadLimits = {}): string[] {
   const errors: string[] = [];
   if (!input.organizationName.trim()) errors.push("Organization name is required.");
@@ -64,7 +73,10 @@ export function encodedFileSize(data: string) {
 }
 
 export function isValidCompilationRequestId(value: string | undefined): value is string {
-  return Boolean(value && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value));
+  return Boolean(value && (
+    /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value)
+    || MCP_COMPILATION_REQUEST_ID_REGEX.test(value)
+  ));
 }
 
 export function validateCompilationPreflightRequest(input: CompilationPreflightRequest): string[] {
