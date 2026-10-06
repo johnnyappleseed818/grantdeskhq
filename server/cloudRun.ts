@@ -43,7 +43,7 @@ import { GTM_INVENTORY_POLICY, inventoryDecision, socialDiscoveryBreadth, type I
 import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type GtmOutcomeEvent, type GtmOutcomeType, type OpportunityClusterStatus } from "../src/lib/gtmOpportunityEngine.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
-import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, cleanCampaignStatusAllowsAutomaticDispatch, cleanCampaignStatusAllowsCapacityAlignment, cleanInitialOnlyCampaignChecks, cleanInitialOnlyCampaignReady, controlledCampaignSafetySummary, hasProviderConfirmedInitialSendEvidence, InstantlyClient, instantlyConfig, instantlyHealth, instantSafeSummary, instantlyItems, instantlyLeadCampaignId, instantlyLeadTelemetry, instantlyPreviewRecord, instantlyReconciliationRecordChanged, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "./instantly.ts";
+import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, cleanCampaignStatusAllowsAutomaticDispatch, cleanCampaignStatusAllowsCapacityAlignment, cleanInitialOnlyCampaignChecks, cleanInitialOnlyCampaignReady, controlledCampaignSafetySummary, hasProviderConfirmedInitialSendEvidence, InstantlyClient, instantlyConfig, instantlyHealth, instantSafeSummary, instantlyItems, instantlyLeadCampaignId, instantlyLeadTelemetry, instantlyPreviewRecord, instantlyReconciliationRecordChanged, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership, type InstantlyIntegrationRecord } from "./instantly.ts";
 import { adoptMappedInstantlyLead, canReplaceInstantlyPreview, cleanMembershipEvidenceId, cleanMembershipRebindReason, isCleanMembershipEvidenceRecord, needsCanonicalInitialSendRecovery, rebindMappedInstantlyRecord } from "./instantly.ts";
 import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from "./outboundIncidentClosure.ts";
@@ -1548,6 +1548,7 @@ async function reconcileInstantlyPolling() {
   const mappedAnalytics = analyticsItems.filter((item) => mappedCampaignIds.has(String(item.campaign_id || item.id || "")));
   const requiredErrors = results.slice(0, 5).flatMap((result, index) => result.status === "rejected" ? [`${["lead_lists", "campaigns", "accounts", "leads", "campaign_analytics"][index]}: ${result.reason instanceof Error ? result.reason.message : "request failed"}`] : []);
   const emailReadError = results[5]?.status === "rejected" ? (results[5].reason instanceof Error ? results[5].reason.message : "request failed") : "";
+  const lifecycle = instantlyLifecycleSummary(records, cleanCampaignIds);
   const snapshot = {
     ...health,
     checkedAt: new Date().toISOString(),
@@ -1568,6 +1569,7 @@ async function reconcileInstantlyPolling() {
     duplicatesPrevented: duplicateEmails,
     adoptedCleanMemberships,
     cleanMembershipRebindReasons,
+    lifecycle,
     campaignAnalytics: mappedAnalytics.map((item) => Object.fromEntries(["campaign_id", "campaign_name", "campaign_status", "leads_count", "contacted_count", "emails_sent_count", "reply_count", "reply_count_unique", "reply_count_automatic", "bounced_count", "unsubscribed_count", "completed_count", "total_opportunities"].flatMap((field) => typeof item[field] === "string" || typeof item[field] === "number" || typeof item[field] === "boolean" ? [[field, item[field]]] : []))),
     polledRecords,
     stalePreSendRecords,
@@ -1579,8 +1581,64 @@ async function reconcileInstantlyPolling() {
   };
   await saveInstantlyStatus(snapshot);
   console.info(JSON.stringify({ event: "GTM_INSTANTLY_CAPACITY", checkedAt: snapshot.checkedAt, reconciliation: snapshot.reconciliation, providerCapacity, capacityCampaignReads }));
+  // Scheduler-safe aggregate outcome evidence. This deliberately contains no
+  // recipient, organization, email, copy, or provider credential data. It
+  // makes the distinction between a provider-confirmed campaign initial send
+  // and an accepted, unresolved, or quarantined membership observable without
+  // trusting enrolment acknowledgements as delivery evidence.
+  console.info(JSON.stringify({ event: "GTM_INSTANTLY_RECONCILIATION", checkedAt: snapshot.checkedAt, reconciliation: snapshot.reconciliation, lifecycle, transitions, emailEvidence: recentEmails ? "AVAILABLE" : "UNAVAILABLE", emailEvidenceError: emailReadError || undefined, errors: requiredErrors }));
   if (outcomeRecorded) await reconcileGtmOpportunityEngineSafely("instantly_polling");
   return { mode: "READ_ONLY", status: snapshot };
+}
+
+function instantlyLifecycleSummary(records: readonly InstantlyIntegrationRecord[], campaigns: { DIRECT: string; PARTNER: string }) {
+  const bySegment = Object.fromEntries((["DIRECT", "PARTNER"] as const).map((segment) => [segment, {
+    memberships: 0,
+    providerConfirmedInitialSends: 0,
+    providerConfirmedByDetroitDate: {} as Record<string, number>,
+    acceptedOrScheduled: 0,
+    unresolved: 0,
+    bounced: 0,
+    replied: 0,
+    positiveReplies: 0,
+    unsubscribed: 0,
+    terminalProviderErrors: 0,
+    quarantinedWeakEvidence: 0
+  }])) as Record<DispatchSegment, {
+    memberships: number;
+    providerConfirmedInitialSends: number;
+    providerConfirmedByDetroitDate: Record<string, number>;
+    acceptedOrScheduled: number;
+    unresolved: number;
+    bounced: number;
+    replied: number;
+    positiveReplies: number;
+    unsubscribed: number;
+    terminalProviderErrors: number;
+    quarantinedWeakEvidence: number;
+  }>;
+  const campaignSegment = new Map([[campaigns.DIRECT, "DIRECT" as const], [campaigns.PARTNER, "PARTNER" as const]]);
+  const detroitDate = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Detroit" });
+  for (const record of records) {
+    const segment = campaignSegment.get(record.instantlyCampaignId);
+    if (!segment) continue;
+    const summary = bySegment[segment];
+    summary.memberships++;
+    if (hasProviderConfirmedInitialSendEvidence(record)) {
+      summary.providerConfirmedInitialSends++;
+      const date = detroitDate.format(new Date(record.firstSentAt));
+      summary.providerConfirmedByDetroitDate[date] = (summary.providerConfirmedByDetroitDate[date] || 0) + 1;
+    }
+    if (["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus)) summary.acceptedOrScheduled++;
+    if (["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus) || (record.instantlySyncStatus === "QUARANTINED" && record.failureReason === "UNVERIFIED_MAILBOX_ORIGIN_SEND_EVIDENCE")) summary.unresolved++;
+    if (record.instantlySyncStatus === "BOUNCED") summary.bounced++;
+    if (record.instantlySyncStatus === "REPLIED") summary.replied++;
+    if (record.instantlySyncStatus === "POSITIVE") summary.positiveReplies++;
+    if (record.instantlySyncStatus === "UNSUBSCRIBED") summary.unsubscribed++;
+    if (record.instantlySyncStatus === "ERROR") summary.terminalProviderErrors++;
+    if (record.instantlySyncStatus === "QUARANTINED" && record.failureReason === "UNVERIFIED_MAILBOX_ORIGIN_SEND_EVIDENCE") summary.quarantinedWeakEvidence++;
+  }
+  return bySegment;
 }
 
 async function handleInstantlyReconcile(request: IncomingMessage, response: ServerResponse) {
