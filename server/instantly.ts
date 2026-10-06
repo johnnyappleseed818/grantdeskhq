@@ -91,6 +91,13 @@ export interface InstantlyLeadPollingTransition {
   suppressEmail: "hard_bounce" | "unsubscribe" | null;
 }
 
+/** Only an exact campaign-step record, an immutable email event, or a signed
+ * webhook is sufficient for a provider-confirmed initial send. A mailbox
+ * address in last_step_from can describe warmup or manual activity. */
+export function hasProviderConfirmedInitialSendEvidence(record: Pick<InstantlyIntegrationRecord, "firstSentAt" | "sentAtSource">) {
+  return Boolean(record.firstSentAt && ["INSTANTLY_CAMPAIGN_LAST_STEP_TIMESTAMP", "INSTANTLY_EMAIL_EVIDENCE", "INSTANTLY_WEBHOOK_EVENT"].includes(record.sentAtSource));
+}
+
 export interface LegacyProviderExclusionCheck {
   satisfied: boolean;
   /** Only emails with every required source of evidence are returned. */
@@ -436,7 +443,7 @@ export function canReplaceInstantlyPreview(record: InstantlyIntegrationRecord | 
  * provider-confirmed first-step timestamp on the configured clean campaign. */
 export function needsCanonicalInitialSendRecovery(record: InstantlyIntegrationRecord, canonical: CanonicalGtmRecord | undefined, config: InstantlyConfig) {
   return Boolean(
-    canonical && canonical.state === "READY_TO_SEND" && record.firstSentAt
+    canonical && canonical.state === "READY_TO_SEND" && hasProviderConfirmedInitialSendEvidence(record)
     && record.instantlyCampaignId === activeInstantlyCampaignId(config, record.segment)
     && normalizeOutboundEmail(record.email) === normalizeOutboundEmail(canonical.email || "")
   );
@@ -736,6 +743,7 @@ export function reconcileInstantlyLead(record: InstantlyIntegrationRecord, lead:
   const campaignId = text(lead.campaign) || record.instantlyCampaignId;
   const stepAt = text(lead.last_step_timestamp_executed) || text(lastStep.timestamp_executed);
   const stepFrom = text(lead.last_step_from) || text(lastStep.from);
+  const campaignStep = stepFrom.toLowerCase() === "campaign";
   const providerUpdatedAt = text(lead.timestamp_updated);
   const base = {
     ...record,
@@ -759,7 +767,26 @@ export function reconcileInstantlyLead(record: InstantlyIntegrationRecord, lead:
     if (interest === 0) return { record: event("OUT_OF_OFFICE", providerUpdatedAt || now), event: "OUT_OF_OFFICE", suppressEmail: null };
   }
   if (replyCount > (record.lastKnownReplyCount || 0)) return { record: event("REPLY_RECEIVED", providerUpdatedAt || now), event: "REPLY_RECEIVED", suppressEmail: null };
-  if (!record.firstSentAt && campaignId && stepAt && stepFrom) return { record: { ...event("EMAIL_SENT", stepAt), sentAtSource: "INSTANTLY_LEAD_LAST_STEP_TIMESTAMP" }, event: "EMAIL_SENT", suppressEmail: null };
+  // Versions before the campaign-origin guard recorded any non-empty
+  // last_step_from as a send. Reclassify only positively contradictory
+  // mailbox/manual evidence; a missing field remains unresolved, never a
+  // permission to clear history or retry the recipient.
+  if (record.firstSentAt && record.sentAtSource === "INSTANTLY_LEAD_LAST_STEP_TIMESTAMP") {
+    if (campaignId && stepAt && campaignStep) return { record: { ...base, sentAtSource: "INSTANTLY_CAMPAIGN_LAST_STEP_TIMESTAMP" }, event: null, suppressEmail: null };
+    if (stepFrom && !campaignStep) return {
+      record: {
+        ...base,
+        instantlySyncStatus: "QUARANTINED",
+        firstSentAt: "",
+        lastSentAt: record.lastSentAt || record.firstSentAt,
+        sentAtSource: "",
+        failureReason: "UNVERIFIED_MAILBOX_ORIGIN_SEND_EVIDENCE"
+      },
+      event: null,
+      suppressEmail: null
+    };
+  }
+  if (!record.firstSentAt && campaignId && stepAt && campaignStep) return { record: { ...event("EMAIL_SENT", stepAt), sentAtSource: "INSTANTLY_CAMPAIGN_LAST_STEP_TIMESTAMP" }, event: "EMAIL_SENT", suppressEmail: null };
   if (providerStatus === 3 && replyCount === 0 && !record.replyReceivedAt && !record.firstSentAt) return { record: event("SEQUENCE_COMPLETED", providerUpdatedAt || now), event: "SEQUENCE_COMPLETED", suppressEmail: null };
   return { record: base, event: null, suppressEmail: null };
 }
@@ -777,6 +804,8 @@ export function instantlyReconciliationRecordChanged(previous: InstantlyIntegrat
     || previous.instantlySyncStatus !== next.instantlySyncStatus
     || previous.firstSentAt !== next.firstSentAt
     || previous.lastSentAt !== next.lastSentAt
+    || previous.sentAtSource !== next.sentAtSource
+    || previous.failureReason !== next.failureReason
     || previous.replyReceivedAt !== next.replyReceivedAt
     || previous.bounceAt !== next.bounceAt
     || previous.unsubscribeAt !== next.unsubscribeAt
@@ -879,7 +908,7 @@ export function verifyInstantlyWebhookToken(token: string | undefined, secret: s
 export function applyInstantlyEvent(record: InstantlyIntegrationRecord, event: InstantlyWebhookEvent): InstantlyIntegrationRecord {
   const at = event.occurredAt || new Date().toISOString();
   const updated = { ...record, updatedAt: new Date().toISOString(), lastInstantlySyncAt: at, instantlyCampaignId: event.campaignId || record.instantlyCampaignId };
-  if (event.type === "EMAIL_SENT") return { ...updated, instantlySyncStatus: "SENT", firstSentAt: record.firstSentAt || at, lastSentAt: at };
+  if (event.type === "EMAIL_SENT") return { ...updated, instantlySyncStatus: "SENT", firstSentAt: record.firstSentAt || at, lastSentAt: at, sentAtSource: record.sentAtSource || (event.rawType === "polling" ? "" : "INSTANTLY_WEBHOOK_EVENT") };
   if (event.type === "REPLY_RECEIVED") return { ...updated, instantlySyncStatus: "REPLIED", replyReceivedAt: at, replyDisposition: "REPLIED" };
   if (event.type === "INTERESTED") return { ...updated, instantlySyncStatus: "POSITIVE", replyReceivedAt: record.replyReceivedAt || at, replyDisposition: "INTERESTED" };
   if (event.type === "NOT_INTERESTED" || event.type === "WRONG_PERSON") return { ...updated, instantlySyncStatus: "NOT_INTERESTED", replyDisposition: event.type };

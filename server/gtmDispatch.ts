@@ -25,6 +25,7 @@ type ProviderCanaryEvidence = {
   instantlyLeadId: string;
   instantlySyncStatus: string;
   firstSentAt: string;
+  sentAtSource?: string;
 };
 
 /** Advance a canary only from the same provider lead in the same mapped
@@ -42,13 +43,13 @@ export function advanceDispatchActivationFromProvider<T extends DispatchActivati
     stateVersion: activation.stateVersion + 1,
     updatedAt: observedAt
   });
-  if (["BOUNCED", "UNSUBSCRIBED", "ERROR"].includes(record.instantlySyncStatus)) {
-    const reason = record.instantlySyncStatus === "BOUNCED" ? "CANARY_BOUNCED" : record.instantlySyncStatus === "UNSUBSCRIBED" ? "CANARY_UNSUBSCRIBED" : "CANARY_PROVIDER_RECORD_ERROR";
+  if (["BOUNCED", "UNSUBSCRIBED", "ERROR", "QUARANTINED"].includes(record.instantlySyncStatus)) {
+    const reason = record.instantlySyncStatus === "BOUNCED" ? "CANARY_BOUNCED" : record.instantlySyncStatus === "UNSUBSCRIBED" ? "CANARY_UNSUBSCRIBED" : record.instantlySyncStatus === "QUARANTINED" ? "CANARY_EVIDENCE_QUARANTINED" : "CANARY_PROVIDER_RECORD_ERROR";
     return activation.outcome === "FAILED" && activation.failureReason === reason ? activation : next("FAILED", activation.providerSentAt, reason);
   }
   // A provider-confirmed first-send timestamp tied to this exact membership is
   // the only positive evidence that can advance an accepted canary.
-  if (record.firstSentAt && ["SENT", "REPLIED", "POSITIVE", "NOT_INTERESTED", "SEQUENCE_COMPLETE"].includes(record.instantlySyncStatus)) {
+  if (record.firstSentAt && ["INSTANTLY_CAMPAIGN_LAST_STEP_TIMESTAMP", "INSTANTLY_EMAIL_EVIDENCE", "INSTANTLY_WEBHOOK_EVENT"].includes(String(record.sentAtSource || "")) && ["SENT", "REPLIED", "POSITIVE", "NOT_INTERESTED", "SEQUENCE_COMPLETE"].includes(record.instantlySyncStatus)) {
     return activation.outcome === "SENT" && activation.providerSentAt === record.firstSentAt ? activation : next("SENT", record.firstSentAt, "");
   }
   return activation;

@@ -206,7 +206,7 @@ describe("Instantly fail-closed integration", () => {
 
   it("adopts only matching clean memberships and preserves first-step provider evidence", () => {
     const config = instantlyConfig({ INSTANTLY_DIRECT_CAMPAIGN_ID: "clean_direct", INSTANTLY_PARTNER_CAMPAIGN_ID: "clean_partner", INSTANTLY_LEGACY_DIRECT_CAMPAIGN_ID: "legacy_direct" });
-    const adopted = adoptMappedInstantlyLead({ canonical: record, config, now: "2026-09-07T13:30:00.000Z", lead: { id: "lead_clean", email: record.email, campaign: "clean_direct", status: 3, last_step_from: "sender@example.com", last_step_timestamp_executed: "2026-09-07T13:25:00.000Z", timestamp_updated: "2026-09-07T13:25:01.000Z" } });
+    const adopted = adoptMappedInstantlyLead({ canonical: record, config, now: "2026-09-07T13:30:00.000Z", lead: { id: "lead_clean", email: record.email, campaign: "clean_direct", status: 3, last_step_from: "campaign", last_step_timestamp_executed: "2026-09-07T13:25:00.000Z", timestamp_updated: "2026-09-07T13:25:01.000Z" } });
     expect(adopted).toMatchObject({ event: "EMAIL_SENT", record: { instantlyLeadId: "lead_clean", instantlyCampaignId: "clean_direct", instantlySyncStatus: "SENT", firstSentAt: "2026-09-07T13:25:00.000Z" } });
     expect(adoptMappedInstantlyLead({ canonical: record, config, lead: { id: "legacy", email: record.email, campaign: "legacy_direct" } })).toBeNull();
     expect(adoptMappedInstantlyLead({ canonical: { ...record, segment: "PARTNER" }, config, lead: { id: "wrong_segment", email: record.email, campaign: "clean_direct" } })).toBeNull();
@@ -222,7 +222,7 @@ describe("Instantly fail-closed integration", () => {
 
   it("creates deterministic Clean evidence without replacing a historical record", () => {
     const config = instantlyConfig({ INSTANTLY_DIRECT_CAMPAIGN_ID: "clean_direct", INSTANTLY_PARTNER_CAMPAIGN_ID: "clean_partner", INSTANTLY_LEGACY_DIRECT_CAMPAIGN_ID: "legacy_direct" });
-    const lead = { id: "clean_provider_lead", email: record.email, campaign: "clean_direct", status: 3, last_step_from: "sender@example.com", last_step_timestamp_executed: "2026-09-07T13:25:00.000Z" };
+    const lead = { id: "clean_provider_lead", email: record.email, campaign: "clean_direct", status: 3, last_step_from: "campaign", last_step_timestamp_executed: "2026-09-07T13:25:00.000Z" };
     const id = cleanMembershipEvidenceId({ canonical: record, lead, config });
     expect(id).toMatch(/^instantly_clean_evidence_/);
     expect(cleanMembershipEvidenceId({ canonical: record, lead: { ...lead, campaign: "legacy_direct" }, config })).toBe("");
@@ -231,11 +231,12 @@ describe("Instantly fail-closed integration", () => {
 
   it("recovers only a missed clean-campaign initial-send outcome from persisted provider evidence", () => {
     const config = instantlyConfig({ INSTANTLY_DIRECT_CAMPAIGN_ID: "clean_direct", INSTANTLY_PARTNER_CAMPAIGN_ID: "clean_partner" });
-    const confirmed = { ...instantlyPreviewRecord(record), instantlyCampaignId: "clean_direct", instantlyLeadId: "lead_clean", instantlySyncStatus: "SENT" as const, firstSentAt: "2026-09-07T13:25:00.000Z" };
+    const confirmed = { ...instantlyPreviewRecord(record), instantlyCampaignId: "clean_direct", instantlyLeadId: "lead_clean", instantlySyncStatus: "SENT" as const, firstSentAt: "2026-09-07T13:25:00.000Z", sentAtSource: "INSTANTLY_CAMPAIGN_LAST_STEP_TIMESTAMP" };
     expect(needsCanonicalInitialSendRecovery(confirmed, record, config)).toBe(true);
     expect(needsCanonicalInitialSendRecovery({ ...confirmed, instantlyCampaignId: "legacy_direct" }, record, config)).toBe(false);
     expect(needsCanonicalInitialSendRecovery(confirmed, { ...record, state: "AWAITING_REPLY" }, config)).toBe(false);
     expect(needsCanonicalInitialSendRecovery({ ...confirmed, firstSentAt: "" }, record, config)).toBe(false);
+    expect(needsCanonicalInitialSendRecovery({ ...confirmed, sentAtSource: "INSTANTLY_LEAD_LAST_STEP_TIMESTAMP" }, record, config)).toBe(false);
   });
 
   it("permits a campaign configuration write only for the exact enabled batch", async () => {
@@ -307,8 +308,22 @@ describe("Instantly fail-closed integration", () => {
     const sent = reconcileInstantlyLead(staged, lead, "2026-08-23T10:01:00.000Z");
     expect(sent.event).toBe("EMAIL_SENT");
     expect(sent.record.firstSentAt).toBe("2026-08-23T09:59:00.000Z");
-    expect(sent.record.sentAtSource).toBe("INSTANTLY_LEAD_LAST_STEP_TIMESTAMP");
+    expect(sent.record.sentAtSource).toBe("INSTANTLY_CAMPAIGN_LAST_STEP_TIMESTAMP");
     expect(reconcileInstantlyLead(sent.record, lead, "2026-08-23T10:02:00.000Z").event).toBeNull();
+  });
+
+  it("quarantines prior mailbox-origin polling evidence instead of counting it as an initial send", () => {
+    const weak = { ...instantlyPreviewRecord(record), instantlySyncStatus: "SENT" as const, instantlyLeadId: "lead_mailbox", instantlyCampaignId: "campaign_1", firstSentAt: "2026-08-23T09:59:00.000Z", lastSentAt: "2026-08-23T09:59:00.000Z", sentAtSource: "INSTANTLY_LEAD_LAST_STEP_TIMESTAMP" };
+    const transition = reconcileInstantlyLead(weak, { id: "lead_mailbox", campaign: "campaign_1", status: 1, last_step_from: "sender@example.com", last_step_timestamp_executed: "2026-08-23T09:59:00.000Z" });
+    expect(transition.event).toBeNull();
+    expect(transition.record).toMatchObject({ instantlySyncStatus: "QUARANTINED", firstSentAt: "", lastSentAt: "2026-08-23T09:59:00.000Z", failureReason: "UNVERIFIED_MAILBOX_ORIGIN_SEND_EVIDENCE" });
+  });
+
+  it("persists a campaign-origin evidence upgrade even when the provider timestamp is unchanged", () => {
+    const weak = { ...instantlyPreviewRecord(record), instantlySyncStatus: "SENT" as const, instantlyLeadId: "lead_campaign", instantlyCampaignId: "campaign_1", firstSentAt: "2026-08-23T09:59:00.000Z", lastSentAt: "2026-08-23T09:59:00.000Z", sentAtSource: "INSTANTLY_LEAD_LAST_STEP_TIMESTAMP" };
+    const transition = reconcileInstantlyLead(weak, { id: "lead_campaign", campaign: "campaign_1", status: 1, last_step_from: "campaign", last_step_timestamp_executed: "2026-08-23T09:59:00.000Z" });
+    expect(transition.record.sentAtSource).toBe("INSTANTLY_CAMPAIGN_LAST_STEP_TIMESTAMP");
+    expect(instantlyReconciliationRecordChanged(weak, transition.record)).toBe(true);
   });
 
   it("persists a provider-confirmed Clean campaign remap even when its timestamp is unchanged", () => {

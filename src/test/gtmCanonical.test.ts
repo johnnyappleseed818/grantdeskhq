@@ -36,14 +36,14 @@ describe("canonical GTM model", () => {
     expect(record.blockers).toContain("AMBIGUOUS_PROVIDER_OUTCOME_QUARANTINED");
   });
   it("reconciles a unique same-segment provider send after organization identity normalization", () => {
-    const external = [{ canonicalOrganizationId: "org:legacy-oceanology", email: "lisa@oceanology.org", segment: "DIRECT" as const, instantlySyncStatus: "SENT", firstSentAt: "2026-09-07T13:25:00.000Z" }];
+    const external = [{ canonicalOrganizationId: "org:legacy-oceanology", email: "lisa@oceanology.org", segment: "DIRECT" as const, instantlySyncStatus: "SENT", firstSentAt: "2026-09-07T13:25:00.000Z", sentAtSource: "INSTANTLY_EMAIL_EVIDENCE" }];
     const record = buildCanonicalGtmModel({ candidates: [candidate], enrichments: [enrichment("VERIFIED", true)], outreach: [], instantly: external }).records[0];
     expect(record).toMatchObject({ state: "AWAITING_REPLY", priorContact: true, sentAt: "2026-09-07T13:25:00.000Z" });
   });
   it("prefers deterministic Clean evidence over stale legacy state for the same canonical recipient", () => {
     const external = [
       { canonicalOrganizationId: "org:oceanology.org", email: "lisa@oceanology.org", segment: "DIRECT" as const, instantlySyncStatus: "IN_CAMPAIGN", updatedAt: "2026-09-01T00:00:00.000Z" },
-      { canonicalOrganizationId: "org:oceanology.org", email: "lisa@oceanology.org", segment: "DIRECT" as const, instantlySyncStatus: "SENT", firstSentAt: "2026-09-07T13:25:00.000Z", messageVersion: "provider-reconciled-clean-v1", updatedAt: "2026-09-07T13:26:00.000Z" }
+      { canonicalOrganizationId: "org:oceanology.org", email: "lisa@oceanology.org", segment: "DIRECT" as const, instantlySyncStatus: "SENT", firstSentAt: "2026-09-07T13:25:00.000Z", sentAtSource: "INSTANTLY_EMAIL_EVIDENCE", messageVersion: "provider-reconciled-clean-v1", updatedAt: "2026-09-07T13:26:00.000Z" }
     ];
     const record = buildCanonicalGtmModel({ candidates: [candidate], enrichments: [enrichment("VERIFIED", true)], outreach: [], instantly: external }).records[0];
     expect(record).toMatchObject({ state: "AWAITING_REPLY", priorContact: true, sentAt: "2026-09-07T13:25:00.000Z" });
@@ -54,5 +54,11 @@ describe("canonical GTM model", () => {
     const ambiguous = [{ canonicalOrganizationId: "org:legacy-oceanology", email: "lisa@oceanology.org", segment: "DIRECT" as const, instantlySyncStatus: "SENT", firstSentAt: "2026-09-07T13:25:00.000Z" }, { canonicalOrganizationId: "org:older-oceanology", email: "lisa@oceanology.org", segment: "DIRECT" as const, instantlySyncStatus: "SENT", firstSentAt: "2026-09-07T13:26:00.000Z" }];
     expect(buildCanonicalGtmModel({ candidates: [candidate], enrichments: [enrichment("VERIFIED", true)], outreach: [], instantly: crossSegment }).records[0].state).toBe("READY_TO_SEND");
     expect(buildCanonicalGtmModel({ candidates: [candidate], enrichments: [enrichment("VERIFIED", true)], outreach: [], instantly: ambiguous }).records[0].state).toBe("READY_TO_SEND");
+  });
+  it("quarantines a sent timestamp that lacks campaign-scoped provider evidence", () => {
+    const external = [{ canonicalOrganizationId: "org:oceanology.org", email: "lisa@oceanology.org", segment: "DIRECT" as const, instantlySyncStatus: "SENT", firstSentAt: "2026-09-07T13:25:00.000Z", sentAtSource: "INSTANTLY_LEAD_LAST_STEP_TIMESTAMP" }];
+    const record = buildCanonicalGtmModel({ candidates: [candidate], enrichments: [enrichment("VERIFIED", true)], outreach: [], instantly: external }).records[0];
+    expect(record).toMatchObject({ state: "OUTBOUND_QUARANTINED", suppressionStatus: "BLOCKED", priorContact: false, sentAt: null });
+    expect(record.blockers).toContain("PROVIDER_SEND_EVIDENCE_UNVERIFIED");
   });
 });

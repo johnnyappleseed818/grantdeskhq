@@ -93,6 +93,7 @@ export interface CanonicalExternalOutreachState {
   instantlySyncStatus: string;
   segment?: CanonicalSegment;
   firstSentAt?: string;
+  sentAtSource?: string;
   replyReceivedAt?: string;
   bounceAt?: string;
   unsubscribeAt?: string;
@@ -240,7 +241,9 @@ function applyExternalCommercialState(record: CanonicalGtmRecord, external: Cano
     blockers: [external.failureReason || "PROVIDER_OUTCOME_UNRESOLVED"],
     nextAction: "Provider outcome is unresolved; this organization and recipient are permanently excluded from new initial outreach."
   };
-  if (status === "SENT" && external.firstSentAt) return { ...record, ...provider, state: "AWAITING_REPLY", priorContact: true, blockers: [], sentAt: external.firstSentAt, nextAction: "Await a provider-recorded response; no new first touch is eligible." };
+  const confirmedSendEvidence = ["INSTANTLY_CAMPAIGN_LAST_STEP_TIMESTAMP", "INSTANTLY_EMAIL_EVIDENCE", "INSTANTLY_WEBHOOK_EVENT"].includes(String(external.sentAtSource || ""));
+  if (status === "SENT" && external.firstSentAt && confirmedSendEvidence) return { ...record, ...provider, state: "AWAITING_REPLY", priorContact: true, blockers: [], sentAt: external.firstSentAt, nextAction: "Await a provider-recorded response; no new first touch is eligible." };
+  if (status === "SENT" && external.firstSentAt) return { ...record, ...provider, state: "OUTBOUND_QUARANTINED", suppressionStatus: "BLOCKED", blockers: ["PROVIDER_SEND_EVIDENCE_UNVERIFIED"], nextAction: "Provider send evidence is not sufficiently campaign-specific; preserve the recipient and do not create another first touch." };
   if (status === "SENT") return { ...record, ...provider, blockers: ["PROVIDER_SEND_TIMESTAMP_MISSING"], nextAction: "Provider status is not counted as SENT until a provider-confirmed send timestamp is persisted." };
   if (status === "REPLIED") return { ...record, ...provider, state: "REPLIED", priorContact: true, blockers: [], sentAt: external.firstSentAt || record.sentAt || null, nextAction: "Human response is required in Instantly." };
   if (status === "POSITIVE") return { ...record, ...provider, state: "POSITIVE", priorContact: true, blockers: [], sentAt: external.firstSentAt || record.sentAt || null, nextAction: "Review the interested reply in Instantly." };

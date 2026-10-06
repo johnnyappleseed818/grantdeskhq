@@ -13,7 +13,7 @@ describe("server-authoritative controlled dispatch", () => {
 
   it("advances an accepted canary only from matching provider membership and confirmed first-send evidence", () => {
     const activation = { campaignId: "clean-partner", providerLeadId: "lead_1", outcome: "ACCEPTED" as const, providerSentAt: "", failureReason: "", stateVersion: 4, updatedAt: "2026-09-22T14:45:00.000Z" };
-    const observed = advanceDispatchActivationFromProvider(activation, [{ instantlyCampaignId: "clean-partner", instantlyLeadId: "lead_1", instantlySyncStatus: "SENT", firstSentAt: "2026-09-22T14:46:00.000Z" }], "2026-09-22T14:47:00.000Z");
+    const observed = advanceDispatchActivationFromProvider(activation, [{ instantlyCampaignId: "clean-partner", instantlyLeadId: "lead_1", instantlySyncStatus: "SENT", firstSentAt: "2026-09-22T14:46:00.000Z", sentAtSource: "INSTANTLY_EMAIL_EVIDENCE" }], "2026-09-22T14:47:00.000Z");
     expect(observed).toMatchObject({ outcome: "SENT", providerSentAt: "2026-09-22T14:46:00.000Z", failureReason: "", stateVersion: 5, updatedAt: "2026-09-22T14:47:00.000Z" });
   });
 
@@ -26,6 +26,12 @@ describe("server-authoritative controlled dispatch", () => {
       { instantlyCampaignId: "clean-direct", instantlyLeadId: "lead_direct", instantlySyncStatus: "IN_CAMPAIGN", firstSentAt: "2026-09-22T14:46:00.000Z" }
     ];
     for (const record of inputs) expect(advanceDispatchActivationFromProvider(activation, [record], "2026-09-22T14:47:00.000Z")).toBe(activation);
+  });
+
+  it("does not advance a canary from a timestamp without campaign-scoped send evidence", () => {
+    const activation = { campaignId: "clean-direct", providerLeadId: "lead_direct", outcome: "ACCEPTED" as const, providerSentAt: "", failureReason: "", stateVersion: 2, updatedAt: "2026-09-22T14:45:00.000Z" };
+    const observed = advanceDispatchActivationFromProvider(activation, [{ instantlyCampaignId: "clean-direct", instantlyLeadId: "lead_direct", instantlySyncStatus: "SENT", firstSentAt: "2026-09-22T14:46:00.000Z", sentAtSource: "INSTANTLY_LEAD_LAST_STEP_TIMESTAMP" }], "2026-09-22T14:47:00.000Z");
+    expect(observed).toBe(activation);
   });
 
   it("fails a matching canary closed on a terminal provider safety event", () => {
