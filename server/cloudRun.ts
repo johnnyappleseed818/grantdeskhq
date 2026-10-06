@@ -494,6 +494,39 @@ async function handleGtmScannerDriveImport(request: IncomingMessage, response: S
   await requireGtmScheduler(request);
   const result = await importScannerDriveBatches();
   const receiptMirrorPending = scannerReceiptMirrorRetryRequired(result.receipts);
+  // Emit one bounded receipt event per committed import rather than relying on
+  // Cloud Logging to render a large receipt array. IDs are canonical opaque
+  // record IDs; organization/contact fields and source content stay private.
+  for (const item of result.receipts) {
+    const receipt = item.receipt;
+    console.info(JSON.stringify({
+      event: "GTM_SCANNER_DRIVE_RECEIPT",
+      receipt: {
+        id: receipt.id,
+        batchId: receipt.batchId,
+        sourceFileId: receipt.sourceFileId,
+        contentHash: receipt.contentHash,
+        processedAt: receipt.processedAt,
+        rowsSeen: receipt.rowsSeen || null,
+        accepted: receipt.accepted,
+        duplicate: receipt.duplicate,
+        rejected: receipt.rejected,
+        pending: receipt.pending,
+        canonicalRecordIds: receipt.canonicalRecordIds,
+        rejectionReasons: receipt.rejectionReasons || {},
+        socialEvidenceAdded: receipt.socialEvidenceAdded || 0,
+        socialCandidatesCreated: receipt.socialCandidatesCreated || 0,
+        socialCandidateDuplicate: receipt.socialCandidateDuplicate || 0,
+        receiptKind: receipt.receiptKind || "IMPORT",
+        alreadyImported: Boolean(receipt.alreadyImported),
+        quarantined: Boolean(receipt.quarantined)
+      },
+      importedNow: item.importedNow,
+      mirrorState: item.mirror.state,
+      mirrorFileId: item.mirror.fileId || "",
+      mirrorError: item.mirror.error || ""
+    }));
+  }
   console.info(JSON.stringify({ event: "GTM_SCANNER_DRIVE_IMPORT", receiptCount: result.receipts.length, importedNow: result.receipts.filter((item) => item.importedNow).length, acceptedNow: result.receipts.filter((item) => item.importedNow).reduce((sum, item) => sum + item.receipt.accepted, 0), reconciledExisting: result.receipts.filter((item) => !item.importedNow).length, receiptMirrorPending, receipts: result.receipts.map((item) => ({ id: item.receipt.id, batchId: item.receipt.batchId, rowsSeen: item.receipt.rowsSeen || null, accepted: item.receipt.accepted, duplicate: item.receipt.duplicate, rejected: item.receipt.rejected, receiptKind: item.receipt.receiptKind || "IMPORT", importedNow: item.importedNow, mirrorState: item.mirror.state, mirrorFileId: item.mirror.fileId || "", mirrorError: item.mirror.error || "" })), timestamp: new Date().toISOString() }));
   // Receipt export has its own bounded scheduler retry. A committed source
   // batch must remain available to validation/enrichment even when Drive has
