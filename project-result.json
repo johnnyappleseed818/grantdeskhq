@@ -1,17 +1,18 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-10-05T18:33:00Z",
+  "updatedAt": "2026-10-06T04:25:05Z",
   "currentSnapshot": {
     "status": "PARTIAL",
-    "asOf": "2026-10-05T18:33:00Z",
-    "servingRevision": "grantdeskhq-prototype-00595-vup",
+    "asOf": "2026-10-06T04:25:05Z",
+    "servingRevision": "grantdeskhq-prototype-00599-deg",
     "runtimeIdentity": "grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com",
     "implementedAndDeployed": {
       "replenishment": "Instantly SuperSearch normal processing is bounded by actual workspace allowance, a default batch of 10 (hard maximum 25), and a deterministic per-seed submission claim. Preview errors remain retryable; any post-claim ambiguous response is quarantined rather than replayed.",
       "awardDiscovery": "The USAspending adapter now runs bounded recent-start and active-award windows. It preserves a seven-day amendment overlap and canonical idempotency, defers future-start records, excludes ended records from the active pass, and labels near-end source periods without asserting a report deadline or purchase intent. The 30-day public-web award/foundation/nonprofit/hiring search remains an independent same-run fallback.",
       "chatgptMcp": "OAuth 2.1 PKCE/DCR endpoints, tenant-bound opaque access tokens and rotating one-time refresh tokens, unauthenticated MCP discovery with seven per-tool OAuth schemes, document-text report intake, and a portable plugin package are deployed. list_grant_reports now projects only its ten explicit summary fields and never returns persisted source, result, manifest, or audit JSON. The MCP surface excludes GTM administration and contact data.",
       "opportunityEnginePersistence": "Provider reconciliation and webhooks now persist a compact opportunity-engine root plus immutable Firestore shards. A research/dashboard persistence fault is logged as deferred and cannot convert an otherwise completed reconciliation or dispatch request into a 500.",
+      "providerSendEvidence": "Campaign dispatch and canonical lifecycle now require a campaign-origin first-step timestamp, an immutable email event, or a signed webhook before counting an initial email as provider-confirmed. Legacy mailbox-origin timestamps are rechecked: campaign evidence is upgraded, contradictory mailbox/manual evidence is quarantined with immutable no-reenrollment protection, and same-day quarantined evidence continues to reserve shared capacity.",
       "evidence": "scripts/gtm/normalize-project-result.mjs validates and rewrites this file through JSON.parse/JSON.stringify so current snapshot fields and historical evidence remain valid JSON."
     },
     "releaseEvidence": {
@@ -22,17 +23,19 @@
         "704066a active-award and spenddown discovery",
         "59569bb dual-window scanner regression",
         "e5a6358 summary-only MCP report list",
-        "b864536 Firestore opportunity-engine snapshot sharding"
+        "b864536 Firestore opportunity-engine snapshot sharding",
+        "c2850b4 campaign-scoped provider send evidence"
       ],
       "builds": [
         "bc05afd4-5c99-46b8-a5dd-323ba5ef21fc SUCCESS",
         "3932779e-ee29-4a58-b8d6-9dde36c5793b SUCCESS",
         "225a320d-7f76-4bc9-b287-f49c1e2f1cfd SUCCESS (OAuth refresh)",
         "7ea6f1e6-dde3-4435-aaad-9aca76a5d2fc SUCCESS (active awards)",
-        "a29518db-e35b-47ef-8b1a-c5277416000d SUCCESS (MCP report summaries)"
+        "a29518db-e35b-47ef-8b1a-c5277416000d SUCCESS (MCP report summaries)",
+        "bef96aa1-8926-435d-a1af-f1e79e910174 SUCCESS (campaign-scoped send evidence)"
       ],
-      "candidateValidation": "00587-qas added OAuth refresh-token metadata and passed health, seven-tool discovery, and protected-call challenge checks. 00589-kuc matched active-award image digest sha256:38ba94145754db800a4b82b443d58432ff7e7da678df79e44fb043dcdeef9f93, used the expected runtime identity, and passed health and protected-call checks. 00591-yeb advertised the strict ten-field list_grant_reports output schema, returned the OAuth challenge for an unauthenticated protected call, and used the expected runtime identity. 00595-vup used digest sha256:93c9249fdd925c58e83491b43be71a277012728565de6e512b4ca9804a512efc, the expected runtime identity, health 200, and an unauthenticated protected MCP call returned 401.",
-      "productionTraffic": "Cloud Run service describes grantdeskhq-prototype-00595-vup at 100% traffic; custom-domain health returned HTTP 200. The repair was deployed without any manual provider enrollment, send, or scheduler invocation."
+      "candidateValidation": "00587-qas added OAuth refresh-token metadata and passed health, seven-tool discovery, and protected-call challenge checks. 00589-kuc matched active-award image digest sha256:38ba94145754db800a4b82b443d58432ff7e7da678df79e44fb043dcdeef9f93, used the expected runtime identity, and passed health and protected-call checks. 00591-yeb advertised the strict ten-field list_grant_reports output schema, returned the OAuth challenge for an unauthenticated protected call, and used the expected runtime identity. 00595-vup used digest sha256:93c9249fdd925c58e83491b43be71a277012728565de6e512b4ca9804a512efc, the expected runtime identity, health 200, and an unauthenticated protected MCP call returned 401. 00599-deg used digest sha256:d89115de293f0582fa417b306ccc6f5266aedead6edbec6890e49aa30b5118fc, the expected runtime identity, health 200, unauthenticated MCP discovery returned the public tool manifest, and an unauthenticated protected call returned OAuth 401.",
+      "productionTraffic": "Cloud Run service describes grantdeskhq-prototype-00599-deg at 100% traffic; custom-domain health returned HTTP 200. The repair was deployed without any manual provider enrollment, send, dispatch, or scheduler invocation."
     },
     "durableScheduleOrder": {
       "awardAndSocial": "08:00 weekdays America/Detroit",
@@ -51,7 +54,7 @@
     },
     "currentBusinessEvidence": {
       "providerConfirmedNewProspectingSends": "NOT_CONFIRMED",
-      "reason": "The next weekday durable cycle had not started at this snapshot. A read-only dual-window USAspending probe checked 50 source records and deferred 50 future-start records; it made no import, provider, reservation, enrollment, or send. No manual provider send, enrollment replay, or paid extraction was used to manufacture evidence.",
+      "reason": "The prior aggregation treated mailbox-origin last-step timestamps as sends; those are now explicitly revalidated rather than used as provider-confirmed outreach. No current-window provider-confirmed initial send exists in this snapshot. The next durable reconciliation will record only campaign-scoped or immutable provider evidence; no manual provider send, enrollment replay, or paid extraction was used to manufacture evidence.",
       "scrapeGraph": "Optional per-record fallback remains deferred by the zero-overage headroom policy when the last observed balance was 80 credits against required 100-credit headroom; structured official evidence and Instantly routes remain independent."
     },
     "remainingExternalDependencies": [
