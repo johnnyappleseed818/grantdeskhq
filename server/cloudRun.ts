@@ -37,6 +37,7 @@ import { initialOpportunities } from "../src/data/gtmData.ts";
 import { reconcileControlPlaneQueue } from "../src/lib/gtmControlPlaneQueue.ts";
 import { buildGtmOverview } from "../src/lib/gtmOverview.ts";
 import { readCanonicalGtmModel } from "./gtmCanonical.ts";
+import type { CanonicalGtmModel } from "../src/lib/gtmCanonical.ts";
 import type { GtmOpportunity } from "../src/lib/gtm.ts";
 import { canonicalOrganizationId } from "../src/lib/gtmCanonical.ts";
 import { GTM_INVENTORY_POLICY, inventoryDecision, socialDiscoveryBreadth, type InventoryAutopilotSnapshot } from "../src/lib/gtmInventoryPolicy.ts";
@@ -1549,6 +1550,7 @@ async function reconcileInstantlyPolling() {
   const requiredErrors = results.slice(0, 5).flatMap((result, index) => result.status === "rejected" ? [`${["lead_lists", "campaigns", "accounts", "leads", "campaign_analytics"][index]}: ${result.reason instanceof Error ? result.reason.message : "request failed"}`] : []);
   const emailReadError = results[5]?.status === "rejected" ? (results[5].reason instanceof Error ? results[5].reason.message : "request failed") : "";
   const lifecycle = instantlyLifecycleSummary(records, cleanCampaignIds);
+  const canonicalFunnel = canonicalFunnelSummary(model);
   const snapshot = {
     ...health,
     checkedAt: new Date().toISOString(),
@@ -1570,6 +1572,7 @@ async function reconcileInstantlyPolling() {
     adoptedCleanMemberships,
     cleanMembershipRebindReasons,
     lifecycle,
+    canonicalFunnel,
     campaignAnalytics: mappedAnalytics.map((item) => Object.fromEntries(["campaign_id", "campaign_name", "campaign_status", "leads_count", "contacted_count", "emails_sent_count", "reply_count", "reply_count_unique", "reply_count_automatic", "bounced_count", "unsubscribed_count", "completed_count", "total_opportunities"].flatMap((field) => typeof item[field] === "string" || typeof item[field] === "number" || typeof item[field] === "boolean" ? [[field, item[field]]] : []))),
     polledRecords,
     stalePreSendRecords,
@@ -1586,7 +1589,7 @@ async function reconcileInstantlyPolling() {
   // makes the distinction between a provider-confirmed campaign initial send
   // and an accepted, unresolved, or quarantined membership observable without
   // trusting enrolment acknowledgements as delivery evidence.
-  console.info(JSON.stringify({ event: "GTM_INSTANTLY_RECONCILIATION", checkedAt: snapshot.checkedAt, reconciliation: snapshot.reconciliation, lifecycle, transitions, emailEvidence: recentEmails ? "AVAILABLE" : "UNAVAILABLE", emailEvidenceError: emailReadError || undefined, errors: requiredErrors }));
+  console.info(JSON.stringify({ event: "GTM_INSTANTLY_RECONCILIATION", checkedAt: snapshot.checkedAt, reconciliation: snapshot.reconciliation, lifecycle, canonicalFunnel, transitions, emailEvidence: recentEmails ? "AVAILABLE" : "UNAVAILABLE", emailEvidenceError: emailReadError || undefined, errors: requiredErrors }));
   if (outcomeRecorded) await reconcileGtmOpportunityEngineSafely("instantly_polling");
   return { mode: "READ_ONLY", status: snapshot };
 }
@@ -1639,6 +1642,34 @@ function instantlyLifecycleSummary(records: readonly InstantlyIntegrationRecord[
     if (record.instantlySyncStatus === "QUARANTINED" && record.failureReason === "UNVERIFIED_MAILBOX_ORIGIN_SEND_EVIDENCE") summary.quarantinedWeakEvidence++;
   }
   return bySegment;
+}
+
+/** Production-safe funnel accounting derived from the canonical model. It is
+ * intentionally aggregate-only, so diagnostics expose transition losses and
+ * blocker classes without logging prospect identities or contact data. */
+function canonicalFunnelSummary(model: CanonicalGtmModel) {
+  return Object.fromEntries((["DIRECT", "PARTNER"] as const).map((segment) => {
+    const records = model.records.filter((record) => record.segment === segment);
+    const states: Record<string, number> = {};
+    const blockers: Record<string, number> = {};
+    for (const record of records) {
+      states[record.state] = (states[record.state] || 0) + 1;
+      for (const blocker of record.blockers || []) blockers[blocker] = (blockers[blocker] || 0) + 1;
+    }
+    const contactFound = records.filter((record) => Boolean(record.contact && record.title)).length;
+    const verified = records.filter((record) => String(record.verificationStatus || "").toUpperCase() === "VERIFIED").length;
+    const enrolled = records.filter((record) => ["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(String(record.instantlyStatus || ""))).length;
+    return [segment, {
+      discovered: records.length,
+      qualified: records.filter((record) => record.qualified).length,
+      contactFound,
+      verified,
+      ready: records.filter((record) => record.state === "READY_TO_SEND").length,
+      enrolled,
+      states,
+      blockerCounts: Object.fromEntries(Object.entries(blockers).sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0])).slice(0, 20))
+    }];
+  }));
 }
 
 async function handleInstantlyReconcile(request: IncomingMessage, response: ServerResponse) {
