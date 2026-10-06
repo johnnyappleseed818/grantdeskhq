@@ -1,12 +1,23 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-10-06T05:15:41Z",
+  "updatedAt": "2026-10-06T10:26:46Z",
   "currentSnapshot": {
     "status": "PARTIAL",
-    "asOf": "2026-10-06T05:15:41Z",
-    "servingRevision": "grantdeskhq-prototype-00601-get",
+    "asOf": "2026-10-06T10:26:46Z",
+    "servingRevision": "grantdeskhq-prototype-00605-dac",
     "runtimeIdentity": "grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com",
+    "latestFocusedRecovery": {
+      "status": "PARTIAL",
+      "commit": "686d610 fix(gtm): prioritize independent evidence validation",
+      "build": "9bf2f1ce-c41d-42a0-afc4-c71ab12c2331 SUCCESS",
+      "production": "grantdeskhq-prototype-00605-dac at 100% traffic; custom-domain /api/health returned HTTP 200.",
+      "directFunnelObservedAt": "2026-10-06T10:15:25.960Z scheduled reconciliation: DIRECT discovered=913, qualified=156, contactFound=913, verified=18, READY=0, enrolled=0. Partner READY=20. Provider lifecycle has zero unresolved memberships in either segment.",
+      "demonstratedCauseAndRepair": "At 2026-10-05T12:30:06.735Z, validation selected ten Direct scanner records and deferred all for SCRAPEGRAPH_CREDIT_HEADROOM_REACHED (80 available credits; required reserve 100); Direct enrichment subsequently selected zero. The repair ranks records with an independently supplied official-domain candidate ahead of fallback-dependent records, preserving cohort ordering within each group, the 100-credit reserve, and all qualification/verification/suppression gates.",
+      "batch06041a33": "Committed immutable receipt scanner_import_f1b2c57292064174ec8b8b451d4d6bea was observed by the 2026-10-06T09:53:46.687914Z importer event with rowsSeen=30, accepted=29, duplicate=1, rejected=2, importedNow=true. Its Drive source-file/hash/canonical-id binding remains stored in the database receipt; a direct development-token Firestore read returned ACCESS_TOKEN_TYPE_UNSUPPORTED and a manual replay was correctly rejected. The next ordinary 08:15 America/Detroit importer run will emit the deployed receipt audit without reprocessing the batch.",
+      "contentSprint": "BLOCKED: /home/eli_katz contains no GrantDeskHQ-content-sprint.zip, handoff/CLOUD-SHELL-HANDOFF.txt, or release-manifest.json. Existing target pages remain unchanged; no replacement content or downloads were invented.",
+      "nextAutonomousEvidence": "2026-10-06 08:15 America/Detroit import, 08:30 validation, 08:45 Direct enrichment, and 09:00 dispatch (12:15, 12:30, 12:45, and 13:00 UTC respectively)."
+    },
     "implementedAndDeployed": {
       "replenishment": "Instantly SuperSearch normal processing is bounded by actual workspace allowance, a default batch of 10 (hard maximum 25), and a deterministic per-seed submission claim. Preview errors remain retryable; any post-claim ambiguous response is quarantined rather than replayed.",
       "awardDiscovery": "The USAspending adapter now runs bounded recent-start and active-award windows. It preserves a seven-day amendment overlap and canonical idempotency, defers future-start records, excludes ended records from the active pass, and labels near-end source periods without asserting a report deadline or purchase intent. The 30-day public-web award/foundation/nonprofit/hiring search remains an independent same-run fallback.",
