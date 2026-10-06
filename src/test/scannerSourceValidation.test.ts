@@ -112,4 +112,15 @@ describe("scanner validation recovery", () => {
     const cohorts = [{ id: "fixed", batchId: cohort.scannerBatchId!, sourceFileId: "file", contentHash: "hash", segment: "DIRECT" as const, canonicalRecordIds: [cohort.id, retry.id], selectedAt, selectionBasis: "test", creationSource: "scheduler_authenticated_recovery" as const, stateVersion: 1 as const }];
     expect(prioritizeScannerValidationCandidates([global, retry, cohort], cohorts, now).map((record) => record.id)).toEqual(["cohort-first", "global-first", "cohort-retry"]);
   });
+
+  it("processes independently resolvable official domains before ScrapeGraphAI-dependent recovery work", () => {
+    const now = "2026-09-15T14:00:00.000Z";
+    const fallbackOnly = { ...seed("", "DIRECT"), id: "cohort-fallback", scannerBatchId: "daily-fixed" };
+    const independent = {
+      ...seed("", "DIRECT"), id: "independent-domain", scannerBatchId: "daily-other",
+      sourceUrl: "https://public-funder.example/award/example", scannerClaimedDomain: "example.org"
+    };
+    const cohorts = [{ id: "fixed", batchId: "daily-fixed", sourceFileId: "file", contentHash: "hash", segment: "DIRECT" as const, canonicalRecordIds: [fallbackOnly.id], selectedAt: "2026-09-15T13:00:00.000Z", selectionBasis: "test", creationSource: "scheduler_authenticated_recovery" as const, stateVersion: 1 as const }];
+    expect(prioritizeScannerValidationCandidates([fallbackOnly, independent], cohorts, now).map((record) => record.id)).toEqual(["independent-domain", "cohort-fallback"]);
+  });
 });

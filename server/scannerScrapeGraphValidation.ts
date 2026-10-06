@@ -16,7 +16,7 @@ export async function validateScannerSourceSeedsWithScrapeGraph(env: NodeJS.Proc
   const candidates = prioritizeScannerValidationCandidates(allSeeds, cohorts, now, env).slice(0, configuredLimit(env));
   const configuration = scrapeGraphRuntimeConfiguration(env);
   const result = {
-    selected: candidates.length, validated: 0, deferred: 0, rejected: 0, remediated: 0,
+    selected: candidates.length, independentOfficialEvidenceCandidates: candidates.filter((seed) => independentOfficialSourceCandidates(seed).length > 0).length, validated: 0, deferred: 0, rejected: 0, remediated: 0,
     provider: "public_source+official_domain; scrapegraphai_fallback", blocked: null as string | null,
     scrapeGraph: { configured: Boolean(configuration.enabled && configuration.apiKey), remainingCredits: null as number | null, creditsReserved: allSeeds.reduce((sum, seed) => sum + (seed.scrapeGraphEvidence?.creditsReserved || 0), 0), httpStatus: null as number | null, providerRequestId: null as string | null },
     outcomes: [] as Outcome[]
@@ -145,7 +145,15 @@ export function prioritizeScannerValidationCandidates(seeds: readonly ChannelSee
     return Boolean(cohort) && !validatedSinceCohortSelection(seed, cohort!);
   });
   const selected = new Set(priority.map((seed) => seed.id));
-  return [...priority, ...due.filter((seed) => !selected.has(seed.id))];
+  const ordered = [...priority, ...due.filter((seed) => !selected.has(seed.id))];
+  // A record with an independently supplied official-domain candidate can
+  // proceed without spending a ScrapeGraphAI credit. Keep cohort ordering
+  // within each group, but process those records before fallback-dependent
+  // work so a headroom-protected extractor cannot stall independent evidence.
+  return [
+    ...ordered.filter((seed) => independentOfficialSourceCandidates(seed).length > 0),
+    ...ordered.filter((seed) => independentOfficialSourceCandidates(seed).length === 0)
+  ];
 }
 
 function validatedSinceCohortSelection(seed: ChannelSeedRecord, cohort: GtmScannerRecoveryCohort) {
