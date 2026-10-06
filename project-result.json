@@ -1,10 +1,10 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-10-06T04:25:05Z",
+  "updatedAt": "2026-10-06T04:30:43Z",
   "currentSnapshot": {
     "status": "PARTIAL",
-    "asOf": "2026-10-06T04:25:05Z",
+    "asOf": "2026-10-06T04:30:43Z",
     "servingRevision": "grantdeskhq-prototype-00599-deg",
     "runtimeIdentity": "grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com",
     "implementedAndDeployed": {
@@ -54,8 +54,13 @@
     },
     "currentBusinessEvidence": {
       "providerConfirmedNewProspectingSends": "NOT_CONFIRMED",
-      "reason": "The prior aggregation treated mailbox-origin last-step timestamps as sends; those are now explicitly revalidated rather than used as provider-confirmed outreach. No current-window provider-confirmed initial send exists in this snapshot. The next durable reconciliation will record only campaign-scoped or immutable provider evidence; no manual provider send, enrollment replay, or paid extraction was used to manufacture evidence.",
+      "reason": "The prior aggregation treated mailbox-origin last-step timestamps as sends; those are now explicitly revalidated rather than used as provider-confirmed outreach. No current-window provider-confirmed initial send exists in this snapshot. The deployed durable reconciliation ran at 2026-10-06T04:30:31.963899Z with HTTP 200; its 2026-10-06T04:30:43.778Z provider-capacity event recorded reconciliation=PASS and the configured Clean campaigns. No manual provider send, enrollment replay, or paid extraction was used to manufacture evidence.",
       "scrapeGraph": "Optional per-record fallback remains deferred by the zero-overage headroom policy when the last observed balance was 80 credits against required 100-credit headroom; structured official evidence and Instantly routes remain independent."
+    },
+    "scheduledProductionEvidence": {
+      "postPromotionReconciliation": "2026-10-06T04:30:31.963899Z HTTP 200 on grantdeskhq-prototype-00599-deg; follow-up GTM_INSTANTLY_CAPACITY at 2026-10-06T04:30:43.778Z reported reconciliation PASS.",
+      "providerCapacity": "One configured and ready shared mailbox; providerDailyCapacity=30; Direct and Partner campaign reads both matched configured IDs and each had safeDailyCapacity=30. Campaign active=false outside the approved sending window.",
+      "dispatchNext": "2026-10-06 09:00 America/Detroit / 13:00 UTC / 16:00 Asia/Jerusalem; it will use server-authoritative evidence and will not be manually invoked."
     },
     "remainingExternalDependencies": [
       "Instantly must expose or resolve the two status=2/warmup-disabled mailboxes through existing account settings or support before their capacity can be counted.",
