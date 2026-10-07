@@ -42,7 +42,7 @@ export async function runNorthstarReliabilityCanary(options: NorthstarCanaryOpti
   let identity: CanaryIdentity | null = null;
   let canonicalState: ReturnType<typeof canonicalStateForResponse> | null = null;
   let sameReportHashes: string[] = [];
-  let crossReportHashes: string[] = [];
+  const crossReportHashes: string[] = [];
   let errorCategory: string | undefined;
   let analysisPerformance: AnalysisPerformance | undefined;
   const driftEvents: AnalysisDriftEvent[] = [];
