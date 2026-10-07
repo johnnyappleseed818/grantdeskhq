@@ -17,7 +17,16 @@ describe.skipIf(!enabled)("live AI compiler smoke test", () => {
       fromAsset("ledgerExport", "General_Ledger_Export.csv", "text/csv"),
       fromAsset("funderTemplate", "Synthetic_Funder_Report_Draft.pdf", "application/pdf"),
       fromText("programUpdate", "Synthetic_Program_Update.txt", "Confirmed youth served: 118 of target 120. Three additional school-site visits were approved. One travel receipt is missing."),
-      fromText("supportingEvidence", "GrantDeskHQ_Confirmed_Workflow_Data.txt", JSON.stringify({ programMetrics: [{ label: "Youth served", target: 120, actual: 118 }], budgetVsActual: [] })),
+      fromText("supportingEvidence", "GrantDeskHQ_Confirmed_Workflow_Data.txt", JSON.stringify({
+        programMetrics: [{ label: "Youth served", target: 120, actual: 118 }],
+        budgetVsActual: [
+          { approvedAmount: 90000, actualEligibleExpenditure: 44500, remainingAmount: 45500, percentageSpent: 49.4444444444, varianceAmount: -500, spendRateAgainstElapsedPlan: 98.8888888889 },
+          { approvedAmount: 35000, actualEligibleExpenditure: 14850, remainingAmount: 20150, percentageSpent: 42.4285714286, varianceAmount: -2650, spendRateAgainstElapsedPlan: 84.8571428571 },
+          { approvedAmount: 15000, actualEligibleExpenditure: 9800, remainingAmount: 5200, percentageSpent: 65.3333333333, varianceAmount: 2300, spendRateAgainstElapsedPlan: 130.6666666667 },
+          { approvedAmount: 10000, actualEligibleExpenditure: 5000, remainingAmount: 5000, percentageSpent: 50, varianceAmount: 0, spendRateAgainstElapsedPlan: 100 }
+        ],
+        knownFinancialAmounts: [75000]
+      })),
       fromAsset("supportingEvidence", "Transaction_Evidence_Schedule.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     ];
     const request: CompilationRequest = {

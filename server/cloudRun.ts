@@ -257,6 +257,7 @@ async function handleCompiler(request: IncomingMessage, response: ServerResponse
     return json(response, 200, await saveCompilation(user, normalized.request, result));
   } catch (error) {
     console.error("GrantDeskHQ compiler error:", error instanceof Error ? error.message : "Unknown error");
+    if (error instanceof BillingError) return json(response, error.statusCode, { error: error.message });
     const timedOut = isTimeoutFailure(error);
     return json(response, timedOut ? 504 : 502, {
       error: timedOut

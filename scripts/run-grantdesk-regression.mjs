@@ -36,9 +36,9 @@ const run = (name, command, args, env = {}) => {
   return entry;
 };
 
-const playwrightPackage = path.join(runtime, "node_modules/@playwright/test/package.json");
+const playwrightPackage = path.join(runtime, "node_modules/playwright/package.json");
 if (!fs.existsSync(playwrightPackage)) {
-  run("playwright runtime", "npm", ["install", "--prefix", runtime, `@playwright/test@${playwrightVersion}`]);
+  run("playwright runtime", "npm", ["install", "--prefix", runtime, `playwright@${playwrightVersion}`]);
 }
 
 const browserMarker = path.join(browsers, "chromium_headless_shell-1187");
