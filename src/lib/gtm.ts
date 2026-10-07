@@ -269,10 +269,10 @@ export function assessOpportunityAccuracy(opportunity: GtmOpportunity, today = n
   return { score, label, confidence, readyForAction, blockers, warnings };
 }
 
-export function rankGtmOpportunities(opportunities: GtmOpportunity[]) {
+export function rankGtmOpportunities(opportunities: GtmOpportunity[], today = new Date().toISOString().slice(0, 10)) {
   return [...opportunities].sort((left, right) => {
-    const leftAccuracy = assessOpportunityAccuracy(left);
-    const rightAccuracy = assessOpportunityAccuracy(right);
+    const leftAccuracy = assessOpportunityAccuracy(left, today);
+    const rightAccuracy = assessOpportunityAccuracy(right, today);
     if (leftAccuracy.readyForAction !== rightAccuracy.readyForAction) return rightAccuracy.readyForAction ? 1 : -1;
     return rightAccuracy.score - leftAccuracy.score || left.organization.localeCompare(right.organization);
   });

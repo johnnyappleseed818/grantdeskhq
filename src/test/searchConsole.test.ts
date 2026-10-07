@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { canonicalPublicAcquisitionUrls, createSearchConsoleClient, reconcileSearchConsole, searchConsoleRecommendations, type SearchConsoleClient } from "../../server/searchConsole";
+import { BLOG_POSTS } from "../content/blog";
 
 describe("Search Console runtime", () => {
   it("uses the official Search Console endpoints and stores zero rows as no data", async () => {
@@ -20,6 +21,6 @@ describe("Search Console runtime", () => {
   });
   it("includes every published article in sitemap validation", () => {
     expect(canonicalPublicAcquisitionUrls()).toContain("https://grantdeskhq.com/blog/post-award-grant-reporting-checklist");
-    expect(canonicalPublicAcquisitionUrls()).toHaveLength(12);
+    expect(canonicalPublicAcquisitionUrls()).toHaveLength(6 + BLOG_POSTS.length);
   });
 });

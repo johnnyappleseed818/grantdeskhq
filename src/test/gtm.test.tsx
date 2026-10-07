@@ -22,12 +22,12 @@ describe("GTM opportunity accuracy", () => {
 
   it("requires corroboration before assigning very-high intent", () => {
     const corroborated = initialOpportunities.find((item) => item.id === "job-ja-south-florida-2026")!;
-    expect(assessOpportunityAccuracy(corroborated)).toMatchObject({ score: 96, label: "very_high", readyForAction: true, confidence: "high" });
+    expect(assessOpportunityAccuracy(corroborated, "2026-08-10")).toMatchObject({ score: 96, label: "very_high", readyForAction: true, confidence: "high" });
 
     const oneSource = initialOpportunities.find((item) => item.id === "job-rodale-2026")!;
-    expect(assessOpportunityAccuracy(oneSource).score).toBe(91);
-    expect(assessOpportunityAccuracy(oneSource).label).toBe("high");
-    expect(assessOpportunityAccuracy(oneSource).warnings.join(" ")).toMatch(/one source/i);
+    expect(assessOpportunityAccuracy(oneSource, "2026-08-10").score).toBe(91);
+    expect(assessOpportunityAccuracy(oneSource, "2026-08-10").label).toBe("high");
+    expect(assessOpportunityAccuracy(oneSource, "2026-08-10").warnings.join(" ")).toMatch(/one source/i);
   });
 
   it("blocks unresolved entities and conflicting evidence", () => {
@@ -48,9 +48,10 @@ describe("GTM opportunity accuracy", () => {
   });
 
   it("keeps verified action-ready leads above unverified research candidates", () => {
-    const candidate: GtmOpportunity = { ...initialOpportunities[0], id: "research-candidate", primaryContact: undefined };
-    const ranked = rankGtmOpportunities([candidate, initialOpportunities[0]]);
-    expect(ranked[0].id).toBe(initialOpportunities[0].id);
+    const verified = initialOpportunities.find((item) => item.id === "job-ja-south-florida-2026")!;
+    const candidate: GtmOpportunity = { ...verified, id: "research-candidate", primaryContact: undefined };
+    const ranked = rankGtmOpportunities([candidate, verified], "2026-08-10");
+    expect(ranked[0].id).toBe(verified.id);
     expect(ranked[1].id).toBe("research-candidate");
   });
 
@@ -61,7 +62,7 @@ describe("GTM opportunity accuracy", () => {
   });
 
   it("does not allow a lead to be marked contacted before review approval", () => {
-    const accuracy = assessOpportunityAccuracy(initialOpportunities[2]);
+    const accuracy = assessOpportunityAccuracy(initialOpportunities[2], "2026-08-10");
     expect(canMoveToContacted("new", accuracy)).toBe(false);
     expect(canMoveToContacted("ready", accuracy)).toBe(true);
   });

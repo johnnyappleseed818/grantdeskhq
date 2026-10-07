@@ -52,7 +52,15 @@ run("unit and deterministic integration", "npx", [
   "vitest", "run", "--disableConsoleIntercept",
   "--exclude", "src/test/northstarLive.integration.test.ts",
   "--exclude", "src/test/compiler.integration.test.ts",
-  "--exclude", "src/test/compiler.accuracy-evaluation.test.ts"
+  "--exclude", "src/test/compiler.accuracy-evaluation.test.ts",
+  "--exclude", "scripts/**/*.test.mjs"
+]);
+run("standalone node test scripts", "node", ["--test",
+  "scripts/generate-worked-example-resources.test.mjs",
+  "scripts/codex-project-runner/model-router.test.mjs",
+  "scripts/codex-project-runner/cost-governor.test.mjs",
+  "scripts/codex-project-runner/queue.test.mjs",
+  "scripts/seo/seo-growth-engine.test.mjs"
 ]);
 run("live API end-to-end", "npx", ["vitest", "run", "src/test/northstarLive.integration.test.ts", "--disableConsoleIntercept"], {
   RUN_GRANTDESK_LIVE: "1",
