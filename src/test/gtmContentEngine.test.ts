@@ -32,6 +32,17 @@ describe("canonical content opportunity engine", () => {
     expect(posted.distributionTasks.every((task) => task.draftText.length > 0)).toBe(true);
   });
 
+  it("stages the worked-example LinkedIn drafts with distinct attribution without publishing them", () => {
+    const tasks = buildInitialContentEngineState().distributionTasks.filter((task) => task.id.startsWith("distribution-linkedin-worked-report-"));
+    expect(tasks).toHaveLength(3);
+    expect(tasks.every((task) => task.status === "READY" && task.targetUrl === null)).toBe(true);
+    expect(tasks.map((task) => task.canonicalArticleUrl)).toEqual(expect.arrayContaining([
+      expect.stringContaining("utm_content=budget_trap"),
+      expect.stringContaining("utm_content=missing_approval"),
+      expect.stringContaining("utm_content=program_handoff")
+    ]));
+  });
+
   it("rejects an unknown canonical record instead of silently accepting a bad action", () => {
     expect(() => updateContentEngineState(buildInitialContentEngineState(), { kind: "distribution", id: "unknown-task", status: "SKIPPED" })).toThrow(/not found/i);
   });
