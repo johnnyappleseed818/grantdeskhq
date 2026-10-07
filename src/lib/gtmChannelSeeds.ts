@@ -51,6 +51,17 @@ export interface ChannelSeedRecord {
   scannerValidatedContact?: { firstName: string; lastName: string; fullName: string; title: string; email?: string; sourceUrl: string; observedAt?: string } | null;
   scannerContentHash?: string;
   scannerClaimedDomain?: string | null;
+  /** Immutable, source-key-bound public identity evidence supplied after a
+   * scanner batch was imported. It is only a candidate official source until
+   * the validator independently fetches and confirms it. */
+  scannerSupplementalIdentityEvidence?: {
+    sourceKey: string;
+    originalOrganizationName: string;
+    proposedDomain: string;
+    identityEvidenceUrl: string;
+    sharedAwardSourceUrl: string;
+    aliases: string[];
+  } | null;
   /** Independently verified organization URL, kept separate from the original
    * discovery source so a funder, directory, or job board is never used as the
    * prospect's organization domain. */

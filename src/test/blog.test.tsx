@@ -15,9 +15,9 @@ describe("public GrantDeskHQ blog", () => {
       expect(post.description.length).toBeGreaterThan(60);
       expect(post.sources.every((source) => source.url.startsWith("https://"))).toBe(true);
     }
-    const overnightPages = BLOG_POSTS.filter((post) => ["turn-grant-agreement-into-reporting-plan", "grant-progress-report-workflow", "grant-closeout-checklist", "post-award-grant-management-software"].includes(post.slug));
-    expect(overnightPages).toHaveLength(4);
-    expect(overnightPages.every((post) => blogWordCount(post) > 400)).toBe(true);
+    const retainedLongFormPages = BLOG_POSTS.filter((post) => ["turn-grant-agreement-into-reporting-plan", "grant-closeout-checklist", "post-award-grant-management-software"].includes(post.slug));
+    expect(retainedLongFormPages).toHaveLength(3);
+    expect(retainedLongFormPages.every((post) => blogWordCount(post) > 400)).toBe(true);
     const staticRoutes = fs.readFileSync(path.resolve("scripts/create-spa-routes.js"), "utf8");
     expect(staticRoutes).toContain("BLOG_POSTS.map(articlePage)");
     expect(staticRoutes).toContain("route: `blog/${post.slug}`");
@@ -35,16 +35,26 @@ describe("public GrantDeskHQ blog", () => {
   it("sets canonical, OpenGraph, and Article metadata per article", () => {
     render(<MemoryRouter initialEntries={["/blog/budget-to-actual-grant-reporting-workflow"]}><Routes><Route path="/blog/:slug" element={<BlogPostPage />} /></Routes></MemoryRouter>);
     const property = (name: string) => Array.from(document.querySelectorAll<HTMLMetaElement>("meta[property]")).find((element) => element.getAttribute("property") === name)?.getAttribute("content");
-    expect(document.title).toMatch(/budget-to-actual grant reporting/i);
+    expect(document.title).toMatch(/grant budget vs actual: worked example/i);
     expect(property("og:type")).toBe("article");
     expect(property("og:url")).toBe("https://grantdeskhq.com/blog/budget-to-actual-grant-reporting-workflow");
     expect(property("article:published_time")).toBe("2026-08-16");
+    expect(property("article:modified_time")).toBe("2026-10-07");
     expect(document.querySelector("link[rel=canonical]")?.getAttribute("href")).toBe("https://grantdeskhq.com/blog/budget-to-actual-grant-reporting-workflow");
+  });
+
+  it("renders synthetic worked-example tables and public downloads without altering the assessment CTA", () => {
+    render(<MemoryRouter initialEntries={["/blog/budget-to-actual-grant-reporting-workflow"]}><Routes><Route path="/blog/:slug" element={<BlogPostPage />} /></Routes></MemoryRouter>);
+    expect(screen.getByRole("heading", { name: /why does the report still need approval/i })).toBeInTheDocument();
+    expect(screen.getByRole("table")).toHaveTextContent("$55,200");
+    expect(screen.getByRole("link", { name: /synthetic Excel workbook/i })).toHaveAttribute("href", "/resources/downloads/grant-report-example/GrantDeskHQ-budget-vs-actual.xlsx");
+    expect(screen.getByRole("link", { name: /complete synthetic source packet/i })).toHaveAttribute("href", "/resources/downloads/grant-report-example/GrantDeskHQ-synthetic-report-kit.zip");
+    expect(screen.getByRole("link", { name: /start your free first award/i })).toHaveAttribute("href", "/assessment");
   });
 
   it.each([
     ["turn-grant-agreement-into-reporting-plan", /turn a grant agreement into a practical reporting plan/i],
-    ["grant-progress-report-workflow", /grant progress report workflow/i],
+    ["grant-progress-report-workflow", /completed quarterly grant report/i],
     ["grant-closeout-checklist", /grant closeout checklist/i],
     ["post-award-grant-management-software", /post-award grant management software/i]
   ])("publishes the candidate route %s with unique metadata and internal links", (slug, heading) => {
@@ -61,7 +71,7 @@ describe("public GrantDeskHQ blog", () => {
     expect(screen.getByRole("heading", { name: "Practical resources for post-award grant reporting" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Guides & articles" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Templates & checklists" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /How to make budget-to-actual grant reporting reviewable/i })).toHaveAttribute("href", "/blog/budget-to-actual-grant-reporting-workflow");
+    expect(screen.getByRole("link", { name: /why does the report still need approval/i })).toHaveAttribute("href", "/blog/budget-to-actual-grant-reporting-workflow");
     expect(screen.getByRole("link", { name: /practical post-award grant reporting checklist/i })).toHaveAttribute("href", "/blog/post-award-grant-reporting-checklist");
     expect(screen.getByRole("link", { name: "Try GrantDeskHQ with one award" })).toHaveAttribute("href", "/assessment");
     expect(document.title).toBe("Post-Award Grant Reporting Resources | GrantDeskHQ");

@@ -2,13 +2,34 @@ export interface BlogSource { title: string; url: string; }
 export interface BlogPost {
   slug: string;
   title: string;
+  /** A search-oriented title may be more descriptive than the on-page H1. */
+  seoTitle?: string;
   description: string;
   publishedAt: string;
+  updatedAt?: string;
   readingMinutes: number;
   resourceCategory: "guide" | "checklist";
   sources: BlogSource[];
-  sections: Array<{ heading: string; paragraphs: string[] }>;
+  sections: Array<{
+    heading: string;
+    paragraphs: string[];
+    links?: Array<{ label: string; href: string }>;
+    table?: { headers: string[]; rows: string[][]; caption?: string };
+  }>;
 }
+
+export const WORKED_EXAMPLE_DOWNLOAD_BASE = "/resources/downloads/grant-report-example";
+export const WORKED_EXAMPLE_FINANCIAL_TABLE = {
+  caption: "Synthetic example — July 1–September 30, 2026; USD; variance = actual minus budget.",
+  headers: ["Category", "Budget", "Actual", "Actual minus budget", "Percentage"],
+  rows: [
+    ["Personnel", "$36,000", "$32,400", "−$3,600", "−10%"],
+    ["Participant support", "$12,000", "$13,800", "$1,800", "15%"],
+    ["Travel", "$6,000", "$4,200", "−$1,800", "−30%"],
+    ["Supplies", "$6,000", "$4,800", "−$1,200", "−20%"],
+    ["Total", "$60,000", "$55,200", "−$4,800", "−8%"]
+  ]
+};
 
 export const BLOG_POSTS: BlogPost[] = [
   {
@@ -43,27 +64,46 @@ export const BLOG_POSTS: BlogPost[] = [
   },
   {
     slug: "budget-to-actual-grant-reporting-workflow",
-    title: "How to make budget-to-actual grant reporting reviewable",
-    description: "A practical workflow for mapping accounting data to approved grant budgets, explaining variances, and preserving evidence for funder reporting.",
+    title: "Your grant is $4,800 under budget. Why does the report still need approval?",
+    seoTitle: "Grant budget vs actual: worked example and free Excel template",
+    description: "A $60,000 synthetic grant is under budget overall but 15% over in participant support. Download the Excel workbook, ledger, and reviewable report.",
     publishedAt: "2026-08-16",
-    readingMinutes: 5,
+    updatedAt: "2026-10-07",
+    readingMinutes: 7,
     resourceCategory: "guide",
     sources: [
       { title: "Uniform Administrative Requirements, Cost Principles, and Audit Requirements for Federal Awards (2 CFR Part 200)", url: "https://www.ecfr.gov/current/title-2/subtitle-A/chapter-II/part-200" },
       { title: "U.S. Department of Health and Human Services grants policy resources", url: "https://www.hhs.gov/grants/grants/grants-policies-regulations/index.html" }
     ],
     sections: [
-      { heading: "Treat mapping as an explicit decision", paragraphs: [
-        "Budget-to-actual reporting is not a copy-and-paste exercise. The approved grant budget and the organization chart of accounts were created for different purposes, so a reviewable report needs a documented mapping between the two. Record the budget category, ledger account, period, amount, evidence reference, and any judgment used in the mapping.",
-        "Use stable categories and keep the source export intact. If one accounting account supports more than one grant category, document the allocation method and retain the calculation. If a category cannot be mapped with confidence, leave it open for review instead of forcing it into the closest label."
+      { heading: "Synthetic source files for this worked example", paragraphs: [
+        "This entire example is synthetic. Its organizations, numbers and grant terms are invented for demonstration. It is an authored example, not a customer result or a recorded product run."
+      ], links: [
+        { label: "Download the synthetic Excel workbook", href: `${WORKED_EXAMPLE_DOWNLOAD_BASE}/GrantDeskHQ-budget-vs-actual.xlsx` },
+        { label: "Download the complete synthetic source packet", href: `${WORKED_EXAMPLE_DOWNLOAD_BASE}/GrantDeskHQ-synthetic-report-kit.zip` }
       ]},
-      { heading: "Explain variance without overclaiming", paragraphs: [
-        "A good variance explanation describes the operational fact, its financial effect, and the supporting source. It should not invent a cause or imply funder approval that is not documented. Review the award terms for any thresholds, amendment processes, or prior-approval requirements that apply to that specific grant.",
-        "Finance and program teams often hold different parts of the explanation. Give each team a clear handoff: finance validates the numbers and calculations, program explains delivery changes and evidence, and grants staff checks the explanation against the award terms and reporting instructions."
+      { heading: "The problem hiding in the total", paragraphs: [
+        "The total looks comfortable: a $60,000 budget, $55,200 spent, and $4,800 left against budget. But one category is 15% over its limit. Under the fictional agreement in this example, that overspend needs documented approval—and the approval is missing.",
+        "That is the detail a useful grant budget vs actual report should make hard to miss. The period is July 1–September 30, 2026, in USD, and the variance convention is actual minus budget.",
+        "Participant support has spent $1.15 for every $1 budgeted. The unused personnel budget does not establish permission to move funds between categories. That permission depends on the agreement and approved changes."
+      ], table: WORKED_EXAMPLE_FINANCIAL_TABLE},
+      { heading: "Three ledger details change the answer", paragraphs: [
+        "The downloadable GL contains 15 rows totaling $57,200. Only 13 rows belong in this report.",
+        "SYN-T014 is a $1,200 October expense outside the reporting period. SYN-T015 is an $800 expense assigned to a different grant. SYN-T013 is a $200 supplies refund that must stay negative.",
+        "After the exclusions, $57,200 − $1,200 − $800 = $55,200. Retaining excluded rows and their reasons lets a reviewer reproduce the reconciliation."
       ]},
-      { heading: "Create a repeatable closeout trail", paragraphs: [
-        "The same mapping and evidence trail helps during closeout, audit preparation, and the next reporting period. Preserve the input export, the approved budget version, calculations, explanation sources, reviewer decisions, and the submitted report package. This makes later questions traceable instead of dependent on memory.",
-        "GrantDeskHQ helps teams keep the award terms, budget mapping, accounting data, program narrative, and supporting evidence connected in one source-linked workflow. Start self-service when you are ready to test a real report without a required demo."
+      { heading: "Make the variance rule explicit", paragraphs: [
+        "Dollar variance = actual spending − approved period budget. Percentage variance = dollar variance ÷ approved period budget.",
+        "Participant support is $1,800, or 15%, over budget. Under these invented terms it needs an approval the packet does not contain. The example requires explanations at an absolute category variance of at least 10%. Personnel is exactly −10%, so it needs an explanation too. Where the budget is zero, mark percentage variance undefined. Real funders may use different rules."
+      ]},
+      { heading: "Write the note a reviewer needs", paragraphs: [
+        "“Participant support was $13,800 against a $12,000 budget, an overspend of $1,800 (15%). The program lead reports higher participant transport assistance needs. The sample agreement requires documented approval at this level. No approval was supplied, so this remains an open item for the grants owner.”",
+        "The calculation supplies the amount. The program update supplies the explanation. The evidence register supplies the approval status."
+      ]},
+      { heading: "Follow the source trail", paragraphs: [
+        "Start with Budget vs Actual in the workbook. Inspect Inputs for the budget and dates, then Ledger for included and excluded transactions. The packet intentionally lacks original supporting records, the overspend approval and reviewer sign-offs. The draft flags those gaps."
+      ], links: [
+        { label: "See the completed quarterly report example", href: "/blog/grant-progress-report-workflow" }
       ]}
     ]
   }
@@ -95,9 +135,11 @@ export const BLOG_POSTS: BlogPost[] = [
   },
   {
     slug: "grant-progress-report-workflow",
-    title: "A grant progress report workflow for finance, grants, and program teams",
-    description: "Build a reviewable progress-report process that ties the reporting period, financial summary, program results, evidence, and required approvals back to the award.",
+    title: "A completed quarterly grant report—with the missing approval still visible",
+    seoTitle: "Quarterly grant report example: filled draft and source files",
+    description: "See a completed synthetic grant-report draft with budget variances, program results, source files, and explicit missing approvals.",
     publishedAt: "2026-08-16",
+    updatedAt: "2026-10-07",
     readingMinutes: 7,
     resourceCategory: "guide",
     sources: [
@@ -105,18 +147,41 @@ export const BLOG_POSTS: BlogPost[] = [
       { title: "U.S. Department of Health and Human Services grants policy resources", url: "https://www.hhs.gov/grants/grants/grants-policies-regulations/index.html" }
     ],
     sections: [
-      { heading: "Define the reporting question before drafting", paragraphs: [
-        "A progress report is not a generic update. Begin by identifying the exact reporting period, required form or portal questions, budget structure, metrics, attachments, and due date in the award materials. A funder may request a narrative, a financial report, a performance report, or several separate deliverables. Build the draft around those requirements instead of starting with a reusable narrative that may not answer the right question.",
-        "Create a short cover record with the award name and number, reporting period, submitting organization, draft owner, review owner, and current status. This simple control prevents a common source of rework: a correct paragraph or spreadsheet that belongs to the wrong period, version, or award." ] },
-      { heading: "Prepare the financial summary from traceable inputs", paragraphs: [
-        "Use the approved budget and accounting export as the starting point for the financial portion. Map the ledger data to the funder categories, calculate budget-to-actual amounts, and retain the source export and mapping decisions. If a total needs an allocation, write down the method and the person responsible for confirming it. A reviewer should be able to move from the report total to the calculation and back to the original financial data.",
-        "Do not use a narrative explanation to hide a difference that still needs financial review. When there is a material variance, distinguish the confirmed number from the operational explanation and from any approval that may be required under the agreement. The agreement and funder instructions determine how a variance must be addressed." ] },
-      { heading: "Pair program results with evidence and context", paragraphs: [
-        "Program teams often hold the records needed to explain what happened during the period: service data, attendance records, milestone tracking, participant feedback, deliverables, or approved correspondence. Collect the supporting source alongside the result rather than at the end of the drafting process. The report should make clear which statements are documented and which questions still need a source or an owner response.",
-        "Honest context improves a report when it is tied to evidence. If implementation changed, describe the confirmed change, its effect on the period, and the next action. Do not imply funder approval, a compliance conclusion, or a causal explanation unless the relevant source supports it." ] },
-      { heading: "Use a human review gate before submission", paragraphs: [
-        "A final review is more than proofreading. Check period dates, agreement requirements, totals, category labels, metric definitions, attachments, and any certification or authorized-signature step. Confirm that open questions are resolved or clearly escalated. Preserve the submitted package, review decisions, and source trail so that the next period starts from a reliable record.",
-        "GrantDeskHQ prepares a source-linked draft from the agreement, accounting data, program updates, and supporting evidence, while keeping people in control of review and submission. You can try one award through the Free First Award flow without replacing the accounting system." ] }
+      { heading: "Synthetic source files for this filled draft", paragraphs: [
+        "All names, figures, events and terms are synthetic. This is an authored teaching example, not a customer case study or recorded product output."
+      ], links: [
+        { label: "Download the filled synthetic report packet", href: "${WORKED_EXAMPLE_DOWNLOAD_BASE}/GrantDeskHQ-synthetic-report-kit.zip" },
+        { label: "Download the copyable program-update handoff template", href: "${WORKED_EXAMPLE_DOWNLOAD_BASE}/program-update-handoff-template.md" }
+      ]},
+      { heading: "Start with a result that can be checked", paragraphs: [
+        "Organization: Harbor Path Community Services — Synthetic Example. Grant: SYN-2026-001. Period: July 1–September 30, 2026. Status: Draft for review; approval and evidence gaps remain.",
+        "The program recorded 108 unique participants against a target of 120, achieving 90% of target. A participant is counted once after attending at least one skills workshop during the period. The sample summary uses nonoverlapping synthetic ID ranges. Underlying participant-level records were not supplied and remain required for review. No verified employment outcomes were supplied, so this report makes no employment outcome claim.",
+        "A useful paragraph gives the number, denominator, definition and source limitation. Real monthly counts must account for repeat participants."
+      ]},
+      { heading: "Put the financial result beside the program result", paragraphs: [
+        "The two excluded transactions and negative refund remain visible in the ledger. The detailed calculation is available in the budget-versus-actual worked example."
+      ], table: WORKED_EXAMPLE_FINANCIAL_TABLE, links: [
+        { label: "See the budget-versus-actual calculation", href: "/blog/budget-to-actual-grant-reporting-workflow" }
+      ]},
+      { heading: "Explain changes without inventing approval", paragraphs: [
+        "The fictional program lead reports a staffing gap, postponed workshops, fewer staff visits, higher transport-assistance needs and deferred supplies purchases. These explanations still need review against supporting records.",
+        "Participant support is 15% over budget. The fictional agreement requires documented approval above 10%. No approval was provided."
+      ]},
+      { heading: "Give unfinished work an owner", paragraphs: [
+        "The draft identifies four open items: overspend approval for the grants owner; original financial support for the finance reviewer; participant count support and deduplication for the program reviewer; and final finance and program review sign-offs.",
+        "The downloadable report leaves the submitter unassigned and its submission date marked Not submitted. A completed narrative does not establish submission readiness."
+      ]},
+      { heading: "Make the handoff specific", paragraphs: [
+        "Finance supplies the approved budget, period GL, mapping and reviewed calculations. Program staff supply the metric definition, result, source, explanation and proposed next action. The grants owner checks the package against the funder’s dates, form and approval requirements.",
+        "Missing information stays missing; it does not become a plausible story."
+      ], links: [
+        { label: "Open the program-update handoff template", href: "${WORKED_EXAMPLE_DOWNLOAD_BASE}/program-update-handoff-template.md" }
+      ]},
+      { heading: "Inspect the complete example", paragraphs: [
+        "Start with reviewable-quarterly-report.md. Follow its links to the source files. The evidence register distinguishes included summaries from missing primary records. The workbook recalculates the financial example."
+      ], links: [
+        { label: "Read the reviewable quarterly report", href: "${WORKED_EXAMPLE_DOWNLOAD_BASE}/reviewable-quarterly-report.md" }
+      ]}
     ]
   },
   {

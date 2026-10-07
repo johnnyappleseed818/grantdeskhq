@@ -1,6 +1,7 @@
 import { lookup } from "node:dns/promises";
 import { createGtmScannerRecoveryCohort, listGtmChannelSeeds, listGtmScannerImportReceipts, listGtmScannerRecoveryCohorts, readGtmScannerRecoveryCohort, saveGtmChannelSeed, type GtmScannerRecoveryCohort } from "./persistence.ts";
 import { extractPublicOrganizationEvidence, readScrapeGraphCreditBalance, scrapeGraphBudgetAllowsCall, scrapeGraphRuntimeConfiguration } from "./scrapeGraphEvidence.ts";
+import { attachScannerSupplementalIdentityEvidence, supplementalOrganizationNames } from "./scannerDallasFoundationIdentityEvidence.ts";
 import type { ChannelSeedRecord } from "../src/lib/gtmChannelSeeds.ts";
 
 type Outcome = { canonicalRecordId: string; segment: ChannelSeedRecord["segment"]; disposition: "QUALIFIED" | "DEFERRED" | "REJECTED"; reason: string; providerHttpStatus?: number | null; providerRequestId?: string | null };
@@ -11,7 +12,17 @@ type Outcome = { canonicalRecordId: string; segment: ChannelSeedRecord["segment"
  * cannot be established; it is never a batch-wide prerequisite. */
 export async function validateScannerSourceSeedsWithScrapeGraph(env: NodeJS.ProcessEnv = process.env) {
   const now = new Date().toISOString();
-  const allSeeds = await listGtmChannelSeeds();
+  // Supplemental identity evidence is immutable and source-key-bound. Persist
+  // it for every matching batch record before selecting a bounded validation
+  // slice, so an extractor-credit guard cannot leave the other 10 supplied
+  // Direct identities without their provenance.
+  const loadedSeeds = await listGtmChannelSeeds();
+  const allSeeds: ChannelSeedRecord[] = [];
+  for (const originalSeed of loadedSeeds) {
+    const seed = attachScannerSupplementalIdentityEvidence(originalSeed);
+    if (seed !== originalSeed) await saveGtmChannelSeed(seed);
+    allSeeds.push(seed);
+  }
   const cohorts = await listGtmScannerRecoveryCohorts();
   const candidates = prioritizeScannerValidationCandidates(allSeeds, cohorts, now, env).slice(0, configuredLimit(env));
   const configuration = scrapeGraphRuntimeConfiguration(env);
@@ -82,13 +93,13 @@ export async function validateScannerSourceSeedsWithScrapeGraph(env: NodeJS.Proc
       result.deferred++; result.outcomes.push(outcome(seed, "DEFERRED", reason, extracted.httpStatus, extracted.requestId)); continue;
     }
     const extractedOfficial = publicSource(extracted.officialOrganizationUrl || "");
-    if (!extractedOfficial || !await officialSourceSupportsOrganization(extractedOfficial, seed.organization)) { await record({ ...seed, scrapeGraphEvidence: { ...reserved, requestId: extracted.requestId || reserved.requestId, officialOrganizationUrl: extracted.officialOrganizationUrl, officialOrganizationName: extracted.officialOrganizationName, evidenceSummary: extracted.evidenceSummary, contactSourceUrl: extracted.contact?.sourceUrl || null, extractedAt: now } }, "DEFERRED", "OFFICIAL_DOMAIN_NOT_INDEPENDENTLY_VERIFIED", "The extractor returned no independently verifiable official organization domain. The record remains deferred.", now, env, extracted.httpStatus, extracted.requestId); result.deferred++; result.outcomes.push(outcome(seed, "DEFERRED", "OFFICIAL_DOMAIN_NOT_INDEPENDENTLY_VERIFIED", extracted.httpStatus, extracted.requestId)); continue; }
+    if (!extractedOfficial || !await officialSourceSupportsOrganization(extractedOfficial, seed)) { await record({ ...seed, scrapeGraphEvidence: { ...reserved, requestId: extracted.requestId || reserved.requestId, officialOrganizationUrl: extracted.officialOrganizationUrl, officialOrganizationName: extracted.officialOrganizationName, evidenceSummary: extracted.evidenceSummary, contactSourceUrl: extracted.contact?.sourceUrl || null, extractedAt: now } }, "DEFERRED", "OFFICIAL_DOMAIN_NOT_INDEPENDENTLY_VERIFIED", "The extractor returned no independently verifiable official organization domain. The record remains deferred.", now, env, extracted.httpStatus, extracted.requestId); result.deferred++; result.outcomes.push(outcome(seed, "DEFERRED", "OFFICIAL_DOMAIN_NOT_INDEPENDENTLY_VERIFIED", extracted.httpStatus, extracted.requestId)); continue; }
     const domain = extractedOfficial.hostname.toLowerCase().replace(/^www\./, "");
     // A contact must be visibly published on a same-domain official page. The
     // original source can be a funder, award notice, or directory and must
     // never be mistaken for contact evidence merely because it names the org.
     const contactSource = extractedContactSourceForVerification(extracted.contact, domain);
-    const contact = extracted.contact && contactSource && roleFits(seed.segment, extracted.contact.title) && extracted.contact.email.endsWith(`@${domain}`) && await pageSupportsPublishedContact(contactSource, seed.organization, extracted.contact) ? { ...extracted.contact, observedAt: now } : null;
+    const contact = extracted.contact && contactSource && roleFits(seed.segment, extracted.contact.title) && extracted.contact.email.endsWith(`@${domain}`) && await pageSupportsPublishedContact(contactSource, seed, extracted.contact) ? { ...extracted.contact, observedAt: now } : null;
     await saveGtmChannelSeed({ ...seed, lifecycle: "EVIDENCE_QUALIFIED", organizationDomain: domain, officialOrganizationUrl: extractedOfficial.toString(), officialOrganizationEvidenceUrl: extractedOfficial.toString(), qualificationProvider: "scrapegraphai_extract+public_source", qualificationUpdatedAt: now, validationDisposition: "QUALIFIED", validationAttemptCount: nextAttempt, validationLastAttemptAt: now, validationNextAttemptAt: null, rejectionReason: null, scannerValidatedContact: contact, scrapeGraphEvidence: { ...reserved, requestId: extracted.requestId || reserved.requestId, officialOrganizationUrl: extractedOfficial.toString(), officialOrganizationName: extracted.officialOrganizationName, evidenceSummary: extracted.evidenceSummary, contactSourceUrl: contact?.sourceUrl || null, extractedAt: now }, enrichmentProvider: "scrapegraphai", enrichmentProviderStatus: contact ? "COMPLETED" : "PROCESSING", enrichmentResult: contact ? "ScrapeGraphAI located an explicitly published role-fit work email. Instantly verification is required before readiness." : "Organization evidence qualified. A public current role-fit email remains unresolved and will be checked only on official organization pages.", enrichmentUpdatedAt: now, qualificationReasons: [...seed.qualificationReasons, "Public source independently supports the segment signal.", "Official organization domain independently verified after ScrapeGraphAI extraction."] });
     result.validated++; result.outcomes.push(outcome(seed, "QUALIFIED", contact ? "EVIDENCE_QUALIFIED_PUBLIC_CONTACT" : "EVIDENCE_QUALIFIED_CONTACT_UNRESOLVED", extracted.httpStatus, extracted.requestId));
   }
@@ -217,13 +228,15 @@ export function independentOfficialSourceCandidates(seed: ChannelSeedRecord) {
     const claimed = publicSource(`https://${domain}/`);
     if (claimed && !candidates.some((candidate) => sameDomain(candidate, domain))) candidates.push(claimed);
   }
+  const supplemental = publicSource(seed.scannerSupplementalIdentityEvidence?.identityEvidenceUrl || "");
+  if (supplemental && !candidates.some((candidate) => candidate.toString() === supplemental.toString())) candidates.push(supplemental);
   return candidates;
 }
 
 async function independentlyVerifiedOfficialSource(seed: ChannelSeedRecord, discoverySource: URL) {
   for (const candidate of independentOfficialSourceCandidates(seed)) {
     if (sameDomain(candidate, discoverySource.hostname.toLowerCase().replace(/^www\./, ""))) continue;
-    if (await officialSourceSupportsOrganization(candidate, seed.organization)) return candidate;
+    if (await officialSourceSupportsOrganization(candidate, seed)) return candidate;
   }
   return null;
 }
@@ -292,8 +305,14 @@ async function sourceSupportsOrganizationSignal(source: URL, seed: ChannelSeedRe
   const text = await publicText(source);
   return mentionsOrganization(text, seed.organization) && (seed.segment === "DIRECT" ? /grant|funder|restricted fund|compliance|budget|report/.test(text) : /nonprofit|fractional cfo|accounting|grant|fiscal|controller/.test(text));
 }
-async function officialSourceSupportsOrganization(source: URL, organization: string) { return mentionsOrganization(await publicText(source), organization); }
-async function pageSupportsPublishedContact(source: URL, organization: string, contact: { fullName: string; title: string; email: string }) { const text = await publicText(source); return mentionsOrganization(text, organization) && text.includes(contact.fullName.toLowerCase()) && text.includes(contact.email.toLowerCase()) && text.includes(contact.title.toLowerCase()); }
+async function officialSourceSupportsOrganization(source: URL, seed: ChannelSeedRecord) {
+  const text = await publicText(source);
+  return supplementalOrganizationNames(seed).some((organization) => mentionsOrganization(text, organization));
+}
+async function pageSupportsPublishedContact(source: URL, seed: ChannelSeedRecord, contact: { fullName: string; title: string; email: string }) {
+  const text = await publicText(source);
+  return supplementalOrganizationNames(seed).some((organization) => mentionsOrganization(text, organization)) && text.includes(contact.fullName.toLowerCase()) && text.includes(contact.email.toLowerCase()) && text.includes(contact.title.toLowerCase());
+}
 function roleFits(segment: ChannelSeedRecord["segment"], title: string) { return segment === "DIRECT" ? /\b(cfo|finance|controller|grants|executive director|chief operating)\b/i.test(title) : /\b(founder|ceo|partner|principal|fractional cfo|director)\b/i.test(title); }
 function mentionsOrganization(text: string, organization: string) { const parts = organization.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(" ").filter((part) => part.length > 2); return parts.length > 0 && parts.every((part) => text.includes(part)); }
 async function publicText(source: URL) { try { const addresses = await lookup(source.hostname, { all: true, verbatim: true }); if (!addresses.length || addresses.some((entry) => privateAddress(entry.address))) return ""; const response = await fetch(source, { redirect: "error", headers: { Accept: "text/html,application/pdf;q=0.9" }, signal: AbortSignal.timeout(15_000) }); if (!response.ok || Number(response.headers.get("content-length") || 0) > 512_000) return ""; const text = await boundedText(response, 512_000); return text.toLowerCase().replace(/[^a-z0-9@._+-]+/g, " "); } catch { return ""; } }

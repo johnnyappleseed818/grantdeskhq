@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { hunterFailureStopsValidation, hunterUsageAllowsDomainLookup, scannerEvidenceBackedIdentity, scannerValidationDue, sourceProvesOrganizationDomain } from "../../server/scannerSourceValidation.ts";
 import { extractedContactSourceForVerification, independentOfficialSourceCandidates, nextScrapeGraphReservedCredits, prioritizeScannerValidationCandidates, requiresIndependentPublicValidation, selectScannerDirectRecoveryCohort } from "../../server/scannerScrapeGraphValidation.ts";
+import { DALLAS_FOUNDATION_2026_SUMMER_AWARD_URL, attachScannerSupplementalIdentityEvidence, scannerSupplementalIdentitySourceKey } from "../../server/scannerDallasFoundationIdentityEvidence.ts";
 import type { ChannelSeedRecord } from "../lib/gtmChannelSeeds.ts";
 
 const seed = (hint: string, segment: "DIRECT" | "PARTNER" = "PARTNER"): ChannelSeedRecord => ({
@@ -122,5 +123,20 @@ describe("scanner validation recovery", () => {
     };
     const cohorts = [{ id: "fixed", batchId: "daily-fixed", sourceFileId: "file", contentHash: "hash", segment: "DIRECT" as const, canonicalRecordIds: [fallbackOnly.id], selectedAt: "2026-09-15T13:00:00.000Z", selectionBasis: "test", creationSource: "scheduler_authenticated_recovery" as const, stateVersion: 1 as const }];
     expect(prioritizeScannerValidationCandidates([fallbackOnly, independent], cohorts, now).map((record) => record.id)).toEqual(["independent-domain", "cohort-fallback"]);
+  });
+
+  it("attaches October 7 supplemental identity evidence only to its immutable Direct source record", () => {
+    const record = {
+      ...seed("", "DIRECT"),
+      organization: "Living for Zachary",
+      scannerBatchId: "0948d4f4-a261-40ed-b6e9-9434244558d4",
+      scannerSourceRecordKey: scannerSupplementalIdentitySourceKey("Living for Zachary"),
+      sourceUrl: DALLAS_FOUNDATION_2026_SUMMER_AWARD_URL
+    };
+    const attached = attachScannerSupplementalIdentityEvidence(record);
+    expect(attached.scannerSupplementalIdentityEvidence).toMatchObject({ proposedDomain: "livingforzachary.org", originalOrganizationName: "Living for Zachary" });
+    expect(independentOfficialSourceCandidates(attached).map((candidate) => candidate.hostname.replace(/^www\./, ""))).toContain("livingforzachary.org");
+    expect(attachScannerSupplementalIdentityEvidence({ ...record, scannerSourceRecordKey: "wrong-key" }).scannerSupplementalIdentityEvidence).toBeUndefined();
+    expect(attachScannerSupplementalIdentityEvidence({ ...record, scannerBatchId: "other-batch" }).scannerSupplementalIdentityEvidence).toBeUndefined();
   });
 });

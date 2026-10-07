@@ -1,0 +1,5 @@
+"month","participant_id_range","unique_participants","synthetic_marker","review_note"
+"July","SYN-P001–SYN-P036","36","SYNTHETIC","Range is fictional and disjoint from other months"
+"August","SYN-P037–SYN-P072","36","SYNTHETIC","Range is fictional and disjoint from other months"
+"September","SYN-P073–SYN-P108","36","SYNTHETIC","Range is fictional and disjoint from other months"
+"Total","SYN-P001–SYN-P108","108","SYNTHETIC","Underlying participant-level records are absent; real monthly totals need deduplication"
