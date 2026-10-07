@@ -77,14 +77,25 @@ export async function runNorthstarReliabilityCanary(options: NorthstarCanaryOpti
       if (response.manifest) driftEvents.push(...compareAnalysisManifests(reconciled.manifest, response.manifest).events);
     }
 
+    // The Free First Award is intentionally limited to one distinct report per
+    // tenant. Same-request idempotency is proven above; a distinct request
+    // must be rejected without mutating the completed first report.
     const requestB = northstarCanaryRequest(randomUUID());
-    const coreB = await api<PersistedCompilationResponse>(origin, "/api/reports/compile", identity.idToken, { method: "POST", body: JSON.stringify(requestB) });
-    reportIds.push(coreB.reportId);
-    const reconciledB = await api<PersistedCompilationResponse>(origin, `/api/reports/${coreB.reportId}/evidence`, identity.idToken, { method: "POST", body: JSON.stringify({ files: northstarCanaryEvidenceFiles() }) });
-    const reportBHash = hash(canonicalStateForResponse(reconciledB));
-    crossReportHashes = [baselineHash, reportBHash];
-    assertions.push(assertion("cross-report-determinism", "determinism", "critical", reportBHash === baselineHash, "Independent reports created from identical files have identical canonical business state.", baselineHash, reportBHash));
-    if (reconciled.manifest && reconciledB.manifest) driftEvents.push(...compareAnalysisManifests(reconciled.manifest, reconciledB.manifest).events);
+    const secondFreeAward = await fetchWithRetry(`${origin}/api/reports/compile`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${identity.idToken}` },
+      body: JSON.stringify(requestB)
+    }, 3);
+    const secondFreeAwardBody = await secondFreeAward.text();
+    assertions.push(assertion(
+      "free-first-award-entitlement",
+      "workflow",
+      "critical",
+      secondFreeAward.status === 409 && /already been generated/i.test(secondFreeAwardBody),
+      "A distinct second Free First Award request is rejected without creating another report.",
+      409,
+      secondFreeAward.status
+    ));
   } catch (error) {
     errorCategory = classifyError(error);
     assertions.push(assertion("canary-execution", "availability", "critical", false, "The synthetic canary did not complete its full customer workflow.", "completed", errorCategory));
@@ -94,7 +105,9 @@ export async function runNorthstarReliabilityCanary(options: NorthstarCanaryOpti
 
   const scorecard = buildReliabilityScorecard(assertions, {
     sameReportDeterminism: assertionPassed(assertions, "same-report-idempotency") ? "pass" : "fail",
-    crossReportDeterminism: assertionPassed(assertions, "cross-report-determinism") ? "pass" : "fail",
+    // Independent-report determinism is not applicable to a tenant that is
+    // correctly limited to one Free First Award.
+    crossReportDeterminism: "not_evaluated",
     browserApiConsistency: options.browserApiConsistency || "not_evaluated"
   });
   const failingAssertionIds = assertions.filter((item) => item.status === "failed").map((item) => item.id);

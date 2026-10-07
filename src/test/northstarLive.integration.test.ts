@@ -1,5 +1,4 @@
 // @vitest-environment node
-import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
@@ -87,22 +86,18 @@ describe.skipIf(!enabled)("Northstar live API end-to-end regression", () => {
     const afterWrongRole = await api<RegressionApiResponse>(`/api/reports/${reportId}`, identity.idToken);
     expect(normalizedBusinessState(afterWrongRole)).toEqual(baseline);
 
+    // A Free First Award account may create one distinct report. A repeated
+    // request ID above proves idempotency; a new request ID must preserve the
+    // entitlement rather than silently creating a second free report.
     const requestB = northstarRequest(crypto.randomUUID());
-    const coreB = await api<RegressionApiResponse>("/api/reports/compile", identity.idToken, {
+    const secondFreeAward = await rawApi("/api/reports/compile", identity.idToken, {
       method: "POST",
       body: JSON.stringify(requestB)
     });
-    reportIds.push(coreB.reportId);
-    expect(coreB.reportId).not.toBe(reportId);
-    const reconciledB = await api<RegressionApiResponse>(`/api/reports/${coreB.reportId}/evidence`, identity.idToken, {
-      method: "POST",
-      body: JSON.stringify({ files: northstarEvidenceFiles() })
-    });
-    assertGoldenFinalState(reconciledB);
-    const stateB = normalizedBusinessState(reconciledB);
-    writeSnapshots("independent-report-b", reconciledB);
-    writeCrossReportComparison(baseline, stateB);
-    expect(stateB).toEqual(baseline);
+    expect(secondFreeAward.status).toBe(409);
+    expect(await secondFreeAward.text()).toMatch(/already been generated/i);
+    const afterEntitlementCheck = await api<RegressionApiResponse>(`/api/reports/${reportId}`, identity.idToken);
+    expect(normalizedBusinessState(afterEntitlementCheck)).toEqual(baseline);
 
     for (const id of reportIds) {
       const deleteResponse = await rawApi(`/api/reports/${id}`, identity.idToken, { method: "DELETE" });
@@ -300,14 +295,4 @@ function writeSnapshots(stage: string, response: RegressionApiResponse) {
   for (const [name, snapshot] of Object.entries(splitStructuredSnapshots(response))) {
     fs.writeFileSync(path.join(directory, name), `${JSON.stringify(snapshot, null, 2)}\n`);
   }
-}
-
-function writeCrossReportComparison(reportA: ReturnType<typeof normalizedBusinessState>, reportB: ReturnType<typeof normalizedBusinessState>) {
-  const serializedA = JSON.stringify(reportA);
-  const serializedB = JSON.stringify(reportB);
-  fs.writeFileSync(path.join(artifacts, "cross-report-comparison.json"), `${JSON.stringify({
-    reportAHash: createHash("sha256").update(serializedA).digest("hex"),
-    reportBHash: createHash("sha256").update(serializedB).digest("hex"),
-    identical: serializedA === serializedB
-  }, null, 2)}\n`);
 }
