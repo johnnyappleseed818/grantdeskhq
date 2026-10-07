@@ -52,6 +52,12 @@ describe("public GrantDeskHQ blog", () => {
     expect(screen.getByRole("link", { name: /start your free first award/i })).toHaveAttribute("href", "/assessment");
   });
 
+  it("uses real public-resource paths in the quarterly-report article", () => {
+    render(<MemoryRouter initialEntries={["/blog/grant-progress-report-workflow"]}><Routes><Route path="/blog/:slug" element={<BlogPostPage />} /></Routes></MemoryRouter>);
+    expect(screen.getByRole("link", { name: /filled synthetic report packet/i })).toHaveAttribute("href", "/resources/downloads/grant-report-example/GrantDeskHQ-synthetic-report-kit.zip");
+    expect(screen.getByRole("link", { name: /copyable program-update handoff template/i })).toHaveAttribute("href", "/resources/downloads/grant-report-example/program-update-handoff-template.md");
+  });
+
   it.each([
     ["turn-grant-agreement-into-reporting-plan", /turn a grant agreement into a practical reporting plan/i],
     ["grant-progress-report-workflow", /completed quarterly grant report/i],

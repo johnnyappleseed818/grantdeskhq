@@ -150,8 +150,8 @@ export const BLOG_POSTS: BlogPost[] = [
       { heading: "Synthetic source files for this filled draft", paragraphs: [
         "All names, figures, events and terms are synthetic. This is an authored teaching example, not a customer case study or recorded product output."
       ], links: [
-        { label: "Download the filled synthetic report packet", href: "${WORKED_EXAMPLE_DOWNLOAD_BASE}/GrantDeskHQ-synthetic-report-kit.zip" },
-        { label: "Download the copyable program-update handoff template", href: "${WORKED_EXAMPLE_DOWNLOAD_BASE}/program-update-handoff-template.md" }
+        { label: "Download the filled synthetic report packet", href: `${WORKED_EXAMPLE_DOWNLOAD_BASE}/GrantDeskHQ-synthetic-report-kit.zip` },
+        { label: "Download the copyable program-update handoff template", href: `${WORKED_EXAMPLE_DOWNLOAD_BASE}/program-update-handoff-template.md` }
       ]},
       { heading: "Start with a result that can be checked", paragraphs: [
         "Organization: Harbor Path Community Services — Synthetic Example. Grant: SYN-2026-001. Period: July 1–September 30, 2026. Status: Draft for review; approval and evidence gaps remain.",
@@ -175,12 +175,12 @@ export const BLOG_POSTS: BlogPost[] = [
         "Finance supplies the approved budget, period GL, mapping and reviewed calculations. Program staff supply the metric definition, result, source, explanation and proposed next action. The grants owner checks the package against the funder’s dates, form and approval requirements.",
         "Missing information stays missing; it does not become a plausible story."
       ], links: [
-        { label: "Open the program-update handoff template", href: "${WORKED_EXAMPLE_DOWNLOAD_BASE}/program-update-handoff-template.md" }
+        { label: "Open the program-update handoff template", href: `${WORKED_EXAMPLE_DOWNLOAD_BASE}/program-update-handoff-template.md` }
       ]},
       { heading: "Inspect the complete example", paragraphs: [
         "Start with reviewable-quarterly-report.md. Follow its links to the source files. The evidence register distinguishes included summaries from missing primary records. The workbook recalculates the financial example."
       ], links: [
-        { label: "Read the reviewable quarterly report", href: "${WORKED_EXAMPLE_DOWNLOAD_BASE}/reviewable-quarterly-report.md" }
+        { label: "Read the reviewable quarterly report", href: `${WORKED_EXAMPLE_DOWNLOAD_BASE}/reviewable-quarterly-report.md` }
       ]}
     ]
   },

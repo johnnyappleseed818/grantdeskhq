@@ -14,23 +14,36 @@ function link(pathname, label) {
   return `<a href="${pathname}">${escapeHtml(label)}</a>`;
 }
 
+function articleSectionMarkup(section) {
+  const paragraphs = section.paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("");
+  const table = section.table
+    ? `<p>${escapeHtml(section.table.caption || "")}</p><table><thead><tr>${section.table.headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead><tbody>${section.table.rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table>`
+    : "";
+  const links = section.links?.length
+    ? `<ul>${section.links.map((item) => `<li><a href="${escapeHtml(item.href)}">${escapeHtml(item.label)}</a></li>`).join("")}</ul>`
+    : "";
+  return `<section><h2>${escapeHtml(section.heading)}</h2>${paragraphs}${table}${links}</section>`;
+}
+
 function articleMarkup(post) {
-  const sections = post.sections.map((section) => `<section><h2>${escapeHtml(section.heading)}</h2>${section.paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("")}</section>`).join("");
+  const sections = post.sections.map(articleSectionMarkup).join("");
   const sources = post.sources.map((source) => `<li><a href="${escapeHtml(source.url)}">${escapeHtml(source.title)}</a></li>`).join("");
   const related = BLOG_POSTS.filter((candidate) => candidate.slug !== post.slug).slice(0, 2).map((candidate) => `<li>${link(`/blog/${candidate.slug}`, candidate.title)}</li>`).join("");
-  return `<main data-static-seo="true"><nav aria-label="Resource navigation">${link("/resources", "All resources")} · ${link("/blog", "Guides and articles")}</nav><article><p>${post.readingMinutes} minute read</p><h1>${escapeHtml(post.title)}</h1><p>${escapeHtml(post.description)}</p>${sections}<aside><h2>Ready to organize a real report?</h2><p>Try GrantDeskHQ with one award and keep your team in control of review and submission.</p>${link("/assessment", "Start your Free First Award")}</aside><section><h2>Related resources</h2><ul>${related}</ul></section><section><h2>Sources and further reading</h2><ul>${sources}</ul></section></article></main>`;
+  return `<main data-static-seo="true"><nav aria-label="Resource navigation">${link("/resources", "All resources")} · ${link("/blog", "Guides and articles")}</nav><article><p>${post.readingMinutes} minute read${post.updatedAt ? ` · Updated ${escapeHtml(post.updatedAt)}` : ""}</p><h1>${escapeHtml(post.title)}</h1><p>${escapeHtml(post.description)}</p>${sections}<aside><h2>Ready to organize a real report?</h2><p>Try GrantDeskHQ with one award and keep your team in control of review and submission.</p>${link("/assessment", "Start your Free First Award")}</aside><section><h2>Related resources</h2><ul>${related}</ul></section><section><h2>Sources and further reading</h2><ul>${sources}</ul></section></article></main>`;
 }
 
 function articlePage(post) {
   const canonical = `${siteUrl}/blog/${post.slug}`;
   return {
     route: `blog/${post.slug}`,
-    title: `${post.title} | GrantDeskHQ`,
+    title: `${post.seoTitle || post.title} | GrantDeskHQ`,
     description: post.description,
     canonical,
     type: "article",
     markup: articleMarkup(post),
-    schema: { "@context": "https://schema.org", "@type": "Article", headline: post.title, description: post.description, datePublished: post.publishedAt, mainEntityOfPage: canonical, publisher: { "@type": "Organization", name: "GrantDeskHQ", url: siteUrl } }
+    schema: { "@context": "https://schema.org", "@type": "Article", headline: post.seoTitle || post.title, description: post.description, datePublished: post.publishedAt, ...(post.updatedAt ? { dateModified: post.updatedAt } : {}), mainEntityOfPage: canonical, publisher: { "@type": "Organization", name: "GrantDeskHQ", url: siteUrl } },
+    publishedAt: post.publishedAt,
+    updatedAt: post.updatedAt
   };
 }
 
@@ -54,10 +67,11 @@ function renderPage(template, page) {
   const description = `<meta name="description" content="${escapeHtml(page.description)}">`;
   const og = `<meta property="og:type" content="${page.type || "website"}">\n    <meta property="og:url" content="${escapeHtml(page.canonical)}">\n    <meta property="og:title" content="${escapeHtml(page.title)}">\n    <meta property="og:description" content="${escapeHtml(page.description)}">`;
   const twitter = `<meta name="twitter:card" content="summary">\n    <meta name="twitter:title" content="${escapeHtml(page.title)}">\n    <meta name="twitter:description" content="${escapeHtml(page.description)}">`;
+  const articleDates = page.type === "article" ? `\n    <meta property="article:published_time" content="${escapeHtml(page.publishedAt)}">${page.updatedAt ? `\n    <meta property="article:modified_time" content="${escapeHtml(page.updatedAt)}">` : ""}` : "";
   return template
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(page.title)}</title>`)
     .replace(/<meta\s+name="description"[\s\S]*?>/i, description)
-    .replace(/<meta\s+property="og:type"[\s\S]*?>\s*<meta\s+property="og:url"[\s\S]*?>\s*<meta\s+property="og:title"[\s\S]*?>\s*<meta\s+property="og:description"[\s\S]*?>\s*<meta\s+name="twitter:card"[\s\S]*?>\s*<meta\s+name="twitter:title"[\s\S]*?>\s*<meta\s+name="twitter:description"[\s\S]*?>/i, `${og}\n    ${twitter}`)
+    .replace(/<meta\s+property="og:type"[\s\S]*?>\s*<meta\s+property="og:url"[\s\S]*?>\s*<meta\s+property="og:title"[\s\S]*?>\s*<meta\s+property="og:description"[\s\S]*?>\s*<meta\s+name="twitter:card"[\s\S]*?>\s*<meta\s+name="twitter:title"[\s\S]*?>\s*<meta\s+name="twitter:description"[\s\S]*?>/i, `${og}\n    ${twitter}${articleDates}`)
     .replace(/<link\s+rel="canonical"[\s\S]*?>/i, `<link rel="canonical" href="${escapeHtml(page.canonical)}">`)
     .replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/i, `<script type="application/ld+json">${schema}</script>`)
     .replace(/<div id="root" data-clarity-mask="true"><\/div>/, `<div id="root" data-clarity-mask="true">${page.markup}</div>`);
