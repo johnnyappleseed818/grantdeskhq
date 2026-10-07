@@ -22,6 +22,9 @@ const run = (name, command, args, env = {}) => {
   });
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
+  const artifactName = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  fs.writeFileSync(path.join(artifacts, `${artifactName}.stdout.log`), result.stdout || "");
+  fs.writeFileSync(path.join(artifacts, `${artifactName}.stderr.log`), result.stderr || "");
   const entry = {
     name,
     status: result.status === 0 ? "PASS" : "FAIL",
