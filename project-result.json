@@ -917,7 +917,7 @@
       "b0b322c owner-approval-only LinkedIn distribution tasks",
       "668e6c9 one-Free-First-Award release checks",
       "6175bb5 supported deterministic release runners",
-      "HEAD compiler 409 mapping, complete smoke facts, and Playwright runtime correction"
+      "a505103 compiler 409 mapping, complete smoke facts, and Playwright runtime correction"
     ],
     "committedImportEvidence": "Receipt scanner_import_reconciled_a56fb0b2ef4fc897b66c08c0332e binds October 7 batch 0948d4f4-a261-40ed-b6e9-9434244558d4, Drive file 1Jjbm8h2rXmNiq0l5bQENst8p6-3l-aYr, SHA-256 41856a28d04e2cec834d55f932aadb935fbecf582e61a16a36a46c249d9efb5a, rowsSeen=30, accepted=28, duplicate=2, rejected=2, pending=28, and six social review items. Drive receipt mirroring remains nonblocking after storageQuotaExceeded.",
     "gateFindings": "The prior zero-traffic gate found stale deterministic test-runner assumptions, a 502 mapping for the intended Free First Award 409, an incomplete financial smoke fixture, and a missing playwright runtime package. Focused corrections are committed; the replacement image build ba5f5586-0211-4c4f-963d-544d00013482 is in progress. No production traffic, provider enrollment, or outbound send occurred in this release attempt.",
