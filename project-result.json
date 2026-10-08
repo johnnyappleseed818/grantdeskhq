@@ -1,7 +1,7 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-10-08T10:02:41Z",
+  "updatedAt": "2026-10-08T15:03:45Z",
   "october8ReleasePromotion": {
     "status": "PARTIAL",
     "commit": "6469e13893ca79be4c2d15c1f14473d95bf7fc99",
@@ -1050,5 +1050,87 @@
     },
     "feed": "Database receipt scanner_import_reconciled_a56fb0b2ef4fc897b66c08c0332e is authoritative for batch 0948d4f4-a261-40ed-b6e9-9434244558d4, Drive file 1Jjbm8h2rXmNiq0l5bQENst8p6-3l-aYr, SHA-256 41856a28d04e2cec834d55f932aadb935fbecf582e61a16a36a46c249d9efb5a: rowsSeen=30, accepted=28, duplicate=2, rejected=2, pending=28, not quarantined. The replay was alreadyImported=true. Drive receipt mirroring is nonblocking and pending after a 403 storageQuotaExceeded.",
     "nextAction": "Obtain a fresh durable candidate gate summary for 00616-zaj. Only if every required leg passes, promote traffic through the established reversible procedure; then let the normal scheduled controller validate the identity-evidenced Direct seeds and reconcile provider outcomes."
+  },
+  "october8ReceiptOutcomesAndVerification": {
+    "status": "PARTIAL",
+    "receiptReportingRelease": {
+      "commit": "0db63076dc53cb2da018fce7b940f321a9220137",
+      "candidateRevision": "grantdeskhq-prototype-00622-foq",
+      "candidateGate": {
+        "startedAt": "2026-10-08T14:45:42.585Z",
+        "completedAt": "2026-10-08T14:54:23.957Z",
+        "status": "PASS",
+        "exitStatus": 0,
+        "evidence": "test-results/grantdesk-regression/runner-invocation.json and test-results/grantdesk-regression/runner-summary.json"
+      },
+      "production": {
+        "revision": "grantdeskhq-prototype-00622-foq",
+        "trafficPercent": 100,
+        "verifiedAt": "2026-10-08T15:03:45Z"
+      }
+    },
+    "feedReceipt": {
+      "receiptId": "scanner_import_reconciled_a56fb0b2ef4fc897b66c08c0332e",
+      "batchId": "0948d4f4-a261-40ed-b6e9-9434244558d4",
+      "sourceFileId": "1Jjbm8h2rXmNiq0l5bQENst8p6-3l-aYr",
+      "contentHash": "41856a28d04e2cec834d55f932aadb935fbecf582e61a16a36a46c249d9efb5a",
+      "organizations": { "seen": 30, "accepted": 28, "duplicate": 2, "rejected": 0 },
+      "social": {
+        "seen": 8,
+        "stored": 6,
+        "rejected": 2,
+        "candidateCreated": 0,
+        "candidateDuplicate": 0,
+        "rejectionReasons": { "UNSUPPORTED_SOCIAL_PLATFORM": 1, "UNSAFE_OR_PLATFORM_MISMATCH_SOCIAL_URL": 1 }
+      },
+      "reportingPath": "/api/gtm/sourcing-status?batchId=0948d4f4-a261-40ed-b6e9-9434244558d4",
+      "mirror": "PENDING_NON_BLOCKING: folder owner quota returned storageQuotaExceeded; no committed import or downstream provider action is replayed."
+    },
+    "directVerificationRecovery": {
+      "provider": "instantly_supersearch",
+      "attempt": {
+        "event": "GTM_CHANNEL_SEED_ENRICHMENT",
+        "at": "2026-10-08T10:48Z",
+        "selected": 5,
+        "submitted": 5,
+        "providerCredentialOrAccessFailure": false
+      },
+      "records": [
+        { "canonicalId": "channel_seed_21270544cec635b7933c20ce", "organization": "Health Services of North Texas, Inc.", "segment": "DIRECT", "state": "ENRICHMENT_FAILED", "reason": "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT" },
+        { "canonicalId": "channel_seed_22cc6438d9eb4c826ef82428", "organization": "The Magdalen House", "segment": "DIRECT", "state": "ENRICHMENT_FAILED", "reason": "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT" },
+        { "canonicalId": "channel_seed_12223a296750aa39fca8e670", "organization": "Center for Integrative Counseling and Psychology", "segment": "DIRECT", "state": "ENRICHMENT_FAILED", "reason": "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT" },
+        { "canonicalId": "channel_seed_05a44bacc61f12876fea8ef7", "organization": "Youth 180 Inc.", "segment": "DIRECT", "state": "ENRICHMENT_FAILED", "reason": "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT" },
+        { "canonicalId": "channel_seed_260a7c1e0af3684e30b2cbc7", "organization": "Community Partners of Dallas", "segment": "DIRECT", "state": "ENRICHMENT_FAILED", "reason": "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT" }
+      ],
+      "disposition": "Terminal per-record provider result. The verification gate remains intact; no contact was created, no READY transition occurred, and no retry or provider write was issued."
+    },
+    "scheduledOperation": {
+      "transientFailure": {
+        "at": "2026-10-08T14:45Z",
+        "operation": "persisting idempotent Instantly membership evidence during concurrent reconciliation",
+        "error": "503 UNAVAILABLE after the existing bounded retry budget",
+        "providerSendReplay": false
+      },
+      "automaticRecovery": {
+        "at": "2026-10-08T15:00Z",
+        "revision": "grantdeskhq-prototype-00622-foq",
+        "dispatchHttpStatus": { "direct": 200, "partner": 200 },
+        "reconciliationHttpStatus": 200,
+        "direct": { "action": "NOOP", "reason": "DAILY_CAPACITY_REACHED", "eligible": 0, "ready": 0 },
+        "partner": { "action": "RECONCILE", "reason": "AWAITING_PROVIDER_TERMINAL_STATE", "ready": 7, "acceptedOrScheduled": 10, "providerConfirmedInitialSendsToday": 14, "unresolved": 10 },
+        "providerEvidence": "GTM_INSTANTLY_RECONCILIATION at 2026-10-08T15:01:04.006Z: Direct current-date provider-confirmed initial sends=0; Partner current-date provider-confirmed initial sends=14; warmup is excluded."
+      },
+      "nextDurableDispatch": {
+        "utc": "2026-10-08T15:15:00Z",
+        "americaDetroit": "2026-10-08 11:15 EDT",
+        "asiaJerusalem": "2026-10-08 18:15 IDT",
+        "recording": "grantdeskhq-direct-controlled-dispatch, grantdeskhq-partner-live-reconcile, and grantdeskhq-instantly-reconciliation remain enabled; their controller outcomes and provider reconciliation are durably persisted."
+      }
+    },
+    "remainingBlockers": [
+      "No provider-verified, role-fit individual work email was returned for any of the five Direct records; retrying would repeat a terminal provider result and is intentionally suppressed.",
+      "One shared ready mailbox supports 30 first-touch messages per Detroit business day. At 15:01 UTC its daily capacity was exhausted; reaching 300 requires additional healthy approved mailbox capacity.",
+      "Drive receipt mirroring remains non-blocking after storageQuotaExceeded; database receipt reporting is authoritative."
+    ]
   }
 }
