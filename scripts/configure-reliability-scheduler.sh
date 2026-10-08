@@ -35,7 +35,6 @@ common=(
   --time-zone="Etc/UTC"
   --uri="${origin%/}/api/internal/reliability/canary"
   --http-method=POST
-  --headers="Content-Type=application/json,x-grantdesk-health-scheduler=1"
   --message-body='{"trigger":"daily"}'
   --oidc-service-account-email="${service_account}"
   --oidc-token-audience="${audience%/}"
@@ -44,11 +43,14 @@ common=(
   --min-backoff=60s
   --max-backoff=300s
 )
+headers="Content-Type=application/json,x-grantdesk-health-scheduler=1"
 
 if gcloud scheduler jobs describe "${job}" --project="${project}" --location="${region}" >/dev/null 2>&1; then
-  gcloud scheduler jobs update http "${job}" "${common[@]}"
+  # `update http` accepts --update-headers, while `create http` accepts
+  # --headers. Keeping these distinct makes repeated configuration durable.
+  gcloud scheduler jobs update http "${job}" "${common[@]}" --update-headers="${headers}"
 else
-  gcloud scheduler jobs create http "${job}" "${common[@]}"
+  gcloud scheduler jobs create http "${job}" "${common[@]}" --headers="${headers}"
 fi
 
 gcloud scheduler jobs describe "${job}" --project="${project}" --location="${region}"
