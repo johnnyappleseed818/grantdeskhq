@@ -298,7 +298,28 @@ async function auditMissingProgramChecks(
   const outputText = body.output?.flatMap((item) => item.content || []).find((item) => item.type === "output_text")?.text;
   if (!outputText) throw new Error("Program workflow completeness audit returned no structured output.");
   const missing = (JSON.parse(outputText) as { missingChecks: Array<Omit<NonNullable<ModelCompilation["programChecks"]>[number], "id" | "resolution" | "status">> }).missingChecks;
-  return missing.map((item, index) => ({ ...item, id: `PROGRAM-AUDIT-${String(index + 1).padStart(3, "0")}`, resolution: "open" as const, status: "review" as const }));
+  return reconcileProgramAuditSources(request, missing).map((item, index) => ({ ...item, id: `PROGRAM-AUDIT-${String(index + 1).padStart(3, "0")}`, resolution: "open" as const, status: "review" as const }));
+}
+
+/** Rebind only an unambiguous filename alias to an exact uploaded filename. */
+export function reconcileProgramAuditSources<T extends { sources: Array<{ sourceName: string; locator: string; excerpt: string }> }>(request: CompilationRequest, checks: T[]): T[] {
+  const filesByAlias = new Map<string, string[]>();
+  for (const file of request.files) {
+    const alias = sourceFilenameAlias(file.name);
+    if (!alias) continue;
+    filesByAlias.set(alias, [...(filesByAlias.get(alias) || []), file.name]);
+  }
+  return checks.map((check) => ({
+    ...check,
+    sources: check.sources.map((source) => {
+      const matches = filesByAlias.get(sourceFilenameAlias(source.sourceName)) || [];
+      return matches.length === 1 ? { ...source, sourceName: matches[0] } : source;
+    })
+  }));
+}
+
+function sourceFilenameAlias(value: string) {
+  return value.trim().toLowerCase().replace(/\.[a-z0-9]{1,8}$/i, "").replace(/[^a-z0-9]+/g, "");
 }
 
 function mergeProgramChecks(current: NonNullable<ModelCompilation["programChecks"]>, audited: NonNullable<ModelCompilation["programChecks"]>) {

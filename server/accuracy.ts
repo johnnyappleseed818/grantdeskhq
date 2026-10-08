@@ -288,7 +288,16 @@ function narrativeContradictions(text: string, facts: WorkflowFacts, sourceFinan
       }
     }
   }
-  const allowedFinancialValues = [...(facts.budgetVsActual || []).flatMap((line) => [line.approvedAmount, line.actualEligibleExpenditure, line.remainingAmount, line.percentageSpent, line.varianceAmount, line.spendRateAgainstElapsedPlan]), ...(facts.knownFinancialAmounts || []), ...sourceFinancialAmounts, ...citedFinancialAmounts].filter((value): value is number => value !== null && Number.isFinite(value));
+  // The confirmed workflow payload stores the rate against the elapsed plan,
+  // rather than duplicating that plan amount. The plan is still a fully
+  // deterministic value: actual × 100 ÷ spend rate.
+  const elapsedPlanAmounts = (facts.budgetVsActual || []).flatMap((line) => {
+    const rate = line.spendRateAgainstElapsedPlan;
+    if (rate === null || !Number.isFinite(rate) || Math.abs(rate) < 0.000001 || !Number.isFinite(line.actualEligibleExpenditure)) return [];
+    const value = (line.actualEligibleExpenditure * 100) / rate;
+    return Number.isFinite(value) ? [value] : [];
+  });
+  const allowedFinancialValues = [...(facts.budgetVsActual || []).flatMap((line) => [line.approvedAmount, line.actualEligibleExpenditure, line.remainingAmount, line.percentageSpent, line.varianceAmount, line.spendRateAgainstElapsedPlan]), ...elapsedPlanAmounts, ...(facts.knownFinancialAmounts || []), ...sourceFinancialAmounts, ...citedFinancialAmounts].filter((value): value is number => value !== null && Number.isFinite(value));
   for (const match of text.matchAll(/\$\s*([\d,]+(?:\.\d+)?)/g)) {
     const value = Number(match[1].replaceAll(",", ""));
     if (allowedFinancialValues.length && !allowedFinancialValues.some((allowed) => close(Math.abs(value), Math.abs(allowed), 0.011))) reasons.push(`The financial amount ${match[0]} is not present in the deterministic budget-versus-actual results.`);

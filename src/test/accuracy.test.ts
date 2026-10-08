@@ -132,6 +132,23 @@ describe("deterministic accuracy controls", () => {
     expect(checked.narrative[0].status).not.toBe("blocked");
   });
 
+  it("accepts an elapsed plan deterministically derived from the confirmed spend rate", () => {
+    const input = requestWithConfirmedKpi();
+    const facts = JSON.stringify({
+      programMetrics: [{ label: "Youth served", target: 120, actual: 118 }],
+      budgetVsActual: [{ approvedAmount: 15000, actualEligibleExpenditure: 9800, remainingAmount: 5200, percentageSpent: 65.3333333, varianceAmount: 2300, spendRateAgainstElapsedPlan: 130.6666667 }]
+    });
+    input.files = input.files.map((file) => file.name === "GrantDeskHQ_Confirmed_Workflow_Data.txt" ? { ...file, size: Buffer.byteLength(facts), data: `data:text/plain;base64,${Buffer.from(facts).toString("base64")}` } : file);
+    const narrative = prototypeFixture.narrative.map((item, index) => index === 0 ? {
+      ...item,
+      text: "Local Travel actual was $9,800 against a $7,500 elapsed-period plan, a $2,300 variance.",
+      source: { ...item.source, excerpt: "Confirmed financial facts." }
+    } : item);
+    const checked = applyDeterministicAccuracyChecks(input, { ...prototypeFixture, narrative });
+    expect(checked.narrative[0].status).not.toBe("blocked");
+    expect(checked.qualityChecks.find((item) => item.id === "deterministic-workflow-facts")?.status).toBe("passed");
+  });
+
   it("blocks financial values absent from both deterministic results and the cited source excerpt", () => {
     const narrative = prototypeFixture.narrative.map((item, index) => index === 0 ? {
       ...item,

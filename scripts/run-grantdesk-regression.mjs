@@ -10,6 +10,10 @@ const browsers = process.env.PLAYWRIGHT_BROWSERS_PATH || path.join(os.tmpdir(), 
 const origin = (process.argv[2] || process.env.GRANTDESK_E2E_ORIGIN || "https://grantdeskhq.com").replace(/\/$/, "");
 const playwrightVersion = "1.55.0";
 fs.mkdirSync(artifacts, { recursive: true });
+const gateStartedAt = new Date().toISOString();
+const testedCommit = process.env.GRANTDESK_TESTED_COMMIT || spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim() || "UNKNOWN";
+const candidateRevision = process.env.GRANTDESK_TESTED_REVISION || "LOCAL_ORIGIN";
+fs.writeFileSync(path.join(artifacts, "runner-invocation.json"), `${JSON.stringify({ gateStartedAt, origin, testedCommit, candidateRevision, runnerPid: process.pid }, null, 2)}\n`);
 
 const results = [];
 const run = (name, command, args, env = {}) => {
@@ -75,10 +79,14 @@ run("Playwright UI smoke", "node", ["tests/e2e/northstar-smoke.mjs"], {
 });
 
 const summary = {
+  gateStartedAt,
   generatedAt: new Date().toISOString(),
   origin,
+  testedCommit,
+  candidateRevision,
   status: results.every((item) => item.status === "PASS") ? "PASS" : "FAIL",
-  results
+  results,
+  exitCode: results.every((item) => item.status === "PASS") ? 0 : 1
 };
 fs.writeFileSync(path.join(artifacts, "runner-summary.json"), `${JSON.stringify(summary, null, 2)}\n`);
-process.exitCode = summary.status === "PASS" ? 0 : 1;
+process.exitCode = summary.exitCode;
