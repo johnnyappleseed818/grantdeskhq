@@ -2014,7 +2014,7 @@ async function handleGtmSourcingStatus(request: IncomingMessage, response: Serve
   const query = new URL(request.url || "/", "https://grantdeskhq.local").searchParams;
   const batchId = String(query.get("batchId") || "").trim().slice(0, 200);
   const [direct, social, awards, canonical, channelSeeds, circuit, receipts] = await Promise.all([readGtmDirectDiscoveryScan(), readGtmDailyScan(), readGtmAwardScan(), readCanonicalGtmModel(), listGtmChannelSeeds(), readOutboundCircuitBreaker(), listGtmScannerImportReceipts()]);
-  return json(response, 200, { direct, social, awards, breaker: outboundCircuitTelemetry(circuit), channelSeeds: summarizeChannelSeedLifecycle(channelSeeds), scannerReceipts: scannerReceiptProjection(receipts, channelSeeds, batchId), canonical: { metrics: canonical.metrics, records: canonical.records.filter((record) => record.segment === "DIRECT") } });
+  return json(response, 200, { direct, social, awards, breaker: outboundCircuitTelemetry(circuit), channelSeeds: summarizeChannelSeedLifecycle(channelSeeds), scannerReceipts: scannerReceiptProjection(receipts, channelSeeds, social?.items || [], batchId), canonical: { metrics: canonical.metrics, records: canonical.records.filter((record) => record.segment === "DIRECT") } });
 }
 
 /** Scheduler-authenticated, calculation-only inventory refresh. It intentionally

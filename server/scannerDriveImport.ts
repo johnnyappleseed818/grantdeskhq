@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { importGtmChannelSeeds, listGtmChannelSeeds, listGtmScannerImportReceipts, readGtmDailyScan, readGtmScannerImportReceipt, saveGtmDailyScan, saveGtmScannerImportReceipt, gcpToken, type GtmScannerImportReceipt } from "./persistence.ts";
 import { scannerLeadFeedToChannelSeeds, scannerSocialResearchToSignals, socialSignalToChannelSeed, type ChannelSeedRecord, type ScannerLeadFeedRecord, type ScannerSocialResearchRecord } from "../src/lib/gtmChannelSeeds.ts";
+import type { DailySocialSignal } from "../src/lib/gtm.ts";
 
 export const SCANNER_DRIVE_FOLDER_ID = "1zfDj-tZGTLgVtlzn8isKRCNCyprIf_h2";
 const maxBatchBytes = 512_000;
@@ -28,6 +29,14 @@ export interface ScannerReceiptProjection {
   socialCandidatesCreated: number;
   socialCandidateDuplicate: number;
   socialCandidateRecordIds: string[];
+  /** Scheduler-authenticated lifecycle view. It deliberately excludes names,
+   * emails, source URLs, and any provider payload. */
+  organizationOutcomes: Array<{ sourceRecordKey: string | null; canonicalRecordId: string; segment: string | null; state: string; reason: string | null }>;
+  organizationRejections: Array<{ sourceRecordKey: string; reason: string }>;
+  socialOutcomes: Array<{ sourceRecordKey: string; socialRecordId: string; platform: string; state: string }>;
+  socialRejections: Array<{ sourceRecordKey: string; reason: string }>;
+  organizationCounts: { seen: number; accepted: number; duplicate: number; rejected: number };
+  socialCounts: { seen: number; stored: number; rejected: number; candidateCreated: number; candidateDuplicate: number };
   quarantined: boolean;
   quarantineReason: string | null;
 }
@@ -117,16 +126,32 @@ export function scannerReceiptMirrorRetryLimit(env: NodeJS.ProcessEnv = process.
   return Number.isInteger(configured) && configured > 0 ? Math.min(250, configured) : 100;
 }
 
-/** Scheduler-authenticated reporting projection. Receipt bindings and opaque
- * canonical IDs are exposed, but no organization, contact, email, or provider
- * payload is returned. This reads committed Firestore state, never logs. */
-export function scannerReceiptProjection(receipts: ReadonlyArray<GtmScannerImportReceipt>, channelSeeds: ReadonlyArray<Pick<ChannelSeedRecord, "id">>, batchId = ""): ScannerReceiptProjection[] {
-  const canonicalIds = new Set(channelSeeds.map((seed) => seed.id));
+/** Scheduler-authenticated reporting projection. Receipt bindings, source keys,
+ * and non-contact lifecycle outcomes are exposed, but no organization name,
+ * source URL, email, or provider payload is returned. This reads committed
+ * Firestore state and never logs or mutates it. */
+export function scannerReceiptProjection(
+  receipts: ReadonlyArray<GtmScannerImportReceipt>,
+  channelSeeds: ReadonlyArray<Pick<ChannelSeedRecord, "id"> & Partial<Pick<ChannelSeedRecord, "segment" | "lifecycle" | "rejectionReason" | "scannerSourceRecordKey">>>,
+  socialSignalsOrBatchId: ReadonlyArray<Pick<DailySocialSignal, "id" | "platform" | "status" | "scannerBatchId" | "scannerSourceRecordKey">> | string = [],
+  batchIdArgument = ""
+): ScannerReceiptProjection[] {
+  // Keep existing reporting callers that supplied `(receipts, seeds, batchId)`
+  // working while allowing the authenticated endpoint to include social rows.
+  const socialSignals = Array.isArray(socialSignalsOrBatchId) ? socialSignalsOrBatchId : [];
+  const batchId = typeof socialSignalsOrBatchId === "string" ? socialSignalsOrBatchId : batchIdArgument;
+  const seedById = new Map(channelSeeds.map((seed) => [seed.id, seed]));
   return receipts
     .filter((receipt) => !batchId || receipt.batchId === batchId)
     .map((receipt) => {
       const ids = [...new Set(receipt.canonicalRecordIds || [])];
-      const canonicalRecordsPresent = ids.filter((id) => canonicalIds.has(id));
+      const canonicalRecordsPresent = ids.filter((id) => seedById.has(id));
+      const organizationRejections = (receipt.errors || []).filter((item) => !isSocialReceiptReason(item.reason));
+      const socialRejections = (receipt.errors || []).filter((item) => isSocialReceiptReason(item.reason));
+      const socialOutcomes = socialSignals
+        .filter((item) => item.scannerBatchId === receipt.batchId && item.scannerSourceRecordKey)
+        .map((item) => ({ sourceRecordKey: String(item.scannerSourceRecordKey), socialRecordId: item.id, platform: item.platform, state: item.status }))
+        .sort((left, right) => left.sourceRecordKey.localeCompare(right.sourceRecordKey));
       return {
         id: receipt.id,
         batchId: receipt.batchId,
@@ -141,16 +166,46 @@ export function scannerReceiptProjection(receipts: ReadonlyArray<GtmScannerImpor
         pending: receipt.pending,
         canonicalRecordIds: ids,
         canonicalRecordsPresent,
-        missingCanonicalRecordIds: ids.filter((id) => !canonicalIds.has(id)),
+        missingCanonicalRecordIds: ids.filter((id) => !seedById.has(id)),
         rejectionReasons: receipt.rejectionReasons || groupRejectionReasons(receipt.errors || []),
         socialEvidenceAdded: receipt.socialEvidenceAdded || 0,
         socialCandidatesCreated: receipt.socialCandidatesCreated || 0,
         socialCandidateDuplicate: receipt.socialCandidateDuplicate || 0,
         socialCandidateRecordIds: [...new Set(receipt.socialCandidateRecordIds || [])],
+        organizationOutcomes: ids.map((canonicalRecordId) => {
+          const seed = seedById.get(canonicalRecordId);
+          return {
+            sourceRecordKey: seed?.scannerSourceRecordKey || null,
+            canonicalRecordId,
+            segment: seed?.segment || null,
+            state: seed?.lifecycle || "MISSING_CANONICAL_RECORD",
+            reason: seed?.rejectionReason || null
+          };
+        }),
+        organizationRejections: organizationRejections.map((item) => ({ sourceRecordKey: item.sourceRecordKey, reason: item.reason })),
+        socialOutcomes,
+        socialRejections: socialRejections.map((item) => ({ sourceRecordKey: item.sourceRecordKey, reason: item.reason })),
+        organizationCounts: {
+          seen: (receipt.accepted || 0) + (receipt.duplicate || 0) + organizationRejections.length,
+          accepted: receipt.accepted || 0,
+          duplicate: receipt.duplicate || 0,
+          rejected: organizationRejections.length
+        },
+        socialCounts: {
+          seen: socialOutcomes.length + socialRejections.length,
+          stored: receipt.socialEvidenceAdded || 0,
+          rejected: socialRejections.length,
+          candidateCreated: receipt.socialCandidatesCreated || 0,
+          candidateDuplicate: receipt.socialCandidateDuplicate || 0
+        },
         quarantined: Boolean(receipt.quarantined),
         quarantineReason: receipt.quarantineReason || null
       };
     });
+}
+
+function isSocialReceiptReason(reason: string) {
+  return /(?:^|_)SOCIAL(?:_|$)|UNSUPPORTED_SOCIAL_PLATFORM|UNSAFE_OR_PLATFORM_MISMATCH_SOCIAL_URL/.test(String(reason || ""));
 }
 
 /** Drive returns at most one page unless the caller follows nextPageToken. A
