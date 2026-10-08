@@ -327,7 +327,13 @@ export function canonicalizeRequirements(requirements: CompilationResult["requir
   const ordered = [...requirements].sort((left, right) => requirementSortKey(left).localeCompare(requirementSortKey(right)));
   const distinct: CompilationResult["requirements"] = [];
   for (const requirement of ordered) {
-    const duplicateIndex = distinct.findIndex((existing) => areNearDuplicateRequirements(existing.requirement, requirement.requirement));
+    // Exact source clauses are a deterministic contractual floor. A broad
+    // model summary can be similar enough to look duplicate while omitting a
+    // concrete prompt (for example, activities or corrective actions). Keep
+    // those clauses independent; canonicalization later gives them their own
+    // stable source-backed identity.
+    const sourceClause = requirement.id.startsWith("source-clause-");
+    const duplicateIndex = sourceClause ? -1 : distinct.findIndex((existing) => !existing.id.startsWith("source-clause-") && areNearDuplicateRequirements(existing.requirement, requirement.requirement));
     if (duplicateIndex === -1) {
       distinct.push(requirement);
       continue;

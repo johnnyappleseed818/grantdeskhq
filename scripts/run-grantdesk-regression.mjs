@@ -41,7 +41,7 @@ if (!fs.existsSync(playwrightPackage)) {
   run("playwright runtime", "npm", ["install", "--prefix", runtime, `playwright@${playwrightVersion}`]);
 }
 
-const browserMarker = path.join(browsers, "chromium_headless_shell-1187");
+const browserMarker = path.join(browsers, "chromium_headless_shell-1187", "chrome-linux", "headless_shell");
 if (!fs.existsSync(browserMarker)) {
   run("playwright chromium", "node", [path.join(runtime, "node_modules/playwright/cli.js"), "install", "chromium"], {
     PLAYWRIGHT_BROWSERS_PATH: browsers

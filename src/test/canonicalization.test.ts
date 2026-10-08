@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { canonicalizeCompilationState, deriveExplicitSourceRequirements } from "../../server/canonicalization";
+import { canonicalizeRequirements } from "../../server/reportCompiler";
 import { synchronizeEvidenceSourceState, type StoredSource } from "../../server/persistence";
 import { prototypeFixture } from "../data/prototypeFixture";
 import type { CompilationRequest, CompilationResult, SupportingEvidenceFile } from "../types/prototype";
@@ -66,6 +67,21 @@ describe("canonical compilation state", () => {
       "Explain progress toward each KPI.",
       "Describe material challenges and corrective actions.",
       "Explain every budget category that differs by more than 10% from the approved period plan."
+    ]));
+  });
+
+  it("keeps an exact narrative source clause when a broad model summary overlaps it", () => {
+    const sourceClause = {
+      id: "source-clause-narrative", requirement: "Describe material challenges and corrective actions.",
+      source: { sourceName: "Award.txt", locator: "Source clause 4.3", excerpt: "Describe material challenges and corrective actions." }, confidence: 1, status: "verified" as const
+    };
+    const modelSummary = {
+      id: "model-narrative", requirement: "Provide a program narrative describing material challenges.",
+      source: { sourceName: "Award.txt", locator: "Page 4", excerpt: "Program narrative must describe material challenges." }, confidence: 0.99, status: "verified" as const
+    };
+    expect(canonicalizeRequirements([sourceClause, modelSummary]).map((item) => item.requirement)).toEqual(expect.arrayContaining([
+      sourceClause.requirement,
+      modelSummary.requirement
     ]));
   });
   it("does not turn all-caps section headings into obligations", () => {

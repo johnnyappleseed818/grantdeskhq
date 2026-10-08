@@ -59,7 +59,7 @@ import { approveGrantReportingMcpAuthorization, exchangeGrantReportingMcpToken, 
 
 const port = Number(process.env.PORT || 8080);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
-import { advanceDispatchActivationFromProvider, decideControlledDispatch, dispatchActivationMatchesCampaign, type DispatchSegment } from "./gtmDispatch.ts";
+import { advanceDispatchActivationFromProvider, decideControlledDispatch, dispatchActivationHasCriticalFailure, dispatchActivationMatchesCampaign, type DispatchSegment } from "./gtmDispatch.ts";
 import { calculateInstantlyProviderCapacity, configuredCleanCampaignIds, describeCampaignResponse, providerBackedCampaignLimit, resolveMappedCampaign } from "./gtmCapacity.ts";
 const maxBodyBytes = configuredPositiveInteger("MAX_REQUEST_BODY_BYTES", 24_000_000);
 
@@ -1281,7 +1281,10 @@ async function handleAutomaticInstantlyDispatch(request: IncomingMessage, respon
   const campaignStatus = Number(campaignSummary?.status);
   const campaignReadyForEvaluation = Boolean(campaign && !campaignMappedToLegacy && providerCapacity.segments[segment].senderReady && expectedSender && cleanCampaignStatusAllowsAutomaticDispatch(campaignStatus) && cleanInitialOnlyCampaignReady(campaign, expectedSender, segmentDailyLimit, [1, 3]));
   const campaignNeedsActivation = campaignStatus === 3 && campaignReadyForEvaluation;
-  const criticalFailure = segmentRecords.some((record) => ["BOUNCED", "UNSUBSCRIBED", "QUARANTINED"].includes(record.instantlySyncStatus));
+  // Historic terminal outcomes stay as recipient-level suppression or
+  // quarantine facts. Only a failure for the matching canary configuration
+  // can stop unrelated, otherwise eligible contacts from normal dispatch.
+  const criticalFailure = dispatchActivationHasCriticalFailure(activation, campaignId, fingerprint);
   const decision = decideControlledDispatch({ breakerClosed: Boolean(circuit && !circuit.tripped), flagsEnabled, campaignActive: campaignReadyForEvaluation, withinWindow, pendingProviderActivity: outstanding.length > 0, canaryState, fingerprintMatches: !activation || Boolean(knownCanary), criticalFailure, dailyLimit: segmentDailyLimit, confirmedToday: sentToday, outstanding: outstanding.length, eligible: eligible.length, globalRemaining });
   const base = { mode: "AUTO", segment, decision, campaign: campaignSummary, capacity: providerCapacity, eligible: eligible.length, outstanding: outstanding.length, sentToday, globalSentToday, globalOutstanding, globalRemaining, segmentDailyLimit };
   // Durable Cloud Run audit telemetry for scheduled decisions. It intentionally

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advanceDispatchActivationFromProvider, decideControlledDispatch, dispatchActivationMatchesCampaign } from "../../server/gtmDispatch.ts";
+import { advanceDispatchActivationFromProvider, decideControlledDispatch, dispatchActivationHasCriticalFailure, dispatchActivationMatchesCampaign } from "../../server/gtmDispatch.ts";
 
 const safe = { breakerClosed: true, flagsEnabled: true, campaignActive: true, withinWindow: true, pendingProviderActivity: false, canaryState: "NONE" as const, fingerprintMatches: true, criticalFailure: false, dailyLimit: 5, confirmedToday: 0, outstanding: 0, eligible: 5 };
 describe("server-authoritative controlled dispatch", () => {
@@ -37,6 +37,16 @@ describe("server-authoritative controlled dispatch", () => {
   it("fails a matching canary closed on a terminal provider safety event", () => {
     const activation = { campaignId: "clean-direct", providerLeadId: "lead_direct", outcome: "ACCEPTED" as const, providerSentAt: "", failureReason: "", stateVersion: 2, updatedAt: "2026-09-22T14:45:00.000Z" };
     expect(advanceDispatchActivationFromProvider(activation, [{ instantlyCampaignId: "clean-direct", instantlyLeadId: "lead_direct", instantlySyncStatus: "BOUNCED", firstSentAt: "2026-09-22T14:46:00.000Z" }], "2026-09-22T14:47:00.000Z")).toMatchObject({ outcome: "FAILED", failureReason: "CANARY_BOUNCED", stateVersion: 3 });
+  });
+
+  it("scopes a critical safety failure to the matching canary instead of historical terminal memberships", () => {
+    const failed = { campaignId: "clean-partner", configurationFingerprint: "current", providerLeadId: "canary", outcome: "FAILED" as const, providerSentAt: "", failureReason: "CANARY_BOUNCED", stateVersion: 3, updatedAt: "2026-10-07T17:00:00.000Z" };
+    expect(dispatchActivationHasCriticalFailure(failed, "clean-partner", "current")).toBe(true);
+    expect(dispatchActivationHasCriticalFailure(failed, "clean-partner", "changed-config")).toBe(false);
+    expect(dispatchActivationHasCriticalFailure({ ...failed, outcome: "SENT" as const }, "clean-partner", "current")).toBe(false);
+    // Recipient-level bounced/quarantined records are filtered before this
+    // gate, so a current clean canary may continue through normal dispatch.
+    expect(decideControlledDispatch({ ...safe, canaryState: "SENT", eligible: 2, criticalFailure: false })).toMatchObject({ action: "DISPATCH", count: 2 });
   });
 
   it.each([

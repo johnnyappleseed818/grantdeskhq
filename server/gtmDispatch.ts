@@ -10,6 +10,17 @@ export function dispatchActivationMatchesCampaign(activation: { campaignId: stri
     && activation.configurationFingerprint === configurationFingerprint);
 }
 
+/**
+ * A terminal result belongs to the recipient and membership that produced it.
+ * It is handled by suppression/quarantine for that identity. It must not
+ * turn every historic bounce, unsubscribe, or duplicate quarantine in a
+ * campaign into a global sender outage. The only dispatch-critical terminal
+ * event is one for the current matching controlled-canary configuration.
+ */
+export function dispatchActivationHasCriticalFailure(activation: { campaignId: string; configurationFingerprint: string; outcome: DispatchCanaryState } | null | undefined, campaignId: string, configurationFingerprint: string) {
+  return Boolean(dispatchActivationMatchesCampaign(activation, campaignId, configurationFingerprint) && activation?.outcome === "FAILED");
+}
+
 type DispatchActivationEvidence = {
   campaignId: string;
   providerLeadId: string;
