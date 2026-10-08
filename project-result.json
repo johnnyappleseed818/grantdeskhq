@@ -1,7 +1,61 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-10-08T04:50:00Z",
+  "updatedAt": "2026-10-08T10:02:41Z",
+  "october8ReleasePromotion": {
+    "status": "PARTIAL",
+    "commit": "6469e13893ca79be4c2d15c1f14473d95bf7fc99",
+    "releaseBlockerResolution": "The earlier full-runner artifact was a genuine compiler-gate failure: a model cited the deterministically derivable $7,500 elapsed-plan amount, but the verifier admitted only stored amounts. The runner now persists invocation metadata and exit status; the verifier admits that amount only when derived from existing actuals and the stored spend-rate fact. Program-audit citations are normalized only to an unambiguous exact uploaded filename alias.",
+    "candidate": {
+      "supersededRevision": "grantdeskhq-prototype-00617-tud",
+      "testedRevision": "grantdeskhq-prototype-00618-mos",
+      "testedOrigin": "https://oct8-regression-fix---grantdeskhq-prototype-me423s5k5a-uc.a.run.app",
+      "gateInvocation": "test-results/grantdesk-regression/runner-invocation.json",
+      "gateSummary": "test-results/grantdesk-regression/runner-summary.json",
+      "gateStartedAt": "2026-10-08T09:45:39.351Z",
+      "gateCompletedAt": "2026-10-08T09:53:00.715Z",
+      "gateStatus": "PASS",
+      "gateExitStatus": 0,
+      "gateLegs": ["unit/deterministic", "standalone", "live API E2E", "real AI compiler smoke", "AI accuracy/obligation", "Playwright UI"],
+      "authenticatedCanary": { "runId": "canary_20261008095329_a405487a8c3c", "completedAt": "2026-10-08T09:53:35.543Z", "httpStatus": 200, "status": "healthy" }
+    },
+    "production": { "revision": "grantdeskhq-prototype-00618-mos", "trafficPercent": 100, "runtimeIdentity": "grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com", "verifiedAt": "2026-10-08T10:02:41Z" },
+    "feedReceipt": {
+      "batchId": "0948d4f4-a261-40ed-b6e9-9434244558d4",
+      "sourceFileId": "1Jjbm8h2rXmNiq0l5bQENst8p6-3l-aYr",
+      "contentHash": "41856a28d04e2cec834d55f932aadb935fbecf582e61a16a36a46c249d9efb5a",
+      "receiptId": "scanner_import_reconciled_a56fb0b2ef4fc897b66c08c0332e",
+      "processedAt": "2026-10-07T12:34:25.184Z",
+      "rowsSeen": 30,
+      "accepted": 28,
+      "duplicate": 2,
+      "rejected": 2,
+      "pending": 28,
+      "socialEvidenceAdded": 6,
+      "rejectionReasons": { "UNSUPPORTED_SOCIAL_PLATFORM": 1, "UNSAFE_OR_PLATFORM_MISMATCH_SOCIAL_URL": 1 }
+    },
+    "firstPostPromotionBusinessTransition": {
+      "runAt": "2026-10-08T09:58:20.928700Z",
+      "event": "GTM_SCANNER_SOURCE_VALIDATE",
+      "revision": "grantdeskhq-prototype-00618-mos",
+      "selected": 10,
+      "independentOfficialEvidenceCandidates": 10,
+      "qualified": 5,
+      "deferred": 4,
+      "rejected": 1,
+      "providerFallback": "SCRAPEGRAPH_CREDIT_HEADROOM_REACHED for only fallback-dependent records; remainingCredits=80 and the authorized reserve=100 were preserved.",
+      "nextDurableStages": "Direct enrichment: 08:45 America/Detroit; Partner enrichment: 08:50 America/Detroit; Direct and Partner automatic dispatch: each 15 minutes, 09:00-16:59 America/Detroit; reconciliation: every 15 minutes UTC."
+    },
+    "currentGtmSnapshot": {
+      "observedAt": "2026-10-08T10:00:34.513Z",
+      "direct": { "qualified": 164, "verified": 18, "ready": 0, "enrolled": 0, "providerConfirmedInitialSends": 2 },
+      "partner": { "qualified": 281, "verified": 98, "ready": 20, "enrolled": 0, "providerConfirmedInitialSends": 52, "bounced": 4 },
+      "currentUnresolvedProviderMemberships": 0,
+      "positiveReplies": 0,
+      "sustainedScheduledDispatchOn00618": "PENDING"
+    },
+    "remainingBlocker": "No new production dispatch has executed on 00618-mos yet. The last 00605-dac in-window decisions were NOOP/CRITICAL_SAFETY_FAILURE despite canaryState=SENT because the old critical-history predicate considered unrelated terminal records. The deployed scoped-canary repair must be observed through the next scheduled controller execution; no provider operation was replayed."
+  },
   "october8CandidateGate": {
     "status": "PARTIAL",
     "firstProductionTransitionFailure": {
