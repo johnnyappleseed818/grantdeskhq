@@ -1,7 +1,7 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-10-07T06:47:14Z",
+  "updatedAt": "2026-10-08T04:24:00Z",
   "currentSnapshot": {
     "status": "PARTIAL",
     "asOf": "2026-10-07T06:47:14Z",
@@ -922,5 +922,21 @@
     "committedImportEvidence": "Receipt scanner_import_reconciled_a56fb0b2ef4fc897b66c08c0332e binds October 7 batch 0948d4f4-a261-40ed-b6e9-9434244558d4, Drive file 1Jjbm8h2rXmNiq0l5bQENst8p6-3l-aYr, SHA-256 41856a28d04e2cec834d55f932aadb935fbecf582e61a16a36a46c249d9efb5a, rowsSeen=30, accepted=28, duplicate=2, rejected=2, pending=28, and six social review items. Drive receipt mirroring remains nonblocking after storageQuotaExceeded.",
     "gateFindings": "The prior zero-traffic gate found stale deterministic test-runner assumptions, a 502 mapping for the intended Free First Award 409, an incomplete financial smoke fixture, and a missing playwright runtime package. Focused corrections are committed; the replacement image build ba5f5586-0211-4c4f-963d-544d00013482 is in progress. No production traffic, provider enrollment, or outbound send occurred in this release attempt.",
     "nextAction": "When the replacement build completes: deploy at zero traffic, run the established gate once, promote only if every leg passes, then invoke the normal bounded validation job and reconcile its durable provider outcomes."
+  },
+  "october8SafetyRecovery": {
+    "status": "PARTIAL",
+    "productionEvidence": "On serving revision grantdeskhq-prototype-00605-dac, 2026-10-07T12:30:31.300894Z validation deferred Direct records channel_seed_04c637c9c5cd5e5541894dca and channel_seed_2c9f128e21cfebdb28a9b359 with SCRAPEGRAPH_CREDIT_HEADROOM_REACHED (provider balance 80; required reserve 100), before contact discovery. The 2026-10-08T03:15:31.302Z reconciliation reported Direct discovered=1071, qualified=159, verified=18, READY=0, enrolled=0; Partner discovered=439, qualified=281, verified=98, READY=20, enrolled=0.",
+    "secondDispatchDefect": "The dispatch handler computed criticalFailure from every historical BOUNCED, UNSUBSCRIBED, or QUARANTINED record in a segment. At 2026-10-07T17:15:33.910Z the Partner controller had eligible=20, a confirmed matching canary, safe capacity and a closed breaker, but returned NOOP/CRITICAL_SAFETY_FAILURE solely because of unrelated historical terminal memberships.",
+    "repair": "Commit b2026d3 scopes critical dispatch failure to a FAILED canary activation with the same clean campaign and configuration fingerprint. Recipient terminal records remain excluded through suppression/quarantine and canary failures still fail closed. The existing Dallas official-domain provenance repair remains in the candidate so source-resolvable Direct organizations can qualify without consuming fallback credits.",
+    "tests": "Focused dispatch, scanner identity, and canonical source-clause tests: 44 passing. TypeScript and lint: PASS. Worked-example resource test and static SEO audit: PASS. Local real-AI gate is intentionally unavailable because OPENAI_API_KEY is absent from the development worktree; candidate runtime retains the existing secret binding.",
+    "candidate": {
+      "build": "441af144-f106-4597-9b0f-6cb03ccad038 SUCCESS; image sha256:67290eb030008984492eeca751dd863129ef1bb1b0aa983fa5fcc976a06672d9",
+      "revision": "grantdeskhq-prototype-00616-zaj",
+      "traffic": "0%",
+      "url": "https://oct8-safety---grantdeskhq-prototype-me423s5k5a-uc.a.run.app",
+      "observed": "health 200 with deploymentRevision 00616-zaj; both worked-example article routes and the synthetic report packet returned HTTP 200. The full release gate has not produced a new durable runner-summary after completing a missing Playwright browser installation; production traffic remains on 00605-dac."
+    },
+    "feed": "Database receipt scanner_import_reconciled_a56fb0b2ef4fc897b66c08c0332e is authoritative for batch 0948d4f4-a261-40ed-b6e9-9434244558d4, Drive file 1Jjbm8h2rXmNiq0l5bQENst8p6-3l-aYr, SHA-256 41856a28d04e2cec834d55f932aadb935fbecf582e61a16a36a46c249d9efb5a: rowsSeen=30, accepted=28, duplicate=2, rejected=2, pending=28, not quarantined. The replay was alreadyImported=true. Drive receipt mirroring is nonblocking and pending after a 403 storageQuotaExceeded.",
+    "nextAction": "Obtain a fresh durable candidate gate summary for 00616-zaj. Only if every required leg passes, promote traffic through the established reversible procedure; then let the normal scheduled controller validate the identity-evidenced Direct seeds and reconcile provider outcomes."
   }
 }
