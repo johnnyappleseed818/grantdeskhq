@@ -6,7 +6,10 @@ region="us-central1"
 service="grantdeskhq-prototype"
 origin="${GRANTDESK_CANDIDATE_ORIGIN:-}"
 service_account="${HEALTH_SCHEDULER_SERVICE_ACCOUNT:-grantdeskhq-health-scheduler@${project}.iam.gserviceaccount.com}"
-scheduler_audience="${HEALTH_SCHEDULER_AUDIENCE:-${origin%/}}"
+# The application verifies this audience itself.  A Cloud Run tag is a routing
+# URL, not the application identity: minting a tag audience made otherwise
+# valid candidate canaries fail after reaching the app with HTTP 401.
+scheduler_audience="${HEALTH_SCHEDULER_AUDIENCE:-https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app}"
 seo_reconciliation_job="grantdeskhq-seo-reconciliation"
 
 trigger_post_deploy_sitemap_submission() {

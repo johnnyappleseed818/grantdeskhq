@@ -43,6 +43,7 @@ import { canonicalOrganizationId } from "../src/lib/gtmCanonical.ts";
 import { GTM_INVENTORY_POLICY, inventoryDecision, socialDiscoveryBreadth, type InventoryAutopilotSnapshot } from "../src/lib/gtmInventoryPolicy.ts";
 import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type GtmOutcomeEvent, type GtmOutcomeType, type OpportunityClusterStatus } from "../src/lib/gtmOpportunityEngine.ts";
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
+import { reliabilityCanaryOrigin } from "./reliabilityCanaryOrigin.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
 import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, cleanCampaignStatusAllowsAutomaticDispatch, cleanCampaignStatusAllowsCapacityAlignment, cleanInitialOnlyCampaignChecks, cleanInitialOnlyCampaignReady, controlledCampaignSafetySummary, hasProviderConfirmedInitialSendEvidence, InstantlyClient, instantlyConfig, instantlyHealth, instantSafeSummary, instantlyItems, instantlyLeadCampaignId, instantlyLeadTelemetry, instantlyPreviewRecord, instantlyReconciliationRecordChanged, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership, type InstantlyIntegrationRecord } from "./instantly.ts";
 import { adoptMappedInstantlyLead, canReplaceInstantlyPreview, cleanMembershipEvidenceId, cleanMembershipRebindReason, isCleanMembershipEvidenceRecord, needsCanonicalInitialSendRecovery, rebindMappedInstantlyRecord } from "./instantly.ts";
@@ -2115,7 +2116,12 @@ async function handleReliabilityCanary(request: IncomingMessage, response: Serve
   else requireGtmAdmin(await requireUser(request));
   const input = await readJson(request).catch(() => ({})) as { trigger?: "daily" | "post_deploy" | "manual"; browserApiConsistency?: "pass" | "fail" | "not_evaluated" };
   const result = await runNorthstarReliabilityCanary({
-    origin: process.env.RELIABILITY_CANARY_ORIGIN?.trim() || requestOrigin(request),
+    // A release canary must execute against the exact revision that received
+    // the authenticated request. A configured tag can otherwise point its
+    // nested report calls at an older revision and make a candidate result
+    // meaningless. requestOrigin accepts only the trusted public origin or a
+    // Cloud Run host and is also what customer-facing routes use.
+    origin: reliabilityCanaryOrigin(requestOrigin(request), process.env.RELIABILITY_CANARY_ORIGIN),
     trigger: input.trigger || (request.headers["x-cloudscheduler"] ? "daily" : "manual"),
     firebaseReferer: process.env.RELIABILITY_FIREBASE_REFERER || "https://grantdeskhq.com",
     browserApiConsistency: input.browserApiConsistency || "not_evaluated"

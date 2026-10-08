@@ -553,7 +553,7 @@ Run the canary manually with a scheduler OIDC identity:
 ORIGIN="https://candidate-tag---grantdeskhq-prototype-me423s5k5a-uc.a.run.app"
 TOKEN="$(gcloud auth print-identity-token \
   --project=grantdeskhq-proto-ek-2026 \
-  --audiences="${ORIGIN}" \
+  --audiences="https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app" \
   --include-email \
   --impersonate-service-account=grantdeskhq-health-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com)"
 GRANTDESK_HEALTH_ID_TOKEN="${TOKEN}" npm run canary:reliability -- "${ORIGIN}" manual
@@ -571,6 +571,7 @@ Create or update the daily 05:20 UTC Cloud Scheduler job:
 
 ```bash
 GRANTDESK_CANARY_ORIGIN="https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app" \
+GRANTDESK_RELIABILITY_AUDIENCE="https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app" \
 GRANTDESK_RELIABILITY_INFRA_CONFIRM=grantdeskhq-proto-ek-2026 \
 ./scripts/configure-reliability-scheduler.sh
 ```

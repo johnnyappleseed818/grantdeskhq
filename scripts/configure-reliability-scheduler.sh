@@ -8,6 +8,10 @@ service_account_name="grantdeskhq-health-scheduler"
 service_account="${service_account_name}@${project}.iam.gserviceaccount.com"
 schedule="${GRANTDESK_RELIABILITY_SCHEDULE:-20 5 * * *}"
 origin="${GRANTDESK_CANARY_ORIGIN:-}"
+# Keep the OIDC audience aligned with HEALTH_SCHEDULER_AUDIENCE in the
+# service.  The scheduler may target a tagged candidate URL, but the app
+# intentionally verifies the stable service audience.
+audience="${GRANTDESK_RELIABILITY_AUDIENCE:-https://grantdeskhq-prototype-me423s5k5a-uc.a.run.app}"
 
 if [[ -z "${origin}" ]]; then
   echo "GRANTDESK_CANARY_ORIGIN is required." >&2
@@ -34,7 +38,7 @@ common=(
   --headers="Content-Type=application/json,x-grantdesk-health-scheduler=1"
   --message-body='{"trigger":"daily"}'
   --oidc-service-account-email="${service_account}"
-  --oidc-token-audience="${origin%/}"
+  --oidc-token-audience="${audience%/}"
   --attempt-deadline=30m
   --max-retry-attempts=1
   --min-backoff=60s
