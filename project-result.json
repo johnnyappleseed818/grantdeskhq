@@ -1,7 +1,37 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-10-08T04:24:00Z",
+  "updatedAt": "2026-10-08T04:50:00Z",
+  "october8CandidateGate": {
+    "status": "PARTIAL",
+    "firstProductionTransitionFailure": {
+      "recordId": "channel_seed_04c637c9c5cd5e5541894dca",
+      "reached": "source validation",
+      "didNotReach": "qualification/contact discovery",
+      "condition": "SCRAPEGRAPH_CREDIT_HEADROOM_REACHED",
+      "evidence": "2026-10-07T12:30:31.300894Z GTM_SCANNER_SOURCE_VALIDATE; optional provider remainingCredits=80 while the durable reserve is 100; providerRequestId=c603585a-1fbd-4b0f-819a-3f19bb8cf74a."
+    },
+    "dispatchRepair": {
+      "commit": "b2026d3",
+      "scope": "Historical bounced/unsubscribed/quarantined recipient state no longer globally blocks an unrelated segment; only a failed matching controlled canary is critical. Terminal-recipient suppression, quarantine, and duplicate protection remain unchanged."
+    },
+    "candidate": {
+      "buildId": "337a470f-9a40-40ee-8229-066adf76d373",
+      "imageDigest": "sha256:2f7b71cfe5495e5128dca0fb2e1c14ff26bec7f532720fb1e9a0b70855de8fa8",
+      "revision": "grantdeskhq-prototype-00617-tud",
+      "traffic": "0%",
+      "health": "PASS — /api/health returned deploymentRevision grantdeskhq-prototype-00617-tud",
+      "content": "PASS — both worked-example article routes returned the intended rendered headlines; synthetic report-kit download returned HTTP 200.",
+      "authenticatedCanary": "PASS — run canary_20261008044901_4afc8df94622 completed healthy at 2026-10-08T04:49:07.410Z. It created, persisted, reloaded, and cleaned a disposable synthetic report; same-request idempotency passed and a distinct second request returned the intended 409.",
+      "originRepair": "Commits ac4fbee and c7c3d14 bind nested canary requests to the authenticated candidate origin instead of stale RELIABILITY_CANARY_ORIGIN configuration. Focused reliability tests=21 passed; Direct-evidence/dispatch/content tests=35 passed; TypeScript, lint, build, and static SEO checks passed."
+    },
+    "releaseBlocker": "The full regression runner has not emitted a fresh artifact in this Codex execution transport: three bounded invocations ended before test-results/grantdesk-regression/runner-summary.json changed (still the old 2026-10-08T04:33:01.875Z 00616 failure). Automated release review consequently rejected 100% traffic promotion. No traffic change or provider action occurred.",
+    "schedulerRepair": {
+      "implemented": "Commit b042d9f scheduler create/update header handling now uses --headers only for create and --update-headers for update; audience is the stable configured service audience.",
+      "applyResult": "BLOCKED — gcloud scheduler jobs update http was denied iam.serviceAccounts.actAs for executing principal grantdeskhq-dev-vm@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com on grantdeskhq-health-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com.",
+      "minimumExternalAction": "Grant roles/iam.serviceAccountUser on only grantdeskhq-health-scheduler@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com to grantdeskhq-dev-vm@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com, or have an existing authorized owner apply the committed scheduler configuration once."
+    }
+  },
   "currentSnapshot": {
     "status": "PARTIAL",
     "asOf": "2026-10-07T06:47:14Z",
