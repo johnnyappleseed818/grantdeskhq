@@ -56,6 +56,34 @@
     },
     "remainingBlocker": "No new production dispatch has executed on 00618-mos yet. The last 00605-dac in-window decisions were NOOP/CRITICAL_SAFETY_FAILURE despite canaryState=SENT because the old critical-history predicate considered unrelated terminal records. The deployed scoped-canary repair must be observed through the next scheduled controller execution; no provider operation was replayed."
   },
+  "october8DispatchReadiness": {
+    "observedAt": "2026-10-08T10:37:02Z",
+    "servingRevision": "grantdeskhq-prototype-00618-mos",
+    "trafficPercent": 100,
+    "nextDispatch": {
+      "utc": "2026-10-08T13:00:00Z",
+      "americaDetroit": "2026-10-08 09:00 EDT",
+      "asiaJerusalem": "2026-10-08 16:00 IDT"
+    },
+    "scheduler": {
+      "directEnrichment": "ENABLED; 08:45 weekdays America/Detroit; segment=DIRECT",
+      "partnerEnrichment": "ENABLED; 08:50 weekdays America/Detroit; segment=PARTNER",
+      "directDispatch": "ENABLED; every 15 minutes 09:00-16:59 weekdays America/Detroit; mode=auto, segment=DIRECT",
+      "partnerDispatch": "ENABLED; every 15 minutes 09:00-16:59 weekdays America/Detroit; mode=auto, segment=PARTNER",
+      "reconciliation": "ENABLED; every 15 minutes UTC"
+    },
+    "readiness": {
+      "direct": { "qualified": 164, "verified": 18, "ready": 0, "acceptedOrScheduled": 0, "providerConfirmedInitialSends": 2 },
+      "partner": { "qualified": 281, "verified": 98, "ready": 20, "acceptedOrScheduled": 0, "providerConfirmedInitialSends": 52, "bounced": 4 },
+      "currentWindowProviderCapacity": 30,
+      "readyMailboxCount": 1,
+      "sharedMailboxCount": 1,
+      "currentDateConfirmedOrOutstanding": 0,
+      "controllerRemainingCapacity": 30,
+      "campaigns": "Both mapped Clean campaigns were read successfully, senderReady=true, configuredCampaignLimit=30, active=false before controller activation. The auto controller can activate a Completed Clean campaign only after all canonical gates pass."
+    },
+    "dispatchProof": "PENDING: the next execution must run on 00618-mos and be reconciled by grantdeskhq-instantly-reconciliation. No manual dispatch or provider replay was performed."
+  },
   "october8CandidateGate": {
     "status": "PARTIAL",
     "firstProductionTransitionFailure": {
