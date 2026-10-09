@@ -1,9 +1,9 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-10-09T05:13:00Z",
+  "updatedAt": "2026-10-09T11:19:16.174Z",
   "october9CapacityAndDirectRepair": {
-    "status": "PENDING_CANDIDATE_GATE",
+    "status": "DEPLOYED_PENDING_SCHEDULED_DISPATCH",
     "commit": "1a795b55d583ca471dab8c577d80eb3ba9da0240",
     "candidateRevision": "grantdeskhq-prototype-00423-s29",
     "candidateOrigin": "https://capacitydedup---grantdeskhq-prototype-me423s5k5a-uc.a.run.app",
@@ -66,7 +66,24 @@
       },
       "note": "The old contactFound aggregate is not a reliable provider-contact metric because unresolved channel-seed placeholders are represented in the canonical target shape. Use verified and READY counts until that reporting projection is separately corrected."
     },
-    "nextDurableEvidence": "After a fresh candidate gate PASS and authorized promotion, the existing 08:00-16:59 America/Detroit weekday scheduler sequence will normalize legacy Direct no-results, select later eligible records, and record deduplicated capacity decisions. No manual provider request, dispatch, enrollment, or send is authorized or needed."
+    "releaseEvidence": {
+      "gate": "PASS — six required legs completed 2026-10-09T05:15:54.517Z against commit 1a795b55d583ca471dab8c577d80eb3ba9da0240 and candidate grantdeskhq-prototype-00423-s29.",
+      "authenticatedCanary": "PASS — canary_20261009111545_5f9bde06cb98 completed healthy at 2026-10-09T11:15:53.089Z on candidate 00423-s29.",
+      "production": "PROMOTED — grantdeskhq-prototype-00423-s29 now receives 100% production traffic; public health read-back reported deploymentRevision grantdeskhq-prototype-00423-s29."
+    },
+    "boundedWorkerEvidence": {
+      "directEnrichment": "2026-10-09T11:16:55.108Z: selected=0, submitted=0, blocked=null. Legacy completed no-role-fit results were normalized to CONTACT_UNRESOLVED without a provider request.",
+      "partnerEnrichment": "2026-10-09T11:16:55.977Z: selected=0, submitted=0, blocked=null.",
+      "validation": "2026-10-09T11:18:01.474Z: selected=10 (2 Direct, 8 Partner), independently-named official-source candidates=10, validated=0, deferred=10, rejected=0. The optional fallback returned balance=80 and SCRAPEGRAPH_CREDIT_HEADROOM_REACHED against the configured 100-credit reserve; no contact, verification, enrollment, or send was created.",
+      "reconciliation": "2026-10-09T11:19:02.629Z: PASS. Unique memberships are Direct=12 and Partner=79, while immutable provider-confirmed initials remain Direct=2 and Partner=71; accepted/scheduled=0 and unresolved=0 for both. This is the live evidence that duplicate persisted projections no longer consume capacity twice.",
+      "capacityPreflight": "PASS, read-only: one shared healthy mailbox; providerDailyCapacity=30; requested/current clean campaign limits=30; campaigns remain paused until the automatic controller selects an eligible contact."
+    },
+    "feedSweep": {
+      "at": "2026-10-09T11:19:06.297Z",
+      "outcome": "The authenticated production Drive importer reconciled 18 committed batches and imported no new rows. The latest committed batch remains 0948d4f4-a261-40ed-b6e9-9434244558d4 / 1Jjbm8h2rXmNiq0l5bQENst8p6-3l-aYr / 41856a28d04e2cec834d55f932aadb935fbecf582e61a16a36a46c249d9efb5a, receipt scanner_import_reconciled_a56fb0b2ef4fc897b66c08c0332e: organizations seen=30 accepted=28 duplicate=2 rejected=0; social seen=8 stored=6 rejected=2. All accepted organization IDs remain bound to the canonical receipt and no provider action replayed.",
+      "mirror": "PENDING_NON_BLOCKING — Google Drive receipt mirror remains storageQuotaExceeded; database receipt reporting remains authoritative."
+    },
+    "remainingBlocker": "No EVIDENCE_QUALIFIED organization is available to the normal Direct or Partner SuperSearch worker. The first bounded validation selected ten fallback-dependent records and deferred them because ScrapeGraphAI has 80 remaining credits, below the preserved 100-credit reserve. The smallest external action is to restore at least the reserve plus one extraction credit in the approved ScrapeGraphAI allowance; do not lower the reserve or enable overage. The next durable scheduler sequence remains 2026-10-09 15:15 IDT import, 15:30 IDT validation, 15:45/15:50 IDT Direct/Partner enrichment, and 16:00 IDT controlled dispatch."
   },
   "october8ReleasePromotion": {
     "status": "PARTIAL",
