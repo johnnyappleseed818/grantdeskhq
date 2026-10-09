@@ -1,7 +1,73 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-10-08T15:03:45Z",
+  "updatedAt": "2026-10-09T05:13:00Z",
+  "october9CapacityAndDirectRepair": {
+    "status": "PENDING_CANDIDATE_GATE",
+    "commit": "1a795b55d583ca471dab8c577d80eb3ba9da0240",
+    "candidateRevision": "grantdeskhq-prototype-00423-s29",
+    "candidateOrigin": "https://capacitydedup---grantdeskhq-prototype-me423s5k5a-uc.a.run.app",
+    "productionBeforePromotion": "grantdeskhq-prototype-00622-foq at 100% traffic",
+    "diagnosis": {
+      "direct": "Five evidence-qualified Direct organizations reached completed Instantly SuperSearch reconciliation without a role-fit provider-verified individual work email. This is a terminal provider no-result, not an authentication, quota, or ScrapeGraphAI error. Legacy records had been represented as ENRICHMENT_FAILED, obscuring that they are ineligible for retry but must not block later eligible Direct candidates.",
+      "capacity": "On 2026-10-08 the controller logged Partner confirmedToday=38 against providerDailyCapacity=30 while the contemporaneous authoritative lifecycle reconciliation reported 19 provider-confirmed Partner initials for the Detroit date and no outstanding memberships. The controller had counted duplicate persisted projections of the same provider membership."
+    },
+    "repair": {
+      "direct": "Added CONTACT_UNRESOLVED for completed no-role-fit provider outcomes; legacy matching records normalize safely during the existing enrichment/reconciliation path without a provider request, and are excluded from future SuperSearch submissions while later evidence-qualified records remain selectable.",
+      "capacity": "Capacity and lifecycle summaries now group records by configured campaign plus provider lead ID (fallback normalized email, then local record) and prefer immutable provider send/quarantine evidence. No history, suppression, reservation, or provider operation is deleted or replayed."
+    },
+    "focusedChecks": {
+      "tests": "68 passing: channel-seed enrichment, Instantly capacity aggregation, handoff, and persistence pagination",
+      "typescript": "PASS: npx tsc --noEmit",
+      "lint": "PASS: npm run lint",
+      "diff": "PASS: git diff --check",
+      "fullGate": {
+        "invocation": "test-results/grantdesk-regression/runner-invocation.json",
+        "startedAt": "2026-10-09T05:07:37.570Z",
+        "testedCommit": "1a795b55d583ca471dab8c577d80eb3ba9da0240",
+        "candidateRevision": "grantdeskhq-prototype-00423-s29",
+        "stateAtCheckpoint": "RUNNING; do not use the older runner-summary.json for promotion."
+      }
+    },
+    "latestAuthoritativeLifecycle": {
+      "observedAt": "2026-10-09T04:45:34.169009Z",
+      "direct": {
+        "memberships": 21,
+        "providerConfirmedInitialSends": 2,
+        "acceptedOrScheduled": 0,
+        "unresolved": 0,
+        "bounced": 0,
+        "replied": 0,
+        "positiveReplies": 0
+      },
+      "partner": {
+        "memberships": 150,
+        "providerConfirmedInitialSends": 71,
+        "providerConfirmedOn2026-10-08": 19,
+        "acceptedOrScheduled": 0,
+        "unresolved": 0,
+        "bounced": 6,
+        "replied": 0,
+        "positiveReplies": 0
+      },
+      "canonical": {
+        "direct": {
+          "qualified": 165,
+          "verified": 18,
+          "ready": 0,
+          "enrolled": 0
+        },
+        "partner": {
+          "qualified": 282,
+          "verified": 98,
+          "ready": 0,
+          "enrolled": 0
+        }
+      },
+      "note": "The old contactFound aggregate is not a reliable provider-contact metric because unresolved channel-seed placeholders are represented in the canonical target shape. Use verified and READY counts until that reporting projection is separately corrected."
+    },
+    "nextDurableEvidence": "After a fresh candidate gate PASS and authorized promotion, the existing 08:00-16:59 America/Detroit weekday scheduler sequence will normalize legacy Direct no-results, select later eligible records, and record deduplicated capacity decisions. No manual provider request, dispatch, enrollment, or send is authorized or needed."
+  },
   "october8ReleasePromotion": {
     "status": "PARTIAL",
     "commit": "6469e13893ca79be4c2d15c1f14473d95bf7fc99",
@@ -16,10 +82,27 @@
       "gateCompletedAt": "2026-10-08T09:53:00.715Z",
       "gateStatus": "PASS",
       "gateExitStatus": 0,
-      "gateLegs": ["unit/deterministic", "standalone", "live API E2E", "real AI compiler smoke", "AI accuracy/obligation", "Playwright UI"],
-      "authenticatedCanary": { "runId": "canary_20261008095329_a405487a8c3c", "completedAt": "2026-10-08T09:53:35.543Z", "httpStatus": 200, "status": "healthy" }
+      "gateLegs": [
+        "unit/deterministic",
+        "standalone",
+        "live API E2E",
+        "real AI compiler smoke",
+        "AI accuracy/obligation",
+        "Playwright UI"
+      ],
+      "authenticatedCanary": {
+        "runId": "canary_20261008095329_a405487a8c3c",
+        "completedAt": "2026-10-08T09:53:35.543Z",
+        "httpStatus": 200,
+        "status": "healthy"
+      }
     },
-    "production": { "revision": "grantdeskhq-prototype-00618-mos", "trafficPercent": 100, "runtimeIdentity": "grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com", "verifiedAt": "2026-10-08T10:02:41Z" },
+    "production": {
+      "revision": "grantdeskhq-prototype-00618-mos",
+      "trafficPercent": 100,
+      "runtimeIdentity": "grantdeskhq-runtime@grantdeskhq-proto-ek-2026.iam.gserviceaccount.com",
+      "verifiedAt": "2026-10-08T10:02:41Z"
+    },
     "feedReceipt": {
       "batchId": "0948d4f4-a261-40ed-b6e9-9434244558d4",
       "sourceFileId": "1Jjbm8h2rXmNiq0l5bQENst8p6-3l-aYr",
@@ -32,7 +115,10 @@
       "rejected": 2,
       "pending": 28,
       "socialEvidenceAdded": 6,
-      "rejectionReasons": { "UNSUPPORTED_SOCIAL_PLATFORM": 1, "UNSAFE_OR_PLATFORM_MISMATCH_SOCIAL_URL": 1 }
+      "rejectionReasons": {
+        "UNSUPPORTED_SOCIAL_PLATFORM": 1,
+        "UNSAFE_OR_PLATFORM_MISMATCH_SOCIAL_URL": 1
+      }
     },
     "firstPostPromotionBusinessTransition": {
       "runAt": "2026-10-08T09:58:20.928700Z",
@@ -48,8 +134,21 @@
     },
     "currentGtmSnapshot": {
       "observedAt": "2026-10-08T10:00:34.513Z",
-      "direct": { "qualified": 164, "verified": 18, "ready": 0, "enrolled": 0, "providerConfirmedInitialSends": 2 },
-      "partner": { "qualified": 281, "verified": 98, "ready": 20, "enrolled": 0, "providerConfirmedInitialSends": 52, "bounced": 4 },
+      "direct": {
+        "qualified": 164,
+        "verified": 18,
+        "ready": 0,
+        "enrolled": 0,
+        "providerConfirmedInitialSends": 2
+      },
+      "partner": {
+        "qualified": 281,
+        "verified": 98,
+        "ready": 20,
+        "enrolled": 0,
+        "providerConfirmedInitialSends": 52,
+        "bounced": 4
+      },
       "currentUnresolvedProviderMemberships": 0,
       "positiveReplies": 0,
       "sustainedScheduledDispatchOn00618": "PENDING"
@@ -73,8 +172,21 @@
       "reconciliation": "ENABLED; every 15 minutes UTC"
     },
     "readiness": {
-      "direct": { "qualified": 164, "verified": 18, "ready": 0, "acceptedOrScheduled": 0, "providerConfirmedInitialSends": 2 },
-      "partner": { "qualified": 281, "verified": 98, "ready": 20, "acceptedOrScheduled": 0, "providerConfirmedInitialSends": 52, "bounced": 4 },
+      "direct": {
+        "qualified": 164,
+        "verified": 18,
+        "ready": 0,
+        "acceptedOrScheduled": 0,
+        "providerConfirmedInitialSends": 2
+      },
+      "partner": {
+        "qualified": 281,
+        "verified": 98,
+        "ready": 20,
+        "acceptedOrScheduled": 0,
+        "providerConfirmedInitialSends": 52,
+        "bounced": 4
+      },
       "currentWindowProviderCapacity": 30,
       "readyMailboxCount": 1,
       "sharedMailboxCount": 1,
@@ -1074,14 +1186,22 @@
       "batchId": "0948d4f4-a261-40ed-b6e9-9434244558d4",
       "sourceFileId": "1Jjbm8h2rXmNiq0l5bQENst8p6-3l-aYr",
       "contentHash": "41856a28d04e2cec834d55f932aadb935fbecf582e61a16a36a46c249d9efb5a",
-      "organizations": { "seen": 30, "accepted": 28, "duplicate": 2, "rejected": 0 },
+      "organizations": {
+        "seen": 30,
+        "accepted": 28,
+        "duplicate": 2,
+        "rejected": 0
+      },
       "social": {
         "seen": 8,
         "stored": 6,
         "rejected": 2,
         "candidateCreated": 0,
         "candidateDuplicate": 0,
-        "rejectionReasons": { "UNSUPPORTED_SOCIAL_PLATFORM": 1, "UNSAFE_OR_PLATFORM_MISMATCH_SOCIAL_URL": 1 }
+        "rejectionReasons": {
+          "UNSUPPORTED_SOCIAL_PLATFORM": 1,
+          "UNSAFE_OR_PLATFORM_MISMATCH_SOCIAL_URL": 1
+        }
       },
       "reportingPath": "/api/gtm/sourcing-status?batchId=0948d4f4-a261-40ed-b6e9-9434244558d4",
       "mirror": "PENDING_NON_BLOCKING: folder owner quota returned storageQuotaExceeded; no committed import or downstream provider action is replayed."
@@ -1096,11 +1216,41 @@
         "providerCredentialOrAccessFailure": false
       },
       "records": [
-        { "canonicalId": "channel_seed_21270544cec635b7933c20ce", "organization": "Health Services of North Texas, Inc.", "segment": "DIRECT", "state": "ENRICHMENT_FAILED", "reason": "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT" },
-        { "canonicalId": "channel_seed_22cc6438d9eb4c826ef82428", "organization": "The Magdalen House", "segment": "DIRECT", "state": "ENRICHMENT_FAILED", "reason": "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT" },
-        { "canonicalId": "channel_seed_12223a296750aa39fca8e670", "organization": "Center for Integrative Counseling and Psychology", "segment": "DIRECT", "state": "ENRICHMENT_FAILED", "reason": "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT" },
-        { "canonicalId": "channel_seed_05a44bacc61f12876fea8ef7", "organization": "Youth 180 Inc.", "segment": "DIRECT", "state": "ENRICHMENT_FAILED", "reason": "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT" },
-        { "canonicalId": "channel_seed_260a7c1e0af3684e30b2cbc7", "organization": "Community Partners of Dallas", "segment": "DIRECT", "state": "ENRICHMENT_FAILED", "reason": "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT" }
+        {
+          "canonicalId": "channel_seed_21270544cec635b7933c20ce",
+          "organization": "Health Services of North Texas, Inc.",
+          "segment": "DIRECT",
+          "state": "ENRICHMENT_FAILED",
+          "reason": "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT"
+        },
+        {
+          "canonicalId": "channel_seed_22cc6438d9eb4c826ef82428",
+          "organization": "The Magdalen House",
+          "segment": "DIRECT",
+          "state": "ENRICHMENT_FAILED",
+          "reason": "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT"
+        },
+        {
+          "canonicalId": "channel_seed_12223a296750aa39fca8e670",
+          "organization": "Center for Integrative Counseling and Psychology",
+          "segment": "DIRECT",
+          "state": "ENRICHMENT_FAILED",
+          "reason": "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT"
+        },
+        {
+          "canonicalId": "channel_seed_05a44bacc61f12876fea8ef7",
+          "organization": "Youth 180 Inc.",
+          "segment": "DIRECT",
+          "state": "ENRICHMENT_FAILED",
+          "reason": "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT"
+        },
+        {
+          "canonicalId": "channel_seed_260a7c1e0af3684e30b2cbc7",
+          "organization": "Community Partners of Dallas",
+          "segment": "DIRECT",
+          "state": "ENRICHMENT_FAILED",
+          "reason": "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT"
+        }
       ],
       "disposition": "Terminal per-record provider result. The verification gate remains intact; no contact was created, no READY transition occurred, and no retry or provider write was issued."
     },
@@ -1114,10 +1264,25 @@
       "automaticRecovery": {
         "at": "2026-10-08T15:00Z",
         "revision": "grantdeskhq-prototype-00622-foq",
-        "dispatchHttpStatus": { "direct": 200, "partner": 200 },
+        "dispatchHttpStatus": {
+          "direct": 200,
+          "partner": 200
+        },
         "reconciliationHttpStatus": 200,
-        "direct": { "action": "NOOP", "reason": "DAILY_CAPACITY_REACHED", "eligible": 0, "ready": 0 },
-        "partner": { "action": "RECONCILE", "reason": "AWAITING_PROVIDER_TERMINAL_STATE", "ready": 7, "acceptedOrScheduled": 10, "providerConfirmedInitialSendsToday": 14, "unresolved": 10 },
+        "direct": {
+          "action": "NOOP",
+          "reason": "DAILY_CAPACITY_REACHED",
+          "eligible": 0,
+          "ready": 0
+        },
+        "partner": {
+          "action": "RECONCILE",
+          "reason": "AWAITING_PROVIDER_TERMINAL_STATE",
+          "ready": 7,
+          "acceptedOrScheduled": 10,
+          "providerConfirmedInitialSendsToday": 14,
+          "unresolved": 10
+        },
         "providerEvidence": "GTM_INSTANTLY_RECONCILIATION at 2026-10-08T15:01:04.006Z: Direct current-date provider-confirmed initial sends=0; Partner current-date provider-confirmed initial sends=14; warmup is excluded."
       },
       "nextDurableDispatch": {
