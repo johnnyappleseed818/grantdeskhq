@@ -125,6 +125,22 @@ describe("scanner validation recovery", () => {
     expect(prioritizeScannerValidationCandidates([fallbackOnly, independent], cohorts, now).map((record) => record.id)).toEqual(["independent-domain", "cohort-fallback"]);
   });
 
+  it("selects a newly committed untouched batch ahead of lexically earlier historical records", () => {
+    const now = "2026-10-09T11:47:00.000Z";
+    const historical = {
+      ...seed("", "DIRECT"), id: "channel_seed_000000000000000000000001",
+      importedAt: "2026-09-01T08:15:00.000Z"
+    };
+    const fresh = {
+      ...seed("", "PARTNER"), id: "channel_seed_ffffffffffffffffffffffff",
+      importedAt: "2026-10-09T11:46:03.638Z",
+      scannerBatchId: "a0bb22fb-38ea-42ce-9fe3-046e486eabaf",
+      scannerClaimedDomain: "example.org",
+      sourceUrl: "https://public-funder.example/award/example"
+    };
+    expect(prioritizeScannerValidationCandidates([historical, fresh], [], now).map((record) => record.id)).toEqual(["channel_seed_ffffffffffffffffffffffff", "channel_seed_000000000000000000000001"]);
+  });
+
   it("attaches October 7 supplemental identity evidence only to its immutable Direct source record", () => {
     const record = {
       ...seed("", "DIRECT"),

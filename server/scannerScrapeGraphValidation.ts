@@ -156,7 +156,17 @@ export function prioritizeScannerValidationCandidates(seeds: readonly ChannelSee
     return Boolean(cohort) && !validatedSinceCohortSelection(seed, cohort!);
   });
   const selected = new Set(priority.map((seed) => seed.id));
-  const ordered = [...priority, ...due.filter((seed) => !selected.has(seed.id))];
+  // Firestore collection pagination is deterministic by document name, not by
+  // import time. Selecting the first bounded page therefore stranded newly
+  // committed scanner batches behind unrelated historical hashes. Keep the
+  // explicit recovery cohort first, then make untouched work observable in a
+  // predictable fresh-first order. Deferred retries keep their existing
+  // queue order, so a newly imported batch cannot turn retries into another
+  // unbounded priority lane.
+  const normal = due
+    .filter((seed) => !selected.has(seed.id))
+    .sort(compareUntouchedValidationWork);
+  const ordered = [...priority, ...normal];
   // A record with an independently supplied official-domain candidate can
   // proceed without spending a ScrapeGraphAI credit. Keep cohort ordering
   // within each group, but process those records before fallback-dependent
@@ -165,6 +175,18 @@ export function prioritizeScannerValidationCandidates(seeds: readonly ChannelSee
     ...ordered.filter((seed) => independentOfficialSourceCandidates(seed).length > 0),
     ...ordered.filter((seed) => independentOfficialSourceCandidates(seed).length === 0)
   ];
+}
+
+function compareUntouchedValidationWork(left: ChannelSeedRecord, right: ChannelSeedRecord) {
+  const leftUntouched = (left.validationAttemptCount || 0) === 0;
+  const rightUntouched = (right.validationAttemptCount || 0) === 0;
+  if (leftUntouched !== rightUntouched) return leftUntouched ? -1 : 1;
+  if (!leftUntouched) return 0;
+  const leftImported = Date.parse(left.importedAt || "");
+  const rightImported = Date.parse(right.importedAt || "");
+  if (Number.isFinite(leftImported) && Number.isFinite(rightImported) && leftImported !== rightImported) return rightImported - leftImported;
+  if (Number.isFinite(leftImported) !== Number.isFinite(rightImported)) return Number.isFinite(leftImported) ? -1 : 1;
+  return 0;
 }
 
 function validatedSinceCohortSelection(seed: ChannelSeedRecord, cohort: GtmScannerRecoveryCohort) {
