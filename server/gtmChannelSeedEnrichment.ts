@@ -27,7 +27,7 @@ export function summarizeChannelSeedLifecycle(seeds: ReadonlyArray<Pick<ChannelS
     target.total += 1;
     increment(target, "lifecycle", seed.lifecycle);
     increment(target, "providerStatus", seed.enrichmentProviderStatus);
-    if (seed.lifecycle === "ENRICHMENT_FAILED" || seed.lifecycle === "REJECTED") increment(target, "terminalReason", seed.rejectionReason);
+    if (seed.lifecycle === "ENRICHMENT_FAILED" || seed.lifecycle === "CONTACT_UNRESOLVED" || seed.lifecycle === "REJECTED") increment(target, "terminalReason", seed.rejectionReason);
   }
   return { total: direct.total + partner.total, direct, partner };
 }
@@ -39,7 +39,7 @@ export function summarizeChannelSeedLifecycle(seeds: ReadonlyArray<Pick<ChannelS
  * neither provider can touch campaigns here. */
 export async function enrichChannelSeedsWithInstantly(segment: ChannelSeedEnrichmentSegment, env: NodeJS.ProcessEnv = process.env): Promise<ChannelSeedEnrichmentResult> {
   const config = instantlyConfig(env);
-  const allSeeds = await listGtmChannelSeeds();
+  const allSeeds = await normalizePersistedProviderNoResultSeeds(await listGtmChannelSeeds());
   const cohorts = await listGtmScannerRecoveryCohorts();
   const recoveryVersion = superSearchAccessRecoveryVersion(env);
   const eligible = prioritizeChannelSeedEnrichmentCandidates(allSeeds, cohorts, segment, recoveryVersion);
@@ -97,7 +97,7 @@ export async function enrichChannelSeedsWithInstantly(segment: ChannelSeedEnrich
 
 export async function reconcileChannelSeedEnrichment(segment: ChannelSeedEnrichmentSegment, env: NodeJS.ProcessEnv = process.env) {
   const config = instantlyConfig(env);
-  const seeds = (await listGtmChannelSeeds()).filter((seed) => seed.segment === segment && seed.lifecycle === "ENRICHMENT_SUBMITTED");
+  const seeds = (await normalizePersistedProviderNoResultSeeds(await listGtmChannelSeeds())).filter((seed) => seed.segment === segment && seed.lifecycle === "ENRICHMENT_SUBMITTED");
   const result = { segment, reconciled: 0, verified: 0, pending: seeds.length, neverSubmitted: 0, processing: 0, completedButUnreconciled: 0, providerRejected: 0, rateLimited: 0, missingProviderObject: 0, stale: 0, failed: 0 };
   if (!config.integrationEnabled || !config.apiKeyConfigured || !seeds.length) return result;
   const client = new InstantlyClient(config, env.INSTANTLY_API_KEY || "");
@@ -144,7 +144,26 @@ export async function reconcileChannelSeedEnrichment(segment: ChannelSeedEnrichm
 }
 
 async function markTerminal(seed: Awaited<ReturnType<typeof listGtmChannelSeeds>>[number], reason: string, status: "COMPLETED" | "FAILED" | "MISSING_PROVIDER_OBJECT" | "STALE", at: string, error: string | null = null) {
-  await saveGtmChannelSeed({ ...seed, lifecycle: "ENRICHMENT_FAILED", rejectionReason: reason, enrichmentResult: reason, enrichmentProviderStatus: status, enrichmentLastCheckedAt: at, enrichmentLastProviderError: error, enrichmentTerminalAt: at, enrichmentUpdatedAt: at });
+  await saveGtmChannelSeed({ ...seed, lifecycle: isProviderNoRoleFitReason(reason) ? "CONTACT_UNRESOLVED" : "ENRICHMENT_FAILED", rejectionReason: reason, enrichmentResult: reason, enrichmentProviderStatus: status, enrichmentLastCheckedAt: at, enrichmentLastProviderError: error, enrichmentTerminalAt: at, enrichmentUpdatedAt: at });
+}
+
+const providerNoRoleFitReasons = new Set(["NO_ROLE_FIT_PROVIDER_CONTACT", "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT"]);
+export function isProviderNoRoleFitReason(reason: string | null | undefined) { return providerNoRoleFitReasons.has(String(reason || "")); }
+
+/** Legacy completed no-result rows predate CONTACT_UNRESOLVED. Migrate only
+ * that exact terminal outcome in place; failed provider operations and
+ * ambiguous submissions retain their existing fail-closed state. */
+export function normalizeProviderNoRoleFitSeed(seed: ChannelSeedRecord): ChannelSeedRecord {
+  if (seed.lifecycle === "ENRICHMENT_FAILED" && seed.enrichmentProviderStatus === "COMPLETED" && isProviderNoRoleFitReason(seed.rejectionReason)) {
+    return { ...seed, lifecycle: "CONTACT_UNRESOLVED", enrichmentResult: seed.enrichmentResult || seed.rejectionReason || "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT" };
+  }
+  return seed;
+}
+
+async function normalizePersistedProviderNoResultSeeds(seeds: Awaited<ReturnType<typeof listGtmChannelSeeds>>) {
+  const normalized = seeds.map(normalizeProviderNoRoleFitSeed);
+  await Promise.all(normalized.flatMap((seed, index) => seed === seeds[index] ? [] : [saveGtmChannelSeed(seed)]));
+  return normalized;
 }
 
 function text(value: unknown) { return typeof value === "string" ? value.trim() : ""; }

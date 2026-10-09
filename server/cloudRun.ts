@@ -45,7 +45,7 @@ import { applyOpportunityClusterDecision, buildGtmOpportunityEngineState, type G
 import { runNorthstarReliabilityCanary } from "./northstarCanary.ts";
 import { reliabilityCanaryOrigin } from "./reliabilityCanaryOrigin.ts";
 import { applicationEnvironment, applicationRevision, deploymentRevision } from "./analysisVersions.ts";
-import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, cleanCampaignStatusAllowsAutomaticDispatch, cleanCampaignStatusAllowsCapacityAlignment, cleanInitialOnlyCampaignChecks, cleanInitialOnlyCampaignReady, controlledCampaignSafetySummary, hasProviderConfirmedInitialSendEvidence, InstantlyClient, instantlyConfig, instantlyHealth, instantSafeSummary, instantlyItems, instantlyLeadCampaignId, instantlyLeadTelemetry, instantlyPreviewRecord, instantlyReconciliationRecordChanged, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership, type InstantlyIntegrationRecord } from "./instantly.ts";
+import { applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, cleanCampaignStatusAllowsAutomaticDispatch, cleanCampaignStatusAllowsCapacityAlignment, cleanInitialOnlyCampaignChecks, cleanInitialOnlyCampaignReady, controlledCampaignSafetySummary, hasProviderConfirmedInitialSendEvidence, InstantlyClient, instantlyConfig, instantlyHealth, instantSafeSummary, instantlyItems, instantlyLeadCampaignId, instantlyLeadTelemetry, instantlyPreviewRecord, instantlyReconciliationRecordChanged, normalizeInstantlyWebhook, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, summarizeInstantlyMembershipCapacity, uniqueInstantlyMembershipRecords, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership, type InstantlyIntegrationRecord } from "./instantly.ts";
 import { adoptMappedInstantlyLead, canReplaceInstantlyPreview, cleanMembershipEvidenceId, cleanMembershipRebindReason, isCleanMembershipEvidenceRecord, needsCanonicalInitialSendRecovery, rebindMappedInstantlyRecord } from "./instantly.ts";
 import { excludeProviderEnrolledCandidates, executeFinalInstantlyHandoff } from "./instantlyHandoff.ts";
 import { evaluateIncidentClosureEvidence, findHistoricalClosureCandidate } from "./outboundIncidentClosure.ts";
@@ -1262,15 +1262,24 @@ async function handleAutomaticInstantlyDispatch(request: IncomingMessage, respon
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Detroit" }).format(now);
   const dateInDetroit = (value: string) => value && new Intl.DateTimeFormat("en-CA", { timeZone: "America/Detroit" }).format(new Date(value)) === today;
   const unresolvedSameDayEvidence = (record: import("./instantly.ts").InstantlyIntegrationRecord) => record.instantlySyncStatus === "QUARANTINED" && record.failureReason === "UNVERIFIED_MAILBOX_ORIGIN_SEND_EVIDENCE" && dateInDetroit(record.lastSentAt);
-  const outstanding = segmentRecords.filter((record) => ["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus) || unresolvedSameDayEvidence(record));
-  const sentToday = segmentRecords.filter((record) => hasProviderConfirmedInitialSendEvidence(record) && dateInDetroit(record.firstSentAt)).length;
+  const segmentUsage = summarizeInstantlyMembershipCapacity({
+    records: segmentRecords,
+    sentToday: (record) => dateInDetroit(record.firstSentAt),
+    outstanding: (record) => ["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus) || unresolvedSameDayEvidence(record)
+  });
+  const outstanding = segmentUsage.outstanding;
+  const sentToday = segmentUsage.confirmedToday.length;
   const knownCanary = dispatchActivationMatchesCampaign(activation, campaignId, fingerprint) ? activation : null;
   const segmentDailyLimit = providerCapacity.segments[segment].safeDailyCapacity;
   const relevantCampaignIds = new Set([config.directCampaignId, config.partnerCampaignId, config.legacyDirectCampaignId, config.legacyPartnerCampaignId].filter(Boolean));
   const relevantRecords = records.filter((record) => relevantCampaignIds.has(record.instantlyCampaignId));
-  const wasSentToday = (record: import("./instantly.ts").InstantlyIntegrationRecord) => hasProviderConfirmedInitialSendEvidence(record) && dateInDetroit(record.firstSentAt);
-  const globalSentToday = relevantRecords.filter(wasSentToday).length;
-  const globalOutstanding = relevantRecords.filter((record) => ["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus) || unresolvedSameDayEvidence(record)).length;
+  const globalUsage = summarizeInstantlyMembershipCapacity({
+    records: relevantRecords,
+    sentToday: (record) => dateInDetroit(record.firstSentAt),
+    outstanding: (record) => ["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus) || unresolvedSameDayEvidence(record)
+  });
+  const globalSentToday = globalUsage.confirmedToday.length;
+  const globalOutstanding = globalUsage.outstanding.length;
   const globalRemaining = Math.max(0, providerCapacity.providerDailyCapacity - globalSentToday - globalOutstanding);
   const campaignMappedToLegacy = [config.legacyDirectCampaignId, config.legacyPartnerCampaignId].filter(Boolean).includes(campaignId);
   const canary = knownCanary || null;
@@ -1287,7 +1296,7 @@ async function handleAutomaticInstantlyDispatch(request: IncomingMessage, respon
   // can stop unrelated, otherwise eligible contacts from normal dispatch.
   const criticalFailure = dispatchActivationHasCriticalFailure(activation, campaignId, fingerprint);
   const decision = decideControlledDispatch({ breakerClosed: Boolean(circuit && !circuit.tripped), flagsEnabled, campaignActive: campaignReadyForEvaluation, withinWindow, pendingProviderActivity: outstanding.length > 0, canaryState, fingerprintMatches: !activation || Boolean(knownCanary), criticalFailure, dailyLimit: segmentDailyLimit, confirmedToday: sentToday, outstanding: outstanding.length, eligible: eligible.length, globalRemaining });
-  const base = { mode: "AUTO", segment, decision, campaign: campaignSummary, capacity: providerCapacity, eligible: eligible.length, outstanding: outstanding.length, sentToday, globalSentToday, globalOutstanding, globalRemaining, segmentDailyLimit };
+  const base = { mode: "AUTO", segment, decision, campaign: campaignSummary, capacity: providerCapacity, eligible: eligible.length, outstanding: outstanding.length, sentToday, globalSentToday, globalOutstanding, globalRemaining, segmentDailyLimit, membershipEvidenceDuplicatesIgnored: { segment: segmentUsage.duplicatesIgnored, global: globalUsage.duplicatesIgnored } };
   // Durable Cloud Run audit telemetry for scheduled decisions. It intentionally
   // excludes recipient identifiers, copy, and provider credentials while making
   // every fail-closed no-op independently diagnosable.
@@ -1660,7 +1669,7 @@ function instantlyLifecycleSummary(records: readonly InstantlyIntegrationRecord[
   }>;
   const campaignSegment = new Map([[campaigns.DIRECT, "DIRECT" as const], [campaigns.PARTNER, "PARTNER" as const]]);
   const detroitDate = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Detroit" });
-  for (const record of records) {
+  for (const record of uniqueInstantlyMembershipRecords(records)) {
     const segment = campaignSegment.get(record.instantlyCampaignId);
     if (!segment) continue;
     const summary = bySegment[segment];

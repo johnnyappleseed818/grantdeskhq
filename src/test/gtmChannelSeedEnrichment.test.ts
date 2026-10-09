@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { backgroundJobFailed, backgroundJobProcessing, prioritizeChannelSeedEnrichmentCandidates, providerJobIsStale, providerLeadIsVerified, scannerSeedNeedsPublicContactScan, summarizeChannelSeedLifecycle, superSearchAccessRecoveryVersion, superSearchAvailableCredits, superSearchBatchLimit, superSearchEligibleSeed, superSearchProviderReferences, superSearchSubmissionLimit } from "../../server/gtmChannelSeedEnrichment.ts";
+import { backgroundJobFailed, backgroundJobProcessing, normalizeProviderNoRoleFitSeed, prioritizeChannelSeedEnrichmentCandidates, providerJobIsStale, providerLeadIsVerified, scannerSeedNeedsPublicContactScan, summarizeChannelSeedLifecycle, superSearchAccessRecoveryVersion, superSearchAvailableCredits, superSearchBatchLimit, superSearchEligibleSeed, superSearchProviderReferences, superSearchSubmissionLimit } from "../../server/gtmChannelSeedEnrichment.ts";
 import type { GtmScannerRecoveryCohort } from "../../server/persistence.ts";
 import type { ChannelSeedRecord } from "../lib/gtmChannelSeeds.ts";
 
@@ -57,6 +57,14 @@ describe("Instantly channel-seed enrichment reconciliation", () => {
     const cohorts = [{ id: "c", batchId: "daily-grantdeskhq-test", sourceFileId: "file", contentHash: "hash", segment: "DIRECT", canonicalRecordIds: ["cohort"], selectedAt: "2026-09-30T00:00:00.000Z", selectionBasis: "test", creationSource: "scheduler_authenticated_recovery", stateVersion: 1 }] as unknown as GtmScannerRecoveryCohort[];
     expect(prioritizeChannelSeedEnrichmentCandidates(seeds, cohorts, "DIRECT").map((seed) => seed.id)).toEqual(["cohort", "older"]);
     expect(prioritizeChannelSeedEnrichmentCandidates(seeds, cohorts, "PARTNER").map((seed) => seed.id)).toEqual(["partner"]);
+  });
+
+  it("records a completed provider no-result distinctly and advances later eligible Direct organizations without another provider request", () => {
+    const noResult = normalizeProviderNoRoleFitSeed({ id: "no-result", segment: "DIRECT", organizationDomain: "no-result.example", lifecycle: "ENRICHMENT_FAILED", enrichmentProviderStatus: "COMPLETED", rejectionReason: "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT", enrichmentResult: "", organization: "No result" } as ChannelSeedRecord);
+    expect(noResult.lifecycle).toBe("CONTACT_UNRESOLVED");
+    expect(superSearchEligibleSeed(noResult)).toBe(false);
+    const next = { id: "next", segment: "DIRECT", organizationDomain: "next.example", lifecycle: "EVIDENCE_QUALIFIED" } as ChannelSeedRecord;
+    expect(prioritizeChannelSeedEnrichmentCandidates([noResult, next], [], "DIRECT").map((seed) => seed.id)).toEqual(["next"]);
   });
 
   it("reports redacted lifecycle and terminal reason counts by segment", () => {

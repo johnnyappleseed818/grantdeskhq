@@ -13,7 +13,7 @@ export interface ChannelSeedRecord {
   sourceUrl: string;
   observedAt: string;
   importedAt: string;
-  lifecycle: "DISCOVERED" | "EVIDENCE_QUALIFIED" | "DUPLICATE" | "REJECTED" | "ROLE_UNRESOLVED" | "ENRICHMENT_PENDING" | "ENRICHMENT_SUBMITTED" | "ENRICHMENT_BLOCKED" | "ENRICHMENT_FAILED" | "VERIFIED";
+  lifecycle: "DISCOVERED" | "EVIDENCE_QUALIFIED" | "DUPLICATE" | "REJECTED" | "ROLE_UNRESOLVED" | "ENRICHMENT_PENDING" | "ENRICHMENT_SUBMITTED" | "ENRICHMENT_BLOCKED" | "ENRICHMENT_FAILED" | "CONTACT_UNRESOLVED" | "VERIFIED";
   organizationDomain: string | null;
   evidenceSummary: string;
   qualificationReasons: string[];
@@ -401,9 +401,9 @@ function domainFromUrl(value: string) { try { return new URL(value).hostname.toL
  * role-fit, verified business contact. Their lifecycle is visible in the
  * canonical queue; it never implies an email has been sent. */
 export function channelSeedToCanonicalCandidate(seed: ChannelSeedRecord): CanonicalGtmCandidate {
-  const evidenceVerified = Boolean(seed.organizationDomain && ["EVIDENCE_QUALIFIED", "ENRICHMENT_PENDING", "ENRICHMENT_SUBMITTED", "ENRICHMENT_BLOCKED", "VERIFIED"].includes(seed.lifecycle));
+  const evidenceVerified = Boolean(seed.organizationDomain && ["EVIDENCE_QUALIFIED", "ENRICHMENT_PENDING", "ENRICHMENT_SUBMITTED", "ENRICHMENT_BLOCKED", "CONTACT_UNRESOLVED", "VERIFIED"].includes(seed.lifecycle));
   const providerVerified = seed.lifecycle === "VERIFIED";
-  const blockers = providerVerified ? [] : seed.lifecycle === "ENRICHMENT_SUBMITTED" ? ["INSTANTLY_ENRICHMENT_PENDING"] : seed.lifecycle === "ENRICHMENT_BLOCKED" ? ["INSTANTLY_ENRICHMENT_ACCESS_BLOCKED"] : seed.lifecycle === "ENRICHMENT_FAILED" ? ["ENRICHMENT_FAILED"] : ["SEED_REQUIRES_INDEPENDENT_PUBLIC_VERIFICATION", "NO_RESOLVED_DOMAIN", "NO_NAMED_CONTACT", "NO_VERIFIED_BUSINESS_EMAIL"];
+  const blockers = providerVerified ? [] : seed.lifecycle === "ENRICHMENT_SUBMITTED" ? ["INSTANTLY_ENRICHMENT_PENDING"] : seed.lifecycle === "ENRICHMENT_BLOCKED" ? ["INSTANTLY_ENRICHMENT_ACCESS_BLOCKED"] : seed.lifecycle === "CONTACT_UNRESOLVED" ? [seed.rejectionReason || "NO_ROLE_FIT_VERIFIED_PROVIDER_CONTACT", "NO_NAMED_CONTACT", "NO_VERIFIED_BUSINESS_EMAIL"] : seed.lifecycle === "ENRICHMENT_FAILED" ? ["ENRICHMENT_FAILED"] : ["SEED_REQUIRES_INDEPENDENT_PUBLIC_VERIFICATION", "NO_RESOLVED_DOMAIN", "NO_NAMED_CONTACT", "NO_VERIFIED_BUSINESS_EMAIL"];
   return {
     id: seed.id, segment: seed.segment, qualified: evidenceVerified,
     target: {

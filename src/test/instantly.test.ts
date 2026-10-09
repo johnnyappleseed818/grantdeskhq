@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, cleanCampaignStatusAllowsAutomaticDispatch, cleanCampaignStatusAllowsCapacityAlignment, cleanInitialOnlyCampaignChecks, cleanInitialOnlyCampaignReady, cleanMembershipEvidenceId, cleanMembershipRebindReason, controlledCampaignSafetySummary, InstantlyClient, instantSafeSummary, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyLeadTelemetry, instantlyPreviewRecord, instantlyReconciliationRecordChanged, needsCanonicalInitialSendRecovery, normalizeInstantlyWebhook, rebindMappedInstantlyRecord, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "../../server/instantly";
+import { activeInstantlyCampaignId, adoptMappedInstantlyLead, applyInstantlyEvent, campaignSenderAddresses, campaignUsesOnlySender, canReplaceInstantlyPreview, cleanCampaignStatusAllowsAutomaticDispatch, cleanCampaignStatusAllowsCapacityAlignment, cleanInitialOnlyCampaignChecks, cleanInitialOnlyCampaignReady, cleanMembershipEvidenceId, cleanMembershipRebindReason, controlledCampaignSafetySummary, InstantlyClient, instantSafeSummary, instantlyConfig, instantlyHealth, instantlyLeadCampaignId, instantlyLeadTelemetry, instantlyPreviewRecord, instantlyReconciliationRecordChanged, needsCanonicalInitialSendRecovery, normalizeInstantlyWebhook, rebindMappedInstantlyRecord, reconcileInstantlyEmailEvidence, reconcileInstantlyLead, stagingEligibility, summarizeInstantlyMembershipCapacity, uniqueInstantlyMembershipRecords, verifyInstantlyWebhookSignature, verifyInstantlyWebhookToken, withInstantlyCampaignMembership } from "../../server/instantly";
 import type { CanonicalGtmRecord } from "../lib/gtmCanonical";
 
 const record: CanonicalGtmRecord = {
@@ -148,6 +148,22 @@ describe("Instantly fail-closed integration", () => {
     expect(preview.instantlySyncStatus).toBe("PREVIEW_ONLY");
     expect(preview.firstSentAt).toBe("");
     expect(preview.failureReason).toBe("API_KEY_NOT_CONFIGURED");
+  });
+
+  it("counts one provider membership once when historical and read-only reconciliation evidence coexist", () => {
+    const sent = { ...instantlyPreviewRecord(record, "2026-10-08T15:00:00.000Z"), id: "evidence", instantlyCampaignId: "clean_partner", instantlyLeadId: "lead_1", segment: "PARTNER" as const, instantlySyncStatus: "SENT" as const, firstSentAt: "2026-10-08T15:00:00.000Z", sentAtSource: "INSTANTLY_EMAIL_EVIDENCE" };
+    const staleProjection = { ...sent, id: "historical", instantlySyncStatus: "IN_CAMPAIGN" as const, firstSentAt: "", sentAtSource: "", updatedAt: "2026-10-08T16:00:00.000Z" };
+    const usage = summarizeInstantlyMembershipCapacity({ records: [sent, staleProjection], sentToday: (item) => item.firstSentAt.startsWith("2026-10-08"), outstanding: (item) => item.instantlySyncStatus === "IN_CAMPAIGN" });
+    expect(uniqueInstantlyMembershipRecords([sent, staleProjection])).toHaveLength(1);
+    expect(usage).toMatchObject({ duplicatesIgnored: 1 });
+    expect(usage.confirmedToday).toHaveLength(1);
+    expect(usage.outstanding).toHaveLength(0);
+  });
+
+  it("keeps separate provider campaign memberships distinct for capacity accounting", () => {
+    const direct = { ...instantlyPreviewRecord(record), instantlyCampaignId: "clean_direct", instantlyLeadId: "lead_1", instantlySyncStatus: "SENT" as const, firstSentAt: "2026-10-08T15:00:00.000Z", sentAtSource: "INSTANTLY_EMAIL_EVIDENCE" };
+    const partner = { ...direct, id: "partner-membership", instantlyCampaignId: "clean_partner", segment: "PARTNER" as const };
+    expect(uniqueInstantlyMembershipRecords([direct, partner])).toHaveLength(2);
   });
 
   it("normalizes signed webhook event semantics and maps only one canonical state", () => {

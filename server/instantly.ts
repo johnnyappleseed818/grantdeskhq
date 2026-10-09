@@ -98,6 +98,70 @@ export function hasProviderConfirmedInitialSendEvidence(record: Pick<InstantlyIn
   return Boolean(record.firstSentAt && ["INSTANTLY_CAMPAIGN_LAST_STEP_TIMESTAMP", "INSTANTLY_EMAIL_EVIDENCE", "INSTANTLY_WEBHOOK_EVENT"].includes(record.sentAtSource));
 }
 
+/**
+ * Capacity is consumed by one provider membership, not by every local
+ * projection of that membership. Reconciliation deliberately preserves a
+ * historical record and a deterministic read-only evidence record, so callers
+ * must aggregate them before making a capacity or dispatch decision.
+ */
+export function instantlyMembershipIdentity(record: Pick<InstantlyIntegrationRecord, "id" | "instantlyCampaignId" | "instantlyLeadId" | "email">) {
+  const campaignId = String(record.instantlyCampaignId || "").trim();
+  const providerLeadId = String(record.instantlyLeadId || "").trim();
+  const email = normalizeOutboundEmail(record.email || "");
+  // A campaign ID is required for every provider-controlled membership. The
+  // record ID fallback preserves an unresolved local record as distinct rather
+  // than falsely merging two unknown provider operations.
+  return `${campaignId || "unmapped"}|${providerLeadId || email || `record:${record.id}`}`;
+}
+
+function membershipEvidenceRank(record: InstantlyIntegrationRecord) {
+  if (hasProviderConfirmedInitialSendEvidence(record)) return 4;
+  if (record.instantlySyncStatus === "QUARANTINED") return 3;
+  if (["BOUNCED", "UNSUBSCRIBED", "REPLIED", "POSITIVE", "NOT_INTERESTED", "SEQUENCE_COMPLETE", "ERROR"].includes(record.instantlySyncStatus)) return 2;
+  if (["STAGED", "APPROVED_FOR_CAMPAIGN", "IN_CAMPAIGN"].includes(record.instantlySyncStatus)) return 1;
+  return 0;
+}
+
+function membershipEvidenceTimestamp(record: InstantlyIntegrationRecord) {
+  return record.lastProviderUpdatedAt || record.lastInstantlySyncAt || record.updatedAt || record.createdAt || "";
+}
+
+/** Prefer authoritative send/quarantine evidence when duplicate local rows
+ * describe the same provider membership. The returned row is used only for
+ * accounting; no persisted history is removed or overwritten. */
+export function uniqueInstantlyMembershipRecords(records: readonly InstantlyIntegrationRecord[]) {
+  const selected = new Map<string, InstantlyIntegrationRecord>();
+  for (const record of records) {
+    const key = instantlyMembershipIdentity(record);
+    const current = selected.get(key);
+    if (!current
+      || membershipEvidenceRank(record) > membershipEvidenceRank(current)
+      || (membershipEvidenceRank(record) === membershipEvidenceRank(current)
+        && membershipEvidenceTimestamp(record) > membershipEvidenceTimestamp(current))) {
+      selected.set(key, record);
+    }
+  }
+  return [...selected.values()];
+}
+
+export function summarizeInstantlyMembershipCapacity(input: {
+  records: readonly InstantlyIntegrationRecord[];
+  sentToday: (record: InstantlyIntegrationRecord) => boolean;
+  outstanding: (record: InstantlyIntegrationRecord) => boolean;
+}) {
+  const memberships = uniqueInstantlyMembershipRecords(input.records);
+  const confirmedToday = memberships.filter((record) => hasProviderConfirmedInitialSendEvidence(record) && input.sentToday(record));
+  // A durable send result resolves any stale local active projection for the
+  // same membership, while unresolved quarantined evidence remains reserved.
+  const outstanding = memberships.filter((record) => !hasProviderConfirmedInitialSendEvidence(record) && input.outstanding(record));
+  return {
+    memberships,
+    confirmedToday,
+    outstanding,
+    duplicatesIgnored: Math.max(0, input.records.length - memberships.length)
+  };
+}
+
 export interface LegacyProviderExclusionCheck {
   satisfied: boolean;
   /** Only emails with every required source of evidence are returned. */
