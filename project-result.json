@@ -1,7 +1,66 @@
 {
   "project": "GrantDeskHQ scheduled acquisition recovery",
   "status": "PARTIAL",
-  "updatedAt": "2026-10-09T11:19:16.174Z",
+  "updatedAt": "2026-10-14T14:23:06Z",
+  "october14FreshBatchQueueRepair": {
+    "status": "DEPLOYED_AND_OBSERVED",
+    "commit": "a32e107228654334d527c34efdf91eeacff73627",
+    "candidateRevision": "grantdeskhq-prototype-00629-kej",
+    "candidateOrigin": "https://fresh-validation---grantdeskhq-prototype-me423s5k5a-uc.a.run.app",
+    "productionServingBeforePromotion": "grantdeskhq-prototype-00423-s29 at 100% traffic",
+    "productionServingAfterPromotion": "grantdeskhq-prototype-00629-kej at 100% traffic, confirmed 2026-10-14T14:12:05Z",
+    "reproducedFailure": "At 2026-10-09T11:47:09.956Z, the bounded validator selected ten lexicographically early historical Firestore records rather than the just-committed batch a0bb22fb-38ea-42ce-9fe3-046e486eabaf. Firestore page order is document-name order, so no deterministic fresh-work ordering existed.",
+    "repair": "Untouched records are now ordered by committed import time after any explicit recovery cohort and before deferred retries. Independently resolvable official-domain records still precede fallback-dependent records. The change cannot contact, verify, reserve, enroll, or send.",
+    "focusedChecks": {
+      "scannerSourceValidation": "PASS — 16 tests, including fresh-batch selection",
+      "typescript": "PASS — npx tsc --noEmit",
+      "lint": "PASS — npm run lint",
+      "fullReleaseGate": "PASS — 625 tests across 87 test files plus standalone, live API E2E, real-AI compiler/accuracy, and Playwright; generated 2026-10-14T14:09:45.293Z against candidate 00629-kej",
+      "postDeployCanary": "PASS — canary_20261014140947_322d1db0258c healthy at 2026-10-14T14:09:52.684Z"
+    },
+    "batchReceipt": {
+      "receiptId": "scanner_import_281fc4254807097fd09714c7c6e7c187",
+      "batchId": "a0bb22fb-38ea-42ce-9fe3-046e486eabaf",
+      "sourceFileId": "1uEbbQn_ZlwcrVH0F8QOkU8hpx7DjzRpG",
+      "contentHash": "866db4fa6d838a03354813916cd15d05f28e421c4dbab80778ddd4a7345cec7d",
+      "processedAt": "2026-10-09T11:46:03.638Z",
+      "organizationCounts": {
+        "seen": 30,
+        "accepted": 28,
+        "duplicate": 2,
+        "rejected": 0
+      },
+      "socialCounts": {
+        "seen": 4,
+        "stored": 4,
+        "rejected": 0,
+        "candidateCreated": 0
+      },
+      "mirror": "PENDING_NON_BLOCKING — runtime receipt mirror failed with storageQuotaExceeded; authenticated database reporting is authoritative."
+    },
+    "scrapeGraphGate": {
+      "observedAt": "2026-10-14T12:30:40.536Z",
+      "providerRead": "HTTP 200, remainingCredits=80, sanitizedRequestId=35839387-023d-4398-a4b0-eee15be46bbc",
+      "configuredCumulativeCredits": 400,
+      "configuredReserve": 100,
+      "extractionCost": 5,
+      "conclusion": "No configuration, authentication, or stale-accounting defect is evidenced. A further extraction needs at least 105 available provider credits after the reserve, and the durable cumulative authorization is already at 400. The primary official-source route continues; only fallback-dependent records are deferred."
+    },
+    "productionValidationAfterPromotion": {
+      "observedAt": "2026-10-14T14:12:22.368Z",
+      "revision": "grantdeskhq-prototype-00629-kej",
+      "scheduler": "grantdeskhq-scanner-drive-validate",
+      "result": "selected=10 Partner records; rejected=2 SOURCE_CLAIM_NOT_INDEPENDENTLY_VERIFIED; deferred=8 SCRAPEGRAPH_CREDIT_HEADROOM_REACHED; validated=0; no contact, verification, enrollment, or send provider call was made."
+    },
+    "uuidRecoveryCohortRepair": {
+      "status": "CANDIDATE_BUILDING",
+      "commit": "826c773",
+      "defect": "The committed import accepts UUID batch IDs but the existing scheduler-authenticated Direct recovery work-order rejected every ID not prefixed daily-grantdeskhq-, including batch a0bb22fb-38ea-42ce-9fe3-046e486eabaf.",
+      "repair": "Permit only safe 8-160 character alphanumeric, underscore, and hyphen identifiers; the immutable receipt/file/hash binding remains the authority. Focused UUID/daily/unsafe-path regression passed along with TypeScript and lint.",
+      "cloudBuildId": "14ed8e12-14df-461c-8c87-1515711814ea",
+      "nextAction": "After the zero-traffic candidate build and required gate pass, create the existing scheduler-authenticated immutable Direct recovery cohort for the committed batch, then trigger one normal scheduler validation run."
+    }
+  },
   "october9CapacityAndDirectRepair": {
     "status": "DEPLOYED_PENDING_SCHEDULED_DISPATCH",
     "commit": "1a795b55d583ca471dab8c577d80eb3ba9da0240",
