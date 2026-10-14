@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hunterFailureStopsValidation, hunterUsageAllowsDomainLookup, scannerEvidenceBackedIdentity, scannerValidationDue, sourceProvesOrganizationDomain } from "../../server/scannerSourceValidation.ts";
-import { extractedContactSourceForVerification, independentOfficialSourceCandidates, nextScrapeGraphReservedCredits, prioritizeScannerValidationCandidates, requiresIndependentPublicValidation, selectScannerDirectRecoveryCohort } from "../../server/scannerScrapeGraphValidation.ts";
+import { extractedContactSourceForVerification, independentOfficialSourceCandidates, isPermittedScannerBatchId, nextScrapeGraphReservedCredits, prioritizeScannerValidationCandidates, requiresIndependentPublicValidation, selectScannerDirectRecoveryCohort } from "../../server/scannerScrapeGraphValidation.ts";
 import { DALLAS_FOUNDATION_2026_SUMMER_AWARD_URL, attachScannerSupplementalIdentityEvidence, scannerSupplementalIdentitySourceKey } from "../../server/scannerDallasFoundationIdentityEvidence.ts";
 import type { ChannelSeedRecord } from "../lib/gtmChannelSeeds.ts";
 
@@ -32,6 +32,13 @@ describe("scanner source domain gate", () => {
 
 describe("scanner validation recovery", () => {
   const now = "2026-09-15T14:00:00.000Z";
+
+  it("accepts immutable UUID and descriptive daily batch identifiers without allowing unsafe paths", () => {
+    expect(isPermittedScannerBatchId("a0bb22fb-38ea-42ce-9fe3-046e486eabaf")).toBe(true);
+    expect(isPermittedScannerBatchId("daily-grantdeskhq-2026-10-14-abcdef12")).toBe(true);
+    expect(isPermittedScannerBatchId("../scanner-import")).toBe(false);
+    expect(isPermittedScannerBatchId("batch id with spaces")).toBe(false);
+  });
 
   it("retries a legacy deferred scanner record once, then records a durable disposition", () => {
     const legacy = { ...seed(""), lifecycle: "ROLE_UNRESOLVED" as const, rejectionReason: "SOURCE_CLAIM_NOT_INDEPENDENTLY_VERIFIED" };

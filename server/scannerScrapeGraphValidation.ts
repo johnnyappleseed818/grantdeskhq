@@ -113,7 +113,7 @@ const directRecoverySelectionBasis = "Deterministic pre-validation priority: Dir
  * evidence, contact, verification, enrollment, or delivery provider. */
 export async function createOrReadScannerDirectRecoveryCohort(batchId: string) {
   const normalizedBatchId = batchId.trim();
-  if (!/^daily-grantdeskhq-[a-z0-9-]{8,160}$/i.test(normalizedBatchId)) throw new Error("batchId is not a permitted immutable scanner batch identifier.");
+  if (!isPermittedScannerBatchId(normalizedBatchId)) throw new Error("batchId is not a permitted immutable scanner batch identifier.");
   const existing = await readGtmScannerRecoveryCohort(normalizedBatchId);
   if (existing) return { cohort: existing, created: false };
   const receipts = await listGtmScannerImportReceipts();
@@ -136,6 +136,14 @@ export async function createOrReadScannerDirectRecoveryCohort(batchId: string) {
     stateVersion: 1
   };
   return createGtmScannerRecoveryCohort(cohort);
+}
+
+/** Scanner exports have used both descriptive daily IDs and UUID batch IDs.
+ * The receipt/hash binding is the authority for immutability; this guard only
+ * keeps identifiers safe for persistence and must not strand a valid UUID
+ * import behind a legacy naming convention. */
+export function isPermittedScannerBatchId(batchId: string) {
+  return /^[a-z0-9][a-z0-9_-]{6,158}[a-z0-9]$/i.test(batchId);
 }
 
 /** A fixed cohort may prioritize one evidence pass after the immutable cohort
