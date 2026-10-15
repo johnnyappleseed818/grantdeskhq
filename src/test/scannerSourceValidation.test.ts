@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hunterFailureStopsValidation, hunterUsageAllowsDomainLookup, scannerEvidenceBackedIdentity, scannerValidationDue, sourceProvesOrganizationDomain } from "../../server/scannerSourceValidation.ts";
-import { extractedContactSourceForVerification, independentOfficialSourceCandidates, isPermittedScannerBatchId, nextScrapeGraphReservedCredits, prioritizeScannerValidationCandidates, requiresIndependentPublicValidation, selectScannerDirectRecoveryCohort } from "../../server/scannerScrapeGraphValidation.ts";
+import { extractedContactSourceForVerification, independentOfficialSourceCandidates, isPermittedScannerBatchId, nextScrapeGraphReservedCredits, prioritizeScannerValidationCandidates, requiresIndependentPublicValidation, scannerDiscoverySourceMatchesClaimedDomain, selectScannerDirectRecoveryCohort } from "../../server/scannerScrapeGraphValidation.ts";
 import { DALLAS_FOUNDATION_2026_SUMMER_AWARD_URL, attachScannerSupplementalIdentityEvidence, scannerSupplementalIdentitySourceKey } from "../../server/scannerDallasFoundationIdentityEvidence.ts";
 import type { ChannelSeedRecord } from "../lib/gtmChannelSeeds.ts";
 
@@ -84,6 +84,12 @@ describe("scanner validation recovery", () => {
     const record = { ...seed("", "DIRECT"), scannerClaimedDomain: "example.org", sourceUrl: "https://public-funder.example/award/example" };
     expect(requiresIndependentPublicValidation(record)).toBe(true);
     expect(independentOfficialSourceCandidates(record).map((url) => url.hostname)).toEqual(["example.org"]);
+  });
+
+  it("accepts an independently fetched first-party scanner source as official-domain evidence", () => {
+    const record = { ...seed("", "DIRECT"), scannerClaimedDomain: "example.org" };
+    expect(scannerDiscoverySourceMatchesClaimedDomain(record, new URL("https://example.org/careers/grants-manager"))).toBe(true);
+    expect(scannerDiscoverySourceMatchesClaimedDomain(record, new URL("https://jobs.example.net/example-nonprofit"))).toBe(false);
   });
 
   it("accepts extracted contact evidence only from the resolved official domain, never the discovery source", () => {

@@ -264,11 +264,27 @@ export function independentOfficialSourceCandidates(seed: ChannelSeedRecord) {
 }
 
 async function independentlyVerifiedOfficialSource(seed: ChannelSeedRecord, discoverySource: URL) {
+  // A scanner source on the explicitly claimed organization-controlled domain
+  // is already a first-party public source. sourceSupportsOrganizationSignal
+  // has fetched it independently and confirmed both the organization name and
+  // the segment signal before this function runs. Do not require a paid
+  // extractor merely because the canonical official URL shares that hostname.
+  // Third-party funder, directory, and job-board sources still fail this gate
+  // and require a separately verified official organization page.
+  if (scannerDiscoverySourceMatchesClaimedDomain(seed, discoverySource) && await officialSourceSupportsOrganization(discoverySource, seed)) return discoverySource;
   for (const candidate of independentOfficialSourceCandidates(seed)) {
     if (sameDomain(candidate, discoverySource.hostname.toLowerCase().replace(/^www\./, ""))) continue;
     if (await officialSourceSupportsOrganization(candidate, seed)) return candidate;
   }
   return null;
+}
+
+export function scannerDiscoverySourceMatchesClaimedDomain(
+  seed: Pick<ChannelSeedRecord, "organizationDomain" | "scannerClaimedDomain">,
+  discoverySource: URL
+) {
+  const claimed = normalizedDomain(seed.organizationDomain) || normalizedDomain(seed.scannerClaimedDomain);
+  return Boolean(claimed && sameDomain(discoverySource, claimed));
 }
 
 async function qualifyWithIndependentOfficialEvidence(seed: ChannelSeedRecord, official: URL, now: string) {
