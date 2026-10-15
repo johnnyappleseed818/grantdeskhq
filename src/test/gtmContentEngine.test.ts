@@ -32,6 +32,19 @@ describe("canonical content opportunity engine", () => {
     expect(posted.distributionTasks.every((task) => task.draftText.length > 0)).toBe(true);
   });
 
+  it("queues the Reddit contribution without enabling publishing", () => {
+    const state = buildInitialContentEngineState();
+    const task = state.distributionTasks.find((item) => item.id === "distribution-reddit-grant-coding-context");
+    expect(task).toMatchObject({
+      platform: "REDDIT",
+      status: "READY",
+      targetUrl: "https://www.reddit.com/r/nonprofit/comments/1wju6lb/im_stuck_trying_to_work_out_which_grant_paid_for/"
+    });
+    expect(task?.draftText).toMatch(/^Disclosure:/);
+    expect(task?.draftText).not.toMatch(/https?:\/\//);
+    expect(state.autoPublishEnabled).toBe(false);
+  });
+
   it("stages the worked-example LinkedIn drafts with distinct attribution without publishing them", () => {
     const tasks = buildInitialContentEngineState().distributionTasks.filter((task) => task.id.startsWith("distribution-linkedin-worked-report-"));
     expect(tasks).toHaveLength(3);
